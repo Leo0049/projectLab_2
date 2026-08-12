@@ -1,0 +1,384 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JOIN 揪飲</title>
+  <link href="css/output.css" rel="stylesheet" />
+  <link href="css/footer.css" rel="stylesheet" />
+  <link href="css/store-list.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Leaflet CSS for Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <!-- Leaflet JS for Map -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <style data-purpose="custom-typography">
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: #f3f4f6;
+    }
+  </style>
+  <style data-purpose="layout-helpers">
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+
+<body class="text-brand-dark">
+  <!-- BEGIN: MainHeader -->
+  <header class="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 py-3 lg:px-10">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <!-- Logo -->
+      <a href="./index.html" class="flex items-center gap-2 flex-shrink-0" data-purpose="logo-container">
+        <img src="images/logo.png" alt="JOIN Logo" class="h-10 w-auto object-contain" />
+      </a>
+
+      <!-- Search and Location -->
+      <div class="flex-grow max-w-2xl hidden md:flex items-center bg-gray-100 rounded-full px-4 py-2 gap-3"
+        data-purpose="search-bar">
+        <div id="locationTrigger"
+          class="flex items-center gap-1 border-r border-gray-300 pr-3 cursor-pointer hover:text-brand-orange transition-colors">
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+            <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+              stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+            <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+            </path>
+          </svg>
+          <span id="nav-location-text" class="text-sm text-gray-600">正在定位...</span>
+        </div>
+        <div class="flex items-center gap-2 flex-grow">
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round"
+              stroke-width="2"></path>
+          </svg>
+          <input id="header-search-input" class="bg-transparent border-none focus:ring-0 text-sm w-full p-0" placeholder="搜尋想喝的品牌、店家..."
+            type="text" autocomplete="off" />
+        </div>
+      </div>
+
+      <!-- User Actions -->
+      <div class="flex items-center gap-4 lg:gap-6" data-purpose="user-nav">
+        <div class="flex items-center gap-4 text-gray-600">
+          <a href="./profile.html?section=notifications"
+            class="hover:text-brand-orange transition-colors fa-regular fa-bell" style="font-size: 22px;"></a>
+          <a href="orders.html" class="hover:text-brand-orange transition-colors fa-solid fa-clock-rotate-left"
+            style="font-size: 20px;"></a>
+          <div class="relative group" id="cart-dropdown-wrapper">
+            <a href="cart_details.html"
+              class="hover:text-brand-orange transition-colors relative block py-2 fa-solid fa-cart-shopping"
+              style="font-size: 20px;">
+              <span id="cart-badge"
+                class="absolute -top-1 -right-1 bg-brand-orange text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+            </a>
+            <div id="cart-dropdown-menu"
+              class="hidden group-hover:block absolute right-0 mt-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 py-4 z-50">
+              <div class="px-4 mb-3 flex justify-between items-center">
+                <h3 class="font-bold text-gray-800">我的購物車</h3>
+                <span id="cart-count-text" class="text-xs text-gray-400">共 0 項品項</span>
+              </div>
+              <div id="cart-items-container" class="max-h-60 overflow-y-auto px-4 space-y-3 mb-4">
+                <p class="text-center text-gray-400 text-sm py-4">購物車是空的</p>
+              </div>
+              <div class="px-4 pt-3 border-t border-gray-50">
+                <div class="flex justify-between mb-4">
+                  <span class="text-gray-500">總計</span>
+                  <span id="cart-total-price" class="font-bold text-brand-orange text-lg">$0</span>
+                </div>
+                <a href="cart_details.html"
+                  class="block w-full bg-brand-orange text-white text-center py-2.5 rounded-xl font-bold hover:bg-orange-600 transition-colors">
+                  查看購物車
+                </a>
+              </div>
+            </div>
+          </div>
+          <a href="profile.html?section=favorites" class="hover:text-brand-orange transition-colors fa-solid fa-heart"
+            style="font-size: 20px;"></a>
+        </div>
+        <button
+          class="bg-brand-orange text-white px-6 py-2 rounded-full font-medium hover:bg-orange-600 transition-colors">登入</button>
+        <a href="profile.html" class="hover:text-brand-orange transition-colors">
+          <div class="relative" id="user-dropdown-wrapper">
+            <div id="user-avatar-container"
+              class="w-10 h-10 bg-gray-200 rounded-full overflow-hidden border border-gray-100 cursor-pointer transition-transform hover:scale-105">
+              <img id="nav-user-avatar" alt="Profile" class="w-full h-full object-cover"
+                src="images/default_avatar.png" />
+            </div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </header>
+  <!-- END: MainHeader -->
+
+<section class="advanced-filters">
+  <div class="container">
+    <div class="filter-card">
+
+      <div class="filter-header">
+        <i class="fa-solid fa-filter"></i>
+        <h2>進階篩選</h2>
+      </div>
+
+      <div class="filter-body">
+
+        <!-- 左右排列容器 -->
+        <div class="filter-row">
+
+          <!-- 品牌 -->
+          <div class="filter-group">
+            <label for="brand-search">品牌名稱</label>
+
+            <div class="brand-combobox" id="brand-combobox">
+              <input
+                id="brand-search"
+                type="text"
+                inputmode="search"
+                autocomplete="off"
+                placeholder="輸入品牌（可模糊查詢）或下拉選擇"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="brand-dropdown"
+              >
+
+              <button
+                class="brand-combobox__toggle"
+                type="button"
+                aria-label="展開品牌清單"
+              >
+                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+              </button>
+
+              <div class="brand-dropdown" id="brand-dropdown" hidden>
+                <ul class="brand-dropdown__list" id="brand-options" role="listbox"></ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- 評分 -->
+          <div class="filter-group">
+            <label>評分篩選</label>
+            <div class="rating-buttons">
+              <button type="button" class="rating-btn active">
+                <i class="fa-solid fa-star"></i>4.5+
+              </button>
+
+              <button type="button" class="rating-btn">
+                <i class="fa-solid fa-star"></i>4.0+
+              </button>
+
+              <button type="button" class="rating-btn">
+                <i class="fa-solid fa-star"></i>3.5+
+              </button>
+
+              <button type="button" class="rating-btn">
+                <i class="fa-solid fa-star"></i>3.0+
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- 附近店家卡片 -->
+<section class="store-section">
+
+<div class="container">
+
+<h2 class="section-title font-bold flex items-center gap-3">
+  <img src="./images/小狗團長_改飲料_去背檔.png" alt="JOIN 狗狗團長" class="w-12 h-12 object-contain">
+  探尋愛店
+</h2>
+
+<div class="store-grid" id="store-grid">
+
+</div>
+
+</div>
+
+</section>
+
+
+  <!-- BEGIN: Footer -->
+  <footer class="main-footer">
+    <div class="footer-content">
+      <div class="footer-left">
+        <img src="images/logo.png" alt="JOIN 探飲 LOGO" class="footer-logo">
+        <div class="footer-desc">
+          最懂你的飲品揪團平台。<br>
+          不管是辦公室下午茶，還是好友聚會，<br>
+          一鍵發起，輕鬆揪飲！
+        </div>
+      </div>
+      <div class="footer-right">
+        <div class="footer-contact-title">聯絡我們</div>
+        <div class="footer-contact-list">
+          <div class="footer-contact-item">
+            <i class="fa-regular fa-envelope"></i>
+            join_drink@gmail.com
+          </div>
+          <div class="footer-contact-item">
+            <i class="fa-solid fa-phone"></i>
+            04-1234-5678
+          </div>
+          <div class="footer-contact-item">
+            <i class="fa-solid fa-location-dot"></i>
+            408臺中市南屯區公益路二段51號18樓
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      © 2026 JOIN 揪飲 - 本平台供飲品揪團平台. All Rights Reserved.
+    </div>
+  </footer>
+  <!-- END: Footer -->
+
+  <!-- Location Selection Modal Overlay -->
+  <!-- Added id="locationModal" and class "hidden" so it's hidden by default -->
+  <div id="locationModal"
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+    <!-- Modal Container -->
+    <div
+      class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all transform">
+      <!-- Close Button -->
+      <button id="closeModalBtn"
+        class="absolute top-6 right-6 z-10 p-2 text-gray-400 hover:text-gray-600 transition-colors">
+        <i data-lucide="x" class="w-6 h-6"></i>
+      </button>
+
+      <!-- Modal Body -->
+      <div class="overflow-y-auto p-8 space-y-6 scrollbar-hide">
+        <!-- Header -->
+        <div class="text-center">
+          <h3 class="text-2xl font-bold text-brand-dark">選擇您的位置</h3>
+        </div>
+
+        <!-- Map Container (hidden, reserved for future use) -->
+        <div id="map-container"
+          class="relative w-full aspect-video rounded-3xl overflow-hidden border border-gray-100 shadow-inner z-0 hidden"
+          style="height: 240px;">
+          <div class="flex items-center justify-center h-full bg-gray-50">
+            <span class="text-sm text-gray-400">地圖載入中...</span>
+          </div>
+        </div>
+
+        <!-- GPS Action -->
+        <div class="space-y-3">
+          <button
+            class="w-full flex items-center justify-center gap-2 h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+            <i data-lucide="map-pin" class="w-5 h-5"></i>
+            <span>自動定位</span>
+          </button>
+          <p class="text-center text-sm text-brand-text-gray">
+            獲取精確位置以獲得更好的送餐體驗
+          </p>
+          <!-- 定位反映欄位 -->
+          <div id="modal-gps-status-row"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white transition-all duration-200">
+            <div id="modal-gps-indicator"
+              class="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0 flex items-center justify-center">
+            </div>
+            <span id="modal-gps-status-text" class="text-sm text-gray-400">尚未定位</span>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="flex items-center gap-4 py-2">
+          <div class="h-px flex-1 bg-gray-100"></div>
+          <span class="text-sm font-medium text-gray-400">或</span>
+          <div class="h-px flex-1 bg-gray-100"></div>
+        </div>
+
+        <!-- City / District / Address -->
+        <div class="space-y-4">
+          <!-- Hidden elements kept for nav-auth.js compatibility -->
+          <input id="modal-address-input" type="hidden" />
+          <button id="modal-search-btn" type="button" class="hidden" aria-hidden="true"></button>
+          <!-- 縣市 + 行政區 -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="relative z-20">
+              <label class="block text-sm font-bold text-gray-600 mb-2">縣市 <span class="text-red-500">*</span></label>
+              <div class="relative w-full">
+                <input type="text" id="modal-city" placeholder="請搜尋或選擇縣市" autocomplete="off"
+                  class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow cursor-text text-sm" />
+                <i data-lucide="chevron-down"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                <div id="modal-city-dropdown"
+                  class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                </div>
+              </div>
+            </div>
+            <div class="relative z-10">
+              <label class="block text-sm font-bold text-gray-600 mb-2">行政區 <span class="text-red-500">*</span></label>
+              <div class="relative w-full">
+                <input type="text" id="modal-district" placeholder="請先選擇縣市" disabled autocomplete="off"
+                  class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow disabled:opacity-50 disabled:cursor-not-allowed cursor-text text-sm" />
+                <i data-lucide="chevron-down"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                <div id="modal-district-dropdown"
+                  class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- 新增地址 -->
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label class="block text-sm font-bold text-gray-600">新增地址</label>
+              <span class="text-xs text-gray-400">範例格式：新安路一段5號</span>
+            </div>
+            <input id="modal-street"
+              class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow text-sm"
+              placeholder="請輸入完整地址（不含大樓名稱、樓層資訊）" type="text" />
+          </div>
+
+          <!-- 常用地址選擇面板 -->
+          <div id="common-address-panel" class="hidden space-y-2 pt-2">
+            <p class="text-sm font-bold text-gray-600">選擇常用地址</p>
+            <div id="common-address-list" class="space-y-2 max-h-44 overflow-y-auto scrollbar-hide">
+              <!-- 由 JS 動態注入 -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-8 bg-gray-50 border-t border-gray-100 space-y-4">
+        <div class="flex gap-4">
+          <button id="commonAddressBtn"
+            class="w-full flex items-center justify-center gap-2 h-14 bg-gray-100 text-brand-dark rounded-2xl font-medium hover:bg-gray-200 transition-colors">
+            <i data-lucide="history" class="w-5 h-5"></i>
+            <span>使用常用地址</span>
+          </button>
+          <button id="confirmLocationBtn"
+            class="w-full h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+            確認位置
+          </button>
+        </div>
+        <p class="text-[11px] text-center text-gray-400 leading-relaxed px-4">
+          您的位置僅用於計算運費與提供鄰近餐廳建議
+        </p>
+      </div>
+    </div>
+  </div>
+
+
+
+<script src="./js/nav-auth.js"></script>
+<script src="./js/official-map-logic.js"></script>
+<script src="./js/location-modal-logic.js"></script>
+<script src="./js/store-list.js"></script>
+
+</body>
+</html>
+

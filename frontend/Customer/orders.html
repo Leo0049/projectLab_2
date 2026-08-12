@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>JOIN 揪飲 - 我的訂單</title>
+    <link href="css/output.css" rel="stylesheet" />
+    <link href="css/footer.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Leaflet JS for Map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-white text-slate-800 min-h-screen">
+    <!-- Main Header -->
+    <!-- BEGIN: MainHeader -->
+    <header class="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 py-3 lg:px-10">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <!-- Logo -->
+        <a href="index.html" class="flex items-center gap-2 flex-shrink-0" data-purpose="logo-container">
+          <img src="images/logo.png" alt="JOIN Logo" class="h-10 w-auto object-contain" />
+        </a>
+  
+        <!-- Search and Location -->
+        <div class="flex-grow max-w-2xl hidden md:flex items-center bg-gray-100 rounded-full px-4 py-2 gap-3"
+          data-purpose="search-bar">
+          <!-- Added ID for triggering the modal -->
+          <div id="locationTrigger"
+            class="flex items-center gap-1 border-r border-gray-300 pr-3 cursor-pointer hover:text-brand-orange transition-colors">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+              <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+              <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+              </path>
+            </svg>
+            <span id="nav-location-text" class="text-sm text-gray-600">正在定位...</span>
+          </div>
+          <div class="flex items-center gap-2 flex-grow">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="2"></path>
+            </svg>
+            <input id="header-search-input" class="bg-transparent border-none focus:ring-0 text-sm w-full p-0" placeholder="搜尋想喝的飲品、店家..."
+              type="text" autocomplete="off" />
+          </div>
+        </div>
+  
+        <!-- User Actions -->
+        <div class="flex items-center gap-4 lg:gap-6" data-purpose="user-nav">
+          <div class="flex items-center gap-4 text-gray-600">
+            <a href="profile.html?section=notifications"
+              class="hover:text-brand-orange transition-colors fa-regular fa-bell" style="font-size: 22px;">
+            </a>
+            <a href="orders.html" class="hover:text-brand-orange transition-colors fa-solid fa-clock-rotate-left"
+              style="font-size: 20px;">
+            </a>
+            <div class="relative group" id="cart-dropdown-wrapper">
+              <a href="cart_details.html"
+                class="hover:text-brand-orange transition-colors relative block py-2 fa-solid fa-cart-shopping"
+                style="font-size: 20px;">
+                <span id="cart-badge"
+                  class="absolute -top-1 -right-1 bg-brand-orange text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+              </a>
+              <!-- Cart Dropdown Menu -->
+              <div id="cart-dropdown-menu"
+                class="hidden group-hover:block absolute right-0 mt-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 py-4 z-50">
+                <div class="px-4 mb-3 flex justify-between items-center">
+                  <h3 class="font-bold text-gray-800">我的購物車</h3>
+                  <span id="cart-count-text" class="text-xs text-gray-400">共 0 項品項</span>
+                </div>
+                <div id="cart-items-container" class="max-h-60 overflow-y-auto px-4 space-y-3 mb-4">
+                  <!-- Items will be injected here -->
+                  <p class="text-center text-gray-400 text-sm py-4">購物車是空的</p>
+                </div>
+                <div class="px-4 pt-3 border-t border-gray-50">
+                  <div class="flex justify-between mb-4">
+                    <span class="text-gray-500">總計</span>
+                    <span id="cart-total-price" class="font-bold text-brand-orange text-lg">$0</span>
+                  </div>
+                  <a href="cart_details.html"
+                    class="block w-full bg-brand-orange text-white text-center py-2.5 rounded-xl font-bold hover:bg-orange-600 transition-colors">
+                    查看購物車
+                  </a>
+                </div>
+              </div>
+            </div>
+            <a href="profile.html?section=favorites" class="hover:text-brand-orange transition-colors fa-solid fa-heart"
+              style="font-size: 20px;">
+            </a>
+          </div>
+          <button
+            class="bg-brand-orange text-white px-6 py-2 rounded-full font-medium hover:bg-orange-600 transition-colors">登入</button>
+  
+          <!-- User Profile link -->
+          <a href="profile.html" class="hover:text-brand-orange transition-colors">
+            <div class="relative" id="user-dropdown-wrapper">
+              <div id="user-avatar-container"
+                class="w-10 h-10 bg-gray-200 rounded-full overflow-hidden border border-gray-100 cursor-pointer transition-transform hover:scale-105">
+                <img id="nav-user-avatar" alt="Profile" class="w-full h-full object-cover"
+                  src="images/default_avatar.png" />
+              </div>
+            </div>
+          </a>
+  
+        </div>
+      </div>
+    </header>
+    <!-- END: MainHeader -->
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div>
+                <h2 class="text-3xl font-bold text-slate-900 tracking-tight">我的訂單</h2>
+                <p class="text-slate-500 mt-1">管理您的個人品項與揪團紀錄</p>
+            </div>
+
+            <!-- Mode Toggle Switch -->
+            <div
+                class="flex items-center bg-slate-100 p-1 rounded-2xl w-fit self-end md:self-auto border border-slate-200 shadow-sm">
+                <button id="mode-personal"
+                    class="px-6 py-2 rounded-xl text-sm font-bold transition-all shadow-sm bg-white text-brand-orange"
+                    data-mode="PERSONAL">
+                    個人訂單
+                </button>
+                <button id="mode-group"
+                    class="px-6 py-2 rounded-xl text-sm font-bold transition-all text-slate-500 hover:text-slate-700"
+                    data-mode="GROUP">
+                    揪團訂單
+                </button>
+            </div>
+        </div>
+
+        <!-- Status Filter Tabs -->
+        <div class="relative flex items-center border-b border-slate-200 mb-8 overflow-x-auto no-scrollbar"
+            id="order-tabs">
+            <!-- Sliding Underline -->
+            <div id="tab-indicator" class="absolute bottom-0 h-0.5 bg-brand-orange transition-all duration-300 ease-out z-10"></div>
+            
+            <button
+                class="px-8 py-4 text-brand-orange font-bold whitespace-nowrap transition-all"
+                data-status="all">
+                全部
+            </button>
+            <button
+                class="px-8 py-4 text-slate-500 font-medium hover:text-slate-700 whitespace-nowrap transition-all"
+                data-status="in_progress">
+                進行中
+            </button>
+            <button
+                class="px-8 py-4 text-slate-500 font-medium hover:text-slate-700 whitespace-nowrap transition-all"
+                data-status="Completed">
+                已完成
+            </button>
+            <button
+                class="px-8 py-4 text-slate-500 font-medium hover:text-slate-700 whitespace-nowrap transition-all"
+                data-status="Cancelled">
+                已取消
+            </button>
+        </div>
+
+        <!-- Orders Grid Container -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="orders-container">
+            <!-- Cards will be rendered here dynamically -->
+            <div class="col-span-full py-32 flex flex-col items-center justify-center text-slate-300">
+                <div class="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4">
+                </div>
+                <p class="text-slate-400 font-medium">正在取得訂單紀錄...</p>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/nav-auth.js"></script>
+    <script src="js/cart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const userId = localStorage.getItem('JOIN_USER_ID');
+            if (!userId) {
+                window.location.href = 'auth/login.html?redirect=orders.html';
+                return;
+            }
+
+            const ordersContainer = document.getElementById('orders-container');
+            const tabs = document.querySelectorAll('#order-tabs button');
+            const modeBtns = document.querySelectorAll('[data-mode]');
+            const tabIndicator = document.getElementById('tab-indicator');
+
+            const _params = new URLSearchParams(window.location.search);
+            let currentMode = _params.get('mode') || 'PERSONAL';
+            let currentStatus = _params.get('status') || 'all';
+            let allStoreOrders = []; 
+            let activeGroups = [];     
+            let currentPage = 0;
+            const pageSize = 12;
+            let isLastPage = false;
+            let isLoading = false;
+
+            const statusMap = {
+                'PENDING':    { label: '訂單已送出', class: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+                'SUBMITTED':  { label: '訂單已送出', class: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+                'PREPARING':  { label: '製作中',     class: 'bg-blue-100 text-blue-700 border-blue-200' },
+                'PAID':       { label: '訂單已送出', class: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+                'PROCESSING': { label: '製作中',     class: 'bg-blue-100 text-blue-700 border-blue-200' },
+                'SHIPPING':   { label: '配送中',     class: 'bg-orange-100 text-orange-600 border-orange-200' },
+                'READY':      { label: '待取餐',     class: 'bg-orange-100 text-orange-600 border-orange-200' },
+                'COMPLETED':  { label: '已完成',     class: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+                'CANCELLED':  { label: '已取消',     class: 'bg-slate-100 text-slate-500 border-slate-200' },
+                'REJECTED':   { label: '不成立',     class: 'bg-red-100 text-red-700 border-red-200' },
+                'SHOPPING': { label: '採購中', class: 'bg-pink-100 text-pink-700 border-pink-200' },
+                'OPEN': { label: '揪團中', class: 'bg-brand-orange text-white' },
+                'LOCKED': { label: '已收單', class: 'bg-slate-800 text-white' }
+            };
+
+            const updateTabIndicator = (activeTab) => {
+                if (!activeTab || !tabIndicator) return;
+                tabIndicator.style.width = `${activeTab.offsetWidth}px`;
+                tabIndicator.style.left = `${activeTab.offsetLeft}px`;
+            };
+
+            // ─── 瞬間水合輔助 (Stub Saving) ───────────────────────
+            window.goToOrderDetails = (orderId, storeName, total, status, type, deliveryType, itemsSummary) => {
+                try {
+                    const stub = { orderId, storeName, total, status, type, deliveryType, itemsSummary };
+                    sessionStorage.setItem('JOIN_ORDER_STUB', JSON.stringify(stub));
+                    console.log('Saved hydration stub:', stub);
+                } catch (e) {
+                    console.warn('Failed to save stub', e);
+                }
+                window.location.href = `order_details.html?id=${orderId}`;
+            };
+
+            const renderSkeleton = () => {
+                let html = '';
+                for (let i = 0; i < 6; i++) {
+                    html += `
+                        <div class="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-slate-100 animate-pulse">
+                            <div class="h-56 bg-slate-200"></div>
+                            <div class="p-6">
+                                <div class="h-4 bg-slate-200 rounded w-1/2 mb-4"></div>
+                                <div class="h-2 bg-slate-100 rounded w-full mb-2"></div>
+                                <div class="h-2 bg-slate-100 rounded w-3/4"></div>
+                            </div>
+                        </div>
+                    `;
+                }
+                return html;
+            };
+
+            window.reorderFromOrderHistory = async function(btn) {
+                const orderId = btn.dataset.reorderId;
+                const storeId = Number(btn.dataset.storeId);
+                const orderData = allStoreOrders.find(o => String(o.orderId) === String(orderId));
+                const storeName = orderData?.storeName || '';
+
+                btn.disabled = true;
+                btn.textContent = '加入中...';
+                try {
+                    const items = await NavAuth.fetchAPI(`/api/orders/${orderId}/items?userId=${userId}`);
+                    if (!Array.isArray(items) || items.length === 0) {
+                        alert('找不到此訂單的品項');
+                        btn.disabled = false;
+                        btn.textContent = '再次訂購';
+                        return;
+                    }
+                    for (const item of items) {
+                        const toppingNames = (item.toppings || [])
+                            .map(t => t?.id?.toppingNameSnapshot || '')
+                            .filter(Boolean);
+                        Cart.addItem({
+                            storeId,
+                            storeName,
+                            productId: item.productId,
+                            productName: item.productNameSnapshot,
+                            price: item.unitPriceSnapshot || item.finalPrice || 0,
+                            quantity: item.quantity || 1,
+                            sizeSnapshot: item.sizeSnapshot || '',
+                            sugarSnapshot: item.sugarSnapshot || '',
+                            iceSnapshot: item.iceSnapshot || '',
+                            toppingNames,
+                            note: item.note || '',
+                        });
+                    }
+                    window.location.href = 'cart_details.html';
+                } catch (err) {
+                    console.error('再次訂購失敗:', err);
+                    alert('加入購物車失敗，請稍後再試');
+                    btn.disabled = false;
+                    btn.textContent = '再次訂購';
+                }
+            };
+
+            const createCardElement = (order) => {
+                const upperStatus = (order.status || '').toUpperCase();
+                const statusInfo = { ...(statusMap[upperStatus] || { label: order.status, class: 'bg-slate-100 text-slate-500' }) };
+                if (upperStatus === 'OPEN') {
+                    if (order.isGroup || order.group) {
+                        statusInfo.label = '揪團中';
+                        statusInfo.class = 'bg-orange-500 text-white border-orange-500';
+                    } else {
+                        statusInfo.label = '訂單已送出';
+                        statusInfo.class = 'bg-yellow-100 text-yellow-800 border-yellow-200';
+                    }
+                }
+                if (upperStatus === 'READY') {
+                    const isDelivery = !!(order.deliveryAddress || order.address);
+                    statusInfo.label = isDelivery ? '配送中' : '待取餐';
+                    statusInfo.class = 'bg-orange-100 text-orange-600 border-orange-200';
+                }
+                const isOngoing = ['SHOPPING', 'OPEN', 'LOCKED', 'PENDING', 'PAID', 'PROCESSING', 'SHIPPING'].includes(upperStatus);
+                
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-[2rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-100 flex flex-col group cursor-pointer relative";
+                
+                if (order.type === 'ACTIVE_GROUP') {
+                    card.setAttribute('onclick', `location.href='group_order.html?token=${order.groupToken}'`);
+                } else {
+                    const total = order.finalAmount || 0;
+                    const st    = order.status || 'OPEN';
+                    const sName = (order.storeName || '').replace(/'/g, "\\'");
+                    const iSum  = (order.itemsSummary || '載入中...').replace(/'/g, "\\'");
+                    card.setAttribute('onclick', `goToOrderDetails('${order.orderId}', '${sName}', ${total}, '${st}', '${order.type||''}', '${order.deliveryType||''}', '${iSum}')`);
+                }
+
+                const storeImg = order.storeImageUrl || `/api/stores/${order.storeId}/image`;
+                const fallbackImg = 'https://images.unsplash.com/photo-1544145945-f904253d0c7e?w=800&h=600&fit=crop';
+
+                card.innerHTML = `
+                    <div class="relative h-56 bg-slate-100 overflow-hidden">
+                        <img alt="${order.storeName}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                            src="${storeImg}" onerror="this.src='${fallbackImg}'" loading="lazy" />
+                        <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent"></div>
+                        <div class="absolute top-4 left-4 flex gap-2">
+                            ${order.isGroup || order.group ? `
+                                <span class="px-3 py-1 bg-brand-orange text-white text-[10px] font-bold rounded-full shadow-lg flex items-center gap-1 backdrop-blur-sm">揪團</span>
+                            ` : `
+                                <span class="px-3 py-1 bg-white/90 text-slate-900 text-[10px] font-bold rounded-full shadow-lg flex items-center gap-1 backdrop-blur-sm">個人</span>
+                            `}
+                        </div>
+                        <span class="absolute top-4 right-4 px-3 py-1 ${statusInfo.class} text-[10px] font-bold rounded-full shadow-lg">
+                            ${statusInfo.label}
+                        </span>
+                        <div class="absolute bottom-4 left-4 right-4 text-white">
+                            <h3 class="font-bold text-xl mb-1 truncate">${order.storeName}</h3>
+                            <p class="text-white/80 text-[10px] flex items-center gap-1">
+                                <i data-lucide="calendar" class="w-3 h-3"></i> ${order.orderTime || '進行中'}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="p-6 flex-grow flex flex-col">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex-grow pr-4">
+                                <p class="text-[11px] text-slate-400 font-bold uppercase mb-1">訂單摘要</p>
+                                <p class="text-sm text-slate-600 line-clamp-1">${order.itemsSummary || '查無品項'}</p>
+                            </div>
+                            <div class="text-right whitespace-nowrap">
+                                <p class="text-[11px] text-slate-400 font-bold uppercase mb-1">金額</p>
+                                <span class="text-xl font-black text-brand-orange">$${Math.round(order.finalAmount || 0)}</span>
+                            </div>
+                        </div>
+                        <div class="mt-auto pt-4 border-t border-slate-50 flex gap-2">
+                            <button class="flex-1 py-2.5 bg-slate-50 text-slate-600 font-bold rounded-xl text-sm hover:bg-slate-100 hover:text-brand-orange shadow-sm transition-all">檢視詳情</button>
+                            ${upperStatus === 'COMPLETED' ? `
+                                <button data-reorder-id="${order.orderId}" data-store-id="${order.storeId}"
+                                    onclick="event.stopPropagation(); reorderFromOrderHistory(this)"
+                                    class="flex-1 py-2.5 bg-brand-orange/10 text-brand-orange font-bold rounded-xl text-sm hover:bg-brand-orange/20 transition-all">再次訂購</button>
+                                ${order.ratingSubmitted ? `
+                                <button disabled
+                                    class="flex-1 py-2.5 bg-slate-100 text-slate-400 font-bold rounded-xl text-sm cursor-not-allowed flex items-center justify-center gap-1">
+                                    <i data-lucide="star" class="w-3.5 h-3.5 fill-slate-300 text-slate-300"></i> 已評星
+                                </button>
+                                ` : `
+                                <button onclick="event.stopPropagation(); location.href='order_details.html?id=${order.orderId}&rate=1'"
+                                    class="flex-1 py-2.5 bg-yellow-50 text-yellow-500 font-bold rounded-xl text-sm hover:bg-yellow-100 transition-all flex items-center justify-center gap-1">
+                                    ★ 評星
+                                </button>
+                                `}
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+                return card;
+            };
+
+            const renderOrders = (append = false) => {
+                let itemsToRender = [];
+                if (currentMode === 'PERSONAL') {
+                    itemsToRender = filterByStatus(allStoreOrders.filter(o => !o.group));
+                } else {
+                    if (currentStatus === 'all' || currentStatus === 'in_progress') {
+                        activeGroups.forEach(group => {
+                            itemsToRender.push({
+                                type: 'ACTIVE_GROUP',
+                                storeId: group.storeId,
+                                storeName: group.storeName || '載入中...',
+                                status: group.status,
+                                finalAmount: group.items.reduce((sum, i) => sum + (i.finalPrice || 0), 0),
+                                orderTime: '進行中',
+                                itemsSummary: group.items.map(i => i.productNameSnapshot || '飲品').slice(0, 3).join('，'),
+                                isGroup: true,
+                                groupToken: group.shareToken
+                            });
+                        });
+                    }
+                    itemsToRender = itemsToRender.concat(filterByStatus(allStoreOrders.filter(o => o.group)));
+                }
+
+                if (!append) ordersContainer.innerHTML = '';
+                
+                if (itemsToRender.length === 0 && !append) {
+                    ordersContainer.innerHTML = `
+                        <div class="col-span-full py-24 flex flex-col items-center justify-center text-slate-400 animate-in fade-in zoom-in duration-500">
+                             <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-6">
+                                <i data-lucide="package-search" class="w-8 h-8 opacity-20"></i>
+                             </div>
+                            <h3 class="text-xl font-bold text-slate-600 mb-2">尚無相符的訂單</h3>
+                            <p class="text-slate-400">目前沒有相關狀態的訂單喔！</p>
+                        </div>
+                    `;
+                } else {
+                    const fragment = document.createDocumentFragment();
+                    itemsToRender.forEach(order => {
+                         fragment.appendChild(createCardElement(order));
+                    });
+                    ordersContainer.appendChild(fragment);
+                }
+
+                updateLoadMoreBtn();
+                if (window.lucide) lucide.createIcons();
+            };
+
+            const updateLoadMoreBtn = () => {
+                let btn = document.getElementById('load-more-btn');
+                if (isLastPage) {
+                    if (btn) btn.remove();
+                    return;
+                }
+                if (!btn) {
+                    btn = document.createElement('button');
+                    btn.id = 'load-more-btn';
+                    btn.className = 'col-span-full mt-12 py-4 bg-white border border-slate-100 rounded-3xl font-bold text-slate-600 hover:text-brand-orange hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95 shadow-sm';
+                    btn.innerText = '顯示更多紀錄';
+                    btn.onclick = () => {
+                        currentPage++;
+                        fetchData(true);
+                    };
+                    ordersContainer.after(btn);
+                }
+                btn.innerText = isLoading ? '正在讀取...' : '顯示更多紀錄';
+                btn.disabled = isLoading;
+            };
+
+            const filterByStatus = (orders) => {
+                if (currentStatus === 'all') return orders;
+                if (currentStatus === 'in_progress') {
+                    const progressStatuses = ['PENDING', 'PAID', 'PROCESSING', 'SHIPPING', 'OPEN', 'LOCKED', 'SHOPPING'];
+                    return orders.filter(o => progressStatuses.includes(o.status.toUpperCase()));
+                }
+                if (currentStatus === 'Cancelled') {
+                    return orders.filter(o => ['CANCELLED', 'REJECTED'].includes(o.status.toUpperCase()));
+                }
+                return orders.filter(o => o.status.toUpperCase() === currentStatus.toUpperCase());
+            };
+
+            const fetchData = async (append = false) => {
+                if (isLoading) return;
+                isLoading = true;
+                if (!append) {
+                    ordersContainer.innerHTML = renderSkeleton();
+                    currentPage = 0;
+                    isLastPage = false;
+                }
+                updateLoadMoreBtn();
+
+                try {
+                    const isCancelled = currentStatus === 'Cancelled';
+                    const apiUrl = isCancelled
+                        ? `/api/orders/user/${userId}/cards?page=${currentPage}&size=6&statuses=CANCELLED,REJECTED`
+                        : `/api/orders/user/${userId}/cards?page=${currentPage}&size=${pageSize}`;
+                    const [ordersRes, groupsRes] = await Promise.all([
+                        NavAuth.fetchAPI(apiUrl),
+                        append ? Promise.resolve({content: []}) : NavAuth.fetchAPI(`/api/group-orders/active?userId=${userId}`).catch(() => [])
+                    ]);
+
+                    const newOrders = ordersRes.content || [];
+                    isLastPage = ordersRes.isLast || ordersRes.last || newOrders.length < pageSize;
+                    
+                    if (append) {
+                        allStoreOrders = allStoreOrders.concat(newOrders);
+                    } else {
+                        allStoreOrders = newOrders;
+                        activeGroups = Array.isArray(groupsRes) ? groupsRes : (groupsRes.content || []);
+                    }
+
+                    renderOrders(append);
+                } catch (err) {
+                    console.error('Fetch error:', err);
+                    if (!append) ordersContainer.innerHTML = `<div class="col-span-full py-20 text-center text-red-500 font-bold">訂單資料載入失敗</div>`;
+                } finally {
+                    isLoading = false;
+                    updateLoadMoreBtn();
+                }
+            };
+
+            tabs.forEach(tab => {
+                tab.onclick = () => {
+                    tabs.forEach(t => {
+                        t.classList.remove('text-brand-orange', 'font-bold');
+                        t.classList.add('text-slate-500', 'font-medium');
+                    });
+                    tab.classList.add('text-brand-orange', 'font-bold');
+                    tab.classList.remove('text-slate-500', 'font-medium');
+                    
+                    currentStatus = tab.dataset.status;
+                    updateTabIndicator(tab);
+                    fetchData();
+                };
+            });
+
+            modeBtns.forEach(btn => {
+                btn.onclick = () => {
+                    modeBtns.forEach(b => b.classList.remove('bg-white', 'text-brand-orange', 'shadow-sm'));
+                    btn.classList.add('bg-white', 'text-brand-orange', 'shadow-sm');
+                    currentMode = btn.dataset.mode;
+                    renderOrders();
+                };
+            });
+
+            window.addEventListener('resize', () => {
+                const activeTab = Array.from(tabs).find(t => t.classList.contains('text-brand-orange'));
+                updateTabIndicator(activeTab);
+            });
+
+            // 套用 URL 參數的初始 mode 樣式
+            modeBtns.forEach(b => {
+                b.classList.remove('bg-white', 'text-brand-orange', 'shadow-sm');
+                if (b.dataset.mode === currentMode) b.classList.add('bg-white', 'text-brand-orange', 'shadow-sm');
+            });
+            // 套用 URL 參數的初始 tab 樣式
+            tabs.forEach(t => {
+                t.classList.remove('text-brand-orange', 'font-bold');
+                t.classList.add('text-slate-500', 'font-medium');
+                if (t.dataset.status === currentStatus) { t.classList.add('text-brand-orange', 'font-bold'); t.classList.remove('text-slate-500', 'font-medium'); }
+            });
+
+            await fetchData();
+            setTimeout(() => {
+                const initialTab = Array.from(tabs).find(t => t.dataset.status === currentStatus);
+                updateTabIndicator(initialTab);
+            }, 300);
+        });
+    </script>
+</body>
+
+</html>
+    <!-- BEGIN: Footer -->
+    <footer class="main-footer">
+
+      <div class="footer-content">
+
+
+        <div class="footer-left">
+          <img src="images/logo.png" alt="JOIN 探飲 LOGO" class="footer-logo">
+
+          <div class="footer-desc">
+            最懂你的飲品揪團平台。<br>
+            不管是辦公室下午茶，還是好友聚會，<br>
+            一鍵發起，輕鬆揪飲！
+          </div>
+        </div>
+
+        <div class="footer-right">
+
+          <div class="footer-contact-title">
+            聯絡我們
+          </div>
+
+          <div class="footer-contact-list">
+
+            <div class="footer-contact-item">
+              <i class="fa-regular fa-envelope"></i>
+              join_drink@gmail.com
+            </div>
+
+            <div class="footer-contact-item">
+              <i class="fa-solid fa-phone"></i>
+              04-1234-5678
+            </div>
+
+            <div class="footer-contact-item">
+              <i class="fa-solid fa-location-dot"></i>
+              408臺中市南屯區公益路二段51號18樓
+            </div>
+
+          </div>
+
+        </div>
+
+
+      </div>
+
+      <div class="footer-bottom">
+        © 2026 JOIN 揪飲 - 本平台供飲品揪團平台. All Rights Reserved.
+      </div>
+
+    </footer>
+    <!-- END: Footer -->
+
+    <!-- Location Selection Modal Overlay -->
+    <!-- Added id="locationModal" and class "hidden" so it's hidden by default -->
+    <div id="locationModal"
+      class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+      <!-- Modal Container -->
+      <!-- Removed inline onclick preventing propagation, handled in script now -->
+      <div
+        class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all transform">
+        <!-- Close Button -->
+        <!-- Removed inline style change and added id="closeModalBtn" -->
+        <button id="closeModalBtn"
+          class="absolute top-6 right-6 z-10 p-2 text-gray-400 hover:text-gray-600 transition-colors">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+
+        <!-- Modal Body -->
+        <div class="overflow-y-auto p-8 space-y-6 scrollbar-hide">
+          <!-- Header -->
+          <div class="text-center">
+            <h3 class="text-2xl font-bold text-brand-dark">選擇您的位置</h3>
+          </div>
+
+          <!-- Map Container (hidden, reserved for future use) -->
+          <div id="map-container"
+            class="relative w-full aspect-video rounded-3xl overflow-hidden border border-gray-100 shadow-inner z-0 hidden"
+            style="height: 240px;">
+            <div class="flex items-center justify-center h-full bg-gray-50">
+              <span class="text-sm text-gray-400">地圖載入中...</span>
+            </div>
+          </div>
+
+          <!-- GPS Action -->
+          <div class="space-y-3">
+            <button
+              class="w-full flex items-center justify-center gap-2 h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+              <i data-lucide="map-pin" class="w-5 h-5"></i>
+              <span>自動定位</span>
+            </button>
+            <p class="text-center text-sm text-brand-text-gray">
+              獲取精確位置以獲得更好的送餐體驗
+            </p>
+            <!-- 定位反映欄位 -->
+            <div id="modal-gps-status-row"
+              class="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white transition-all duration-200">
+              <div id="modal-gps-indicator"
+                class="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0 flex items-center justify-center">
+              </div>
+              <span id="modal-gps-status-text" class="text-sm text-gray-400">尚未定位</span>
+            </div>
+          </div>
+
+          <!-- Divider -->
+          <div class="flex items-center gap-4 py-2">
+            <div class="h-px flex-1 bg-gray-100"></div>
+            <span class="text-sm font-medium text-gray-400">或</span>
+            <div class="h-px flex-1 bg-gray-100"></div>
+          </div>
+
+          <!-- City / District / Address -->
+          <div class="space-y-4">
+            <!-- Hidden elements kept for nav-auth.js compatibility -->
+            <input id="modal-address-input" type="hidden" />
+            <button id="modal-search-btn" type="button" class="hidden" aria-hidden="true"></button>
+            <!-- 縣市 + 行政區 -->
+            <div class="grid grid-cols-2 gap-3">
+              <div class="relative z-20">
+                <label class="block text-sm font-bold text-gray-600 mb-2">縣市 <span class="text-red-500">*</span></label>
+                <div class="relative w-full">
+                  <input type="text" id="modal-city" placeholder="請搜尋或選擇縣市" autocomplete="off"
+                    class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow cursor-text text-sm" />
+                  <i data-lucide="chevron-down"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                  <div id="modal-city-dropdown"
+                    class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                  </div>
+                </div>
+              </div>
+              <div class="relative z-10">
+                <label class="block text-sm font-bold text-gray-600 mb-2">行政區 <span class="text-red-500">*</span></label>
+                <div class="relative w-full">
+                  <input type="text" id="modal-district" placeholder="請先選擇縣市" disabled autocomplete="off"
+                    class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow disabled:opacity-50 disabled:cursor-not-allowed cursor-text text-sm" />
+                  <i data-lucide="chevron-down"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                  <div id="modal-district-dropdown"
+                    class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- 新增地址 -->
+            <div>
+              <div class="flex justify-between items-center mb-2">
+                <label class="block text-sm font-bold text-gray-600">新增地址</label>
+                <span class="text-xs text-gray-400">範例格式：新安路一段5號</span>
+              </div>
+              <input id="modal-street"
+                class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow text-sm"
+                placeholder="請輸入完整地址（不含大樓名稱、樓層資訊）" type="text" />
+            </div>
+
+            <!-- 常用地址選擇面板 -->
+            <div id="common-address-panel" class="hidden space-y-2 pt-2">
+              <p class="text-sm font-bold text-gray-600">選擇常用地址</p>
+              <div id="common-address-list" class="space-y-2 max-h-44 overflow-y-auto scrollbar-hide">
+                <!-- 由 JS 動態注入 -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="p-8 bg-gray-50 border-t border-gray-100 space-y-4">
+          <div class="flex gap-4">
+            <button id="commonAddressBtn"
+              class="w-full flex items-center justify-center gap-2 h-14 bg-gray-100 text-brand-dark rounded-2xl font-medium hover:bg-gray-200 transition-colors">
+              <i data-lucide="history" class="w-5 h-5"></i>
+              <span>使用常用地址</span>
+            </button>
+            <button id="confirmLocationBtn"
+              class="w-full h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+              確認位置
+            </button>
+          </div>
+          <p class="text-[11px] text-center text-gray-400 leading-relaxed px-4">
+            您的位置僅用於計算運費與提供鄰近餐廳建議
+          </p>
+        </div>
+      </div>
+    </div>
+    <!-- Mapping Logic -->
+    <script src="js/official-map-logic.js"></script>
+    <script src="js/location-modal-logic.js"></script>
+<script>
+    // Check orders logic here (omitted for brevity)
+</script>
+    <!-- Scroll To Top Button -->
+    <button id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" class="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[80] w-11 h-11 bg-gray-400 hover:bg-gray-500 rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer opacity-0 pointer-events-none">
+      <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/></svg>
+    </button>
+    <script>(function(){var b=document.getElementById('scroll-top-btn');window.addEventListener('scroll',function(){if(window.scrollY>300){b.classList.remove('opacity-0','pointer-events-none');b.classList.add('opacity-100');}else{b.classList.add('opacity-0','pointer-events-none');b.classList.remove('opacity-100');}},{passive:true});})();</script>
+</body>
+
+</html>

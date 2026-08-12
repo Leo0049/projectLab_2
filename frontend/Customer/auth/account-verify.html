@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>會員整合認證 | JOIN揪飲</title>
+
+  <link rel="stylesheet" href="./css/login.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+
+<body>
+  <header class="header">
+    <div class="logo">
+      <img src="./images/logo.png" alt="JOIN 揪飲 LOGO" class="logo-img" />
+    </div>
+  </header>
+
+  <section class="login-section">
+    <div class="login-card">
+      <h2>會員整合認證</h2>
+      <p class="login-desc">此手機號碼已被註冊過，請輸入密碼，驗證通過後會立即進行帳號整合。</p>
+
+      <form class="login-form" id="verify-form">
+
+        <label>手機號碼</label>
+        <div class="input-box">
+          <i class="fa-solid fa-mobile-screen"></i>
+          <input type="text" id="verified-phone" readonly />
+        </div>
+
+        <label>密碼</label>
+        <div class="input-box">
+          <i class="fa-solid fa-lock"></i>
+          <input type="password" id="verified-password" placeholder="請輸入此手機號碼的登入密碼" />
+          <i class="fa-regular fa-eye" id="toggle-verified-password"></i>
+        </div>
+
+        <!-- ✅ inline 錯誤訊息（原本用 alert，改為頁面內顯示） -->
+        <p id="verify-error" style="display:none; color:#e53e3e; font-size:.875rem; margin-bottom:10px;"></p>
+
+        <button type="button" class="login-btn" id="verify-confirm">確認整合</button>
+      </form>
+
+      <p class="register-link">
+        <a href="forgot-password.html">忘記密碼？</a>
+      </p>
+
+      <!-- 整合完成彈窗 -->
+      <div class="modal-overlay" id="complete-modal" aria-hidden="true">
+        <div class="modal-card">
+          <h3>整合完成！</h3>
+          <p style="margin-bottom: 12px;">恭喜完成會員整合<br />可開始使用手機號碼或第三方登入囉！</p>
+          <p style="margin-bottom: 18px; font-size: 13px; color: #666;">可點選「個人檔案 &gt; 帳號管理」，查看帳號管理狀態。</p>
+          <img src="./images/小狗團長_改飲料_去背檔.png" alt="小狗團長"
+            style="width:160px; height:auto; margin-bottom: 18px;"
+            onerror="this.style.display='none'" />
+          <button class="login-btn" id="complete-confirm">前往首頁</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    © 2024 JOIN 揪飲. All rights reserved.
+  </footer>
+
+  <script>
+    window.JOIN_API_BASE = 'http://localhost:8082';
+  </script>
+
+  <script>
+    const API_BASE = (function resolveApiBase() {
+      if (window.JOIN_API_BASE && typeof window.JOIN_API_BASE === 'string')
+        return window.JOIN_API_BASE.replace(/\/$/, '');
+      const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      if (location.protocol === 'file:' || (isLocalhost && location.port !== '8082'))
+        return 'http://localhost:8082';
+      return location.origin;
+    })();
+
+    function postJson(path, payload) {
+      return fetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(async (res) => {
+        const raw = await res.text();
+        let data;
+        try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+        if (!res.ok) {
+          const msg = data?.msg || data?.message || raw || `HTTP ${res.status}`;
+          throw new Error(msg);
+        }
+        return data;
+      });
+    }
+
+    // ─── 顯示 / 清除錯誤 ─────────────────────────────────────
+    function showError(msg) {
+      const el = document.getElementById('verify-error');
+      if (!el) return;
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+    function clearError() {
+      const el = document.getElementById('verify-error');
+      if (el) el.style.display = 'none';
+    }
+
+    // ─── Modal ────────────────────────────────────────────────
+    function openModal() {
+      const m = document.getElementById('complete-modal');
+      if (m) { m.setAttribute('aria-hidden', 'false'); m.classList.add('open'); }
+    }
+    function closeModal() {
+      const m = document.getElementById('complete-modal');
+      if (m) { m.setAttribute('aria-hidden', 'true'); m.classList.remove('open'); }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const params   = new URLSearchParams(location.search);
+      const phone    = params.get('phone')    || '';
+      const provider = params.get('provider') || 'GOOGLE';
+
+      // 填入手機號碼（唯讀）
+      const phoneInput = document.getElementById('verified-phone');
+      if (phoneInput) phoneInput.value = phone;
+
+      // 眼睛切換密碼顯示
+      const toggle = document.getElementById('toggle-verified-password');
+      const pwInput = document.getElementById('verified-password');
+      if (toggle && pwInput) {
+        toggle.addEventListener('click', () => {
+          const isPassword = pwInput.type === 'password';
+          pwInput.type = isPassword ? 'text' : 'password';
+          toggle.classList.toggle('fa-eye-slash', isPassword);
+          toggle.classList.toggle('fa-eye', !isPassword);
+        });
+      }
+
+      // ─── 確認整合按鈕 ──────────────────────────────────────
+      const confirmBtn = document.getElementById('verify-confirm');
+      confirmBtn.addEventListener('click', async () => {
+        clearError();
+
+        const password = document.getElementById('verified-password').value;
+        if (!password) { showError('請輸入密碼'); return; }
+
+        const pending = JSON.parse(localStorage.getItem('JOIN_SOCIAL_PENDING') || '{}');
+        if (!pending?.idToken || !pending?.providerUid) {
+          showError('第三方登入資訊遺失，請重新點選 Google / Facebook');
+          return;
+        }
+
+        confirmBtn.disabled    = true;
+        confirmBtn.textContent = '驗證中…';
+
+        try {
+          // Step 1：用手機 + 密碼驗證此帳號確實屬於使用者
+          const loginResult = await postJson('/api/auth/login', { phone, password });
+
+          // ✅ 密碼錯誤：inline 顯示，不跳 alert
+          if (loginResult?.code === '401' || loginResult?.code !== '200') {
+            showError(loginResult?.msg || '密碼錯誤，請再試一次');
+            return;
+          }
+
+          // Step 2：密碼正確 → 執行第三方綁定，確保資料落庫
+          const bindResult = await postJson('/api/auth/merge/bind-social', {
+            idToken:     pending.idToken,
+            phone,
+            providerUid: pending.providerUid,
+            provider:    pending.provider || provider
+          });
+
+          if (bindResult?.code === '200') {
+            const token = bindResult?.data?.token;
+            if (token) localStorage.setItem('JOIN_TOKEN', token);
+            localStorage.setItem('JOIN_USER_NAME', bindResult?.data?.name || '');
+            localStorage.setItem('JOIN_USER_ID',   String(bindResult?.data?.userId || ''));
+            localStorage.removeItem('JOIN_SOCIAL_PENDING');
+            openModal();
+            return;
+          }
+
+          showError(bindResult?.msg || '帳號整合失敗，請稍後再試');
+        } catch (err) {
+          console.error(err);
+          // HTTP 401 會被 postJson 轉成 Error，這裡捕捉後顯示
+          showError(err?.message || '帳號整合失敗，請稍後再試');
+        } finally {
+          confirmBtn.disabled    = false;
+          confirmBtn.textContent = '確認整合';
+        }
+      });
+
+      // ─── 整合完成 → 前往客戶首頁 ──────────────────────────
+      document.getElementById('complete-confirm')?.addEventListener('click', () => {
+        closeModal();
+        localStorage.removeItem('userLat');
+        localStorage.removeItem('userLng');
+        localStorage.removeItem('userLocationName');
+        localStorage.removeItem('userAddress');
+        location.href = '../index.html';
+      });
+    });
+  </script>
+</body>
+
+</html>

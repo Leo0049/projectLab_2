@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-TW">
+
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <link href="css/output.css" rel="stylesheet" />
+  <link href="css/footer.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <title>購物車明細 - Cart Details</title>
+  <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
+  <!-- Leaflet CSS for Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <!-- Leaflet JS for Map -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+
+<body class="bg-white font-display text-slate-900 antialiased">
+  <div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+    <!-- BEGIN: MainHeader -->
+    <header class="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 py-3 lg:px-10">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <!-- Logo -->
+        <a href="index.html" class="flex items-center gap-2 flex-shrink-0" data-purpose="logo-container">
+          <img src="images/logo.png" alt="JOIN Logo" class="h-10 w-auto object-contain" />
+        </a>
+
+        <!-- Search and Location -->
+        <div class="flex-grow max-w-2xl hidden md:flex items-center bg-gray-100 rounded-full px-4 py-2 gap-3"
+          data-purpose="search-bar">
+          <!-- Added ID for triggering the modal -->
+          <div id="locationTrigger"
+            class="flex items-center gap-1 border-r border-gray-300 pr-3 cursor-pointer hover:text-brand-orange transition-colors">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+              <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+              <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="2">
+              </path>
+            </svg>
+            <span id="nav-location-text" class="text-sm text-gray-600">正在定位...</span>
+          </div>
+          <div class="flex items-center gap-2 flex-grow">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="2"></path>
+            </svg>
+            <input id="header-search-input" class="bg-transparent border-none focus:ring-0 text-sm w-full p-0"
+              placeholder="搜尋想喝的飲品、店家..." type="text" autocomplete="off" />
+          </div>
+        </div>
+
+        <!-- User Actions -->
+        <div class="flex items-center gap-4 lg:gap-6" data-purpose="user-nav">
+          <div class="flex items-center gap-4 text-gray-600">
+            <a href="./profile.html?section=notifications"
+              class="hover:text-brand-orange transition-colors fa-regular fa-bell" style="font-size: 22px;">
+            </a>
+            <a href="./orders.html" class="hover:text-brand-orange transition-colors fa-solid fa-clock-rotate-left"
+              style="font-size: 20px;">
+            </a>
+            <div class="relative group" id="cart-dropdown-wrapper">
+              <a href="./cart_details.html"
+                class="hover:text-brand-orange transition-colors relative block py-2 fa-solid fa-cart-shopping"
+                style="font-size: 20px;">
+                <span id="cart-badge"
+                  class="absolute -top-1 -right-1 bg-brand-orange text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+              </a>
+              <!-- Cart Dropdown Menu -->
+              <div id="cart-dropdown-menu"
+                class="hidden group-hover:block absolute right-0 mt-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 py-4 z-50">
+                <div class="px-4 mb-3 flex justify-between items-center">
+                  <h3 class="font-bold text-gray-800">我的購物車</h3>
+                  <span id="cart-count-text" class="text-xs text-gray-400">共 0 項品項</span>
+                </div>
+                <div id="cart-items-container" class="max-h-60 overflow-y-auto px-4 space-y-3 mb-4">
+                  <!-- Items will be injected here -->
+                  <p class="text-center text-gray-400 text-sm py-4">購物車是空的</p>
+                </div>
+                <div class="px-4 pt-3 border-t border-gray-50">
+                  <div class="flex justify-between mb-4">
+                    <span class="text-gray-500">總計</span>
+                    <span id="cart-total-price" class="font-bold text-brand-orange text-lg">$0</span>
+                  </div>
+                  <a href="./cart_details.html"
+                    class="block w-full bg-brand-orange text-white text-center py-2.5 rounded-xl font-bold hover:bg-orange-600 transition-colors">
+                    查看購物車
+                  </a>
+                </div>
+              </div>
+            </div>
+            <a href="./profile.html?section=favorites"
+              class="hover:text-brand-orange transition-colors fa-solid fa-heart" style="font-size: 20px;">
+            </a>
+          </div>
+          <button
+            class="bg-brand-orange text-white px-6 py-2 rounded-full font-medium hover:bg-orange-600 transition-colors">登入</button>
+
+          <!-- User Profile link -->
+          <a href="profile.html" class="hover:text-brand-orange transition-colors">
+            <div class="relative" id="user-dropdown-wrapper">
+              <div id="user-avatar-container"
+                class="w-10 h-10 bg-gray-200 rounded-full overflow-hidden border border-gray-100 cursor-pointer transition-transform hover:scale-105">
+                <img id="nav-user-avatar" alt="Profile" class="w-full h-full object-cover"
+                  src="images/default_avatar.png" />
+              </div>
+            </div>
+          </a>
+
+        </div>
+      </div>
+    </header>
+    <!-- END: MainHeader -->
+    <main class="max-w-7xl mx-auto w-full px-4 md:px-10 py-8">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Left Content: Cart Items & Recommendations -->
+        <div class="lg:col-span-8 flex flex-col gap-8">
+          <section>
+            <!-- Multi-Cart Overview Section -->
+            <div class="mb-10 space-y-8">
+              <!-- Active Group Orders Section -->
+              <div id="section-group-carts" class="hidden">
+                <h3 class="text-lg font-bold mb-4 flex items-center justify-between group/title">
+                  <div class="flex items-center gap-3">
+                    <div class="bg-orange-500/10 p-2 rounded-xl group-hover/title:bg-orange-500/20 transition-colors">
+                      <i data-lucide="users" class="w-5 h-5 text-orange-600"></i>
+                    </div>
+                    <span>進行中的揪團</span>
+                    <span id="group-carts-count"
+                      class="ml-2 px-2.5 py-0.5 bg-orange-100 text-orange-600 text-xs font-bold rounded-full">0</span>
+                  </div>
+                  <span
+                    class="text-xs font-medium text-slate-400 group-hover/title:text-slate-500 transition-colors">與好友共享美味</span>
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="group-carts-container">
+                  <!-- Group Cart cards will be rendered here -->
+                </div>
+                <div id="group-more-footer" class="mt-4 flex justify-center hidden">
+                  <button onclick="showMore('group')"
+                    class="flex items-center gap-2 px-6 py-2 bg-white border border-slate-200 text-slate-500 text-sm font-bold rounded-full hover:bg-slate-50 hover:text-primary transition-all shadow-sm group">
+                    <span>顯示更多揪團</span>
+                    <i data-lucide="chevron-down" class="w-4 h-4 group-hover:translate-y-0.5 transition-transform"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Personal Carts Section -->
+              <div id="section-personal-carts">
+                <h3 class="text-lg font-bold mb-4 flex items-center justify-between group/title">
+                  <div class="flex items-center gap-3">
+                    <div class="bg-blue-500/10 p-2 rounded-xl group-hover/title:bg-blue-500/20 transition-colors">
+                      <i data-lucide="shopping-bag" class="w-5 h-5 text-blue-600"></i>
+                    </div>
+                    <span>我的個人購物車</span>
+                    <span id="personal-carts-count"
+                      class="ml-2 px-2.5 py-0.5 bg-blue-100 text-blue-600 text-xs font-bold rounded-full">0</span>
+                  </div>
+                  <span
+                    class="text-xs font-medium text-slate-400 group-hover/title:text-slate-500 transition-colors">個人專屬美味</span>
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="personal-carts-container">
+                  <!-- Personal Cart cards will be rendered here -->
+                </div>
+                <div id="personal-more-footer" class="mt-4 flex justify-center hidden">
+                  <button onclick="showMore('personal')"
+                    class="flex items-center gap-2 px-6 py-2 bg-white border border-slate-200 text-slate-500 text-sm font-bold rounded-full hover:bg-slate-50 hover:text-primary transition-all shadow-sm group">
+                    <span>顯示更多個人購物車</span>
+                    <i data-lucide="chevron-down" class="w-4 h-4 group-hover:translate-y-0.5 transition-transform"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Overall Empty State -->
+              <div id="all-carts-empty-state"
+                class="hidden w-full py-12 text-center bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200">
+                <div
+                  class="bg-white size-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-slate-200/50">
+                  <i data-lucide="shopping-cart" class="w-10 h-10 text-slate-300"></i>
+                </div>
+                <h4 class="text-lg font-bold text-slate-900 mb-2">您的購物車是空的</h4>
+                <p class="text-slate-400 max-w-xs mx-auto text-sm leading-relaxed mb-6">快去看看想喝什麼，開啟一段美味的飲品之旅吧！</p>
+                <a href="index.html"
+                  class="inline-flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
+                  去逛逛店家
+                  <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </a>
+              </div>
+            </div>
+
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+              <i data-lucide="receipt" class="w-5 h-5"></i>
+              <span id="selected-store-name">點餐項目</span> (<span id="cart-items-count">0</span>)
+            </h3>
+            <div class="space-y-4" id="cart-list-container">
+              <!-- Items will be rendered here -->
+            </div>
+          </section>
+          <!-- Recommended Section -->
+          <section>
+
+          </section>
+        </div>
+        <!-- Right Content: Order Summary Sidebar -->
+        <aside class="lg:col-span-4">
+          <div
+            class="sticky top-24 bg-white p-6 rounded-2xl shadow-lg border border-slate-100">
+            <h3 class="text-xl font-bold mb-6">費用明細</h3>
+            <div class="space-y-4 mb-8">
+              <div
+                class="flex justify-between items-center text-slate-600 border-b border-dashed border-slate-200 pb-4">
+                <span>品項金額 </span>
+                <span class="font-medium" id="subtotal-amount">$0</span>
+              </div>
+              <div class="pt-2 flex justify-between items-center">
+                <span class="text-lg font-bold">總金額</span>
+                <span class="text-2xl font-bold text-primary" id="total-amount">$0</span>
+              </div>
+            </div>
+            <div class="flex flex-col gap-3">
+              <button id="checkout-btn"
+                class="w-full py-4 bg-primary text-white rounded-xl font-bold text-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-md shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed">
+                <i data-lucide="credit-card" class="w-5 h-5 text-white"></i>
+                前往結帳 Proceed to Checkout
+              </button>
+              <button id="group-order-btn"
+                class="w-full py-3 bg-primary/10 text-primary rounded-xl font-bold hover:bg-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                <i data-lucide="users" class="w-5 h-5"></i>
+                開始揪團 Start Group Order
+              </button>
+            </div>
+
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <!-- Selection Mode Bar -->
+  <div id="selection-bar"
+    class="fixed top-0 left-0 right-0 z-[200] bg-slate-900 text-white px-4 py-3 flex items-center gap-3 -translate-y-full transition-transform duration-300 shadow-xl">
+    <button onclick="exitSelectionMode()" class="p-2 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0">
+      <i data-lucide="x" class="w-5 h-5"></i>
+    </button>
+    <span class="font-bold text-sm flex-1">已選取 <span id="selected-count">0</span> 個購物車</span>
+    <button onclick="selectAllCarts()"
+      class="px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold transition-colors">全選</button>
+    <button onclick="batchDeleteSelected()"
+      class="px-4 py-1.5 bg-red-500 hover:bg-red-600 rounded-lg text-sm font-bold transition-colors">刪除</button>
+  </div>
+
+  <!-- Group Order Share Modal -->
+  <div id="group-order-modal"
+    class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+      <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+        <h3 class="text-xl font-bold flex items-center gap-2">
+          <i data-lucide="share-2" class="w-5 h-5 text-primary"></i>
+          分享揪團連結
+        </h3>
+        <button onclick="document.getElementById('group-order-modal').classList.add('hidden')"
+          class="text-slate-400 hover:text-slate-600 transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="p-8 flex flex-col items-center">
+        <div id="qrcode" class="mb-6 p-4 bg-white rounded-xl shadow-sm border border-slate-100"></div>
+        <p class="text-sm text-slate-500 mb-4 text-center">掃描二維碼或複製下方連結分享給好友</p>
+        <div
+          class="w-full flex gap-2 p-2 bg-slate-50 rounded-xl border border-slate-100 mb-6">
+          <input id="group-link-input" type="text" readonly
+            class="flex-1 bg-transparent border-none text-sm focus:ring-0 truncate" value="">
+          <button id="copy-link-btn"
+            class="px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-1">
+            <i data-lucide="copy" class="w-4 h-4 text-white"></i>
+            複製
+          </button>
+        </div>
+        <button id="go-to-group-btn"
+          class="w-full py-3 bg-primary/10 text-primary rounded-xl font-bold hover:bg-primary/20 transition-all flex items-center justify-center gap-2">
+          <i data-lucide="settings" class="w-5 h-5"></i>
+          前往團購管理 Group Management
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/nav-auth.js"></script>
+  <script src="js/cartHash.js"></script>
+  <script src="js/cart.js"></script>
+  <script>
+    // HTML 跳脫工具函數，防止 XSS
+    function escapeHtml(str) {
+      return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const listContainer = document.getElementById('cart-list-container');
+      const itemsCountEl = document.getElementById('cart-items-count');
+      const subtotalEl = document.getElementById('subtotal-amount');
+      const totalEl = document.getElementById('total-amount');
+      const checkoutBtn = document.getElementById('checkout-btn');
+      const groupBtn = document.getElementById('group-order-btn');
+
+      const urlParams = new URLSearchParams(window.location.search);
+      let selectedStoreId = urlParams.get('id') || urlParams.get('storeId');
+      let selectedToken = urlParams.get('token');
+
+      // 防禦性處理：過濾網址中的 null/undefined 字串 (Bug #4)
+      if (selectedToken === 'null' || selectedToken === 'undefined') selectedToken = null;
+      if (selectedStoreId === 'null' || selectedStoreId === 'undefined') selectedStoreId = null;
+
+      /* ========== 分頁載入狀態 ========== */
+      let groupVisibleLimit = 3;
+      let personalVisibleLimit = 3;
+
+      /* ========== 選取模式狀態 ========== */
+      let isSelectionMode = false;
+      let selectedIds = new Set(); // 格式: "group:token" 或 "local:storeId"
+      let longPressTimer = null;
+
+      /* ========== 長按核心邏輯 (Mouse & Touch) ========== */
+      const startLongPress = (id, e) => {
+        if (isSelectionMode) return;
+        longPressTimer = setTimeout(() => {
+          enterSelectionMode(id);
+          if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50);
+        }, 600);
+      };
+
+      const cancelLongPress = () => {
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+      };
+
+      const enterSelectionMode = (initialId) => {
+        isSelectionMode = true;
+        selectedIds.clear();
+        if (initialId) selectedIds.add(initialId);
+
+        document.getElementById('selection-bar').classList.remove('-translate-y-full');
+        document.body.classList.add('overflow-hidden'); // 避免滾動干擾
+        renderCartCards();
+        updateSelectionCount();
+      };
+
+      window.exitSelectionMode = () => {
+        isSelectionMode = false;
+        selectedIds.clear();
+        document.getElementById('selection-bar').classList.add('-translate-y-full');
+        document.body.classList.remove('overflow-hidden');
+        renderCartCards();
+      };
+
+      const updateSelectionCount = () => {
+        document.getElementById('selected-count').innerText = selectedIds.size;
+      };
+
+      window.toggleSelection = (id, e) => {
+        if (e) e.stopPropagation();
+        if (selectedIds.has(id)) selectedIds.delete(id);
+        else selectedIds.add(id);
+        renderCartCards();
+        updateSelectionCount();
+      };
+
+      window.selectAllCarts = () => {
+        const cards = document.querySelectorAll('[data-cart-id]');
+        cards.forEach(card => selectedIds.add(card.getAttribute('data-cart-id')));
+        renderCartCards();
+        updateSelectionCount();
+      };
+
+      window.batchDeleteSelected = async () => {
+        if (selectedIds.size === 0) return;
+        if (!await showConfirm(`確定要批量刪除這 ${selectedIds.size} 個購物車嗎？\n(注意：他人的揪團將會自動跳過)`)) return;
+
+        const userId = localStorage.getItem('JOIN_USER_ID');
+        const token = localStorage.getItem('JOIN_TOKEN');
+        const idsArray = Array.from(selectedIds);
+
+        showLoading(true);
+        let successCount = 0;
+
+        for (const fullId of idsArray) {
+          const [type, id] = fullId.split(':');
+          try {
+            if (type === 'group') {
+              // 揪團刪除 (需判斷是否為團長由後端 handle)
+              const res = await fetch(NavAuth.getApiUrl(`/api/group-orders/token/${id}?hostId=${userId}`), {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (res.ok) successCount++;
+            } else {
+              // 本地購物車
+              if (window.Cart) {
+                window.Cart.clearCart(id);
+                successCount++;
+              }
+            }
+          } catch (e) { console.error('Batch delete error for', fullId, e); }
+        }
+
+        showLoading(false);
+        showToast(`批次處理完成，成功移除 ${successCount} 個項目`, 'success');
+        exitSelectionMode();
+        renderCartCards();
+        renderCart();
+      };
+
+      /* ========== 刪除揪團/訂單 (與本地購物車) ========== */
+      window.handleDeleteGroup = async (token, e, orderId, storeId) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+
+        // 選取模式下的批次處理邏輯
+        if (isSelectionMode) {
+          const sid = (token && token !== 'null') ? 'group:' + token : 'local:' + (orderId || storeId);
+          toggleSelection(sid, e);
+          return;
+        }
+
+        const hasToken = token && token !== 'null' && token !== 'undefined' && token !== '';
+
+        const msg = hasToken ? '您確定要永久刪除此揪團嗎？\n這將移除所有團員的點餐項目且無法復原。' : '您確定要移除整筆購物車嗎？\n(包含所有已加入的品項)';
+        if (!await showConfirm(msg)) return;
+
+        const userId = localStorage.getItem('JOIN_USER_ID');
+
+        try {
+          if (hasToken) {
+            if (!userId) { showToast('請先登入以刪除揪團', 'warning'); return; }
+            // 揪團永久刪除 (Remote)
+            await NavAuth.fetchAPI(`/api/group-orders/token/${token}?hostId=${userId}`, {
+              method: 'DELETE'
+            });
+          } else if (orderId && orderId !== 'null' && orderId !== 'undefined') {
+            if (!userId) { showToast('請先登入以取消遠端訂單', 'warning'); return; }
+            // 遠端個人訂單取消 (Remote)
+            await NavAuth.fetchAPI(`/api/group-orders/${orderId}`, {
+              method: 'DELETE'
+            });
+          } else if (storeId) {
+            // 本地購物車移除 (Local)
+            if (window.Cart) {
+              window.Cart.clearCart(storeId);
+            }
+          } else {
+            showToast('無法定位該購物車，請重試', 'error');
+            return;
+          }
+
+          if (!hasToken) showToast('購物車已成功移除', 'success');
+          else showToast('揪團已成功刪除', 'success');
+
+          if (selectedToken === token || (!hasToken && selectedStoreId === String(storeId || orderId))) {
+            selectedToken = null;
+            selectedStoreId = null;
+            updateUrl({});
+          }
+
+          await renderCartCards();
+          await renderCart();
+        } catch (err) {
+          console.error('Delete order/cart error:', err);
+          showToast(err.message || '刪除失敗', 'error');
+        }
+      };
+
+      /* ========== 顯示更多核心邏輯 ========== */
+      window.showMore = (type) => {
+        // 設定每頁增加量 (以響應式佈局為準, 建議一次增加 3 個, 或根據寬度判斷)
+        const increment = window.innerWidth >= 1280 ? 3 : (window.innerWidth >= 768 ? 2 : 1);
+        if (type === 'group') groupVisibleLimit += increment;
+        else personalVisibleLimit += increment;
+        renderCartCards();
+      };
+
+      let activeOrdersCache = []; // 全域緩存遠端活躍訂單
+
+      /* ========== 側邊欄卡片渲染 ========== */
+      const renderCartCards = async () => {
+        const groupContainer = document.getElementById('group-carts-container');
+        const personalContainer = document.getElementById('personal-carts-container');
+        const groupMoreFooter = document.getElementById('group-more-footer');
+        const personalMoreFooter = document.getElementById('personal-more-footer');
+
+        const groupSection = document.getElementById('section-group-carts');
+        const personalSection = document.getElementById('section-personal-carts');
+        const emptyState = document.getElementById('all-carts-empty-state');
+
+        const groupCountEl = document.getElementById('group-carts-count');
+        const personalCountEl = document.getElementById('personal-carts-count');
+        const userId = localStorage.getItem('JOIN_USER_ID') || '0';
+
+        let groupCarts = [];
+        let personalCarts = [];
+        const personalMap = new Map(); // 用於按 storeId 合併個人購物車
+
+        // 1. 獲取資料
+        try {
+          if (userId && userId !== '0') {
+            const activeOrders = await NavAuth.fetchAPI('/api/group-orders/active');
+            activeOrdersCache = Array.isArray(activeOrders) ? activeOrders : [];
+
+            activeOrdersCache.forEach(go => {
+              if (!['OPEN', 'LOCKED'].includes(go.status)) return;
+              const isGroup = go.type === 'GROUP';
+              const isHost = String(go.initiatorId) === String(userId);
+
+              // 處理項目與總額 (身分感知)
+              let items = go.items || [];
+              if (isGroup && !isHost) {
+                // 團員：僅過濾出自己的項目
+                items = items.filter(it => String(it.userId) === String(userId));
+              }
+
+              const itemCount = items.reduce((sum, item) => sum + (item.qty || 1), 0);
+              // 團長與團員皆一律採用前端動態計算，確保與詳情視圖同步一致 (使用 finalPrice 含配料單價)
+              const total = items.reduce((sum, it) => sum + ((parseFloat(it.finalPrice) || parseFloat(it.unitPrice) || 0) * (it.qty || 1)), 0);
+
+              const cartObj = {
+                id: go.id, token: go.shareToken, storeId: String(go.storeId), storeName: go.storeName,
+                logoUrl: go.storeLogoUrl || 'images/logo.png',
+                itemCount: itemCount,
+                total: total,
+                isHost: isHost, isGroup: isGroup
+              };
+              if (isGroup) {
+                groupCarts.push(cartObj);
+              } else {
+                personalMap.set(cartObj.storeId, cartObj);
+              }
+            });
+          }
+          const localList = Cart.getActiveCartsList();
+          localList.forEach(lc => {
+            const sid = String(lc.storeId);
+            const localItemCount = lc.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+            const localTotal = lc.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
+
+            if (personalMap.has(sid)) {
+              const existing = personalMap.get(sid);
+              existing.itemCount += localItemCount;
+              existing.total += localTotal;
+            } else {
+              personalMap.set(sid, {
+                storeId: sid, storeName: lc.storeName, logoUrl: lc.storeLogoUrl || 'images/logo.png',
+                itemCount: localItemCount, total: localTotal,
+                isGroup: false, isHost: true
+              });
+            }
+          });
+          personalCarts = Array.from(personalMap.values());
+        } catch (e) {
+          console.error('Data load failed:', e);
+        }
+
+        // 自動選取第一個購物車 (移除後改為保持未選取狀態)
+
+        groupCountEl.innerText = groupCarts.length;
+        personalCountEl.innerText = personalCarts.length;
+
+        // 優化 1: 無論是否有揪團，均呈現進行中的揪團區域 (不使用 toggle hidden)
+        groupSection.classList.remove('hidden');
+        personalSection.classList.toggle('hidden', personalCarts.length === 0);
+        emptyState.classList.toggle('hidden', (groupCarts.length + personalCarts.length) > 0);
+
+        // 如果揪團區域為空，顯示提示訊息
+        if (groupCarts.length === 0) {
+          groupContainer.innerHTML = `
+            <div class="md:col-span-2 xl:col-span-3 py-8 text-center bg-white/50 rounded-2xl border border-dashed border-slate-200">
+                <p class="text-slate-400 text-sm">目前沒有進行中的揪團</p>
+            </div>
+          `;
+        }
+
+        // 卡片渲染函數 (還原為簡約舊版模板)
+        const renderSingleCard = async (cart) => {
+          const uniqueId = cart.isGroup ? `group:${cart.token}` : `local:${cart.storeId}`;
+          const isSelected = cart.isGroup ? (selectedToken === cart.token) : (!selectedToken && selectedStoreId === String(cart.storeId));
+          const logoUrl = cart.logoUrl || 'images/logo.png';
+
+          const clickHandler = cart.isGroup ? `onclick="switchCartByToken('${cart.token}')"` : `onclick="switchCartById('${cart.storeId}')"`;
+
+          // 選取/非選取 狀態樣式 (還原舊版配色)
+          const selectionStyle = isSelected
+            ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
+            : 'border-slate-100 bg-white hover:border-primary/50';
+
+          const isHostOrLocal = (cart.isGroup && cart.isHost) || (!cart.isGroup && cart.isHost);
+          const deleteBtnHtml = isHostOrLocal
+            ? `<button onclick="handleDeleteGroup('${cart.token}', event, '${cart.id}', '${cart.storeId}')" class="absolute top-3 left-3 p-1.5 bg-red-50 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all shadow-sm border border-red-100 group/del" title="移除購物車">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+               </button>`
+            : '';
+
+          return `
+            <div ${clickHandler} 
+                 data-cart-id="${uniqueId}"
+                 class="relative p-5 rounded-2xl border-2 transition-all cursor-pointer group overflow-hidden ${selectionStyle}">
+                ${isSelected ? '<div class="absolute top-0 right-0 w-12 h-12 bg-primary/10 rounded-bl-full flex items-center justify-end pr-3 pb-3"><i data-lucide="check" class="w-4 h-4 text-primary"></i></div>' : ''}
+                ${deleteBtnHtml}
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                        <img src="${logoUrl}" class="w-full h-full object-cover" onerror="this.src='images/logo.png'">
+                    </div>
+                    <div class="min-w-0 pr-6">
+                        <h4 class="font-bold text-slate-800 truncate text-base">${escapeHtml(cart.storeName) || '未知店家'}</h4>
+                        <p class="text-xs text-slate-400">
+                          ${cart.itemCount} 個品項 
+                          ${cart.isGroup ? `<span class="bg-primary/10 text-primary text-[10px] ml-1 px-1.5 py-0.5 rounded font-black">${cart.isHost ? '團長' : '揪團中'}</span>` : ''}
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-end justify-between">
+                    <div>
+                        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-black mb-0.5">預估總額</p>
+                        <p class="text-xl font-black text-slate-800">$${cart.total}</p>
+                    </div>
+                    <div class="size-9 rounded-lg ${isSelected ? 'bg-primary text-white' : 'bg-slate-50 text-slate-300'} group-hover:scale-110 transition-transform flex items-center justify-center">
+                        <i data-lucide="${isSelected ? 'arrow-right' : 'eye'}" class="w-4 h-4 ${isSelected ? 'text-white' : ''}"></i>
+                    </div>
+                </div>
+            </div>
+          `;
+        };
+
+        // 進行分頁切割渲染 (Slice)
+        const groupSliced = groupCarts.slice(0, groupVisibleLimit);
+        const personalSliced = personalCarts.slice(0, personalVisibleLimit);
+
+        groupMoreFooter.classList.toggle('hidden', groupVisibleLimit >= groupCarts.length);
+        personalMoreFooter.classList.toggle('hidden', personalVisibleLimit >= personalCarts.length);
+
+        const [groupCards, personalCards] = await Promise.all([
+          Promise.all(groupSliced.map(renderSingleCard)),
+          Promise.all(personalSliced.map(renderSingleCard))
+        ]);
+
+        groupContainer.innerHTML = groupCards.join('');
+        personalContainer.innerHTML = personalCards.join('');
+
+        if (window.lucide) lucide.createIcons();
+      };
+
+      /* ========== 購物車切換 ========== */
+      window.switchCartByToken = (token) => {
+        selectedToken = token;
+        selectedStoreId = null;
+        updateUrl({ token });
+        renderCart();
+        renderCartCards();
+      };
+
+      window.switchCartById = (id) => {
+        selectedStoreId = String(id);
+        selectedToken = null;
+        updateUrl({ id });
+        renderCart();
+        renderCartCards();
+      };
+
+      function updateUrl(params) {
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.delete('id');
+        newUrl.searchParams.delete('storeId');
+        newUrl.searchParams.delete('token');
+
+        Object.entries(params).forEach(([k, v]) => {
+          // 只在有值且不是 'null' 時寫入 URL
+          if (v !== null && v !== undefined && v !== 'null') {
+            newUrl.searchParams.set(k, v);
+          }
+        });
+        window.history.pushState({}, '', newUrl);
+      }
+
+      /* ========== 數量變更（優化同步邏輯） ========== */
+      window.changeQty = async (storeId, index, newQty, itemId, token) => {
+        if (newQty < 1) {
+          removeCartItem(storeId, index, itemId, token);
+          return;
+        }
+
+        // 如果有 itemId 與 token，代表是遠端品項，需同步至後端
+        if (itemId && itemId !== 'null' && token && token !== 'null') {
+          try {
+            showLoading(true);
+            await NavAuth.fetchAPI(`/api/group-orders/${token}/items/${itemId}`, {
+              method: 'PUT',
+              body: JSON.stringify({ qty: newQty })
+            });
+            // 同步成功後更新 UI
+            renderCart();
+            renderCartCards();
+          } catch (err) {
+            console.error('Remote update failed:', err);
+            showToast('雲端品項更新失敗: ' + err.message, 'error');
+          } finally {
+            showLoading(false);
+          }
+        } else {
+          // 純本地品項
+          Cart.updateQuantity(storeId, index, newQty);
+          renderCart();
+          renderCartCards();
+        }
+      };
+
+      window.removeCartItem = async (storeId, index, itemId, token) => {
+        if (itemId && itemId !== 'null' && token && token !== 'null') {
+          if (!await showConfirm('確定要移除此雲端快照品項嗎？')) return;
+          try {
+            showLoading(true);
+            await NavAuth.fetchAPI(`/api/group-orders/${token}/items/${itemId}`, {
+              method: 'DELETE'
+            });
+            renderCart();
+            renderCartCards();
+          } catch (err) {
+            console.error('Remote remove failed:', err);
+            showToast('移除雲端品項失敗: ' + err.message, 'error');
+          } finally {
+            showLoading(false);
+          }
+        } else {
+          Cart.removeItem(storeId, index);
+          renderCart();
+          renderCartCards();
+        }
+      };
+
+      function showLoading(show) {
+        // 簡易 Loading 提示 (選用)
+        if (show) {
+          groupBtn.disabled = true;
+          checkoutBtn.disabled = true;
+        } else {
+          groupBtn.disabled = false;
+          checkoutBtn.disabled = false;
+        }
+      }
+
+      /* ========== 品項列表渲染 ========== */
+      const renderCart = async () => {
+        let cartData = { items: [], storeName: '點餐項目', storeId: null, isGroup: false };
+        const userId = localStorage.getItem('JOIN_USER_ID');
+
+        // 1. 揪團模式 (Token 優先)
+        if (selectedToken && selectedToken !== 'null' && selectedToken !== 'undefined') {
+          try {
+            const remote = await NavAuth.fetchAPI(`/api/group-orders/${selectedToken}`);
+            if (remote) {
+              const isHost = String(remote.initiatorId) === String(userId);
+              let rawItems = remote.items || [];
+
+              // 團員身分過濾：僅保留自己點的
+              if (!isHost) {
+                rawItems = rawItems.filter(it => String(it.userId) === String(userId));
+              }
+
+              const remoteItems = rawItems.map(it => {
+                const toppings = Array.isArray(it.toppings) ? it.toppings.map(t => t.name) : [];
+                const customizations = [];
+                const normalize = (s) => (s === '標準杯' || s === '標準' || s === '正常' || s === '正常冰' || s === '正常甜') ? '固定' : s;
+                if (it.size) customizations.push(normalize(it.size));
+                if (it.sugar) customizations.push(normalize(it.sugar));
+                if (it.ice) customizations.push(normalize(it.ice));
+                toppings.forEach(t => customizations.push(t));
+
+                return {
+                  ...it,
+                  quantity: it.qty || it.quantity || 1,
+                  name: it.productName || it.name || '飲品',
+                  price: it.finalPrice || it.unitPrice || 0, // 優先取用含配料價格 finalPrice
+                  customization: customizations,
+                  userName: it.userName // 保留人名以供團長查看
+                };
+              });
+
+              const computedTotal = remoteItems.reduce((sum, it) => sum + (it.price * it.quantity), 0);
+
+              cartData = {
+                items: remoteItems,
+                storeName: remote.storeName,
+                storeId: String(remote.storeId),
+                total: computedTotal,
+                isGroup: true,
+                token: selectedToken,
+                isHost: isHost
+              };
+            }
+          } catch (e) {
+            console.error('Failed to load group order details:', e);
+          }
+        }
+        // 2. 個人模式 (按 StoreID 合併遠端 SOLO 與本地)
+        else if (selectedStoreId) {
+          const local = Cart.getCart(selectedStoreId) || { items: [], storeName: '購物車' };
+          const remoteSolo = activeOrdersCache.find(go => String(go.storeId) === selectedStoreId && go.type !== 'GROUP');
+
+          let combinedItems = [];
+          let remoteTotal = 0;
+
+          // 雲端品項
+          if (remoteSolo) {
+            const mappedRemote = (remoteSolo.items || []).map(it => {
+              const toppings = Array.isArray(it.toppings) ? it.toppings.map(t => t.name) : [];
+              const customizations = [];
+              const normalize = (s) => (s === '標準杯' || s === '標準') ? '固定' : s;
+              if (it.size) customizations.push(normalize(it.size));
+              if (it.sugar) customizations.push(normalize(it.sugar));
+              if (it.ice) customizations.push(normalize(it.ice));
+              toppings.forEach(t => customizations.push(t));
+
+              return {
+                ...it,
+                quantity: it.qty || it.quantity || 1,
+                name: it.productName || it.name || '飲品',
+                price: it.finalPrice || it.unitPrice || 0,
+                customization: customizations,
+                isRemote: true,
+                id: it.id // 後端對應的 CartItem ID
+              };
+            });
+            combinedItems = [...mappedRemote];
+            remoteTotal = parseFloat(remoteSolo.totalAmount) || 0;
+          }
+
+          // 本地品項
+          const mappedLocal = (local.items || []).map((it, lIdx) => ({
+            ...it,
+            isLocal: true,
+            quantity: it.quantity || 1,
+            name: it.name || it.productName || '飲品',
+            localIndex: lIdx
+          }));
+          combinedItems = [...combinedItems, ...mappedLocal];
+          const localTotal = local.items.reduce((sum, it) => sum + ((it.price || 0) * (it.quantity || 1)), 0);
+
+          cartData = {
+            items: combinedItems,
+            storeName: local.storeName || (remoteSolo ? remoteSolo.storeName : '點餐項目'),
+            storeId: selectedStoreId,
+            total: remoteTotal + localTotal,
+            isGroup: false,
+            id: remoteSolo ? remoteSolo.id : null,
+            token: remoteSolo ? remoteSolo.shareToken : null
+          };
+        } else {
+          // 3. 未選取狀態
+          listContainer.innerHTML = `
+            <div class="py-24 text-center bg-white rounded-2xl border-2 border-dashed border-slate-100">
+                <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <i data-lucide="hand-tap" class="w-10 h-10 text-slate-300"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-400 mb-2">請選取購物車</h3>
+                <p class="text-slate-400 text-sm">請點選一個店家或揪團來查看明細</p>
+            </div>
+          `;
+          itemsCountEl.innerText = '0';
+          document.getElementById('selected-store-name').innerText = '尚未選取店家';
+          subtotalEl.innerText = '$0';
+          totalEl.innerText = '$0';
+          checkoutBtn.disabled = true;
+          groupBtn.disabled = true;
+          if (window.lucide) lucide.createIcons();
+          return;
+        }
+
+        const items = cartData.items || [];
+        itemsCountEl.innerText = items.length;
+        document.getElementById('selected-store-name').innerText = cartData.storeName || '點餐項目';
+
+        if (items.length === 0) {
+          listContainer.innerHTML = `
+            <div class="py-20 text-center bg-white rounded-2xl border border-slate-100">
+                <i data-lucide="shopping-cart" class="w-16 h-16 text-slate-300 mx-auto mb-4"></i>
+                <p class="text-slate-400 font-medium">${cartData.isGroup ? '您在此揪團中尚未點餐' : '目前的購物車是空的'}</p>
+            </div>
+          `;
+          subtotalEl.innerText = '$0';
+          totalEl.innerText = '$0';
+          checkoutBtn.disabled = true;
+          // 優化 2: 揪團模式下隱藏結帳按鈕
+          checkoutBtn.classList.toggle('hidden', cartData.isGroup);
+          groupBtn.disabled = cartData.isGroup ? false : true;
+
+          if (cartData.isGroup) {
+            groupBtn.innerHTML = '<i data-lucide="external-link" class="w-5 h-5"></i> 前往揪團頁面 Go to Group Order';
+            groupBtn.onclick = () => window.location.href = `group_order.html?token=${cartData.token}`;
+          }
+          if (window.lucide) lucide.createIcons();
+          return;
+        }
+
+        checkoutBtn.disabled = false;
+        // 優化 2: 揪團模式下隱藏結帳按鈕
+        checkoutBtn.classList.toggle('hidden', cartData.isGroup);
+
+        if (cartData.isGroup) {
+          groupBtn.innerHTML = '<i data-lucide="external-link" class="w-5 h-5"></i> 前往揪團頁面 Go to Group Order';
+          groupBtn.onclick = () => window.location.href = `group_order.html?token=${cartData.token}`;
+          groupBtn.disabled = false;
+          checkoutBtn.onclick = () => window.location.href = `group_order.html?token=${cartData.token}`;
+        } else {
+          groupBtn.innerHTML = '<i data-lucide="users" class="w-5 h-5"></i> 開始揪團 Start Group Order';
+          groupBtn.onclick = handleStartGroup;
+          groupBtn.disabled = false;
+          checkoutBtn.onclick = () => window.location.href = `checkout.html?storeId=${cartData.storeId}`;
+        }
+
+        const sid = cartData.storeId;
+        listContainer.innerHTML = items.map((item, index) => {
+          const name = escapeHtml(item.name || '飲品');
+          const price = item.price || 0;
+          const qty = item.quantity || 1;
+          const rawImg = item.imageUrl || 'https://images.unsplash.com/photo-1544145945-f904253db0ad?q=80&w=256&h=256&auto=format&fit=crop';
+          const img = /^https?:\/\//.test(rawImg) ? rawImg : 'images/logo.png';
+          const customizations = item.customization || [];
+
+          const itemId = item.id || item.cartItemId || 'null';
+          const isLocal = item.isLocal === true;
+          const localIdx = isLocal ? item.localIndex : 'null';
+
+          return `
+            <div class="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group/item">
+                <div class="flex items-center gap-8">
+                    <div class="size-20 rounded-xl bg-slate-100 bg-cover bg-center" style="background-image: url('${img.replace(/'/g, '%27')}')"></div>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                          <h4 class="font-bold text-lg text-slate-900 truncate">${name}</h4>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5 mt-1.5 mb-2">
+                            ${customizations.filter(c => c && c.trim() !== '').map(c => `<span class="px-2 py-0.5 bg-slate-50 text-slate-500 text-[10px] font-bold rounded-md border border-slate-100">${escapeHtml(c)}</span>`).join('')}
+                            ${cartData.isGroup && item.userName ? `<span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-md border border-primary/20">點餐者: ${escapeHtml(item.userName)}</span>` : ''}
+                            ${item.couponId ? `<span class="px-2 py-0.5 bg-brand-orange/10 text-brand-orange text-[10px] font-bold rounded-md border border-brand-orange/20">已套用優惠券</span>` : ''}
+                            ${(item.discountAmount > 0) ? `<span class="px-2 py-0.5 bg-green-50 text-green-600 text-[10px] font-bold rounded-md border border-green-100">已折抵 -$${item.discountAmount}</span>` : ''}
+                        </div>
+                        <p class="text-lg font-black text-primary">$${price}</p>
+                    </div>
+                </div>
+                ${!cartData.isGroup ? `
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-1 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                        <button onclick="changeQty('${sid}', ${localIdx}, ${qty - 1}, ${itemId}, '${cartData.token || 'null'}')" class="size-9 flex items-center justify-center rounded-lg bg-white text-slate-400 hover:text-primary transition-all">
+                            <i data-lucide="minus" class="w-4 h-4"></i>
+                        </button>
+                        <span class="w-10 text-center font-black text-lg">${qty}</span>
+                        <button onclick="changeQty('${sid}', ${localIdx}, ${qty + 1}, ${itemId}, '${cartData.token || 'null'}')" class="size-9 flex items-center justify-center rounded-lg bg-white text-slate-400 hover:text-primary transition-all">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <button onclick="removeCartItem('${sid}', ${localIdx}, ${itemId}, '${cartData.token || 'null'}')" class="p-3 text-slate-300 hover:text-red-500 transition-all">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </button>
+                </div>` : `<div class="font-black text-slate-400 px-4">x ${qty}</div>`}
+            </div>
+          `;
+        }).join('');
+
+        // 計算總額
+        subtotalEl.innerText = `$${cartData.total}`;
+        totalEl.innerText = `$${cartData.total}`;
+
+        if (window.lucide) lucide.createIcons();
+      };
+      /* ========== 開始揪團（修正：同時檢查本地與遠端品項） ========== */
+      const handleStartGroup = async () => {
+        const userId = localStorage.getItem('JOIN_USER_ID');
+        if (!userId) {
+          window.location.href = `auth/login.html?redirect=cart_details.html`;
+          return;
+        }
+
+        if (!selectedStoreId) {
+          showToast('請先選擇一個購物車', 'warning');
+          return;
+        }
+
+        // 同時檢查本地 localStorage 與遠端 SOLO 訂單是否有品項
+        const localCart = Cart.getCart(selectedStoreId);
+        const localHasItems = localCart && localCart.items && localCart.items.length > 0;
+        const remoteSolo = activeOrdersCache.find(go => String(go.storeId) === String(selectedStoreId) && go.type !== 'GROUP');
+        const remoteHasItems = remoteSolo && remoteSolo.items && remoteSolo.items.length > 0;
+
+        if (!localHasItems && !remoteHasItems) {
+          showToast('購物車是空的，請先加入品項', 'warning');
+          return;
+        }
+
+        try {
+          groupBtn.disabled = true;
+          groupBtn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> 建立中...';
+          if (window.lucide) lucide.createIcons();
+
+          // 後端 POST /api/group-orders 從 JWT 取 userId，只需傳 storeId
+          // 後端 createGroupOrder 會自動從 DB cart_items 與 SOLO 訂單轉移品項到揪團
+          const data = await NavAuth.fetchAPI('/api/group-orders', {
+            method: 'POST',
+            body: JSON.stringify({ storeId: parseInt(selectedStoreId) })
+          });
+
+          const token = data?.shareToken;
+          if (!token) throw new Error('無法取得揪團連結');
+
+          // 清除本地購物車（後端已轉移 DB cart_items）
+          Cart.clearCart(selectedStoreId);
+          showGroupModal(token);
+        } catch (error) {
+          console.error('建立揪團失敗:', error);
+          showToast('建立揪團失敗: ' + error.message, 'error');
+        } finally {
+          // 重新渲染，避免按鈕狀態卡住
+          groupBtn.disabled = false;
+          groupBtn.innerHTML = '<i data-lucide="users" class="w-5 h-5"></i> 開始揪團 Start Group Order';
+          if (window.lucide) lucide.createIcons();
+          renderCartCards();
+          renderCart();
+        }
+      };
+
+      /* ========== 結帳按鈕 ========== */
+      checkoutBtn.onclick = () => {
+        const userId = localStorage.getItem('JOIN_USER_ID');
+        if (!userId) {
+          window.location.href = `auth/login.html?redirect=cart_details.html`;
+          return;
+        }
+        if (selectedToken) {
+          window.location.href = `group_order.html?token=${selectedToken}`;
+        } else if (selectedStoreId) {
+          window.location.href = `checkout.html?storeId=${selectedStoreId}`;
+        }
+      };
+
+      /* ========== 揪團建立成功 Modal ========== */
+      function showGroupModal(token) {
+        const modal = document.getElementById('group-order-modal');
+        const linkInput = document.getElementById('group-link-input');
+        const qrcodeContainer = document.getElementById('qrcode');
+        const copyBtn = document.getElementById('copy-link-btn');
+        const goToBtn = document.getElementById('go-to-group-btn');
+
+        const baseUrl = window.location.origin + window.location.pathname.replace('cart_details.html', 'group_order.html');
+        const shareLink = `${baseUrl}?token=${token}`;
+        linkInput.value = shareLink;
+
+        qrcodeContainer.innerHTML = '';
+        new QRCode(qrcodeContainer, { text: shareLink, width: 180, height: 180 });
+
+        copyBtn.onclick = () => {
+          linkInput.select();
+          document.execCommand('copy');
+          copyBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> 已複製';
+          setTimeout(() => { copyBtn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i> 複製'; if (window.lucide) lucide.createIcons(); }, 2000);
+          if (window.lucide) lucide.createIcons();
+        };
+
+        if (goToBtn) goToBtn.onclick = () => window.location.href = `group_order.html?token=${token}`;
+        modal.classList.remove('hidden');
+      }
+
+      window.addEventListener('cartUpdated', () => {
+        renderCart();
+        renderCartCards();
+      });
+
+      renderCart();
+      renderCartCards();
+    });
+  </script>
+
+  <!-- BEGIN: Footer -->
+  <footer class="main-footer">
+
+    <div class="footer-content">
+
+
+      <div class="footer-left">
+        <img src="images/logo.png" alt="JOIN 探飲 LOGO" class="footer-logo">
+
+        <div class="footer-desc">
+          最懂你的飲品揪團平台。<br>
+          不管是辦公室下午茶，還是好友聚會，<br>
+          一鍵發起，輕鬆揪飲！
+        </div>
+      </div>
+
+      <div class="footer-right">
+
+        <div class="footer-contact-title">
+          聯絡我們
+        </div>
+
+        <div class="footer-contact-list">
+
+          <div class="footer-contact-item">
+            <i class="fa-regular fa-envelope"></i>
+            join_drink@gmail.com
+          </div>
+
+          <div class="footer-contact-item">
+            <i class="fa-solid fa-phone"></i>
+            04-1234-5678
+          </div>
+
+          <div class="footer-contact-item">
+            <i class="fa-solid fa-location-dot"></i>
+            408臺中市南屯區公益路二段51號18樓
+          </div>
+
+        </div>
+
+      </div>
+
+
+    </div>
+
+    <div class="footer-bottom">
+      © 2026 JOIN 揪飲 - 本平台供飲品揪團平台. All Rights Reserved.
+    </div>
+
+  </footer>
+  <!-- END: Footer -->
+
+  <!-- Location Selection Modal Overlay -->
+  <!-- Added id="locationModal" and class "hidden" so it's hidden by default -->
+  <div id="locationModal"
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+    <!-- Modal Container -->
+    <!-- Removed inline onclick preventing propagation, handled in script now -->
+    <div
+      class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all transform">
+      <!-- Close Button -->
+      <!-- Removed inline style change and added id="closeModalBtn" -->
+      <button id="closeModalBtn"
+        class="absolute top-6 right-6 z-10 p-2 text-gray-400 hover:text-gray-600 transition-colors">
+        <i data-lucide="x" class="w-6 h-6"></i>
+      </button>
+
+      <!-- Modal Body -->
+      <div class="overflow-y-auto p-8 space-y-6 scrollbar-hide">
+        <!-- Header -->
+        <div class="text-center">
+          <h3 class="text-2xl font-bold text-brand-dark">選擇您的位置</h3>
+        </div>
+
+        <!-- Map Container (hidden, reserved for future use) -->
+        <div id="map-container"
+          class="relative w-full aspect-video rounded-3xl overflow-hidden border border-gray-100 shadow-inner z-0 hidden"
+          style="height: 240px;">
+          <div class="flex items-center justify-center h-full bg-gray-50">
+            <span class="text-sm text-gray-400">地圖載入中...</span>
+          </div>
+        </div>
+
+        <!-- GPS Action -->
+        <div class="space-y-3">
+          <button
+            class="w-full flex items-center justify-center gap-2 h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+            <i data-lucide="map-pin" class="w-5 h-5"></i>
+            <span>自動定位</span>
+          </button>
+          <p class="text-center text-sm text-brand-text-gray">
+            獲取精確位置以獲得更好的送餐體驗
+          </p>
+          <!-- 定位反映欄位 -->
+          <div id="modal-gps-status-row"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white transition-all duration-200">
+            <div id="modal-gps-indicator"
+              class="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0 flex items-center justify-center">
+            </div>
+            <span id="modal-gps-status-text" class="text-sm text-gray-400">尚未定位</span>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="flex items-center gap-4 py-2">
+          <div class="h-px flex-1 bg-gray-100"></div>
+          <span class="text-sm font-medium text-gray-400">或</span>
+          <div class="h-px flex-1 bg-gray-100"></div>
+        </div>
+
+        <!-- Divider -->
+        <div class="flex items-center gap-4 py-2">
+          <div class="h-px flex-1 bg-gray-100"></div>
+          <span class="text-sm font-medium text-gray-400">或</span>
+          <div class="h-px flex-1 bg-gray-100"></div>
+        </div>
+
+        <!-- City / District / Address -->
+        <div class="space-y-4">
+          <!-- Hidden elements kept for nav-auth.js compatibility -->
+          <input id="modal-address-input" type="hidden" />
+          <button id="modal-search-btn" type="button" class="hidden" aria-hidden="true"></button>
+          <!-- 縣市 + 行政區 -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="relative z-20">
+              <label class="block text-sm font-bold text-gray-600 mb-2">縣市 <span class="text-red-500">*</span></label>
+              <div class="relative w-full">
+                <input type="text" id="modal-city" placeholder="請搜尋或選擇縣市" autocomplete="off"
+                  class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow cursor-text text-sm" />
+                <i data-lucide="chevron-down"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                <div id="modal-city-dropdown"
+                  class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                </div>
+              </div>
+            </div>
+            <div class="relative z-10">
+              <label class="block text-sm font-bold text-gray-600 mb-2">行政區 <span class="text-red-500">*</span></label>
+              <div class="relative w-full">
+                <input type="text" id="modal-district" placeholder="請先選擇縣市" disabled autocomplete="off"
+                  class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow disabled:opacity-50 disabled:cursor-not-allowed cursor-text text-sm" />
+                <i data-lucide="chevron-down"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                <div id="modal-district-dropdown"
+                  class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="relative z-10">
+            <label class="block text-sm font-bold text-gray-600 mb-2">行政區</label>
+            <div class="relative w-full">
+              <input type="text" id="modal-district" placeholder="請先選擇縣市" disabled autocomplete="off"
+                class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow disabled:opacity-50 disabled:cursor-not-allowed cursor-text text-sm" />
+              <i data-lucide="chevron-down"
+                class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+              <div id="modal-district-dropdown"
+                class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- 新增地址 -->
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label class="block text-sm font-bold text-gray-600">新增地址</label>
+            <span class="text-xs text-gray-400">範例格式：新安路一段5號</span>
+          </div>
+          <input id="modal-street"
+            class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow text-sm"
+            placeholder="請輸入完整地址（不含大樓名稱、樓層資訊）" type="text" />
+        </div>
+
+        <!-- 常用地址選擇面板 -->
+        <div id="common-address-panel" class="hidden space-y-2 pt-2">
+          <p class="text-sm font-bold text-gray-600">選擇常用地址</p>
+          <div id="common-address-list" class="space-y-2 max-h-44 overflow-y-auto scrollbar-hide">
+            <!-- 由 JS 動態注入 -->
+          </div>
+        </div>
+      </div>
+      <!-- Mapping Logic -->
+      <script src="js/official-map-logic.js"></script>
+      <script src="js/location-modal-logic.js"></script>
+      <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+          }
+        });
+      </script>
+      <!-- Scroll To Top Button -->
+      <button id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})"
+        class="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[80] w-11 h-11 bg-gray-400 hover:bg-gray-500 rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer opacity-0 pointer-events-none">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+        </svg>
+      </button>
+      <script>(function () { var b = document.getElementById('scroll-top-btn'); window.addEventListener('scroll', function () { if (window.scrollY > 300) { b.classList.remove('opacity-0', 'pointer-events-none'); b.classList.add('opacity-100'); } else { b.classList.add('opacity-0', 'pointer-events-none'); b.classList.remove('opacity-100'); } }, { passive: true }); })();</script>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"
+    class="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none">
+  </div>
+  <script>
+    function showToast(msg, type = 'info') {
+      const colors = { info: 'bg-gray-800', warning: 'bg-amber-500', error: 'bg-red-500', success: 'bg-green-600' };
+      const el = document.createElement('div');
+      el.className = `${colors[type] || colors.info} text-white text-sm font-medium px-5 py-3 rounded-xl shadow-lg transition-all duration-300 opacity-0 translate-y-[-8px] pointer-events-auto`;
+      el.textContent = msg;
+      document.getElementById('toast-container').appendChild(el);
+      requestAnimationFrame(() => { el.classList.remove('opacity-0', 'translate-y-[-8px]'); });
+      setTimeout(() => {
+        el.classList.add('opacity-0', 'translate-y-[-8px]');
+        el.addEventListener('transitionend', () => el.remove());
+      }, 3000);
+    }
+
+    function showConfirm(msg) {
+      return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 backdrop-blur-sm';
+        overlay.innerHTML = `
+          <div class="bg-white rounded-2xl shadow-2xl px-8 py-6 max-w-sm w-full mx-4 flex flex-col gap-5">
+            <p class="text-slate-800 text-base font-medium leading-relaxed whitespace-pre-line">${msg}</p>
+            <div class="flex gap-3 justify-end">
+              <button id="confirm-cancel-btn" class="px-5 py-2 rounded-xl border border-slate-200 text-slate-500 text-sm font-semibold hover:bg-slate-50 transition-colors">取消</button>
+              <button id="confirm-ok-btn" class="px-5 py-2 rounded-xl bg-[#ec5b13] text-white text-sm font-semibold hover:bg-[#d04e0f] transition-colors">確定</button>
+            </div>
+          </div>`;
+        document.body.appendChild(overlay);
+        overlay.querySelector('#confirm-ok-btn').addEventListener('click', () => { overlay.remove(); resolve(true); });
+        overlay.querySelector('#confirm-cancel-btn').addEventListener('click', () => { overlay.remove(); resolve(false); });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
+      });
+    }
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+
+<head>
+ <meta charset="utf-8">
+ <meta content="width=device-width, initial-scale=1.0" name="viewport">
+ <title>JOIN揪飲 - 飲品清單</title>
+ <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+ <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap"
+ rel="stylesheet">
+ <link
+ href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block"
+ rel="stylesheet">
+ <link
+ href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block"
+ rel="stylesheet">
+ <script id="tailwind-config">
+ tailwind.config = {
+ darkMode:"class",
+ theme: {
+ extend: {
+ colors: {"primary":"#ec5b13","background-light":"#f8f6f6","background-dark":"#221610",
+ },
+ fontFamily: {"display": ["Plus Jakarta Sans"]
+ },
+ borderRadius: {"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px" },
+ },
+ },
+ }
+ </script>
+ <script src="js/store-shell-boot.js"></script>
+    <style>
+        @media (max-width: 1023.98px) {
+            html[data-store-shell-boot="true"] body:not([data-store-shell-ready="true"]) aside {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                z-index: 50;
+                width: min(18rem, calc(100vw - 2.5rem));
+                max-width: calc(100vw - 2.5rem);
+                transform: translateX(-110%);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 h-screen overflow-hidden">
+ <div class="flex h-screen overflow-hidden">
+ <!-- 側邊欄 -->
+ 
+<aside class="w-64 bg-white dark:bg-background-dark border-r border-primary/10 flex flex-col fixed h-full z-50">
+ <div class="p-6 flex items-center gap-3">
+ <a rel="prefetch" href="home.html" class="rounded-lg flex items-center justify-center" aria-label="回到首頁">
+ <img src="img/logo_%23U53bb%23U80cc%23U6a94.png" alt="Logo" class="object-contain" />
+ <span class="sr-only">回到首頁</span>
+ </a>
+ <div class="sr-only">
+ <h1 class="text-lg font-bold leading-tight">商家管理</h1>
+ <p class="text-xs text-primary/70">商務營運中心</p>
+ </div>
+ </div>
+ <nav class="flex-1 px-4 py-4 space-y-1">
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="home.html">
+ <span class="material-symbols-outlined">dashboard</span>
+ <span class="">首頁</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="#">
+ <span class="material-symbols-outlined">store</span>
+ <span class="">商店管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="#">
+ <span class="material-symbols-outlined">menu_book</span>
+ <span class="">菜單管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="#">
+ <span class="material-symbols-outlined">assignment</span>
+ <span class="">訂單管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="#">
+ <span class="material-symbols-outlined">payments</span>
+ <span class="">財務管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="#">
+ <span class="material-symbols-outlined">monitoring</span>
+ <span class="">數據報表</span>
+ </a>
+ </nav>
+ </aside>
+ <!-- 主要內容 -->
+ <main id="menuDrinksRoot" class="flex-1 flex flex-col overflow-hidden ml-64">
+ <!-- 頁首 -->
+ <script src="js/api-store-status.js"></script>
+ <header class="sticky top-0 z-40 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-primary/10 px-8 py-4 flex items-center justify-between">
+ <div class="flex items-center gap-2">
+ <span class="material-symbols-outlined text-primary text-xl">menu_book</span>
+ <h3 class="text-lg font-black tracking-tight">菜單管理</h3>
+ </div>
+ <div class="flex items-center gap-4">
+ <button id="storeStatusToggle" type="button" aria-pressed="true" data-status="loading"
+ class="flex items-center bg-slate-100 dark:bg-slate-800 px-4 py-2 rounded-lg border border-slate-200 transition-colors">
+ <span id="storeStatusDot" class="w-2 h-2 bg-slate-400 rounded-full mr-2"></span>
+ <span id="storeStatusLabel"
+ class="text-sm font-bold text-slate-500">讀取中...</span>
+ </button>
+ <button type="button" aria-label="通知" data-notifications-bell
+ class="w-10 h-10 flex items-center justify-center rounded-lg bg-orange-100/50 text-primary relative"
+ >
+ <span class="material-symbols-outlined">notifications</span>
+ <span
+ class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-background-dark hidden" data-notifications-dot></span>
+ </button>
+ <div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border border-primary/20">
+ <img id="headerStoreLogo" alt="用戶頭像"
+ src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-67Jtctk8J1C7F-KqVSe2Mw9WH8NyLwEYMUDfB4UdBvWyqPysGNOtjr8BP-A7YDjhrXdS3HLeGGtTpArafjW4KZ0xWWrelcVu4JlBc6mqx-vsDU_50PEkm5dWfdBWvxJHiyo8vUBL1W2YQD_zulS67HyZIQRQxIxtzJ1E6RuAwDRgjJCuKbneLZ-ZwCIBih7VBbaEH09ir2q1t4oeSzjvAL1cEWbDldb7pi_cC8gjgvI0_fwaGiEd0oe-w-Unot2lfJVk4zhlha8m"
+ class="">
+ </div>
+ </div>
+ </header>
+ <!-- 內容區 -->
+ <div id="mainContentFade" class="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark">
+ <!-- 分頁 -->
+ <div class="sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md pt-4 md:pt-6">
+ <div
+ class="bg-white dark:bg-slate-900 rounded-xl p-2 border border-slate-100 dark:border-slate-800 shadow-sm mx-4 md:mx-8 mb-4 md:mb-6">
+ <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+ <a class="px-4 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary whitespace-nowrap transition-colors"
+ href="menu-drinks.html">飲品清單</a>
+ <a class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap transition-colors"
+ href="menu-toppings.html">配料管理</a>
+ </div>
+ </div>
+ </div>
+ <div class="px-4 md:px-8 pt-2 md:pt-6 max-w-6xl mx-auto">
+ <div class="bg-white dark:bg-slate-900 p-3 md:p-4 rounded-xl border border-primary/10 shadow-sm space-y-4">
+ <!-- 搜尋列 -->
+ <div class="relative">
+ <span
+ class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+ >search</span>
+ <input
+ class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all"
+ placeholder="搜尋飲品名稱..." type="text" data-menu-drinks-search>
+ </div>
+ <!-- 分類篩選標籤 (由 api-inventory.js 動態渲染) -->
+ <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1" data-category-filter></div>
+ </div>
+ </div>
+ <div id="drinksContentArea" class="opacity-0 transition-opacity duration-200 px-4 md:px-8 py-6 md:py-8 space-y-6 md:space-y-8 max-w-6xl mx-auto"></div>
+ </div>
+ </main>
+ </div>
+ <script src="js/store-api.js"></script>
+<script src="js/store-shell.js"></script>
+ <script src="js/auth-guard.js"></script>
+ <script src="js/sidebar-active.js"></script>
+ <script src="js/notifications-drawer.js"></script>
+ 
+ <script src="js/store-status-toggle.js"></script>
+ <script src="js/menu-drinks-enhancements.js"></script>
+ <script src="js/api-inventory.js"></script>
+ 
+</body>
+
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-TW">
+
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&amp;display=swap"
+        rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700&amp;display=block"
+        rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block"
+        rel="stylesheet">
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ec5b13",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#221610",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <script src="js/brand-shell-boot.js"></script>
+    <style>
+        aside nav a { display: flex; align-items: center; gap: 12px; white-space: nowrap; font-size: 14px; text-decoration: none; }
+        aside nav a .material-symbols-outlined { flex-shrink: 0; }
+        .sidebar-item-active {
+            background-color: #ec5b13;
+            color: white;
+        }
+
+        @media (max-width: 1023.98px) {
+            html[data-brand-shell-boot="true"] body:not([data-brand-shell-ready="true"]) aside {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                z-index: 40;
+                width: min(18rem, calc(100vw - 2.5rem));
+                max-width: calc(100vw - 2.5rem);
+                transform: translateX(-110%);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside {
+                width: 5.75rem !important;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside>div:first-child {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside>div:first-child a {
+                width: 100%;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside>div:first-child img {
+                height: 3.5rem;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside nav a {
+                justify-content: center;
+                gap: 0;
+                padding-left: 0.75rem;
+                padding-right: 0.75rem;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside nav a span:not(.material-symbols-outlined) {
+                opacity: 0;
+                width: 0;
+                overflow: hidden;
+                pointer-events: none;
+            }
+        }
+    </style>
+    <title>JOIN揪飲 - 全局報表</title>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 transition-colors duration-200 h-screen overflow-hidden">
+    <div class="flex h-screen overflow-hidden">
+        <!-- 側邊導覽 -->
+        <aside
+            class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-screen sticky top-0">
+            <div class="p-6 flex justify-center">
+                <a href="hq-dashboard.html" class="flex flex-col items-center gap-2" aria-label="回到首頁">
+                    <img src="img/logo_%23U53bb%23U80cc%23U6a94.png" alt="JOIN揪飲" class="h-20 w-auto object-contain" />
+
+                </a>
+            </div>
+            <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    href="hq-dashboard.html">
+                    <span class="material-symbols-outlined text-[22px]">dashboard</span>
+                    <span class="text-sm font-medium">全局儀表板</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    href="hq-store-management.html">
+                    <span class="material-symbols-outlined text-[22px]">storefront</span>
+                    <span class="text-sm font-medium">分店管理</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    href="hq-menu-overview.html">
+                    <span class="material-symbols-outlined text-[22px]">restaurant_menu</span>
+                    <span class="text-sm font-medium">品牌菜單</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    href="hq-brand-financial-overview.html">
+                    <span class="material-symbols-outlined text-[22px]">payments</span>
+                    <span class="text-sm font-medium">財務匯總</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl sidebar-item-active transition-colors"
+                    href="hq-hot-and-slow-selling-items-trend.html">
+                    <span class="material-symbols-outlined text-[22px]">bar_chart_4_bars</span>
+                    <span class="text-sm font-semibold">全局報表</span>
+                </a>
+            </nav>
+        </aside>
+        <!-- 主要內容 -->
+        <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <header
+                class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 z-10">
+                <div class="flex items-center">
+                    <h2 class="text-xl font-bold">全局報表</h2>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-3 cursor-pointer group">
+                        <div class="text-right">
+                            <p class="text-base font-bold leading-tight group-hover:text-primary transition-colors"><span data-brand-admin-name>Admin</span></p>
+                        </div>
+                        <div
+                            class="size-9 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700">
+                            <img class="w-full h-full object-cover" data-alt="Avatar of headquarters admin user"
+                                data-brand-admin-avatar src="https://lh3.googleusercontent.com/aida-public/AB6AXuDfz8Z2MuvXmB3vZG1V4Fz8wCpHuiF8ydw8y-qrPzY4DkJN8oIy6_a4EhBHgAyOF-Em82go2xBbEAqvjMbfhgEO2t0YV1AZPpTNd-cIjaSr1D9zZti6OnqYehuKr9DMd_CxE4dKZFcZXTGwCNdg24CnZTPapkxF_3SKBfulDY-sl-InzgD9OP5snlTIyN_vLa9w40m1nNh8gMKDFIPp7Azj4WpLkRnlmSdbs0xLHLY2ph8HQ6zYkDfPSXnfyZu0Fa0Jy54r_dOkpG7y" />
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <!-- 頂部分頁導覽 -->
+            <div
+                class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-8 shrink-0">
+                <nav class="flex gap-8 overflow-x-auto">
+                    <a class="py-4 border-b-2 border-primary text-primary font-semibold text-sm whitespace-nowrap" href="hq-hot-and-slow-selling-items-trend.html">全台熱/滯銷品項趨勢</a>
+                    <a class="py-4 border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 font-semibold text-sm transition-colors whitespace-nowrap"
+                        href="hq-brand-reputation-monitoring.html">
+                        全品牌口碑監控
+                    </a>
+                </nav>
+            </div>
+            <div class="flex-1 overflow-y-auto">
+                <div class="p-8 max-w-7xl mx-auto space-y-8">
+                    <!-- 統計週期切換 -->
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-base font-bold text-slate-700 dark:text-slate-200">品項銷售排行</h3>
+                        <div class="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+                            <button type="button" data-report-period="week"
+                                class="px-3 py-1 text-xs font-bold rounded-md text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors">週</button>
+                            <button type="button" data-report-period="month"
+                                class="px-3 py-1 text-xs font-bold rounded-md bg-primary text-white transition-colors">月</button>
+                            <button type="button" data-report-period="quarter"
+                                class="px-3 py-1 text-xs font-bold rounded-md text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors">季</button>
+                        </div>
+                    </div>
+                    <!-- 銷售趨勢圖表區 -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- 熱銷前 10 名商品 -->
+                        <section
+                            class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                            <div
+                                class="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-orange-500">trending_up</span>
+                                    <h3 class="font-bold text-lg">全台熱銷 Top 10 品項</h3>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left">
+                                    <thead
+                                        class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase">
+                                        <tr>
+                                            <th class="px-6 py-3 font-semibold">排名 / 品項名稱</th>
+                                            <th class="px-6 py-3 font-semibold text-center">總銷量 (件)</th>
+                                            <th class="px-6 py-3 font-semibold text-right">成長率</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800" data-hot-tbody>
+<tr><td colspan="3" class="px-6 py-8 text-center text-sm text-slate-400">載入中...</td></tr>
+</tbody>
+                                </table>
+                            </div>
+                        </section>
+                        <!-- 滯銷前 10 名商品 -->
+                        <section
+                            class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                            <div
+                                class="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-rose-500">trending_down</span>
+                                    <h3 class="font-bold text-lg">全台滯銷 Top 10 品項</h3>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left">
+                                    <thead
+                                        class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase">
+                                        <tr>
+                                            <th class="px-6 py-3 font-semibold">排名 / 品項名稱</th>
+                                            <th class="px-6 py-3 font-semibold text-center">總銷量 (件)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800" data-slow-tbody>
+<tr><td colspan="2" class="px-6 py-8 text-center text-sm text-slate-400">載入中...</td></tr>
+</tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+                    <!-- 摘要卡片 -->
+                </div>
+            </div>
+        </main>
+    </div>
+<script src="js/brand-api.js"></script>
+<script src="js/hq-reports-api.js"></script>
+</body>
+
+</html>

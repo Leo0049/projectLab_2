@@ -1,0 +1,433 @@
+/* ===== 進階篩選區 ===== */
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+@media (min-width: 768px) {
+  .container {
+    padding: 0 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding: 0 40px;
+  }
+}
+
+.advanced-filters{
+  padding: 24px 0;
+}
+
+@media (min-width: 768px) {
+  .advanced-filters {
+    padding: 40px 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .advanced-filters {
+    padding: 40px 0;
+  }
+}
+
+
+.filter-row{
+  display:flex;
+  gap:16px;
+  align-items:flex-start;
+  justify-content:space-between;
+  flex-wrap:wrap;
+}
+
+@media (min-width: 768px) {
+  .filter-row {
+    gap: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .filter-row {
+    gap: 30px;
+  }
+}
+
+.filter-card{
+  background:#fff;
+  border-radius:16px;
+  padding:20px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.10);
+  width:100%;
+}
+
+@media (min-width: 768px) {
+  .filter-card {
+    padding: 30px;
+  }
+}
+
+.filter-header{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:20px;
+}
+
+.filter-header i{
+  font-size:18px;
+  color:#444;
+}
+
+.filter-header h2{
+  font-size:22px;
+  font-weight:700;
+}
+
+/* 每個篩選區塊 */
+
+.filter-group{
+  margin-bottom:18px;
+  flex:1 1 320px;
+}
+
+.filter-group label{
+  display:block;
+  font-size:14px;
+  margin-bottom:6px;
+  color:#444;
+}
+
+/* 搜尋框 */
+
+.search-wrapper{
+  position:relative;
+}
+
+.search-wrapper input{
+  width:100%;
+  padding:10px 38px 10px 12px;
+  border-radius:10px;
+  border:1px solid #ddd;
+  font-size:14px;
+}
+
+.search-wrapper i{
+  position:absolute;
+  right:12px;
+  top:50%;
+  transform:translateY(-50%);
+  color:#888;
+}
+
+/* select */
+
+.select-wrapper select{
+  width:100%;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid #ddd;
+  font-size:14px;
+}
+
+
+/* ===== 品牌：可輸入 + 下拉選擇 ===== */
+
+.brand-combobox{
+position:relative;
+}
+
+.brand-combobox input{
+width:100%;
+padding:10px 42px 10px 12px;
+border-radius:10px;
+border:1px solid #ddd;
+font-size:14px;
+}
+
+.brand-combobox__toggle{
+position:absolute;
+right:8px;
+top:50%;
+transform:translateY(-50%);
+border:none;
+background:transparent;
+cursor:pointer;
+padding:6px;
+color:#888;
+}
+
+.brand-dropdown{
+position:absolute;
+left:0;
+right:0;
+top:calc(100% + 6px);
+background:#fff;
+border:1px solid #ddd;
+border-radius:10px;
+box-shadow:0 10px 24px rgba(0,0,0,0.12);
+max-height:320px;
+overflow:auto;
+z-index:20;
+}
+
+.brand-dropdown__list{
+list-style:none;
+margin:0;
+padding:6px 0;
+}
+
+.brand-dropdown__item{
+padding:10px 12px;
+cursor:pointer;
+}
+
+.brand-dropdown__item:hover{
+background:#fafafa;
+}
+
+/* 評分按鈕 */
+
+.rating-buttons{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.rating-btn{
+  border:1px solid #ddd;
+  background:#fff;
+  padding:6px 10px;
+  border-radius:8px;
+  font-size:13px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+
+.rating-btn i{
+  color:#ffbf00;
+}
+
+.rating-btn.active{
+  border-color:#ff6600;
+  background:#fff5f0;
+}
+
+/* Store list page styles */
+
+/* ===== 店家區 ===== */
+
+.store-section{
+  padding: 40px 0;
+}
+
+@media (min-width: 768px) {
+  .store-section {
+    padding: 60px 0;
+  }
+}
+
+.section-title{
+  font-size:20px;
+  margin-bottom:20px;
+}
+
+@media (min-width: 768px) {
+  .section-title {
+    font-size: 24px;
+    margin-bottom: 30px;
+  }
+}
+
+/* grid */
+
+.store-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:16px;
+  margin:0 auto;
+}
+
+@media (min-width: 768px) {
+  .store-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .store-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+}
+.view-all-wrapper{
+  text-align:center;
+  margin-top:30px;
+}
+.view-all-btn{
+  display:inline-block;
+}
+
+
+.store-card{
+  background:#ebebeb;
+  border-radius:16px;
+  overflow:hidden;
+  box-shadow:0 6px 24px rgba(0,0,0,0.18);
+  transition:all .25s ease;
+  cursor:pointer;
+  position:relative;
+}
+
+.store-card:hover{
+  transform:translateY(-6px);
+  box-shadow:0 16px 40px rgba(0,0,0,0.26);
+}
+
+.store-image{
+  position:relative;
+}
+
+.store-fav-btn{
+  position:absolute;
+  top:12px;
+  right:12px;
+  width:32px;
+  height:32px;
+  border:none;
+  border-radius:999px;
+  background:rgba(255,255,255,0.92);
+  color:#ff6600;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  z-index:2;
+}
+
+.store-fav-btn i{
+  font-size:16px;
+  line-height:1;
+}
+
+.store-fav-btn:focus-visible{
+  outline:2px solid rgba(255,102,0,0.35);
+  outline-offset:2px;
+}
+
+.store-card img{
+  width:100%;
+  height:160px;
+  object-fit:cover;
+  display:block;
+}
+
+@media (min-width: 768px) {
+  .store-card img {
+    height: 180px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .store-card img {
+    height: 200px;
+  }
+}
+
+.store-badge{
+  position:absolute;
+  top:12px;
+  left:12px;
+  background:rgba(255,102,0,0.95);
+  color:#fff;
+  padding:5px 10px;
+  border-radius:12px;
+  font-size:12px;
+  font-weight:600;
+}
+
+.store-rating{
+  position:absolute;
+  bottom:12px;
+  left:12px;
+  background:rgba(255,255,255,0.95);
+  color:#222;
+  padding:6px 10px;
+  border-radius:14px;
+  font-size:12px;
+  font-weight:600;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+}
+
+.store-rating i{
+  color:#ffbf00;
+}
+
+.store-rating span{
+  color:#666;
+  font-weight:400;
+}
+
+.store-info{
+  padding:12px;
+}
+
+@media (min-width: 768px) {
+  .store-info {
+    padding: 14px;
+  }
+}
+
+.store-info h3{
+  font-size:16px;
+  margin-bottom:8px;
+}
+
+.store-meta{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  row-gap:4px;
+  flex-wrap:wrap;
+}
+
+.store-meta-left{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.meta-item{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  color:#666;
+}
+
+.store-flag{
+  background:#fff2e8;
+  color:#d85b00;
+  border:1px solid rgba(255,102,0,0.25);
+  padding:4px 10px;
+  border-radius:14px;
+  font-size:12px;
+  font-weight:600;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.store-flag i{
+  font-size:14px;
+  line-height:1;
+}

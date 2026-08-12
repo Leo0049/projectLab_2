@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+ <meta charset="utf-8">
+ <meta content="width=device-width, initial-scale=1.0" name="viewport">
+ <title>JOIN揪飲 - 訂單管理</title>
+ <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+ <style>
+ /* 訂單表格對齊 - 必須在 Tailwind 之後才能覆蓋 */
+ section[data-order-section] table,
+ section[data-order-section] table thead,
+ section[data-order-section] table tbody,
+ section[data-order-section] table tr,
+ section[data-order-section] table th,
+ section[data-order-section] table td { vertical-align: middle !important; }
+
+ </style>
+ <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap"
+ rel="stylesheet">
+ <link
+ href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block"
+ rel="stylesheet">
+ <script id="tailwind-config">
+ tailwind.config = {
+ darkMode:"class",
+ theme: {
+ extend: {
+ colors: {"primary":"#ec5b13","background-light":"#f8f6f6","background-dark":"#221610",
+ },
+ fontFamily: {"display": ["Plus Jakarta Sans"]
+ },
+ borderRadius: {"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px" },
+ },
+ },
+ }
+ </script>
+ <link rel="stylesheet" href="css/order-all.css">
+ <script src="js/store-shell-boot.js"></script>
+    <style>
+        @media (max-width: 1023.98px) {
+            html[data-store-shell-boot="true"] body:not([data-store-shell-ready="true"]) aside {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                z-index: 50;
+                width: min(18rem, calc(100vw - 2.5rem));
+                max-width: calc(100vw - 2.5rem);
+                transform: translateX(-110%);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display h-screen overflow-hidden">
+<div class="flex h-screen overflow-hidden">
+ <!-- 側邊導覽 (加入 top-0 left-0 確保絕對對齊) -->
+
+ <aside class="w-64 bg-white dark:bg-background-dark border-r border-primary/10 flex flex-col fixed top-0 left-0 h-full z-50">
+ <div class="p-6 flex items-center gap-3">
+ <a rel="prefetch" href="home.html" class="rounded-lg flex items-center justify-center" aria-label="回到首頁">
+ <img src="img/logo_%23U53bb%23U80cc%23U6a94.png" alt="Logo" class="object-contain" />
+ </a>
+ </div>
+ <nav class="flex-1 px-4 py-4 space-y-1">
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="home.html">
+ <span class="material-symbols-outlined">dashboard</span>
+ <span>首頁</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="store-basic-info.html">
+ <span class="material-symbols-outlined">store</span>
+ <span>商店管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="menu-drinks.html">
+ <span class="material-symbols-outlined">menu_book</span>
+ <span>菜單管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="order-all.html">
+ <span class="material-symbols-outlined">assignment</span>
+ <span>訂單管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="finance-revenue-overview.html">
+ <span class="material-symbols-outlined">payments</span>
+ <span>財務管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="reports-business-overview.html">
+ <span class="material-symbols-outlined">monitoring</span>
+ <span>數據報表</span>
+ </a>
+ </nav>
+ </aside>
+
+ <!-- 主要內容 (確保與導覽列間距一致) -->
+ <main class="flex-1 flex flex-col min-w-0 ml-64 overflow-hidden">
+ <script src="js/api-store-status.js"></script>
+ <header class="sticky top-0 z-40 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-primary/10 px-8 py-4 flex items-center justify-between">
+ <div class="flex items-center gap-2">
+ <span class="material-symbols-outlined text-primary text-xl">assignment</span>
+ <h3 class="text-lg font-black tracking-tight">訂單管理</h3>
+ </div>
+ <div class="flex items-center gap-4">
+ <button id="storeStatusToggle" type="button" aria-pressed="true" data-status="loading"
+ class="flex items-center bg-slate-100 dark:bg-slate-800 px-4 py-2 rounded-lg border border-slate-200 transition-colors">
+ <span id="storeStatusDot" class="w-2 h-2 bg-slate-400 rounded-full mr-2"></span>
+ <span id="storeStatusLabel" class="text-sm font-bold text-slate-500">讀取中...</span>
+ </button>
+ <button type="button" aria-label="通知" data-notifications-bell class="w-10 h-10 flex items-center justify-center rounded-lg bg-orange-100/50 text-primary relative">
+ <span class="material-symbols-outlined">notifications</span>
+ <span class="hidden absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-background-dark" data-notifications-dot></span>
+ </button>
+ <div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border border-primary/20">
+ <img id="headerStoreLogo" alt="用戶頭像" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-67Jtctk8J1C7F-KqVSe2Mw9WH8NyLwEYMUDfB4UdBvWyqPysGNOtjr8BP-A7YDjhrXdS3HLeGGtTpArafjW4KZ0xWWrelcVu4JlBc6mqx-vsDU_50PEkm5dWfdBWvxJHiyo8vUBL1W2YQD_zulS67HyZIQRQxIxtzJ1E6RuAwDRgjJCuKbneLZ-ZwCIBih7VBbaEH09ir2q1t4oeSzjvAL1cEWbDldb7pi_cC8gjgvI0_fwaGiEd0oe-w-Unot2lfJVk4zhlha8m" />
+ </div>
+ </div>
+ </header>
+
+ <div id="mainContentFade" class="flex-1 overflow-y-auto px-4 md:px-8 pb-4 md:pb-8 space-y-6">
+ <!-- 頁面標題與分頁 (同步間距與 home.html 一致) -->
+ <div class="mt-8 bg-white dark:bg-slate-900 rounded-xl p-2 border border-slate-100 dark:border-slate-800 shadow-sm">
+ <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1" data-order-tabs>
+ <button type="button" data-order-filter="all" aria-selected="true"
+ class="px-4 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary whitespace-nowrap transition-colors">
+ 全部 (0)
+ </button>
+ <button type="button" data-order-filter="pending" aria-selected="false"
+ class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap transition-colors">
+ 待處理 (0)
+ </button>
+ <button type="button" data-order-filter="in-production" aria-selected="false"
+ class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap transition-colors">
+ 製作中 (0)
+ </button>
+ <button type="button" data-order-filter="delivering" aria-selected="false"
+ class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap transition-colors">
+ 配送中 (0)
+ </button>
+ <button type="button" data-order-filter="ready-for-pickup" aria-selected="false"
+ class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap transition-colors">
+ 待取餐 (0)
+ </button>
+ <button type="button" data-order-filter="completed" aria-selected="false"
+ class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap transition-colors">
+ 已完成 (0)
+ </button>
+ <button type="button" data-order-filter="canceled" aria-selected="false"
+ class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap transition-colors">
+ 已取消 (0)
+ </button>
+ </div>
+ </div>
+
+ <div class="hidden" data-order-empty>
+ <div class="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
+ <div class="text-slate-600 dark:text-slate-400 text-sm font-medium">目前沒有符合的訂單</div>
+ </div>
+ </div>
+ </div>
+ </main>
+</div>
+
+<!-- 訂單詳情彈窗 (完全匹配圖片) -->
+<div id="orderDetailModal" data-order-detail-modal class="fixed inset-0 z-[60] hidden" aria-hidden="true">
+ <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" data-order-detail-backdrop></div>
+ <div class="absolute inset-0 flex items-center justify-center p-4">
+ <div class="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in">
+ <!-- Modal Header -->
+ <div id="orderModalHeader" class="px-4 md:px-8 py-3 md:py-6 flex items-center justify-between border-b border-slate-50 dark:border-slate-800">
+ <div class="flex items-center gap-2 md:gap-3 min-w-0">
+ <span class="material-symbols-outlined text-primary text-xl md:text-2xl flex-shrink-0">description</span>
+ <h3 class="text-sm md:text-xl font-black text-slate-800 dark:text-white truncate" data-order-detail-title>訂單詳情清單 #ORD-9101</h3>
+ </div>
+ <button type="button" class="flex-shrink-0 ml-2 text-slate-400 hover:text-slate-600 transition-colors" data-order-detail-close aria-label="關閉">
+ <span class="material-symbols-outlined text-xl md:text-2xl">close</span>
+ </button>
+ </div>
+
+ <div id="orderModalBody" class="p-4 md:p-8 space-y-4 md:space-y-8 overflow-y-auto max-h-[70vh]">
+ <!-- Status Bar -->
+ <div id="orderModalStatusBar" class="bg-orange-50 dark:bg-orange-900/20 rounded-xl md:rounded-2xl p-3 md:p-6 flex items-center justify-between border border-orange-100/50 gap-2">
+ <div class="flex items-center gap-2 md:gap-4 min-w-0">
+ <div class="w-9 h-9 md:w-12 md:h-12 flex-shrink-0 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-primary shadow-sm">
+ <span class="material-symbols-outlined text-lg md:text-2xl">schedule</span>
+ </div>
+ <div class="min-w-0">
+ <div class="flex items-center gap-2">
+ <span class="text-sm md:text-lg font-black text-primary" data-order-detail-status>待取貨 (Ready)</span>
+ </div>
+ <p class="text-xs text-slate-400 font-bold">訂單狀態</p>
+ </div>
+ </div>
+ <div class="flex items-center gap-2 md:gap-3 flex-shrink-0">
+ <span class="px-2 md:px-4 py-1 md:py-1.5 rounded-full bg-primary text-white text-[10px] md:text-xs font-black flex items-center gap-1">
+ <span data-order-detail-channel>自取 Pickup</span>
+ </span>
+ <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse" data-order-detail-status-dot></span>
+ </div>
+ </div>
+
+ <!-- Info Grid -->
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+ <div>
+ <p class="text-[10px] md:text-xs text-slate-400 font-bold mb-1">下單時間</p>
+ <p class="text-sm md:text-base font-black text-slate-800 dark:text-white" data-order-detail-placed>04:37 下單</p>
+ </div>
+ <div>
+ <p class="text-[10px] md:text-xs text-slate-400 font-bold mb-1">客戶姓名</p>
+ <p class="text-sm md:text-base font-black text-slate-800 dark:text-white" data-order-detail-customer>李詠琪 (0912345001)</p>
+ </div>
+ </div>
+
+ <!-- Note & Address -->
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+ <div>
+ <p class="text-[10px] md:text-xs text-slate-400 font-bold mb-1">訂單備註</p>
+ <p class="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-300" data-order-detail-note>請將餐點放在門口，並按門鈴提醒，謝謝。</p>
+ </div>
+ <div>
+ <p class="text-[10px] md:text-xs text-slate-400 font-bold mb-1">外送地址</p>
+ <p class="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-300" data-order-detail-address>自取訂單</p>
+ </div>
+ </div>
+
+ <!-- Items Section -->
+ <div>
+ <h4 class="font-black text-base text-slate-800 dark:text-white mb-4">餐點明細</h4>
+ <div class="space-y-4" data-order-detail-items>
+ <!-- JS 動態渲染 -->
+ </div>
+ </div>
+
+ <!-- Price Summary -->
+ <div id="orderModalPriceSummary" class="bg-slate-50 dark:bg-slate-800/50 rounded-xl md:rounded-2xl p-4 md:p-6 space-y-3">
+ <div class="flex justify-between items-center text-sm font-bold text-slate-500">
+ <span>小計 Subtotal</span>
+ <span data-order-detail-subtotal>$120</span>
+ </div>
+ <div class="flex justify-between items-center text-sm font-bold text-green-500">
+ <span>優惠卷折扣</span>
+ <span data-order-detail-discount>-$0</span>
+ </div>
+ <div class="pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
+ <span class="text-base font-black text-slate-800 dark:text-white">總金額 Total</span>
+ <span class="text-xl font-black text-primary" data-order-detail-total>$120</span>
+ </div>
+ </div>
+ </div>
+
+ <!-- Modal Footer -->
+ <div id="orderModalFooter" class="px-4 md:px-8 py-3 md:py-6 bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between gap-2">
+ <button type="button" class="flex items-center gap-1 md:gap-2 px-3 md:px-6 py-2 md:py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-black text-xs md:text-sm hover:bg-white transition-all" data-order-detail-close>
+ <span class="material-symbols-outlined text-base md:text-lg">close</span> 關閉 Close
+ </button>
+ <button type="button" class="flex items-center gap-1 md:gap-2 px-3 md:px-8 py-2 md:py-3 rounded-xl bg-primary text-white font-black text-xs md:text-sm hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all" data-order-detail-primary data-order-action="advance">
+ <span class="material-symbols-outlined text-base md:text-lg">local_shipping</span>
+ <span data-order-detail-primary-label>更新狀態 Update Status</span>
+ </button>
+ </div>
+ </div>
+ </div>
+</div>
+
+<!-- 拒單彈窗 (簡約版) -->
+<div id="orderRejectModal" data-order-reject-modal class="fixed inset-0 z-[70] hidden" aria-hidden="true">
+ <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" data-order-reject-backdrop></div>
+ <div class="absolute inset-0 flex items-center justify-center p-4">
+ <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
+ <div class="p-8 text-center">
+ <div class="w-16 h-16 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-4">
+ <span class="material-symbols-outlined text-3xl font-bold">cancel</span>
+ </div>
+ <h3 class="text-xl font-black mb-2" data-order-reject-title>確定要拒絕此訂單嗎？</h3>
+ <p class="text-slate-400 text-sm font-bold mb-8">拒絕後將無法恢復，並會通知客戶。</p>
+ <div class="flex gap-3">
+ <button class="flex-1 py-3 rounded-xl border border-slate-200 font-black text-slate-500 hover:bg-slate-50 transition-all" data-order-reject-cancel>取消</button>
+ <button class="flex-1 py-3 rounded-xl bg-red-500 text-white font-black hover:bg-red-600 transition-all shadow-lg shadow-red-200" data-order-reject-confirm>確定拒絕</button>
+ </div>
+ </div>
+ </div>
+ </div>
+</div>
+
+<script src="js/store-api.js"></script>
+<script src="js/store-shell.js"></script>
+<script src="js/auth-guard.js"></script>
+<script src="js/sidebar-active.js"></script>
+<script src="js/notifications-drawer.js"></script>
+
+<script src="js/store-status-toggle.js"></script>
+<script src="js/order-all-sync.js"></script>
+
+</body>
+</html>

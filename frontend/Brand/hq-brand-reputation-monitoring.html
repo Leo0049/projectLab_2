@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-TW">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>JOIN揪飲 - 全局報表</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700&amp;display=block"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ec5b13",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#221610",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <script src="js/brand-shell-boot.js"></script>
+    <style>
+        .filled-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+        aside nav a { display: flex; align-items: center; gap: 12px; white-space: nowrap; font-size: 14px; text-decoration: none; }
+        aside nav a .material-symbols-outlined { flex-shrink: 0; }
+        .sidebar-item-active {
+            background-color: #ec5b13;
+            color: white;
+        }
+
+        @media (max-width: 1023.98px) {
+            html[data-brand-shell-boot="true"] body:not([data-brand-shell-ready="true"]) aside {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                z-index: 40;
+                width: min(18rem, calc(100vw - 2.5rem));
+                max-width: calc(100vw - 2.5rem);
+                transform: translateX(-110%);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside {
+                width: 5.75rem !important;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside>div:first-child {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside>div:first-child a {
+                width: 100%;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside>div:first-child img {
+                height: 3.5rem;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside nav a {
+                justify-content: center;
+                gap: 0;
+                padding-left: 0.75rem;
+                padding-right: 0.75rem;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside nav a span:not(.material-symbols-outlined) {
+                opacity: 0;
+                width: 0;
+                overflow: hidden;
+                pointer-events: none;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 transition-colors duration-200 h-screen overflow-hidden">
+    <div class="flex h-screen overflow-hidden">
+        <!-- 側邊欄 -->
+        <aside class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-screen sticky top-0">
+            <div class="p-6 flex justify-center">
+                <a href="hq-dashboard.html" class="flex flex-col items-center gap-2" aria-label="回到首頁">
+                    <img src="img/logo_%23U53bb%23U80cc%23U6a94.png" alt="JOIN揪飲" class="h-20 w-auto object-contain" />
+
+                </a>
+            </div>
+            <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="hq-dashboard.html">
+                    <span class="material-symbols-outlined text-[22px]">dashboard</span>
+                    <span class="text-sm font-medium">全局儀表板</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="hq-store-management.html">
+                    <span class="material-symbols-outlined text-[22px]">storefront</span>
+                    <span class="text-sm font-medium">分店管理</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="hq-menu-overview.html">
+                    <span class="material-symbols-outlined text-[22px]">restaurant_menu</span>
+                    <span class="text-sm font-medium">品牌菜單</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="hq-brand-financial-overview.html">
+                    <span class="material-symbols-outlined text-[22px]">payments</span>
+                    <span class="text-sm font-medium">財務匯總</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl sidebar-item-active transition-colors" href="hq-brand-reputation-monitoring.html">
+                    <span class="material-symbols-outlined text-[22px]">bar_chart_4_bars</span>
+                    <span class="text-sm font-semibold">全局報表</span>
+                </a>
+            </nav>
+        </aside>
+        <!-- 主要內容 -->
+        <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <!-- 頁首 -->
+            <header class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 z-10">
+                <div class="flex items-center">
+                    <h2 class="text-xl font-bold">全局報表</h2>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-3 cursor-pointer group">
+                        <div class="text-right">
+                            <p class="text-base font-bold leading-tight group-hover:text-primary transition-colors"><span data-brand-admin-name>Admin</span></p>
+                        </div>
+                        <div class="size-9 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700">
+                            <img class="w-full h-full object-cover" data-alt="Avatar of headquarters admin user" data-brand-admin-avatar src="https://lh3.googleusercontent.com/aida-public/AB6AXuDfz8Z2MuvXmB3vZG1V4Fz8wCpHuiF8ydw8y-qrPzY4DkJN8oIy6_a4EhBHgAyOF-Em82go2xBbEAqvjMbfhgEO2t0YV1AZPpTNd-cIjaSr1D9zZti6OnqYehuKr9DMd_CxE4dKZFcZXTGwCNdg24CnZTPapkxF_3SKBfulDY-sl-InzgD9OP5snlTIyN_vLa9w40m1nNh8gMKDFIPp7Azj4WpLkRnlmSdbs0xLHLY2ph8HQ6zYkDfPSXnfyZu0Fa0Jy54r_dOkpG7y" />
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-8 shrink-0">
+                <nav class="flex gap-8 overflow-x-auto">
+                    <a class="py-4 border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 font-semibold text-sm transition-colors whitespace-nowrap"
+                        href="hq-hot-and-slow-selling-items-trend.html">全台熱/滯銷品項趨勢</a>
+                    <a class="py-4 border-b-2 border-primary text-primary font-semibold text-sm whitespace-nowrap"
+                        href="hq-brand-reputation-monitoring.html">全品牌口碑監控</a>
+                </nav>
+            </div>
+            <div class="flex-1 overflow-y-auto p-8 space-y-6">
+                <!-- 口碑評分概況標題 -->
+                <div class="flex items-center">
+                    <h3 class="text-base font-bold text-slate-700 dark:text-slate-200">口碑評分概況</h3>
+                </div>
+                <!-- 上方摘要卡片 -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 平均評分總覽 -->
+                    <div
+                        class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col justify-between shadow-sm">
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium">全品牌平均評分</p>
+                            <div class="flex items-end gap-3 mt-2">
+                                <h3 class="text-5xl font-black text-slate-900 dark:text-white" data-rep-avg>--</h3>
+                                <div class="flex flex-col mb-1">
+                                    <div class="flex text-primary" data-rep-stars></div>
+                                    <p class="text-xs text-primary font-bold mt-1" data-rep-period-label></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-xs text-slate-400">總評論數</p>
+                                <p class="text-lg font-bold" data-rep-count>--</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400">評價率</p>
+                                <p class="text-lg font-bold" data-rep-rate>--%</p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 星級分佈 -->
+                    <div
+                        class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 lg:col-span-2 shadow-sm">
+                        <div class="flex justify-between items-start mb-6">
+                            <div>
+                                <h4 class="font-bold">全品牌星級分佈</h4>
+                            </div>
+                            <button class="text-xs text-primary font-bold hover:underline" type="button" data-hq-brand-rating-details-open>查看詳情</button>
+                        </div>
+                        <div class="space-y-4" data-rep-dist>
+                            <!-- 5 星 -->
+                            <div class="grid grid-cols-[40px_1fr_45px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600">5 星</span>
+                                <div class="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary rounded-full" data-rep-dist-bar="5" style="width: 0%"></div>
+                                </div>
+                                <span class="text-sm font-bold text-right" data-rep-dist-pct="5">--%</span>
+                            </div>
+                            <!-- 4 星 -->
+                            <div class="grid grid-cols-[40px_1fr_45px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600">4 星</span>
+                                <div class="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary/80 rounded-full" data-rep-dist-bar="4" style="width: 0%"></div>
+                                </div>
+                                <span class="text-sm font-bold text-right" data-rep-dist-pct="4">--%</span>
+                            </div>
+                            <!-- 3 星 -->
+                            <div class="grid grid-cols-[40px_1fr_45px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600">3 星</span>
+                                <div class="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary/60 rounded-full" data-rep-dist-bar="3" style="width: 0%"></div>
+                                </div>
+                                <span class="text-sm font-bold text-right" data-rep-dist-pct="3">--%</span>
+                            </div>
+                            <!-- 2 星 -->
+                            <div class="grid grid-cols-[40px_1fr_45px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600">2 星</span>
+                                <div class="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary/40 rounded-full" data-rep-dist-bar="2" style="width: 0%"></div>
+                                </div>
+                                <span class="text-sm font-bold text-right" data-rep-dist-pct="2">--%</span>
+                            </div>
+                            <!-- 1 星 -->
+                            <div class="grid grid-cols-[40px_1fr_45px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600">1 星</span>
+                                <div class="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary/20 rounded-full" data-rep-dist-bar="1" style="width: 0%"></div>
+                                </div>
+                                <span class="text-sm font-bold text-right" data-rep-dist-pct="1">--%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 下方區塊 -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 評分最低分店 -->
+                    <div
+                        class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                        <div
+                            class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                            <h4 class="font-bold">評分最低 5 間分店</h4>
+                            <span
+                                class="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2.5 py-1 rounded-full font-bold">重點關注</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead
+                                    class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase font-bold">
+                                    <tr>
+                                        <th class="px-6 py-4 w-1/2">分店名稱</th>
+                                        <th class="px-6 py-4 text-center">平均星等</th>
+                                        <th class="px-6 py-4"></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                        <td class="px-6 py-4 font-bold text-sm">台北忠孝店</td>
+                                        <td class="px-6 py-4 text-center">
+                                            <div class="flex items-center justify-center gap-1 text-red-500 font-bold">
+                                                <span>2.8</span>
+                                                <span class="material-symbols-outlined text-sm filled-icon">star</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <button
+                                                class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                type="button"
+                                                aria-label="查看評分詳情"
+                                                data-hq-low-rating-open>
+                                                <span class="material-symbols-outlined text-slate-400">chevron_right</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                        <td class="px-6 py-4 font-bold text-sm">台中一中店</td>
+                                        <td class="px-6 py-4 text-center">
+                                            <div class="flex items-center justify-center gap-1 text-red-500 font-bold">
+                                                <span>3.1</span>
+                                                <span class="material-symbols-outlined text-sm filled-icon">star</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <button
+                                                class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                type="button"
+                                                aria-label="查看評分詳情"
+                                                data-hq-low-rating-open>
+                                                <span class="material-symbols-outlined text-slate-400">chevron_right</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                        <td class="px-6 py-4 font-bold text-sm">高雄巨蛋店</td>
+                                        <td class="px-6 py-4 text-center">
+                                            <div
+                                                class="flex items-center justify-center gap-1 text-orange-500 font-bold">
+                                                <span>3.3</span>
+                                                <span class="material-symbols-outlined text-sm filled-icon">star</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <button
+                                                class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                type="button"
+                                                aria-label="查看評分詳情"
+                                                data-hq-low-rating-open>
+                                                <span class="material-symbols-outlined text-slate-400">chevron_right</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                        <td class="px-6 py-4 font-bold text-sm">新竹巨城店</td>
+                                        <td class="px-6 py-4 text-center">
+                                            <div
+                                                class="flex items-center justify-center gap-1 text-orange-500 font-bold">
+                                                <span>3.4</span>
+                                                <span class="material-symbols-outlined text-sm filled-icon">star</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <button
+                                                class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                type="button"
+                                                aria-label="查看評分詳情"
+                                                data-hq-low-rating-open>
+                                                <span class="material-symbols-outlined text-slate-400">chevron_right</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                        <td class="px-6 py-4 font-bold text-sm">台南國華店</td>
+                                        <td class="px-6 py-4 text-center">
+                                            <div
+                                                class="flex items-center justify-center gap-1 text-orange-500 font-bold">
+                                                <span>3.5</span>
+                                                <span class="material-symbols-outlined text-sm filled-icon">star</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <button
+                                                class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                type="button"
+                                                aria-label="查看評分詳情"
+                                                data-hq-low-rating-open>
+                                                <span class="material-symbols-outlined text-slate-400">chevron_right</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- 區域滿意度對比 -->
+                    <div
+                        class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
+                        <h4 class="font-bold mb-6">區域滿意度對比</h4>
+                        <div class="flex-1 flex flex-col justify-around py-4">
+                            <!-- 北部 -->
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span class="font-medium">北部區域</span>
+                                    <span class="text-primary font-bold">4.4</span>
+                                </div>
+                                <div class="h-6 bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden relative">
+                                    <div class="absolute inset-y-0 left-0 bg-primary/80 rounded-r-lg"
+                                        style="width: 88%"></div>
+                                    <span
+                                        class="absolute inset-0 flex items-center px-3 text-[10px] font-bold text-white uppercase tracking-wider">滿意</span>
+                                </div>
+                            </div>
+                            <!-- 中部 -->
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span class="font-medium">中部區域</span>
+                                    <span class="text-primary font-bold">4.1</span>
+                                </div>
+                                <div class="h-6 bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden relative">
+                                    <div class="absolute inset-y-0 left-0 bg-primary/60 rounded-r-lg"
+                                        style="width: 82%"></div>
+                                    <span
+                                        class="absolute inset-0 flex items-center px-3 text-[10px] font-bold text-white uppercase tracking-wider">良好</span>
+                                </div>
+                            </div>
+                            <!-- 南部 -->
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span class="font-medium">南部區域</span>
+                                    <span class="text-primary font-bold">3.9</span>
+                                </div>
+                                <div class="h-6 bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden relative">
+                                    <div class="absolute inset-y-0 left-0 bg-primary/40 rounded-r-lg"
+                                        style="width: 78%"></div>
+                                    <span
+                                        class="absolute inset-0 flex items-center px-3 text-[10px] font-bold text-white uppercase tracking-wider">需加強</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 評分最低 5 間分店：詳情彈窗 -->
+    <div class="fixed inset-0 z-50 hidden" data-hq-low-rating-modal>
+        <div class="absolute inset-0 bg-background-dark/60 backdrop-blur-sm" data-hq-low-rating-backdrop></div>
+        <div class="relative z-10 w-full h-full flex items-center justify-center p-4">
+            <div
+                class="relative w-full max-w-[600px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <header
+                    class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-6 py-4">
+                    <div class="flex flex-col">
+                        <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100" data-hq-low-rating-title>
+                            分店 - 評分詳情
+                        </h2>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">門市營運數據追蹤</p>
+                    </div>
+                    <button
+                        class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                        type="button"
+                        aria-label="關閉視窗"
+                        data-hq-low-rating-close>
+                        <span class="material-symbols-outlined text-slate-500">close</span>
+                    </button>
+                </header>
+
+                <div class="flex-1 overflow-y-auto p-6 space-y-8">
+                    <section class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-5xl font-black text-slate-900 dark:text-slate-100" data-hq-low-rating-score>—</span>
+                                <span class="text-slate-500 dark:text-slate-400 text-sm font-medium">/ 5.0</span>
+                            </div>
+                            <div class="flex gap-1" data-hq-low-rating-stars></div>
+                            <p class="text-slate-600 dark:text-slate-400 text-sm mt-1" data-hq-low-rating-total>共計 — 則評論</p>
+                        </div>
+
+                        <div class="bg-primary/5 dark:bg-primary/10 p-4 rounded-xl border border-primary/10">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-bold text-slate-700 dark:text-slate-300">評分率 (Rating Rate)</span>
+                                <span class="text-primary font-bold" data-hq-low-rating-rate>—%</span>
+                            </div>
+                            <div class="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                                <div class="bg-primary h-full rounded-full" style="width: 0%" data-hq-low-rating-rate-bar></div>
+                            </div>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-2 italic">* 當前周期內完成評分的顧客佔比</p>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4">評分分佈</h3>
+                        <div class="space-y-3">
+                            <div class="grid grid-cols-[24px_1fr_48px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600 dark:text-slate-400 text-center">5</span>
+                                <div class="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="bg-primary h-full rounded-full" style="width: 0%" data-hq-low-rating-dist-bar="5"></div>
+                                </div>
+                                <span class="text-xs font-semibold text-slate-500 text-right" data-hq-low-rating-dist-pct="5">0%</span>
+                            </div>
+                            <div class="grid grid-cols-[24px_1fr_48px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600 dark:text-slate-400 text-center">4</span>
+                                <div class="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="bg-primary h-full rounded-full" style="width: 0%" data-hq-low-rating-dist-bar="4"></div>
+                                </div>
+                                <span class="text-xs font-semibold text-slate-500 text-right" data-hq-low-rating-dist-pct="4">0%</span>
+                            </div>
+                            <div class="grid grid-cols-[24px_1fr_48px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600 dark:text-slate-400 text-center">3</span>
+                                <div class="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="bg-primary h-full rounded-full" style="width: 0%" data-hq-low-rating-dist-bar="3"></div>
+                                </div>
+                                <span class="text-xs font-semibold text-slate-500 text-right" data-hq-low-rating-dist-pct="3">0%</span>
+                            </div>
+                            <div class="grid grid-cols-[24px_1fr_48px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600 dark:text-slate-400 text-center">2</span>
+                                <div class="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="bg-primary h-full rounded-full" style="width: 0%" data-hq-low-rating-dist-bar="2"></div>
+                                </div>
+                                <span class="text-xs font-semibold text-slate-500 text-right" data-hq-low-rating-dist-pct="2">0%</span>
+                            </div>
+                            <div class="grid grid-cols-[24px_1fr_48px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600 dark:text-slate-400 text-center">1</span>
+                                <div class="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="bg-primary h-full rounded-full" style="width: 0%" data-hq-low-rating-dist-bar="1"></div>
+                                </div>
+                                <span class="text-xs font-semibold text-slate-500 text-right" data-hq-low-rating-dist-pct="1">0%</span>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <footer class="border-t border-slate-100 dark:border-slate-800 px-6 py-4 flex justify-end">
+                    <button
+                        class="px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+                        type="button"
+                        data-hq-low-rating-close>
+                        關閉視窗
+                    </button>
+                </footer>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全品牌星級分佈：查看詳情彈窗 -->
+    <div class="fixed inset-0 z-50 hidden" data-hq-brand-rating-details-modal>
+        <div class="absolute inset-0 bg-background-dark/60 backdrop-blur-sm" data-hq-brand-rating-details-backdrop></div>
+        <div class="relative z-10 w-full h-full flex items-center justify-center p-4">
+            <div
+                class="relative w-full max-w-[600px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <header
+                    class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-6 py-4">
+                    <div class="flex flex-col">
+                        <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100">全品牌 - 評分詳情</h2>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">門市評分數據總覽</p>
+                    </div>
+                    <button
+                        class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                        type="button"
+                        aria-label="關閉視窗"
+                        data-hq-brand-rating-details-close>
+                        <span class="material-symbols-outlined text-slate-500">close</span>
+                    </button>
+                </header>
+
+                <div class="flex-1 overflow-y-auto p-6 space-y-8">
+                    <section class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-5xl font-black text-slate-900 dark:text-slate-100" data-hq-brand-rating-details-score>—</span>
+                                <span class="text-slate-500 dark:text-slate-400 text-sm font-medium">/ 5.0</span>
+                            </div>
+                            <div class="flex gap-1" data-hq-brand-rating-details-stars></div>
+                            <p class="text-slate-600 dark:text-slate-400 text-sm mt-1" data-hq-brand-rating-details-total>共計 — 則評論</p>
+                        </div>
+
+                        <div class="bg-primary/5 dark:bg-primary/10 p-4 rounded-xl border border-primary/10">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-bold text-slate-700 dark:text-slate-300">評分率 (Rating Rate)</span>
+                                <span class="text-primary font-bold" data-hq-brand-rating-details-rate>—%</span>
+                            </div>
+                            <div class="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                                <div class="bg-primary h-full rounded-full" style="width: 0%" data-hq-brand-rating-details-rate-bar></div>
+                            </div>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-2 italic">* 當前周期內完成評分的顧客佔比</p>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4">評分分佈</h3>
+                        <div class="space-y-3">
+                            <div class="grid grid-cols-[40px_1fr_48px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600">5 星</span>
+                                <div class="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary rounded-full" style="width: 0%" data-hq-brand-rating-details-dist-bar="5"></div>
+                                </div>
+                                <span class="text-xs font-semibold text-slate-500 text-right" data-hq-brand-rating-details-dist-pct="5">0</span>
+                            </div>
+                            <div class="grid grid-cols-[40px_1fr_48px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600">4 星</span>
+                                <div class="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary/80 rounded-full" style="width: 0%" data-hq-brand-rating-details-dist-bar="4"></div>
+                                </div>
+                                <span class="text-xs font-semibold text-slate-500 text-right" data-hq-brand-rating-details-dist-pct="4">0</span>
+                            </div>
+                            <div class="grid grid-cols-[40px_1fr_48px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600">3 星</span>
+                                <div class="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary/60 rounded-full" style="width: 0%" data-hq-brand-rating-details-dist-bar="3"></div>
+                                </div>
+                                <span class="text-xs font-semibold text-slate-500 text-right" data-hq-brand-rating-details-dist-pct="3">0</span>
+                            </div>
+                            <div class="grid grid-cols-[40px_1fr_48px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600">2 星</span>
+                                <div class="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary/40 rounded-full" style="width: 0%" data-hq-brand-rating-details-dist-bar="2"></div>
+                                </div>
+                                <span class="text-xs font-semibold text-slate-500 text-right" data-hq-brand-rating-details-dist-pct="2">0</span>
+                            </div>
+                            <div class="grid grid-cols-[40px_1fr_48px] items-center gap-4">
+                                <span class="text-sm font-medium text-slate-600">1 星</span>
+                                <div class="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary/20 rounded-full" style="width: 0%" data-hq-brand-rating-details-dist-bar="1"></div>
+                                </div>
+                                <span class="text-xs font-semibold text-slate-500 text-right" data-hq-brand-rating-details-dist-pct="1">0</span>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <footer class="border-t border-slate-100 dark:border-slate-800 px-6 py-4 flex justify-end">
+                    <button
+                        class="px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+                        type="button"
+                        data-hq-brand-rating-details-close>
+                        關閉視窗
+                    </button>
+                </footer>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/brand-api.js"></script>
+    <script src="js/hq-brand-reputation-api.js"></script>
+    <script src="js/hq-brand-reputation-lowest-rating-modal.js"></script>
+    <script src="js/hq-brand-reputation-rating-details-modal.js"></script>
+</body>
+
+</html>

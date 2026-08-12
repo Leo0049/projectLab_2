@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JOIN揪飲 - 建立新帳號</title>
+
+    <link rel="stylesheet" href="./css/register.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+
+<body>
+
+    <!-- 頁首 -->
+    <header class="main-header">
+        <div class="header-inner">
+            <div class="header-logo">
+                <img src="./images/logo.png" alt="JOIN 揪飲 LOGO" class="logo-img">
+            </div>
+            <div class="header-login">
+                已有帳號？<a href="login.html">立即登入</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 註冊區塊 -->
+    <section class="register-section">
+        <div class="register-card">
+
+            <h2 class="register-title">建立新帳號</h2>
+            <p class="register-desc">立即加入 JOIN 揪飲，享受專屬飲品優惠</p>
+
+            <form class="register-form">
+
+                <!-- 手機號碼 -->
+                <div class="form-group">
+                    <label>手機號碼 <span class="red-star">*</span></label>
+                    <div class="input-box">
+                        <i class="fa-solid fa-mobile-screen"></i>
+                        <input type="text" id="reg-phone" placeholder="請輸入您的手機號碼" />
+                    </div>
+                </div>
+
+                <!-- 密碼 -->
+                <div class="form-group">
+                    <label>密碼 <span class="red-star">*</span></label>
+                    <div class="input-box">
+                        <i class="fa-solid fa-lock"></i>
+                        <input type="password" id="reg-password" placeholder="設定 8-16 位英數組合密碼" autocomplete="new-password" />
+                        <i class="fa-regular fa-eye toggle-password"></i>
+                    </div>
+                </div>
+
+                <!-- 再次輸入密碼 -->
+                <div class="form-group">
+                    <label>再次輸入密碼 <span class="red-star">*</span></label>
+                    <div class="input-box">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <input type="password" id="reg-password-confirm" placeholder="請再次確認您的密碼" autocomplete="new-password" />
+                        <i class="fa-regular fa-eye toggle-password"></i>
+                    </div>
+                </div>
+
+                <!-- 暱稱 -->
+                <div class="form-group">
+                    <label>暱稱 <span class="red-star">*</span></label>
+                    <div class="input-box">
+                        <i class="fa-solid fa-user"></i>
+                        <input type="text" id="reg-name" placeholder="您的會員稱呼" />
+                    </div>
+                </div>
+
+                <button type="button" class="register-btn">
+                    註冊並驗證手機
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+
+                <div class="agree">
+                    <input type="checkbox">
+                    <span>
+                        註冊即代表您同意本站的
+                        <a href="#">服務條款</a>
+                        與
+                        <a href="#">隱私政策</a>
+                    </span>
+                </div>
+
+                <div class="divider">
+                    <span>或透過以下方式註冊</span>
+                </div>
+
+                <div class="social-login">
+                    <button type="button" class="social-btn" data-provider="GOOGLE">
+                        <img src="./images/google.jpg" alt="Google" class="social-icon">
+                        Google
+                    </button>
+                    <button type="button" class="social-btn" data-provider="FACEBOOK">
+                        <img src="./images/fb.png" alt="Facebook" class="social-icon">
+                        Facebook
+                    </button>
+                </div>
+
+                <div class="contact">
+                    遇到困難嗎？<a href="#">聯繫客服團隊</a>
+                </div>
+
+            </form>
+
+            <!-- 密碼不一致錯誤彈窗 -->
+            <div class="modal-overlay" id="error-modal" aria-hidden="true">
+                <div class="modal-card">
+                    <h3>密碼不一致</h3>
+                    <p>請確認兩次輸入的密碼是否相同，再試一次。</p>
+                    <button class="login-btn" id="modal-error-ok">我知道了</button>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- 頁尾 -->
+    <footer class="main-footer">
+        © 2024 JOIN揪飲. All rights reserved.
+        <div class="footer-links">
+            <a href="#">關於我們</a>
+            <a href="#">服務條款</a>
+            <a href="#">隱私權政策</a>
+            <a href="#">常見問題</a>
+        </div>
+    </footer>
+
+    <script>
+        window.JOIN_API_BASE = 'http://localhost:8082';
+        window.JOIN_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCFQlAen8XIY0VTxzl0usNvz-FxO-gsRZM",
+            authDomain: "project-b5e05.firebaseapp.com",
+            projectId: "project-b5e05",
+            storageBucket: "project-b5e05.firebasestorage.app",
+            messagingSenderId: "302990497638",
+            appId: "1:302990497638:web:4ad06a28fce00b5e5d5aa7",
+            measurementId: "G-EZ7MPPE8ZN"
+        };
+    </script>
+
+    <script>
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src; s.async = true;
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error(`無法載入 ${src}`));
+                document.head.appendChild(s);
+            });
+        }
+        async function tryLoadFirebase() {
+            const candidates = [
+                'https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js',
+                'https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js',
+                'https://cdn.jsdelivr.net/npm/firebase@10.14.0/compat/app.js',
+                'https://cdn.jsdelivr.net/npm/firebase@10.14.0/compat/auth.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-app-compat.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-auth-compat.min.js'
+            ];
+            for (let i = 0; i < candidates.length; i += 2) {
+                try { await loadScript(candidates[i]); await loadScript(candidates[i + 1]); return; }
+                catch (err) { console.warn('Firebase CDN 失敗，嘗試下一個：', err.message); }
+            }
+            throw new Error('所有 Firebase CDN 載入失敗');
+        }
+        (async () => {
+            try {
+                await tryLoadFirebase();
+                if (!window.firebase) throw new Error('firebase global 尚未建立');
+                if (window.JOIN_FIREBASE_CONFIG && !window.firebase.apps?.length)
+                    firebase.initializeApp(window.JOIN_FIREBASE_CONFIG);
+            } catch (err) {
+                console.error('Firebase 載入失敗', err);
+                alert('Firebase SDK 載入失敗，請確認網路可連上 CDN');
+            }
+        })();
+    </script>
+
+    <script src="./js/register.js"></script>
+</body>
+
+</html>

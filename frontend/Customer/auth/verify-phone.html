@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
+  <title>手機驗證 | JOIN揪飲</title>
+
+  <link rel="stylesheet" href="./css/verify-phone.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+
+<body>
+
+  <header class="header">
+    <div class="logo">
+      <img src="./images/logo.png" alt="JOIN 揪飲 LOGO" class="logo-img">
+    </div>
+  </header>
+
+  <section class="verify-section">
+    <div class="verify-card">
+
+      <div class="verify-icon">
+        <i class="fa-solid fa-mobile-screen"></i>
+      </div>
+
+      <h2>手機驗證</h2>
+
+      <p class="verify-desc">
+        我們已向您的手機
+        <strong id="display-phone"></strong><br>
+        發送了一份 6 位數的驗證碼
+      </p>
+
+      <div class="otp-container">
+        <input type="text" maxlength="1" class="otp" inputmode="numeric">
+        <input type="text" maxlength="1" class="otp" inputmode="numeric">
+        <input type="text" maxlength="1" class="otp" inputmode="numeric">
+        <input type="text" maxlength="1" class="otp" inputmode="numeric">
+        <input type="text" maxlength="1" class="otp" inputmode="numeric">
+        <input type="text" maxlength="1" class="otp" inputmode="numeric">
+      </div>
+
+      <!-- Firebase Phone Auth 的隱藏 reCAPTCHA 容器 -->
+      <div id="recaptcha-container"></div>
+
+      <div class="timer">
+        <div class="time-box">
+          <span id="minutes">02</span>
+          <p>分</p>
+        </div>
+        <span class="colon">:</span>
+        <div class="time-box">
+          <span id="seconds">00</span>
+          <p>秒</p>
+        </div>
+      </div>
+
+      <!-- 狀態 / 錯誤訊息 -->
+      <p id="verify-status" style="text-align:center; font-size:0.875rem; margin-bottom:8px; min-height:1.2em;"></p>
+
+      <button class="verify-btn">
+        完成驗證
+        <i class="fa-solid fa-circle-check"></i>
+      </button>
+
+      <p class="resend">
+        沒有收到驗證碼？
+        <a href="#" id="resend-btn">重新發送</a>
+      </p>
+
+      <p class="back-login">
+        <a href="login.html">
+          <i class="fa-solid fa-arrow-left"></i>
+          返回登入頁面
+        </a>
+      </p>
+
+    </div>
+  </section>
+
+  <footer class="footer">
+    © 2024 JOIN 揪飲. All rights reserved.
+  </footer>
+
+  <script>
+    window.JOIN_API_BASE = 'http://localhost:8082';
+    window.JOIN_FIREBASE_CONFIG = {
+      apiKey: "AIzaSyCFQlAen8XIY0VTxzl0usNvz-FxO-gsRZM",
+      authDomain: "project-b5e05.firebaseapp.com",
+      projectId: "project-b5e05",
+      storageBucket: "project-b5e05.firebasestorage.app",
+      messagingSenderId: "302990497638",
+      appId: "1:302990497638:web:4ad06a28fce00b5e5d5aa7",
+      measurementId: "G-EZ7MPPE8ZN"
+    };
+    // ─── 模擬簡訊模式 ────────────────────────────────────────
+    // true  = 不打 Firebase Phone Auth，輸入任意 6 位數字即可通過
+    // false = 使用真實 Firebase 手機驗證（上線前改為 false）
+    window.JOIN_SMS_MOCK = true;
+  </script>
+
+  <script>
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src; s.async = true;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error(`無法載入 ${src}`));
+        document.head.appendChild(s);
+      });
+    }
+    async function tryLoadFirebase() {
+      const candidates = [
+        'https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js',
+        'https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js',
+        'https://cdn.jsdelivr.net/npm/firebase@10.14.0/compat/app.js',
+        'https://cdn.jsdelivr.net/npm/firebase@10.14.0/compat/auth.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-app-compat.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-auth-compat.min.js'
+      ];
+      for (let i = 0; i < candidates.length; i += 2) {
+        try { await loadScript(candidates[i]); await loadScript(candidates[i + 1]); return; }
+        catch (err) { console.warn('Firebase CDN 失敗，嘗試下一個：', err.message); }
+      }
+      throw new Error('所有 Firebase CDN 載入失敗');
+    }
+    (async () => {
+      try {
+        await tryLoadFirebase();
+        if (!window.firebase) throw new Error('firebase global 尚未建立');
+        if (window.JOIN_FIREBASE_CONFIG && !window.firebase.apps?.length)
+          firebase.initializeApp(window.JOIN_FIREBASE_CONFIG);
+        // ✅ Firebase 初始化完成，設 flag 並通知 verify-phone.js
+        window.JOIN_FIREBASE_READY = true;
+        window.dispatchEvent(new Event('firebase-ready'));
+      } catch (err) {
+        console.error('Firebase 載入失敗', err);
+        alert('Firebase SDK 載入失敗，手機驗證功能無法使用');
+      }
+    })();
+  </script>
+
+  <script src="./js/verify-phone.js"></script>
+
+</body>
+</html>

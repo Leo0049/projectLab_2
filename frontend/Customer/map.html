@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+    <title>美食訂購平台 - 選擇地址</title>
+    <!-- Tailwind CSS v3 CDN -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Leaflet JS for Map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style data-purpose="custom-animations">
+        @keyframes bounce-pin {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .animate-bounce-pin {
+            animation: bounce-pin 1.5s infinite;
+        }
+    </style>
+    <style data-purpose="map-background">
+        /* Using the provided image as the map background for visual consistency */
+        .map-container {
+            background-color: #f3f4f6;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+            overflow: hidden
+        }
+
+        /* Simple overlay to simulate interactive feel */
+        .map-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.1)
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 font-sans overflow-hidden">
+    <!-- BEGIN: MainHeader -->
+    <header class="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 py-3 lg:px-10">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <!-- Logo -->
+        <a href="index.html" class="flex items-center gap-2 flex-shrink-0" data-purpose="logo-container">
+          <img src="images/logo.png" alt="JOIN Logo" class="h-10 w-auto object-contain" />
+        </a>
+  
+        <!-- Search and Location -->
+        <div class="flex-grow max-w-2xl hidden md:flex items-center bg-gray-100 rounded-full px-4 py-2 gap-3"
+          data-purpose="search-bar">
+          <!-- Added ID for triggering the modal -->
+          <div id="locationTrigger"
+            class="flex items-center gap-1 border-r border-gray-300 pr-3 cursor-pointer hover:text-brand-orange transition-colors">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+              <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+              <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+              </path>
+            </svg>
+            <span id="nav-location-text" class="text-sm text-gray-600">正在定位...</span>
+          </div>
+          <div class="flex items-center gap-2 flex-grow">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="2"></path>
+            </svg>
+            <input id="header-search-input" class="bg-transparent border-none focus:ring-0 text-sm w-full p-0" placeholder="搜尋想喝的飲品、店家..."
+              type="text" autocomplete="off" />
+          </div>
+        </div>
+  
+        <!-- User Actions -->
+        <div class="flex items-center gap-4 lg:gap-6" data-purpose="user-nav">
+          <div class="flex items-center gap-4 text-gray-600">
+            <a href="profile.html?section=notifications"
+              class="hover:text-brand-orange transition-colors fa-regular fa-bell" style="font-size: 22px;">
+            </a>
+            <a href="orders.html" class="hover:text-brand-orange transition-colors fa-solid fa-clock-rotate-left"
+              style="font-size: 20px;">
+            </a>
+            <div class="relative group" id="cart-dropdown-wrapper">
+              <a href="cart_details.html"
+                class="hover:text-brand-orange transition-colors relative block py-2 fa-solid fa-cart-shopping"
+                style="font-size: 20px;">
+                <span id="cart-badge"
+                  class="absolute -top-1 -right-1 bg-brand-orange text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+              </a>
+              <!-- Cart Dropdown Menu -->
+              <div id="cart-dropdown-menu"
+                class="hidden group-hover:block absolute right-0 mt-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 py-4 z-50">
+                <div class="px-4 mb-3 flex justify-between items-center">
+                  <h3 class="font-bold text-gray-800">我的購物車</h3>
+                  <span id="cart-count-text" class="text-xs text-gray-400">共 0 項品項</span>
+                </div>
+                <div id="cart-items-container" class="max-h-60 overflow-y-auto px-4 space-y-3 mb-4">
+                  <!-- Items will be injected here -->
+                  <p class="text-center text-gray-400 text-sm py-4">購物車是空的</p>
+                </div>
+                <div class="px-4 pt-3 border-t border-gray-50">
+                  <div class="flex justify-between mb-4">
+                    <span class="text-gray-500">總計</span>
+                    <span id="cart-total-price" class="font-bold text-brand-orange text-lg">$0</span>
+                  </div>
+                  <a href="cart_details.html"
+                    class="block w-full bg-brand-orange text-white text-center py-2.5 rounded-xl font-bold hover:bg-orange-600 transition-colors">
+                    查看購物車
+                  </a>
+                </div>
+              </div>
+            </div>
+            <a href="profile.html?section=favorites" class="hover:text-brand-orange transition-colors fa-solid fa-heart"
+              style="font-size: 20px;">
+            </a>
+          </div>
+          <button
+            class="bg-brand-orange text-white px-6 py-2 rounded-full font-medium hover:bg-orange-600 transition-colors">登入</button>
+  
+          <!-- User Profile link -->
+          <a href="profile.html" class="hover:text-brand-orange transition-colors">
+            <div class="relative" id="user-dropdown-wrapper">
+              <div id="user-avatar-container"
+                class="w-10 h-10 bg-gray-200 rounded-full overflow-hidden border border-gray-100 cursor-pointer transition-transform hover:scale-105">
+                <img id="nav-user-avatar" alt="Profile" class="w-full h-full object-cover"
+                  src="images/default_avatar.png" />
+              </div>
+            </div>
+          </a>
+  
+        </div>
+      </div>
+    </header>
+    <!-- END: MainHeader -->
+    <!-- BEGIN: MapView -->
+    <main class="map-container pt-16">
+        <div id="map" class="absolute inset-0 z-0"></div>
+        <!-- BEGIN: SearchBarSection -->
+        <div class="absolute top-20 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl z-40">
+            <div class="relative group">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+                        <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round"
+                            stroke-linejoin="round" stroke-width="2"></path>
+                    </svg>
+                </div>
+                <input id="search-input"
+                    class="block w-full pl-11 pr-4 py-4 bg-white border-none rounded-2xl shadow-xl focus:ring-2 focus:ring-orange-500 text-gray-700 text-sm"
+                    placeholder="搜尋地址，例如：台北市信義區忠孝東路五段" type="text" value="台北市信義區忠孝東路五段" />
+            </div>
+        </div>
+        <!-- END: SearchBarSection -->
+        <!-- BEGIN: CenterPin -->
+        <div
+            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-30 flex flex-col items-center pointer-events-none">
+            <div class="bg-white px-3 py-1.5 rounded-lg shadow-lg text-xs font-bold text-gray-800 mb-2 relative">
+                設定此處為送餐地址
+                <div
+                    class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-white">
+                </div>
+            </div>
+            <div class="animate-bounce-pin">
+                <svg fill="none" height="40" viewbox="0 0 24 24" width="40" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M12 21C16 17.5 19 14.4087 19 11C19 7.13401 15.866 4 12 4C8.13401 4 5 7.13401 5 11C5 14.4087 8 17.5 12 21Z"
+                        fill="#FF5E00" stroke="white" stroke-width="2"></path>
+                    <circle cx="12" cy="11" fill="white" r="3"></circle>
+                </svg>
+            </div>
+        </div>
+        <!-- END: CenterPin -->
+        <!-- BEGIN: FloatingControls -->
+        <div class="absolute bottom-40 right-4 z-40 flex flex-col gap-3">
+            <!-- Auto-locate button -->
+            <button class="bg-white p-3 rounded-full shadow-lg text-gray-600 active:bg-gray-100 transition-colors"
+                data-purpose="auto-locate-btn">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewbox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                        stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+                    <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round"
+                        stroke-width="2"></path>
+                </svg>
+            </button>
+        </div>
+        <!-- END: FloatingControls -->
+        <!-- BEGIN: RecentAddressesSidebar -->
+        <div
+            class="absolute top-20 right-4 w-72 h-[60%] bg-white/95 backdrop-blur shadow-2xl rounded-2xl z-40 overflow-hidden flex flex-col border border-white/20 hidden md:flex">
+            <div class="p-4 border-b border-gray-100 bg-gray-50/50">
+                <h3 class="font-bold text-gray-800">最近使用地址</h3>
+            </div>
+            <div class="flex-1 overflow-y-auto">
+                <div class="p-4 space-y-6">
+                    <!-- Address Item 1 -->
+                    <button class="w-full text-left flex gap-3 group">
+                        <div class="mt-1 text-gray-400 group-hover:text-orange-500">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-width="2"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-800 text-sm">家 (新北市板橋區...)</p>
+                            <p class="text-xs text-gray-500 mt-0.5">新北市板橋區中山路一段...</p>
+                        </div>
+                    </button>
+                    <!-- Address Item 2 -->
+                    <button class="w-full text-left flex gap-3 group">
+                        <div class="mt-1 text-gray-400 group-hover:text-orange-500">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                    stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-800 text-sm">公司 (台北市信義區...)</p>
+                            <p class="text-xs text-gray-500 mt-0.5">台北市信義區松仁路...</p>
+                        </div>
+                    </button>
+                    <!-- Address Item 3 -->
+                    <button class="w-full text-left flex gap-3 group">
+                        <div class="mt-1 text-gray-400 group-hover:text-orange-500">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.175 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.382-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                                    stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-800 text-sm">女朋友家 (台北市大安區...)</p>
+                            <p class="text-xs text-gray-500 mt-0.5">台北市大安區孝東路四段...</p>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- END: RecentAddressesSidebar -->
+        <!-- BEGIN: BottomAddressCard -->
+        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 w-[94%] max-w-4xl z-50">
+            <div
+                class="bg-white rounded-3xl p-4 md:p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-4 w-full md:w-auto">
+                    <div class="bg-orange-100 p-3 rounded-2xl">
+                        <svg class="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewbox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                                stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <span
+                            class="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider">目前選擇地址</span>
+                        <p class="text-gray-900 font-bold text-base md:text-xl truncate max-w-[200px] md:max-w-md"
+                            id="current-address">台北市信義區忠孝東路五段 8 號</p>
+                    </div>
+                </div>
+                <button id="confirm-btn"
+                    class="w-full md:w-auto bg-orange-600 hover:bg-orange-700 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-orange-200">
+                    <span>確認此位置</span>
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path d="M14 5l7 7m0 0l-7 7m7-7H3" stroke-linecap="round" stroke-linejoin="round"
+                            stroke-width="2"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <!-- END: BottomAddressCard -->
+    </main>
+    <!-- END: MapView -->
+    <script src="js/official-map-logic.js"></script>
+    <script data-purpose="ui-interactions">
+        document.addEventListener('DOMContentLoaded', () => {
+            // Get references
+            const searchInput = document.getElementById('search-input');
+            const currentAddressEl = document.getElementById('current-address');
+            const confirmBtn = document.getElementById('confirm-btn');
+            const autoLocateBtn = document.querySelector('[data-purpose="auto-locate-btn"]');
+
+            // Map configuration
+            const defaultLat = parseFloat(localStorage.getItem('userLat')) || 24.1505191;
+            const defaultLng = parseFloat(localStorage.getItem('userLng')) || 120.6510085;
+            const savedLocationName = localStorage.getItem('userLocationName') || '臺中市南屯區公益路二段51號';
+
+            searchInput.value = savedLocationName;
+            currentAddressEl.textContent = savedLocationName;
+
+            let currentLat = defaultLat;
+            let currentLng = defaultLng;
+            let currentLocationName = savedLocationName;
+
+            // Initialize Map
+            const map = L.map('map', { zoomControl: false }).setView([defaultLat, defaultLng], 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Reverse Geocode
+            const reverseGeocode = async (lat, lng) => {
+                try {
+                    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+                        headers: { 'Accept-Language': 'zh-TW' }
+                    });
+                    const data = await response.json();
+                    if (data && data.display_name) {
+                        currentLocationName = data.display_name;
+                        currentLat = lat;
+                        currentLng = lng;
+
+                        searchInput.value = currentLocationName;
+                        currentAddressEl.textContent = currentLocationName;
+                    }
+                } catch (err) {
+                    console.error('Reverse geocoding failed:', err);
+                }
+            };
+
+            // Forward Geocode
+            const forwardGeocode = async (address) => {
+                if (!address) return;
+                try {
+                    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`, {
+                        headers: { 'Accept-Language': 'zh-TW' }
+                    });
+                    const data = await response.json();
+                    if (data && data.length > 0) {
+                        const result = data[0];
+                        currentLat = parseFloat(result.lat);
+                        currentLng = parseFloat(result.lon);
+                        currentLocationName = result.display_name;
+
+                        map.setView([currentLat, currentLng], 16);
+
+                        searchInput.value = currentLocationName;
+                        currentAddressEl.textContent = currentLocationName;
+                    } else {
+                        console.warn('No results found for address:', address);
+                    }
+                } catch (err) {
+                    console.error('Forward geocoding failed:', err);
+                }
+            };
+
+            // Map Events
+            map.on('moveend', () => {
+                const center = map.getCenter();
+                reverseGeocode(center.lat, center.lng);
+            });
+
+            // Search input Enter event
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    forwardGeocode(searchInput.value);
+                }
+            });
+
+            // Auto-locate button
+            if (autoLocateBtn) {
+                autoLocateBtn.addEventListener('click', async () => {
+                    try {
+                        autoLocateBtn.classList.add('text-orange-500');
+                        if (window.MapLogic) {
+                            const coords = await window.MapLogic.getUserLocation();
+                            map.setView([coords.lat, coords.lng], 16);
+                        }
+                    } catch (err) {
+                        alert('無法獲取您的位置: ' + err.message);
+                    } finally {
+                        setTimeout(() => autoLocateBtn.classList.remove('text-orange-500'), 500);
+                    }
+                });
+            }
+
+            // Confirm button
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', () => {
+                    localStorage.setItem('userLocationName', currentLocationName);
+                    localStorage.setItem('userLat', currentLat);
+                    localStorage.setItem('userLng', currentLng);
+
+                    window.location.href = 'index.html';
+                });
+            }
+
+            // Address list items
+            document.querySelectorAll('button.text-left.flex.gap-3').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const addressText = btn.querySelector('p.text-xs').textContent || btn.querySelector('p.font-bold').textContent;
+                    forwardGeocode(addressText);
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

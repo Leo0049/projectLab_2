@@ -1,0 +1,45 @@
+# 複製本檔為 application-local.yml 後填入自己的值，並以 SPRING_PROFILES_ACTIVE=local 啟動。
+#
+#   cp src/main/resources/application-local.yml.example src/main/resources/application-local.yml
+#
+# application-local.yml 已列入 .gitignore，不會被 git 追蹤。
+# 如果你偏好用環境變數（.env）而不是這個檔案，可以完全略過本檔 —— application.yml
+# 的預設值已經對應 docker-compose.yml，直接啟動即可。
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/joindrink?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Taipei&allowPublicKeyRetrieval=true&useSSL=false
+    username: joindrink
+    password: joindrink
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # 本機 docker Redis 未設密碼，留空即可
+      password: ""
+
+# 本機以 mock 模式跳過 Firebase 手機驗證，就不需要 serviceAccountKey.json
+sms:
+  mode: mock
+
+firebase:
+  config-path: classpath:serviceAccountKey.json
+
+jwt:
+  secret: LocalDevOnlySecretForJoinDrinkDoNotUseInProductionMustBeAtLeast64Chars!
+
+# ⚠️ 填入你自己的 Cloudinary 憑證。舊憑證已外洩於版本紀錄中，請先到
+#    Cloudinary 後台 Rotate 再填入，不要沿用舊的 api-secret。
+cloudinary:
+  cloud-name: ""
+  api-key: ""
+  api-secret: ""
+
+coupon:
+  template-url: ""

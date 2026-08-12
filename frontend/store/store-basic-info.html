@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-TW">
+
+<head>
+ <meta charset="utf-8" />
+ <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+ <title>JOIN揪飲 - 基本資料</title>
+ <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+ <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+ <link
+ href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block"
+ rel="stylesheet" />
+ <script>
+ tailwind.config = {
+ darkMode:"class",
+ theme: {
+ extend: {
+ colors: {
+ primary:"#ec5b13","background-light":"#f8f6f6","background-dark":"#221610",
+ },
+ fontFamily: {"display": ["Plus Jakarta Sans"],
+ },
+ borderRadius: {
+ DEFAULT:"0.75rem",
+ },
+ },
+ },
+ };
+ </script>
+ <style type="text/tailwindcss">
+ body {
+ font-family: 'Plus Jakarta Sans', sans-serif;
+ }
+ .material-symbols-outlined {
+ font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+ }
+ .no-scrollbar::-webkit-scrollbar {
+ display: none;
+ }
+ .no-scrollbar {
+ -ms-overflow-style: none;
+ scrollbar-width: none;
+ }
+ </style>
+ <script src="js/store-shell-boot.js"></script>
+    <style>
+        @media (max-width: 1023.98px) {
+            html[data-store-shell-boot="true"] body:not([data-store-shell-ready="true"]) aside {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                z-index: 50;
+                width: min(18rem, calc(100vw - 2.5rem));
+                max-width: calc(100vw - 2.5rem);
+                transform: translateX(-110%);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display h-screen overflow-hidden">
+ <div class="flex h-screen overflow-hidden">
+ 
+<aside class="w-64 bg-white dark:bg-background-dark border-r border-primary/10 flex flex-col fixed h-full z-50">
+ <div class="p-6 flex items-center gap-3">
+ <a rel="prefetch" href="home.html" class="rounded-lg flex items-center justify-center" aria-label="回到首頁">
+ <img src="img/logo_%23U53bb%23U80cc%23U6a94.png" alt="Logo" class="object-contain" />
+ </a>
+ </div>
+ <nav class="flex-1 px-4 py-4 space-y-1">
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="home.html">
+ <span class="material-symbols-outlined">dashboard</span>
+ <span>首頁</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="store-basic-info.html">
+ <span class="material-symbols-outlined">store</span>
+ <span>商店管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="menu-drinks.html">
+ <span class="material-symbols-outlined">menu_book</span>
+ <span>菜單管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="order-all.html">
+ <span class="material-symbols-outlined">assignment</span>
+ <span>訂單管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="finance-revenue-overview.html">
+ <span class="material-symbols-outlined">payments</span>
+ <span>財務管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="reports-business-overview.html">
+ <span class="material-symbols-outlined">monitoring</span>
+ <span>數據報表</span>
+ </a>
+ </nav>
+ </aside>
+ <main class="flex-1 flex flex-col min-w-0 ml-64 overflow-hidden">
+ <script src="js/api-store-status.js"></script>
+ <header class="sticky top-0 z-40 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-primary/10 px-8 py-4 flex items-center justify-between">
+ <div class="flex items-center gap-2">
+ <span class="material-symbols-outlined text-primary text-xl">store</span>
+ <h3 class="text-lg font-black tracking-tight">商店管理</h3>
+ </div>
+ <div class="flex items-center gap-4">
+ <button id="storeStatusToggle" type="button" aria-pressed="true" data-status="loading"
+ class="flex items-center bg-slate-100 dark:bg-slate-800 px-4 py-2 rounded-lg border border-slate-200 transition-colors">
+ <span id="storeStatusDot" class="w-2 h-2 bg-slate-400 rounded-full mr-2"></span>
+ <span id="storeStatusLabel" class="text-sm font-bold text-slate-500">讀取中...</span>
+ </button>
+ <button type="button" aria-label="通知" data-notifications-bell class="w-10 h-10 flex items-center justify-center rounded-lg bg-orange-100/50 text-primary relative">
+ <span class="material-symbols-outlined">notifications</span>
+ <span class="hidden absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-background-dark" data-notifications-dot></span>
+ </button>
+ <div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border border-primary/20">
+ <img id="headerStoreLogo" alt="用戶頭像" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-67Jtctk8J1C7F-KqVSe2Mw9WH8NyLwEYMUDfB4UdBvWyqPysGNOtjr8BP-A7YDjhrXdS3HLeGGtTpArafjW4KZ0xWWrelcVu4JlBc6mqx-vsDU_50PEkm5dWfdBWvxJHiyo8vUBL1W2YQD_zulS67HyZIQRQxIxtzJ1E6RuAwDRgjJCuKbneLZ-ZwCIBih7VBbaEH09ir2q1t4oeSzjvAL1cEWbDldb7pi_cC8gjgvI0_fwaGiEd0oe-w-Unot2lfJVk4zhlha8m" />
+ </div>
+ </div>
+ </header>
+ <div class="sticky top-0 z-30 bg-background-light dark:bg-background-dark">
+ <div class="mx-8 mt-6 mb-6">
+ <div
+ class="bg-white dark:bg-slate-900 rounded-xl p-2 border border-slate-100 dark:border-slate-800 shadow-sm">
+ <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+ <a href="store-basic-info.html"
+ class="px-4 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary whitespace-nowrap transition-colors">基本資料</a>
+ <a href="store-delivery-settings.html"
+ class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap transition-colors">外送設定</a>
+ <a href="store-business-hours.html"
+ class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap transition-colors">營業時間</a>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div id="mainContentFade" class="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark opacity-0 transition-opacity duration-300">
+ <div class="p-8">
+ <div class="max-w-5xl mx-auto w-full">
+ <div class="space-y-6">
+ <div
+ class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+ <div
+ class="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-between">
+ <div class="flex items-center gap-2">
+ <span class="material-symbols-outlined text-primary">home</span>
+ <h2 class="font-bold text-lg">門市基本資訊</h2>
+ </div>
+ </div>
+ <div class="p-6 space-y-6">
+ <!-- 唯讀資訊區 -->
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 dark:bg-slate-950/50 p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+ <div>
+ <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">店名 (唯讀)</label>
+ <p id="displayStoreName" class="text-base font-semibold text-slate-400 dark:text-slate-500 italic">載入中...</p>
+ </div>
+ <div>
+ <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">所屬品牌</label>
+ <p id="displayBrandName" class="text-base font-semibold text-slate-400 dark:text-slate-500 italic">載入中...</p>
+ </div>
+ </div>
+
+ <!-- 圖片展示區 -->
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+ <div>
+ <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 font-bold">品牌 Logo (大頭貼)</label>
+ <div class="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex items-center gap-4">
+ <div class="w-20 h-20 rounded-full overflow-hidden border border-slate-200 bg-white">
+ <img id="brandLogoUrl" alt="品牌Logo" class="w-full h-full object-cover" src="" />
+ </div>
+ <p class="text-xs text-slate-400 italic">由總部統一設定，無法修改</p>
+ </div>
+ </div>
+ <div>
+ <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 font-bold">門市封面照</label>
+ <div class="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex items-center gap-4">
+ <div class="w-full h-20 rounded-lg overflow-hidden border border-slate-200 bg-white">
+ <img id="storeCoverUrl" alt="門市封面" class="w-full h-full object-cover" src="" />
+ </div>
+ <p class="text-xs text-slate-400 italic shrink-0">由總部統一設定，無法修改</p>
+ </div>
+ </div>
+ </div>
+
+ <!-- 聯絡資訊區 (原店鋪介紹位置) -->
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+ <div>
+ <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 font-bold" for="storePhone">門市聯絡電話</label>
+ <div class="relative">
+ <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">call</span>
+ <input class="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none font-bold"
+ id="storePhone" type="text" placeholder="請輸入聯絡電話" />
+ </div>
+ </div>
+ <div>
+ <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 font-bold" for="storeAddress">門市地址</label>
+ <div class="relative">
+ <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">location_on</span>
+ <input class="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none font-bold"
+ id="storeAddress" type="text" placeholder="請輸入完整地址" />
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <div class="flex justify-end pt-4">
+ <button id="saveProfileBtn"
+ class="px-12 py-3 bg-primary hover:bg-orange-600 text-white rounded-xl font-bold shadow-lg shadow-primary/20 transition-all flex items-center gap-2 transform active:scale-95">
+ <span class="material-symbols-outlined text-xl">save</span>
+ 儲存變更
+ </button>
+ </div>
+ </div>
+ </div>
+ </div>
+ </main>
+
+ <script src="js/store-api.js"></script>
+<script src="js/store-shell.js"></script>
+ <script src="js/auth-guard.js"></script>
+ <script src="js/sidebar-active.js"></script>
+ <script src="js/notifications-drawer.js"></script>
+ 
+ <script src="js/store-status-toggle.js"></script>
+ <script src="js/api-store-profile.js"></script>
+</body>
+</html>

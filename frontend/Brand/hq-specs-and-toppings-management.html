@@ -1,0 +1,796 @@
+<!doctype html>
+
+<html class="light" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>JOIN揪飲 - 規格與配料管理</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700&amp;display=block"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#ec5b13",
+              "background-light": "#f8f6f6",
+              "background-dark": "#221610",
+            },
+            fontFamily: {
+              display: ["Public Sans", "sans-serif"],
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px",
+            },
+          },
+        },
+      };
+    </script>
+    <script src="js/brand-shell-boot.js"></script>
+    <style>
+      aside nav a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        white-space: nowrap;
+        font-size: 14px;
+        text-decoration: none;
+      }
+      aside nav a .material-symbols-outlined {
+        flex-shrink: 0;
+      }
+      .sidebar-item-active {
+        background-color: #ec5b13;
+        color: white;
+      }
+
+      @media (max-width: 1023.98px) {
+        html[data-brand-shell-boot="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside {
+          position: fixed;
+          top: 0;
+          left: 0;
+          bottom: 0;
+          z-index: 40;
+          width: min(18rem, calc(100vw - 2.5rem));
+          max-width: calc(100vw - 2.5rem);
+          transform: translateX(-110%);
+        }
+      }
+
+      @media (min-width: 1024px) {
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside {
+          width: 5.75rem !important;
+        }
+
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside
+          > div:first-child {
+          padding-left: 1rem;
+          padding-right: 1rem;
+        }
+
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside
+          > div:first-child
+          a {
+          width: 100%;
+        }
+
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside
+          > div:first-child
+          img {
+          height: 3.5rem;
+        }
+
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside
+          nav
+          a {
+          justify-content: center;
+          gap: 0;
+          padding-left: 0.75rem;
+          padding-right: 0.75rem;
+        }
+
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside
+          nav
+          a
+          span:not(.material-symbols-outlined) {
+          opacity: 0;
+          width: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+      }
+    </style>
+  </head>
+
+  <body
+    class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 transition-colors duration-200 h-screen overflow-hidden"
+  >
+    <div class="flex h-screen overflow-hidden">
+      <!-- 側邊欄 -->
+      <aside
+        class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-screen sticky top-0"
+      >
+        <div class="p-6 flex justify-center">
+          <a
+            href="hq-dashboard.html"
+            class="flex flex-col items-center gap-2"
+            aria-label="回到首頁"
+          >
+            <img
+              src="img/logo_%23U53bb%23U80cc%23U6a94.png"
+              alt="JOIN揪飲"
+              class="h-20 w-auto object-contain"
+            />
+          </a>
+        </div>
+        <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+          <a
+            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            href="hq-dashboard.html"
+          >
+            <span class="material-symbols-outlined text-[22px]">dashboard</span>
+            <span class="text-sm font-medium">全局儀表板</span>
+          </a>
+          <a
+            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            href="hq-store-management.html"
+          >
+            <span class="material-symbols-outlined text-[22px]"
+              >storefront</span
+            >
+            <span class="text-sm font-medium">分店管理</span>
+          </a>
+          <a
+            class="flex items-center gap-3 px-3 py-2.5 rounded-xl sidebar-item-active transition-colors"
+            href="hq-menu-overview.html"
+          >
+            <span class="material-symbols-outlined text-[22px]"
+              >restaurant_menu</span
+            >
+            <span class="text-sm font-semibold">品牌菜單</span>
+          </a>
+          <a
+            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            href="hq-brand-financial-overview.html"
+          >
+            <span class="material-symbols-outlined text-[22px]">payments</span>
+            <span class="text-sm font-medium">財務匯總</span>
+          </a>
+          <a
+            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            href="hq-hot-and-slow-selling-items-trend.html"
+          >
+            <span class="material-symbols-outlined text-[22px]"
+              >bar_chart_4_bars</span
+            >
+            <span class="text-sm font-medium">全局報表</span>
+          </a>
+        </nav>
+      </aside>
+      <!-- 主要內容 -->
+      <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <!-- 頁首 -->
+        <header
+          class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 z-10"
+        >
+          <div class="flex items-center">
+            <h4 class="text-xl font-bold">品牌菜單</h4>
+          </div>
+          <div class="flex items-center gap-6">
+            <div class="flex items-center gap-3 cursor-pointer group">
+              <div class="text-right">
+                <p
+                  class="text-base font-bold leading-tight group-hover:text-primary transition-colors"
+                >
+                  <span data-brand-admin-name>Admin</span>
+                </p>
+              </div>
+              <div
+                class="size-9 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700"
+              >
+                <img
+                  class="w-full h-full object-cover"
+                  data-alt="Avatar of headquarters admin user"
+                  data-brand-admin-avatar
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDfz8Z2MuvXmB3vZG1V4Fz8wCpHuiF8ydw8y-qrPzY4DkJN8oIy6_a4EhBHgAyOF-Em82go2xBbEAqvjMbfhgEO2t0YV1AZPpTNd-cIjaSr1D9zZti6OnqYehuKr9DMd_CxE4dKZFcZXTGwCNdg24CnZTPapkxF_3SKBfulDY-sl-InzgD9OP5snlTIyN_vLa9w40m1nNh8gMKDFIPp7Azj4WpLkRnlmSdbs0xLHLY2ph8HQ6zYkDfPSXnfyZu0Fa0Jy54r_dOkpG7y"
+                />
+              </div>
+            </div>
+          </div>
+        </header>
+        <!-- 次要導覽／分頁 -->
+        <div
+          class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-8 shrink-0"
+        >
+          <nav class="flex gap-8 overflow-x-auto">
+            <a
+              class="py-4 border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 font-semibold text-sm transition-colors whitespace-nowrap"
+              href="hq-menu-overview.html"
+              >菜單總覽</a
+            >
+            <a
+              class="py-4 border-b-2 border-primary text-primary font-semibold text-sm whitespace-nowrap"
+              href="hq-specs-and-toppings-management.html"
+              >規格與配料管理</a
+            >
+          </nav>
+        </div>
+        <!-- 頁面內容 -->
+        <div class="flex-1 overflow-y-auto p-8 space-y-8">
+          <div
+            class="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-900"
+          >
+            規格列表支援拖曳排序，從上到下即為顧客看到的顯示順序。
+          </div>
+          <!-- 管理區塊格線 -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- 左上：溫度選項 -->
+            <section
+              class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm"
+            >
+              <div
+                class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center"
+              >
+                <h3 class="font-bold text-xl flex items-center gap-2">
+                  <span class="material-symbols-outlined text-primary"
+                    >ac_unit</span
+                  >
+                  冰量選項
+                </h3>
+                <button
+                  data-hq-temperature-create-open
+                  class="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  <span class="material-symbols-outlined text-sm">add</span>新增
+                </button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                  <thead
+                    class="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider"
+                  >
+                    <tr>
+                      <th class="px-6 py-4 font-semibold">冰量</th>
+                      <th class="px-6 py-4 font-semibold">狀態</th>
+                      <th class="px-6 py-4 font-semibold text-right">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    class="divide-y divide-slate-100 dark:divide-slate-800"
+                    data-hq-temperature-tbody
+                  ></tbody>
+                </table>
+              </div>
+            </section>
+            <!-- 右上：甜度選項 -->
+            <section
+              class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm"
+            >
+              <div
+                class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center"
+              >
+                <h3 class="font-bold text-xl flex items-center gap-2">
+                  <span class="material-symbols-outlined text-primary"
+                    >glucose</span
+                  >
+                  甜度選項
+                </h3>
+                <button
+                  data-hq-sweetness-create-open
+                  class="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  <span class="material-symbols-outlined text-sm">add</span>新增
+                </button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                  <thead
+                    class="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider"
+                  >
+                    <tr>
+                      <th class="px-6 py-4 font-semibold">甜度</th>
+                      <th class="px-6 py-4 font-semibold">狀態</th>
+                      <th class="px-6 py-4 font-semibold text-right">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    class="divide-y divide-slate-100 dark:divide-slate-800"
+                    data-hq-sweetness-tbody
+                  ></tbody>
+                </table>
+              </div>
+            </section>
+            <!-- 左下：容量規格 -->
+            <section
+              class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm"
+            >
+              <div
+                class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center"
+              >
+                <h3 class="font-bold text-xl flex items-center gap-2">
+                  <span class="material-symbols-outlined text-primary"
+                    >straighten</span
+                  >
+                  容量規格
+                </h3>
+                <button
+                  data-hq-size-create-open
+                  class="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  <span class="material-symbols-outlined text-sm">add</span>新增
+                </button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                  <thead
+                    class="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider"
+                  >
+                    <tr>
+                      <th class="px-6 py-4 font-semibold">規格名稱</th>
+                      <th class="px-6 py-4 font-semibold">狀態</th>
+                      <th class="px-6 py-4 font-semibold text-right">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    class="divide-y divide-slate-100 dark:divide-slate-800"
+                    data-hq-size-tbody
+                  ></tbody>
+                </table>
+              </div>
+            </section>
+            <!-- 右下：配料管理 -->
+            <section
+              class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm"
+            >
+              <div
+                class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center"
+              >
+                <h3 class="font-bold text-xl flex items-center gap-2">
+                  <span class="material-symbols-outlined text-primary"
+                    >grain</span
+                  >
+                  配料管理
+                </h3>
+                <button
+                  data-hq-topping-create-open
+                  class="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  <span class="material-symbols-outlined text-sm">add</span>新增
+                </button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                  <thead
+                    class="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider"
+                  >
+                    <tr>
+                      <th class="px-6 py-4 font-semibold">配料名稱</th>
+                      <th class="px-6 py-4 font-semibold">單價</th>
+                      <th class="px-6 py-4 font-semibold">狀態</th>
+                      <th class="px-6 py-4 font-semibold text-right">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    class="divide-y divide-slate-100 dark:divide-slate-800"
+                    data-hq-topping-tbody
+                  ></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+          <!-- 資訊橫幅 -->
+        </div>
+      </main>
+    </div>
+
+    <!-- 新增溫度選項彈窗 -->
+    <div
+      data-hq-temperature-create-modal
+      class="fixed inset-0 z-50 hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/50" data-hq-modal-backdrop></div>
+      <div class="relative h-full w-full overflow-y-auto">
+        <div class="min-h-full w-full p-4 flex items-center justify-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hq-temperature-create-title"
+            class="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden"
+          >
+            <div class="p-6 flex items-start justify-between gap-4">
+              <div>
+                <h3 id="hq-temperature-create-title" class="text-xl font-bold">
+                  新增冰量選項
+                </h3>
+                <p class="text-sm text-primary mt-1">新增冰量選擇</p>
+              </div>
+              <button
+                type="button"
+                data-hq-modal-close
+                class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="關閉"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form class="px-6 pb-6 space-y-6" data-hq-create-form>
+              <div class="space-y-2">
+                <label class="text-sm font-semibold">溫度名稱</label>
+                <input
+                  data-hq-temperature-name
+                  type="text"
+                  required
+                  placeholder="例如：正常冰、去冰、溫、熱"
+                  class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                />
+              </div>
+
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  data-hq-modal-close
+                  class="px-6 py-2.5 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  class="px-8 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                >
+                  確認新增
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新增甜度選項彈窗 -->
+    <div
+      data-hq-sweetness-create-modal
+      class="fixed inset-0 z-50 hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/50" data-hq-modal-backdrop></div>
+      <div class="relative h-full w-full overflow-y-auto">
+        <div class="min-h-full w-full p-4 flex items-center justify-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hq-sweetness-create-title"
+            class="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden"
+          >
+            <div class="p-6 flex items-start justify-between gap-4">
+              <div>
+                <h3 id="hq-sweetness-create-title" class="text-xl font-bold">
+                  新增甜度選項
+                </h3>
+                <p class="text-sm text-primary mt-1">新增甜度名稱/糖分比例</p>
+              </div>
+              <button
+                type="button"
+                data-hq-modal-close
+                class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="關閉"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form class="px-6 pb-6 space-y-6" data-hq-create-form>
+              <div class="space-y-2">
+                <label class="text-sm font-semibold">甜度名稱</label>
+                <input
+                  data-hq-sweetness-name
+                  type="text"
+                  required
+                  placeholder="例如：無糖、半糖、正常糖"
+                  class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                />
+              </div>
+
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  data-hq-modal-close
+                  class="px-6 py-2.5 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  class="px-8 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                >
+                  確認新增
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新增容量規格彈窗 -->
+    <div
+      data-hq-size-create-modal
+      class="fixed inset-0 z-50 hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/50" data-hq-modal-backdrop></div>
+      <div class="relative h-full w-full overflow-y-auto">
+        <div class="min-h-full w-full p-4 flex items-center justify-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hq-size-create-title"
+            class="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden"
+          >
+            <div class="p-6 flex items-start justify-between gap-4">
+              <div>
+                <h3 id="hq-size-create-title" class="text-xl font-bold">
+                  新增容量規格
+                </h3>
+                <p class="text-sm text-primary mt-1">新增杯型/容量規格名稱</p>
+              </div>
+              <button
+                type="button"
+                data-hq-modal-close
+                class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="關閉"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form class="px-6 pb-6 space-y-6" data-hq-create-form>
+              <div class="space-y-2">
+                <label class="text-sm font-semibold">規格名稱</label>
+                <input
+                  data-hq-size-name
+                  type="text"
+                  required
+                  placeholder="例如：小杯 (S)、中杯 (M)、大杯 (L)"
+                  class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                />
+              </div>
+
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  data-hq-modal-close
+                  class="px-6 py-2.5 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  class="px-8 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                >
+                  確認新增
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新增配料彈窗 -->
+    <div
+      data-hq-topping-create-modal
+      class="fixed inset-0 z-50 hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/50" data-hq-modal-backdrop></div>
+      <div class="relative h-full w-full overflow-y-auto">
+        <div class="min-h-full w-full p-4 flex items-center justify-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hq-topping-create-title"
+            class="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden"
+          >
+            <div class="p-6 flex items-start justify-between gap-4">
+              <div>
+                <h3 id="hq-topping-create-title" class="text-xl font-bold">
+                  新增配料
+                </h3>
+                <p class="text-sm text-primary mt-1">新增配料名稱與單價</p>
+              </div>
+              <button
+                type="button"
+                data-hq-modal-close
+                class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="關閉"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form class="px-6 pb-6 space-y-6" data-hq-create-form>
+              <div class="space-y-2">
+                <label class="text-sm font-semibold">配料名稱</label>
+                <input
+                  data-hq-topping-name
+                  type="text"
+                  required
+                  placeholder="例如：珍珠、椰果"
+                  class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                />
+              </div>
+              <div class="space-y-2">
+                <label class="text-sm font-semibold">單價</label>
+                <div class="relative">
+                  <span
+                    class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    >$</span
+                  >
+                  <input
+                    data-hq-topping-price
+                    type="number"
+                    required
+                    min="0"
+                    step="1"
+                    placeholder="例如：10"
+                    class="w-full pl-7 rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  data-hq-modal-close
+                  class="px-6 py-2.5 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  class="px-8 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                >
+                  確認新增
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 編輯彈窗（共用） -->
+    <div
+      data-hq-edit-modal
+      class="fixed inset-0 z-50 hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/50" data-hq-modal-backdrop></div>
+      <div class="relative h-full w-full overflow-y-auto">
+        <div class="min-h-full w-full p-4 flex items-center justify-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hq-edit-title"
+            class="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden"
+          >
+            <div class="p-6 flex items-start justify-between gap-4">
+              <div>
+                <h3
+                  id="hq-edit-title"
+                  class="text-xl font-bold"
+                  data-hq-edit-title
+                >
+                  編輯
+                </h3>
+                <p class="text-sm text-primary mt-1">更新資料後將立即套用</p>
+              </div>
+              <button
+                type="button"
+                data-hq-modal-close
+                class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="關閉"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form class="px-6 pb-6 space-y-6" data-hq-edit-form>
+              <div class="space-y-2">
+                <label class="text-sm font-semibold" data-hq-edit-name-label
+                  >名稱</label
+                >
+                <input
+                  data-hq-edit-name
+                  type="text"
+                  required
+                  class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                />
+              </div>
+
+              <div class="space-y-2 hidden" data-hq-edit-percent-group>
+                <label class="text-sm font-semibold">糖分 (%)</label>
+                <input
+                  data-hq-edit-percent
+                  type="number"
+                  min="0"
+                  max="100"
+                  class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                />
+              </div>
+
+              <div class="space-y-2 hidden" data-hq-edit-price-group>
+                <label class="text-sm font-semibold">單價</label>
+                <div class="relative">
+                  <span
+                    class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    >$</span
+                  >
+                  <input
+                    data-hq-edit-price
+                    type="number"
+                    min="0"
+                    step="1"
+                    class="w-full pl-7 rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-primary focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  data-hq-modal-close
+                  class="px-6 py-2.5 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  class="px-8 py-2.5 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                >
+                  儲存
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/hq-option-toggle-gray.js?v=4"></script>
+    <script src="js/hq-specs-and-toppings-create-modals.js?v=4"></script>
+    <script src="js/brand-api.js?v=4"></script>
+    <script src="js/hq-specs-api.js?v=5"></script>
+  </body>
+</html>

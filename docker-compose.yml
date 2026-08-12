@@ -1,0 +1,56 @@
+# JoinDrink 本機開發環境
+#
+#   docker compose up -d          啟動 MySQL + Redis
+#   docker compose ps             檢視狀態（healthy 才代表可連線）
+#   docker compose logs -f mysql  查看日誌
+#   docker compose down           停止（資料保留在 volume）
+#   docker compose down -v        停止並「刪除所有資料」
+#
+# 帳密可用專案根目錄的 .env 覆寫（見 .env.example）。
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: joindrink-mysql
+    restart: unless-stopped
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-joindrink}
+      MYSQL_USER: ${DB_USERNAME:-joindrink}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-joindrink}
+      TZ: Asia/Taipei
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # 帶入密碼，避免 root 無密碼時誤判為 healthy
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: joindrink-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    # appendonly：重啟後購物車 / 鎖狀態不會整份消失
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  mysql-data:
+  redis-data:

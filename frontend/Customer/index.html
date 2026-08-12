@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="css/output.css" rel="stylesheet" />
+  <link href="css/footer.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Leaflet CSS for Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <!-- Leaflet JS for Map -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <style data-purpose="custom-typography">
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: #f3f4f6;
+    }
+  </style>
+  <style data-purpose="layout-helpers">
+    .card-shadow {
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    .hero-gradient {
+      background: linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 60%);
+    }
+
+    /* 隱藏捲軸的自訂樣式 */
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      /* IE and Edge */
+      scrollbar-width: none;
+      /* Firefox */
+    }
+
+    /* 緩慢旋轉動畫 */
+    .animate-spin-slow {
+      animation: spin 8s linear infinite;
+    }
+
+    @keyframes heart-pop {
+      0% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.4);
+      }
+
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    .heart-pop {
+      animation: heart-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .favorite-heart-filled {
+      fill: currentColor !important;
+    }
+  </style>
+</head>
+
+<body class="text-brand-dark">
+  <!-- BEGIN: MainHeader -->
+  <header class="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 py-3 lg:px-10">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <!-- Logo -->
+      <a href="./index.html" class="flex items-center gap-2 flex-shrink-0" data-purpose="logo-container">
+        <img src="images/logo.png" alt="JOIN Logo" class="h-10 w-auto object-contain" />
+      </a>
+
+      <!-- Search and Location -->
+      <div class="flex-grow max-w-2xl hidden md:flex items-center bg-gray-100 rounded-full px-4 py-2 gap-3"
+        data-purpose="search-bar">
+        <!-- Added ID for triggering the modal -->
+        <div id="locationTrigger"
+          class="flex items-center gap-1 border-r border-gray-300 pr-3 cursor-pointer hover:text-brand-orange transition-colors">
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+            <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+              stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+            <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+            </path>
+          </svg>
+          <span id="nav-location-text" class="text-sm text-gray-600">尚未定位</span>
+        </div>
+        <div class="flex items-center gap-2 flex-grow">
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round"
+              stroke-width="2"></path>
+          </svg>
+          <input id="header-search-input" class="bg-transparent border-none focus:ring-0 text-sm w-full p-0" placeholder="搜尋想喝的品牌、店家..."
+            type="text" autocomplete="off" />
+        </div>
+      </div>
+
+      <!-- User Actions -->
+      <div class="flex items-center gap-4 lg:gap-6" data-purpose="user-nav">
+        <div class="flex items-center gap-4 text-gray-600">
+          <a href="./profile.html?section=notifications"
+            class="hover:text-brand-orange transition-colors fa-regular fa-bell" style="font-size: 22px;">
+            <!-- <svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+              <path
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+            </svg> -->
+          </a>
+          <a href="orders.html" class="hover:text-brand-orange transition-colors fa-solid fa-clock-rotate-left"
+            style="font-size: 20px;">
+            <!-- <svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+              <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"
+                stroke-width="2"></path>
+            </svg> -->
+          </a>
+          <div class="relative group" id="cart-dropdown-wrapper">
+            <a href="cart_details.html"
+              class="hover:text-brand-orange transition-colors relative block py-2 fa-solid fa-cart-shopping"
+              style="font-size: 20px;">
+              <!-- <svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+                <path
+                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                  stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+              </svg> -->
+              <span id="cart-badge"
+                class="absolute -top-1 -right-1 bg-brand-orange text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+            </a>
+            <!-- Cart Dropdown Menu -->
+            <div id="cart-dropdown-menu"
+              class="hidden group-hover:block absolute right-0 mt-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 py-4 z-50">
+              <div class="px-4 mb-3 flex justify-between items-center">
+                <h3 class="font-bold text-gray-800">我的購物車</h3>
+                <span id="cart-count-text" class="text-xs text-gray-400">共 0 項品項</span>
+              </div>
+              <div id="cart-items-container" class="max-h-60 overflow-y-auto px-4 space-y-3 mb-4">
+                <!-- Items will be injected here -->
+                <p class="text-center text-gray-400 text-sm py-4">購物車是空的</p>
+              </div>
+              <div class="px-4 pt-3 border-t border-gray-50">
+                <div class="flex justify-between mb-4">
+                  <span class="text-gray-500">總計</span>
+                  <span id="cart-total-price" class="font-bold text-brand-orange text-lg">$0</span>
+                </div>
+                <a href="cart_details.html"
+                  class="block w-full bg-brand-orange text-white text-center py-2.5 rounded-xl font-bold hover:bg-orange-600 transition-colors">
+                  查看購物車
+                </a>
+              </div>
+            </div>
+          </div>
+          <a href="profile.html?section=favorites" class="hover:text-brand-orange transition-colors fa-solid fa-heart"
+            style="font-size: 20px;">
+            <!-- <svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+              <path
+                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+            </svg> -->
+          </a>
+        </div>
+        <button
+          class="bg-brand-orange text-white px-6 py-2 rounded-full font-medium hover:bg-orange-600 transition-colors">登入</button>
+
+        <!-- User Profile link -->
+        <a href="profile.html" class="hover:text-brand-orange transition-colors">
+          <div class="relative" id="user-dropdown-wrapper">
+            <div id="user-avatar-container"
+              class="w-10 h-10 bg-gray-200 rounded-full overflow-hidden border border-gray-100 cursor-pointer transition-transform hover:scale-105">
+              <img id="nav-user-avatar" alt="Profile" class="w-full h-full object-cover"
+                src="images/default_avatar.png" />
+            </div>
+          </div>
+        </a>
+
+      </div>
+    </div>
+    </div>
+  </header>
+  <!-- END: MainHeader -->
+
+  <!-- BEGIN: Carousel -->
+  <div class="w-full flex flex-col items-center pt-8">
+    <!-- 限制最大寬度以符合原本的 960px 設定 -->
+    <div class="w-full max-w-[1280px] px-4 md:px-0 relative mb-8">
+
+      <!-- === 輪播圖區塊 === -->
+      <!-- Safelist for JS generated classes -->
+      <div
+        class="hidden w-[85%] opacity-40 opacity-100 scale-[0.95] scale-100 bg-white/60 w-2 hover:bg-white/80 bg-white w-6 bg-transparent">
+      </div>
+      <div id="carousel-area" class="relative w-full h-[250px] md:h-[400px] group overflow-hidden cursor-pointer">
+        <!-- 圖片軌道 (透過 JS 注入內容) -->
+        <div id="carousel-track" class="flex h-full w-full transition-transform duration-500 ease-out"></div>
+
+        <!-- 左導覽按鈕 (電腦版懸浮顯示) -->
+        <button id="prev-btn"
+          class="absolute left-[8%] top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-white/90 hover:bg-white text-gray-700 rounded-full flex items-center justify-center shadow-md transition-all duration-300 opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none z-10"
+          aria-label="Previous slide">
+          <!-- 替換為 SVG Icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+        </button>
+
+        <!-- 右導覽按鈕 (電腦版懸浮顯示) -->
+        <button id="next-btn"
+          class="absolute right-[8%] top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-white/90 hover:bg-white text-gray-700 rounded-full flex items-center justify-center shadow-md transition-all duration-300 opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none z-10"
+          aria-label="Next slide">
+          <!-- 替換為 SVG Icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+        </button>
+
+        <!-- 底部圓點指示器 (Pagination) -->
+        <div class="absolute bottom-4 left-0 right-0">
+          <div id="pagination-dots" class="flex items-center justify-center gap-2"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <!-- END: Carousel -->
+
+  <main class="max-w-7xl mx-auto px-4 py-6 lg:px-10">
+
+    <!-- BEGIN: NavigationTabs -->
+    <div class="flex justify-center -mt-40 mb-16 relative z-10" data-purpose="quick-nav">
+      <div class="bg-white card-shadow rounded-2xl flex p-2 gap-2">
+        <button id="tab-orders"
+          class="nav-tab flex flex-col items-center justify-center w-24 py-3 rounded-xl bg-brand-orange text-white transition-colors duration-300"
+          data-section="orders">
+          <svg class="w-6 h-6 mb-1" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"></path>
+          </svg>
+          <span class="text-xs font-medium">當前訂單</span>
+        </button>
+        <a href="./profile.html"
+          class="nav-tab flex flex-col items-center justify-center w-24 py-3 rounded-xl bg-transparent hover:bg-gray-50 transition-colors duration-300 text-gray-500">
+          <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+            <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+              stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+          </svg>
+          <span class="text-xs font-medium">個人中心</span>
+        </a>
+        <button id="tab-recent"
+          class="nav-tab flex flex-col items-center justify-center w-24 py-3 rounded-xl bg-transparent hover:bg-gray-50 transition-colors duration-300 text-gray-500"
+          data-section="recent">
+          <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"
+              stroke-width="2"></path>
+          </svg>
+          <span class="text-xs font-medium">最近點過</span>
+        </button>
+        <button id="tab-coupons"
+          class="nav-tab flex flex-col items-center justify-center w-24 py-3 rounded-xl bg-transparent hover:bg-gray-50 transition-colors duration-300 text-gray-500"
+          data-section="coupons">
+          <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+            <path
+              d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"
+              stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+          </svg>
+          <span class="text-xs font-medium">優惠券</span>
+        </button>
+      </div>
+    </div>
+    <!-- END: NavigationTabs -->
+
+    <div id="content-sections" class="relative">
+
+      <!-- Decorative elements -->
+      <div class="absolute -top-20 -right-20 w-64 h-64 bg-brand-orange/5 rounded-full blur-3xl pointer-events-none">
+      </div>
+      <div class="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-50/50 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- BEGIN: CurrentOrders -->
+      <section id="section-orders" class="mb-12">
+        <div class="flex items-center gap-2 mb-6">
+          <div class="w-1.5 h-6 bg-brand-orange rounded-full"></div>
+          <h2 class="text-xl font-bold">當前訂單</h2>
+        </div>
+        <div id="current-orders-container">
+          <!-- 空狀態：預設顯示小狗，有訂單時由 JS 替換 -->
+          <div id="orders-empty-state"
+            class="bg-white rounded-2xl p-8 card-shadow border border-gray-100 flex flex-col md:flex-row items-center justify-center gap-6 relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-r from-orange-50/30 to-transparent pointer-events-none"></div>
+            <img src="./images/小狗團長_改飲料_去背檔.png"
+              alt="目前尚無進行中的訂單"
+              class="w-32 h-32 object-contain relative z-10 select-none" />
+            <p class="text-gray-500 font-medium relative z-10">目前尚無進行中的訂單</p>
+          </div>
+        </div>
+      </section>
+
+
+
+      <!-- BEGIN: RecentlyOrdered -->
+      <section id="section-recent" class="mb-12 hidden">
+        <div class="flex items-center gap-2 mb-6">
+          <div class="w-1.5 h-6 bg-brand-orange rounded-full"></div>
+          <h2 class="text-xl font-bold">最近點過</h2>
+        </div>
+        <div id="recent-orders-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <p class="col-span-full text-center py-20 text-gray-400">登入後即可查看您的點餐紀錄</p>
+        </div>
+      </section>
+
+      <!-- BEGIN: Coupons -->
+      <section id="section-coupons" class="mb-12 hidden">
+        <div class="flex items-center gap-2 mb-6">
+          <div class="w-1.5 h-6 bg-brand-orange rounded-full"></div>
+          <h2 class="text-xl font-bold">您的優惠券</h2>
+        </div>
+        <div id="user-coupons-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Coupons injected here -->
+          <p class="col-span-full text-center py-20 text-gray-400">目前尚無可用優惠券</p>
+        </div>
+      </section>
+    </div>
+    <!-- END: RecentActivities -->
+
+    <!-- BEGIN: NearbyStores -->
+    <section class="mb-12" data-purpose="nearby-stores">
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-2">
+          <div class="w-1.5 h-6 bg-brand-orange rounded-full"></div>
+          <h2 class="text-xl font-bold">附近店家</h2>
+        </div>
+        <div class="flex gap-2">
+          <a href="./store_list.html"
+            class="bg-brand-orange text-white px-4 py-1.5 rounded-full text-xs font-medium hover:bg-orange-600 transition-colors">查看更多</a>
+        </div>
+      </div>
+      <div id="store-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <!-- Stores will be loaded here dynamically -->
+      </div>
+    </section>
+    <!-- END: NearbyStores -->
+    <!-- BEGIN: Right Floating Buttons -->
+    <div class="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[80] flex flex-col items-center gap-3">
+
+      <!-- Scroll To Top Button -->
+      <button id="scroll-top-btn"
+        onclick="window.scrollTo({top:0,behavior:'smooth'})"
+        class="w-11 h-11 bg-gray-400 hover:bg-gray-500 rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer opacity-0 pointer-events-none">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/>
+        </svg>
+      </button>
+
+      <!-- Floating Roulette Button -->
+      <button id="floating-roulette-btn"
+        class="flex flex-col items-center gap-2 hover:scale-105 active:scale-95 transition-all cursor-pointer group hidden">
+        <div class="w-16 h-16 bg-orange-500 group-hover:bg-orange-600 rounded-full shadow-[0_8px_30px_rgba(249,115,22,0.55)] border-4 border-white flex items-center justify-center transition-colors">
+          <svg class="w-8 h-8 text-white group-hover:rotate-45 transition-transform duration-500" fill="none"
+            stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"></circle>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v9l7.5 4.5M12 12L4.5 16.5"></path>
+          </svg>
+        </div>
+        <span class="bg-orange-500 group-hover:bg-orange-600 text-white font-black text-xs whitespace-nowrap px-3 py-1 rounded-full shadow-md transition-colors">轉出專屬飲品優惠！</span>
+      </button>
+
+    </div>
+    <!-- END: Right Floating Buttons -->
+
+    <div id="roulette-modal"
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/85 backdrop-blur-sm hidden transition-opacity duration-300">
+      <div id="roulette-modal-content" class="relative w-full max-w-5xl px-4 flex flex-col items-center justify-center min-h-[400px]">
+
+        <!-- Step 1: Brand Selection -->
+        <div id="roulette-step-brand" class="w-full z-10 text-white flex flex-col items-center fade-in">
+          <div class="text-center mb-10">
+            <h2 class="text-3xl md:text-5xl font-black mb-4 tracking-wider drop-shadow-lg">今天想喝哪一家？</h2>
+            <p class="text-lg text-white/80">每日僅限一次，選擇一間品牌開啟您的幸運轉盤</p>
+          </div>
+          <div id="roulette-brands-grid"
+            class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 max-w-4xl w-full mx-auto">
+            <!-- Brands injected here -->
+            <div class="animate-pulse bg-white/10 rounded-2xl h-32"></div>
+          </div>
+        </div>
+
+        <!-- Step 2: The Wheel -->
+        <div id="roulette-step-wheel"
+          class="hidden w-full flex-col md:flex-row items-center justify-center gap-12 z-10 text-white fade-in">
+          <div class="text-center md:text-left md:w-1/2 flex flex-col items-center md:items-start">
+            <h2 id="roulette-store-name"
+              class="text-4xl md:text-6xl font-black mb-4 drop-shadow-lg text-transparent bg-clip-text bg-gradient-to-r from-orange-300 to-yellow-300">
+              品牌轉盤</h2>
+            <p class="text-xl text-white/80 mb-8">轉動幸運輪盤，獲得該店指定飲品折價券！</p>
+            <button id="spin-btn"
+              class="bg-gradient-to-r from-orange-500 to-brand-orange text-white px-12 py-4 rounded-full font-black text-2xl hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+              立即抽獎
+            </button>
+          </div>
+          <div class="relative w-[300px] h-[300px] md:w-[400px] md:h-[400px] flex-shrink-0">
+            <!-- Glowing backdrop -->
+            <div class="absolute inset-0 bg-brand-orange/20 rounded-full blur-[50px] animate-pulse"></div>
+
+            <div
+              class="absolute inset-0 border-[8px] border-white/10 rounded-full shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] z-0">
+            </div>
+            <div id="wheel"
+              class="w-full h-full bg-white rounded-full relative shadow-2xl overflow-hidden transition-transform duration-[4500ms] ease-[cubic-bezier(0.15,0,0.15,1)] z-10">
+              <!-- Segments container -->
+              <div id="wheel-segments" class="absolute inset-0 rounded-full overflow-hidden">
+                <!-- JS will inject segments and lines here -->
+              </div>
+              <!-- Center Dot -->
+              <div
+                class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-orange-500 to-brand-orange rounded-full flex items-center justify-center shadow-lg border-4 border-white z-20">
+                <span class="text-white font-black text-sm md:text-base tracking-widest">SPIN</span>
+              </div>
+            </div>
+            <!-- Pointer -->
+            <div
+              class="absolute -top-6 left-1/2 -translate-x-1/2 w-10 h-14 bg-gradient-to-b from-red-500 to-red-700 clip-path-triangle shadow-[0_10px_10px_rgba(0,0,0,0.3)] z-30 drop-shadow-xl"
+              style="clip-path: polygon(50% 100%, 0 0, 100% 0);"></div>
+          </div>
+        </div>
+
+        <!-- Step 3: Result -->
+        <div id="roulette-step-result" class="hidden w-full text-center z-10 text-white fade-in">
+          <div class="mb-8">
+            <h2 class="text-4xl md:text-5xl font-black mb-4 drop-shadow-lg">恭喜獲獎！</h2>
+            <p class="text-2xl text-white/90">您獲得了 <span id="win-product-name"
+                class="font-black text-yellow-300 mx-2 text-3xl"></span> 的折扣</p>
+          </div>
+
+          <!-- Floating Coupon -->
+          <div
+            class="max-w-md mx-auto bg-white rounded-[2rem] overflow-hidden text-brand-dark shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative mb-10 transform hover:scale-105 transition-transform">
+            <div class="absolute -left-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-slate-900 rounded-full z-10"></div>
+            <div class="absolute -right-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-slate-900 rounded-full z-10"></div>
+            <img id="win-coupon-image" src="" alt="優惠券" class="w-full h-auto block" />
+            <div class="px-4 py-2.5 text-center text-xs text-red-500 font-bold bg-red-50">⚠ 僅限當日使用，逾期失效</div>
+          </div>
+
+          <button id="finish-roulette-btn"
+            class="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-12 py-4 rounded-full font-bold text-xl transition-all border border-white/30 hover:scale-105 shadow-xl">
+            太棒了，完成！
+          </button>
+        </div>
+      
+      <button id="close-roulette-btn"
+        class="absolute top-6 right-6 p-2 text-white/50 hover:text-white transition-colors z-[110]">
+        <i data-lucide="x" class="w-8 h-8"></i>
+      </button>
+    </div>
+  </main>
+
+  <!-- BEGIN: Footer -->
+  <footer class="main-footer">
+
+    <div class="footer-content">
+
+
+      <div class="footer-left">
+        <img src="images/logo.png" alt="JOIN 探飲 LOGO" class="footer-logo">
+
+        <div class="footer-desc">
+          最懂你的飲品揪團平台。<br>
+          不管是辦公室下午茶，還是好友聚會，<br>
+          一鍵發起，輕鬆揪飲！
+        </div>
+      </div>
+
+      <div class="footer-right">
+
+        <div class="footer-contact-title">
+          聯絡我們
+        </div>
+
+        <div class="footer-contact-list">
+
+          <div class="footer-contact-item">
+            <i class="fa-regular fa-envelope"></i>
+            join_drink@gmail.com
+          </div>
+
+          <div class="footer-contact-item">
+            <i class="fa-solid fa-phone"></i>
+            04-1234-5678
+          </div>
+
+          <div class="footer-contact-item">
+            <i class="fa-solid fa-location-dot"></i>
+            408臺中市南屯區公益路二段51號18樓
+          </div>
+
+        </div>
+
+      </div>
+
+
+    </div>
+
+    <div class="footer-bottom">
+      © 2026 JOIN 揪飲 - 本平台供飲品揪團平台. All Rights Reserved.
+    </div>
+
+  </footer>
+  <!-- END: Footer -->
+
+  <!-- Location Selection Modal Overlay -->
+  <!-- Added id="locationModal" and class "hidden" so it's hidden by default -->
+  <div id="locationModal"
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+    <!-- Modal Container -->
+    <!-- Removed inline onclick preventing propagation, handled in script now -->
+    <div
+      class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all transform">
+      <!-- Close Button -->
+      <!-- Removed inline style change and added id="closeModalBtn" -->
+      <button id="closeModalBtn"
+        class="absolute top-6 right-6 z-10 p-2 text-gray-400 hover:text-gray-600 transition-colors">
+        <i data-lucide="x" class="w-6 h-6"></i>
+      </button>
+
+      <!-- Modal Body -->
+      <div class="overflow-y-auto p-8 space-y-6 scrollbar-hide">
+        <!-- Header -->
+        <div class="text-center">
+          <h3 class="text-2xl font-bold text-brand-dark">選擇您的位置</h3>
+        </div>
+
+        <!-- Map Container (hidden, reserved for future use) -->
+        <div id="map-container"
+          class="relative w-full aspect-video rounded-3xl overflow-hidden border border-gray-100 shadow-inner z-0 hidden"
+          style="height: 240px;">
+          <div class="flex items-center justify-center h-full bg-gray-50">
+            <span class="text-sm text-gray-400">地圖載入中...</span>
+          </div>
+        </div>
+
+        <!-- GPS Action -->
+        <div class="space-y-3">
+          <button
+            class="w-full flex items-center justify-center gap-2 h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+            <i data-lucide="map-pin" class="w-5 h-5"></i>
+            <span>自動定位</span>
+          </button>
+          <p class="text-center text-sm text-brand-text-gray">
+            獲取精確位置以獲得更好的送餐體驗
+          </p>
+          <!-- 定位反映欄位 -->
+          <div id="modal-gps-status-row"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white transition-all duration-200">
+            <div id="modal-gps-indicator"
+              class="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0 flex items-center justify-center">
+            </div>
+            <span id="modal-gps-status-text" class="text-sm text-gray-400">尚未定位</span>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="flex items-center gap-4 py-2">
+          <div class="h-px flex-1 bg-gray-100"></div>
+          <span class="text-sm font-medium text-gray-400">或</span>
+          <div class="h-px flex-1 bg-gray-100"></div>
+        </div>
+
+        <!-- City / District / Address -->
+        <div class="space-y-4">
+          <!-- Hidden elements kept for nav-auth.js compatibility -->
+          <input id="modal-address-input" type="hidden" />
+          <button id="modal-search-btn" type="button" class="hidden" aria-hidden="true"></button>
+          <!-- 縣市 + 行政區 -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="relative z-20">
+              <label class="block text-sm font-bold text-gray-600 mb-2">縣市 <span class="text-red-500">*</span></label>
+              <div class="relative w-full">
+                <input type="text" id="modal-city" placeholder="請搜尋或選擇縣市" autocomplete="off"
+                  class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow cursor-text text-sm" />
+                <i data-lucide="chevron-down"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                <div id="modal-city-dropdown"
+                  class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                </div>
+              </div>
+            </div>
+            <div class="relative z-10">
+              <label class="block text-sm font-bold text-gray-600 mb-2">行政區 <span class="text-red-500">*</span></label>
+              <div class="relative w-full">
+                <input type="text" id="modal-district" placeholder="請先選擇縣市" disabled autocomplete="off"
+                  class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow disabled:opacity-50 disabled:cursor-not-allowed cursor-text text-sm" />
+                <i data-lucide="chevron-down"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                <div id="modal-district-dropdown"
+                  class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- 新增地址 -->
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label class="block text-sm font-bold text-gray-600">新增地址</label>
+              <span class="text-xs text-gray-400">範例格式：新安路一段5號</span>
+            </div>
+            <input id="modal-street"
+              class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow text-sm"
+              placeholder="請輸入完整地址（不含大樓名稱、樓層資訊）" type="text" />
+          </div>
+
+          <!-- 常用地址選擇面板 -->
+          <div id="common-address-panel" class="hidden space-y-2 pt-2">
+            <p class="text-sm font-bold text-gray-600">選擇常用地址</p>
+            <div id="common-address-list" class="space-y-2 max-h-44 overflow-y-auto scrollbar-hide">
+              <!-- 由 JS 動態注入 -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-8 bg-gray-50 border-t border-gray-100 space-y-4">
+        <div class="flex gap-4">
+          <button id="commonAddressBtn"
+            class="w-full flex items-center justify-center gap-2 h-14 bg-gray-100 text-brand-dark rounded-2xl font-medium hover:bg-gray-200 transition-colors">
+            <i data-lucide="history" class="w-5 h-5"></i>
+            <span>使用常用地址</span>
+          </button>
+          <button id="confirmLocationBtn"
+            class="w-full h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+            確認位置
+          </button>
+        </div>
+        <p class="text-[11px] text-center text-gray-400 leading-relaxed px-4">
+          您的位置僅用於計算運費與提供鄰近餐廳建議
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Common Utilities -->
+
+  <script src="./js/nav-auth.js"></script>
+  <script src="./js/official-map-logic.js"></script>
+  <script src="./js/location-modal-logic.js"></script>
+  
+  <!-- Homepage Specific Logic -->
+  <script>
+    // 移除原本強行清除 cache 的代碼，改用帶有 TTL 的 localStorage 機制
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const storeContainer = document.getElementById('store-container');
+
+      const BRAND_COLORS = ['#FF6B35','#FF8C42','#F7B731','#26C9A8','#4ECDC4','#45B7D1','#A29BFE','#FD79A8'];
+      function brandColor(name) {
+        let hash = 0;
+        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        return BRAND_COLORS[Math.abs(hash) % BRAND_COLORS.length];
+      }
+
+      function getTodayHours(openingHours) {
+        if (!openingHours) return null;
+        const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const today = days[new Date().getDay()];
+        try {
+          const h = typeof openingHours === 'string' ? JSON.parse(openingHours) : openingHours;
+          const d = h[today];
+          if (!d) return null;
+          if (d.closed) return '今日休息';
+          return `${d.open} - ${d.close}`;
+        } catch { return null; }
+      }
+
+      function renderStoreSkeleton() {
+        if (!storeContainer) return;
+        const skeletons = Array(6).fill(0).map(() => `
+          <div class="bg-gray-100/50 rounded-[24px] overflow-hidden animate-pulse h-[340px] flex flex-col">
+            <div class="h-48 bg-gray-200"></div>
+            <div class="p-5 flex-grow">
+              <div class="h-6 bg-gray-200 rounded-lg w-3/4 mb-3"></div>
+              <div class="h-4 bg-gray-200 rounded-lg w-1/2 mb-6"></div>
+              <div class="flex justify-between items-center mt-auto">
+                <div class="h-4 bg-gray-200 rounded-lg w-1/4"></div>
+                <div class="h-8 bg-gray-200 rounded-xl w-8"></div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+        storeContainer.innerHTML = skeletons;
+      }
+
+      // Define toggle function globally
+      window.toggleStoreFavorite = async (btn, storeId) => {
+        const userId = localStorage.getItem('JOIN_USER_ID');
+        if (!userId) {
+          showToast('請先登入以收藏店家', 'warning');
+          setTimeout(() => { window.location.href = `./auth/login.html?redirect=${encodeURIComponent(window.location.href)}`; }, 1200);
+          return;
+        }
+
+        try {
+          btn.disabled = true;
+          btn.classList.add('heart-pop');
+          setTimeout(() => btn.classList.remove('heart-pop'), 300);
+
+          const result = await NavAuth.toggleFavorite(userId, storeId);
+          if (result && (result.status === 'added' || result.msg?.includes('成功'))) {
+            btn.classList.add('text-brand-orange');
+            btn.innerHTML = '<i data-lucide="heart" class="w-5 h-5 favorite-heart-filled"></i>';
+          } else {
+            btn.classList.remove('text-brand-orange');
+            btn.innerHTML = '<i data-lucide="heart" class="w-5 h-5"></i>';
+          }
+          if (window.lucide) lucide.createIcons();
+        } catch (e) {
+          console.error('Toggle failed:', e);
+        } finally {
+          btn.disabled = false;
+        }
+      };
+
+      async function loadStores() {
+        if (!storeContainer) return;
+
+        const CACHE_KEY = 'nearbyStores_v2';
+        const CACHE_TTL = 5 * 60 * 1000; // 5 分鐘
+
+        // 嘗試從 localStorage 載入快取以實現秒開體驗
+        const cachedStr = localStorage.getItem(CACHE_KEY);
+        let usedCache = false;
+        if (cachedStr) {
+          try {
+            const { data, timestamp, lat, lng } = JSON.parse(cachedStr);
+            const isExpired = Date.now() - timestamp > CACHE_TTL;
+            const currentLat = localStorage.getItem('userLat');
+            const currentLng = localStorage.getItem('userLng');
+            
+            // 若地點沒變且未過期，或是僅作為背景更新前的過渡顯示
+            if (data && Array.isArray(data) && data.length > 0) {
+              renderStores(data);
+              usedCache = true;
+              console.log('Using nearbyStores cache (Last updated:', new Date(timestamp).toLocaleTimeString(), ')');
+            }
+          } catch(e) { console.warn('Cache parse failed', e); }
+        }
+
+        if (!usedCache) {
+          renderStoreSkeleton();
+        }
+
+        try {
+          const rawLat = localStorage.getItem('userLat');
+          const rawLng = localStorage.getItem('userLng');
+
+          // Helper: Filter out invalid strings like "null", "undefined"
+          const isValidCoord = (v) => v && v !== 'null' && v !== 'undefined' && !isNaN(parseFloat(v));
+
+          if (!isValidCoord(rawLat) || !isValidCoord(rawLng)) {
+            storeContainer.innerHTML = `
+              <div class="col-span-full py-10 text-center cursor-pointer group"
+                   onclick="document.getElementById('locationTrigger')?.click()">
+                <p class="text-2xl mb-3">📍</p>
+                <p class="text-gray-500 font-medium group-hover:text-brand-orange transition-colors">您目前尚未定位喔，無法查看店家</p>
+                <p class="text-sm text-brand-orange mt-2 underline underline-offset-2">點此開啟定位</p>
+              </div>
+            `;
+            return;
+          }
+
+          const lat = rawLat;
+          const lng = rawLng;
+
+          // 使用優化後的 API (後端已合併 isFavorite)
+          let storesData = await NavAuth.fetchAPI(`/api/stores/nearby?lat=${lat}&lng=${lng}&size=12`);
+          const stores = Array.isArray(storesData) ? storesData : (storesData?.stores || []);
+
+          if (stores) {
+            // 更新持久化快取
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
+              data: stores,
+              timestamp: Date.now(),
+              lat,
+              lng
+            }));
+            
+            renderStores(stores);
+          }
+        } catch (error) {
+          console.error('Failed to load stores:', error);
+          if (!sessionStorage.getItem('nearbyStores')) {
+            storeContainer.innerHTML = `
+              <div class="col-span-full py-10 text-center">
+                <p class="text-red-400 mb-2">載入店家失敗</p>
+                <p class="text-xs text-gray-400 mb-4">${error.message || error}</p>
+                <button onclick="location.reload()" class="bg-brand-orange text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-orange-600 transition-colors">
+                  重新載入
+                </button>
+              </div>
+            `;
+          }
+        }
+      }
+
+      function renderStores(stores, favoriteIdsFromApi) {
+        if (!stores || stores.length === 0) {
+          storeContainer.innerHTML = '<div class="col-span-full py-10 text-center text-gray-400">目前附近沒有營業中的店家</div>';
+          return;
+        }
+
+        const userId = localStorage.getItem('JOIN_USER_ID');
+        let favoriteIds = favoriteIdsFromApi;
+        
+        // 如果後端沒提供 favoriteIds (舊接口)，則嘗試從本地 wishlist 備份取得
+        if (!favoriteIds) {
+          const localWishlist = userId ? (JSON.parse(localStorage.getItem('wishlist')) || []) : [];
+          favoriteIds = localWishlist.map(w => w.store?.id || w.id || w);
+        }
+
+        storeContainer.innerHTML = stores.map(store => {
+          // 優先使用後端直接回傳的 isFavorite (優化後的新欄位)
+          const isFavorited = (store.isFavorite !== undefined) ? store.isFavorite : favoriteIds.includes(store.id);
+          const todayHours = getTodayHours(store.openingHours);
+          
+          return `
+            <div
+              onclick="location.href='store.html?id=${store.id}'"
+              class="bg-white rounded-[24px] overflow-hidden card-shadow group cursor-pointer hover:-translate-y-1 transition-all duration-300 relative"
+              data-store-lat="${store.latitude}"
+              data-store-lng="${store.longitude}">
+              
+              <button 
+                onclick="event.stopPropagation(); toggleStoreFavorite(this, ${store.id})"
+                class="absolute top-4 left-4 z-20 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-all text-gray-400 ${isFavorited ? 'text-brand-orange' : ''}">
+                <i data-lucide="heart" class="w-5 h-5 ${isFavorited ? 'favorite-heart-filled' : ''}"></i>
+              </button>
+
+              <div class="h-48 relative overflow-hidden">
+                <img src="${store.coverUrl || 'https://images.unsplash.com/photo-1544145945-f904253d0c7e?w=400&h=300&fit=crop'}"
+                     class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                     alt="${store.name}">
+                <div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm flex items-center gap-1 group-hover:bg-brand-orange group-hover:text-white transition-colors">
+                  <i data-lucide="star" class="w-3 h-3 fill-current"></i>
+                  <span class="text-xs font-bold">${store.rating ? store.rating.toFixed(1) : '--'}</span>
+                </div>
+                ${store.allowsDelivery ? `
+                  <div class="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-sm text-brand-orange px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm text-xs font-semibold">
+                    <i data-lucide="bike" class="w-3.5 h-3.5"></i>
+                    <span>外送</span>
+                  </div>` : ''}
+              </div>
+              <div class="p-5">
+                <div class="flex justify-between items-start mb-2 text-brand-text-dark">
+                  <div class="flex items-center gap-2 min-w-0">
+                    ${(store.brandLogoUrl || store.brandName) ? `
+                    <div class="flex-shrink-0 rounded-full overflow-hidden border border-gray-100 shadow-sm" style="width:48px;height:48px"
+                         style="background:${brandColor(store.brandName)}">
+                      ${store.brandLogoUrl
+                        ? `<img src="${store.brandLogoUrl}" class="w-full h-full object-cover" alt="${store.brandName || ''}"
+                                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                        : ''}
+                      <span class="w-full h-full flex items-center justify-center text-white font-bold text-sm"
+                            style="${store.brandLogoUrl ? 'display:none' : ''}">${(store.brandName || '').charAt(0).toUpperCase() || '?'}</span>
+                    </div>` : ''}
+                    <h3 class="font-extrabold text-lg truncate">${store.name || store.storeName}</h3>
+                  </div>
+                  <div class="flex items-center text-brand-orange">
+                    <i data-lucide="footprints" class="w-3.5 h-3.5"></i>
+                    <span class="text-xs font-black store-distance-value">${store.distance != null ? store.distance + ' km' : '-- km'}</span>
+                  </div>
+                </div>
+                ${store.minDeliveryAmount != null ? `
+                <div class="flex items-center gap-2 mb-4 text-xs text-brand-text-gray">
+                  <span>•</span>
+                  <span>最低外送 $${store.minDeliveryAmount}</span>
+                </div>` : ''}
+                <div class="flex items-center justify-between">
+                  ${todayHours ? `<div class="flex items-center gap-1.5 text-xs text-brand-text-gray"><i data-lucide="clock" class="w-3 h-3 text-gray-400"></i><span>${todayHours}</span></div>` : '<div></div>'}
+                  <button class="bg-brand-orange/10 text-brand-orange p-2 rounded-xl group-hover:bg-brand-orange group-hover:text-white transition-all">
+                    <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        if (window.lucide) lucide.createIcons();
+        if (typeof MapLogic !== 'undefined' && MapLogic.updateStoreDistances) {
+          MapLogic.updateStoreDistances();
+        }
+      }
+
+      // ─── 頁首搜尋框 ─────────────────────────────────────────────
+      function updateNearbyTitle(text) {
+        const h2 = document.querySelector('[data-purpose="nearby-stores"] h2');
+        if (h2) h2.textContent = text;
+      }
+
+      function goToSearch(keyword) {
+        window.location.href = `search_result.html?q=${encodeURIComponent(keyword)}`;
+      }
+
+      let headerSearchTimer = null;
+
+      function initHeaderSearch() {
+        const input = document.getElementById('header-search-input');
+        if (!input) return;
+        input.addEventListener('input', () => {
+          clearTimeout(headerSearchTimer);
+          const keyword = input.value.trim();
+          if (!keyword) return;
+          headerSearchTimer = setTimeout(() => goToSearch(keyword), 500);
+        });
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            clearTimeout(headerSearchTimer);
+            const keyword = input.value.trim();
+            if (keyword) goToSearch(keyword);
+          }
+        });
+      }
+
+      // --- Tab Switching Logic ---
+      const tabs = document.querySelectorAll('.nav-tab');
+      const sections = document.querySelectorAll('#content-sections > section');
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const targetSection = tab.getAttribute('data-section');
+
+          // Update tabs UI
+          tabs.forEach(t => {
+            t.classList.remove('bg-brand-orange', 'text-white');
+            t.classList.add('bg-transparent', 'hover:bg-gray-50', 'text-gray-500');
+          });
+          tab.classList.remove('bg-transparent', 'hover:bg-gray-50', 'text-gray-500');
+          tab.classList.add('bg-brand-orange', 'text-white');
+
+          // Update sections visibility
+          sections.forEach(s => {
+            if (s.id === `section-${targetSection}`) {
+              s.classList.remove('hidden');
+            } else {
+              s.classList.add('hidden');
+            }
+          });
+
+          // Fetch data if needed
+          if (targetSection === 'recent') loadRecentOrders();
+          if (targetSection === 'coupons') loadUserCoupons();
+        });
+      });
+
+      async function loadCurrentOrders() {
+        const container = document.getElementById('current-orders-container');
+        const userId = localStorage.getItem('JOIN_USER_ID');
+        if (!userId) return; // 未登入保持小狗空狀態
+
+        const getStatusLabel = (order) => {
+          if (order.status === 'OPEN') return order.type === 'GROUP' ? '揪團中' : '訂單已送出';
+          if (order.status === 'READY') return order.address ? '配送中' : '待取餐';
+          const map = {
+            SUBMITTED: '訂單已送出', PREPARING: '製作中', COMPLETED: '已完成',
+            CANCELLED: '已取消',     REJECTED: '不成立'
+          };
+          return map[order.status] || order.status || '-';
+        };
+        const getStatusColor = (order) => {
+          if (order.status === 'OPEN') return order.type === 'GROUP' ? 'bg-orange-500 text-white' : 'bg-yellow-100 text-yellow-800';
+          const map = {
+            SUBMITTED: 'bg-yellow-100 text-yellow-800', PREPARING: 'bg-blue-100 text-blue-700',
+            READY:     'bg-orange-100 text-orange-600',  COMPLETED: 'bg-emerald-100 text-emerald-700',
+            CANCELLED: 'bg-slate-100 text-slate-500',    REJECTED:  'bg-red-100 text-red-700'
+          };
+          return map[order.status] || 'bg-slate-100 text-slate-500';
+        };
+
+        const PAGE_SIZE = 6;
+
+        const renderOrderCard = (order) => `
+          <div onclick="location.href='order_details.html?id=${order.orderId || order.id}'" class="bg-white rounded-2xl p-5 card-shadow border border-gray-100 cursor-pointer hover:border-brand-orange transition-all group">
+            <div class="flex justify-between items-start mb-4">
+              <div class="w-12 h-12 rounded-xl overflow-hidden bg-orange-50 flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+                ${order.logoUrl
+                  ? `<img src="${order.logoUrl}" alt="品牌 logo" class="w-full h-full object-cover">`
+                  : `<i data-lucide="clock" class="w-5 h-5 text-brand-orange"></i>`}
+              </div>
+              <span class="text-[10px] font-bold px-2 py-1 rounded-full ${getStatusColor(order)}">
+                ${getStatusLabel(order)}
+              </span>
+            </div>
+            <h3 class="font-bold text-gray-800 mb-1">${order.storeName || '-'}</h3>
+            <p class="text-xs text-gray-400 mb-3">${order.createdAt ? new Date(order.createdAt).toLocaleString() : ''}</p>
+            <div class="flex items-center justify-between pt-4 border-t border-gray-50">
+              <span class="font-black text-brand-orange">$${order.totalAmount ?? order.finalAmount ?? '-'}</span>
+              <span class="text-xs font-bold text-gray-400 group-hover:text-brand-orange flex items-center gap-1">檢視詳情 <i data-lucide="chevron-right" class="w-4 h-4"></i></span>
+            </div>
+          </div>`;
+
+        try {
+          const orders = await NavAuth.fetchAPI(`/api/orders/user/${userId}/active`);
+          const list = Array.isArray(orders) ? orders : [];
+          if (list.length === 0) return; // 保持小狗空狀態
+
+          let shownCount = Math.min(PAGE_SIZE, list.length);
+
+          const grid = document.createElement('div');
+          grid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
+          grid.innerHTML = list.slice(0, shownCount).map(renderOrderCard).join('');
+
+          const moreBtn = document.createElement('button');
+          moreBtn.className = 'mt-4 w-full py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-500 hover:border-brand-orange hover:text-brand-orange transition-all';
+          moreBtn.textContent = '展開更多';
+
+          const collapseBtn = document.createElement('button');
+          collapseBtn.className = 'mt-4 w-full py-3 rounded-2xl border border-gray-200 text-sm font-bold text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-all hidden';
+          collapseBtn.textContent = '收合訂單';
+
+          moreBtn.onclick = () => {
+            const next = list.slice(shownCount, shownCount + PAGE_SIZE);
+            grid.insertAdjacentHTML('beforeend', next.map(renderOrderCard).join(''));
+            shownCount += next.length;
+            if (shownCount >= list.length) {
+              moreBtn.classList.add('hidden');
+              collapseBtn.classList.remove('hidden');
+            }
+            if (window.lucide) lucide.createIcons();
+          };
+
+          collapseBtn.onclick = () => {
+            shownCount = PAGE_SIZE;
+            grid.innerHTML = list.slice(0, PAGE_SIZE).map(renderOrderCard).join('');
+            collapseBtn.classList.add('hidden');
+            moreBtn.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+          };
+
+          container.innerHTML = '';
+          container.appendChild(grid);
+          if (list.length > PAGE_SIZE) {
+            container.appendChild(moreBtn);
+            container.appendChild(collapseBtn);
+          }
+          if (window.lucide) lucide.createIcons();
+        } catch (err) {
+          console.warn('loadCurrentOrders failed:', err);
+        }
+      }
+
+      async function loadRecentOrders() {
+        const container = document.getElementById('recent-orders-container');
+        const userId = localStorage.getItem('JOIN_USER_ID');
+        if (!userId) {
+          container.innerHTML = '<p class="col-span-full text-center py-20 text-gray-400">登入後即可查看您的點餐紀錄</p>';
+          return;
+        }
+
+        container.innerHTML = '<p class="col-span-full text-center py-20 text-gray-400">載入中...</p>';
+
+        try {
+          const raw = await NavAuth.fetchAPI(`/api/orders/user/${userId}/recent-cards`);
+          const allOrders = Array.isArray(raw) ? raw : (raw?.content || []);
+
+          // 只取 COMPLETED，依最新排序
+          const completed = allOrders
+            .filter(o => (o.status || '').toUpperCase() === 'COMPLETED')
+            .sort((a, b) => new Date(b.orderTime || b.createdAt || 0) - new Date(a.orderTime || a.createdAt || 0));
+
+          if (completed.length === 0) {
+            container.innerHTML = '<p class="col-span-full text-center py-20 text-gray-400">目前尚無已完成的訂單</p>';
+            return;
+          }
+
+          const show = completed.slice(0, 6);
+          const hasMore = completed.length > 6;
+
+          container.innerHTML = show.map(order => `
+            <div onclick="location.href='order_details.html?id=${order.orderId}'" class="bg-white rounded-2xl p-5 card-shadow border border-gray-100 cursor-pointer hover:border-brand-orange transition-all group">
+              <div class="flex justify-between items-start mb-4">
+                <div class="w-12 h-12 rounded-xl overflow-hidden bg-orange-50 flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+                  ${order.storeImageUrl
+                    ? `<img src="${order.storeImageUrl}" alt="${order.storeName}" class="w-full h-full object-cover">`
+                    : `<i data-lucide="clock" class="w-5 h-5 text-brand-orange"></i>`}
+                </div>
+                <span class="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-600">已完成</span>
+              </div>
+              <h3 class="font-bold text-gray-800 mb-1">${order.storeName || '-'}</h3>
+              <p class="text-xs text-gray-400 mb-3">${order.orderTime || ''}</p>
+              <div class="text-xs text-gray-500 line-clamp-2 mb-3">${order.itemsSummary || ''}</div>
+              <div class="flex items-center justify-between pt-4 border-t border-gray-50">
+                <span class="font-black text-brand-orange">$${order.finalAmount || 0}</span>
+                <span class="text-xs font-bold text-gray-400 group-hover:text-brand-orange flex items-center gap-1">檢視詳情 <i data-lucide="chevron-right" class="w-4 h-4"></i></span>
+              </div>
+            </div>
+          `).join('') + (hasMore ? `
+            <div class="col-span-full flex justify-center mt-2">
+              <button onclick="location.href='orders.html?mode=PERSONAL&status=Completed'"
+                class="px-6 py-2.5 rounded-full border border-brand-orange text-brand-orange text-sm font-semibold hover:bg-orange-50 transition-colors">
+                查看全部已完成訂單
+              </button>
+            </div>` : '');
+
+          if (window.lucide) lucide.createIcons();
+        } catch (err) {
+          console.error('Failed to load recent orders', err);
+          container.innerHTML = '<p class="col-span-full text-center py-20 text-gray-400">載入失敗，請稍後再試</p>';
+        }
+      }
+
+      async function loadUserCoupons() {
+        const container = document.getElementById('user-coupons-container');
+        const userId = localStorage.getItem('JOIN_USER_ID');
+        if (!userId) return;
+
+        try {
+          const coupons = await NavAuth.fetchAPI(`/api/coupons/user/${userId}`);
+          if (coupons.length === 0) {
+            container.innerHTML = '<p class="col-span-full text-center py-20 text-gray-400">目前尚無可用優惠券</p>';
+            return;
+          }
+
+          container.innerHTML = coupons.map(c => `
+            <div class="relative overflow-hidden bg-white border-2 border-dashed border-orange-200 rounded-2xl group hover:border-brand-orange transition-all">
+              <div class="absolute -left-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-gray-50 rounded-full z-10"></div>
+              <div class="absolute -right-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-gray-50 rounded-full z-10"></div>
+              ${c.finalImageUrl
+                ? `<img src="${c.finalImageUrl}" alt="${c.productName}" class="w-full h-auto block" />
+                   <div class="px-4 py-2 text-center text-xs text-gray-400">有效期限至 ${(() => { const d = new Date(c.expiryDate); return d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate(); })()}</div>`
+                : `<div class="p-6 flex items-center justify-between">
+                    <div class="flex flex-col gap-1">
+                      <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 bg-orange-100 text-brand-orange text-[10px] font-bold rounded-full">${c.brandName}</span>
+                        <span class="text-xs font-bold text-gray-600">${c.productName} 專屬</span>
+                      </div>
+                      <div class="text-[10px] text-gray-400">有效期至: ${new Date(c.expiryDate).toLocaleDateString()}</div>
+                    </div>
+                    <div class="text-right">
+                      <div class="text-[10px] font-black text-brand-orange tracking-widest uppercase mb-1">COUPON</div>
+                      <h3 class="text-2xl font-black text-gray-800 mb-1">$${c.discountAmount} <span class="text-sm font-normal">OFF</span></h3>
+                    </div>
+                  </div>`
+              }
+            </div>
+          `).join('');
+        } catch (err) {
+          console.error('Failed to load coupons', err);
+        }
+      }
+
+
+
+      let selectedBrandId = null;
+      let categories = [];
+      let currentRotation = 0;
+      let isSpinning = false;
+
+      // ── Toast 通知系統 ──────────────────────────────
+      function showToast(message, type = 'info') {
+        const container = document.getElementById('index-toast');
+        if (!container) return;
+
+        // 同樣訊息已在顯示中，不重複新增
+        const existing = container.querySelectorAll('span');
+        for (const el of existing) {
+          if (el.textContent === message) return;
+        }
+
+        const icons = {
+          success: `<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`,
+          error:   `<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>`,
+          warning: `<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`,
+          info:    `<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+        };
+        const styles = {
+          success: 'bg-emerald-500 text-white',
+          error:   'bg-red-500 text-white',
+          warning: 'bg-orange-500 text-white',
+          info:    'bg-slate-700 text-white',
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `pointer-events-auto flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl text-sm font-semibold max-w-xs backdrop-blur-sm
+          ${styles[type] || styles.info} translate-y-0 opacity-100 transition-all duration-300`;
+        toast.innerHTML = `${icons[type] || icons.info}<span>${message}</span>`;
+        container.appendChild(toast);
+
+        // Animate out after 3s
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(-12px)';
+          setTimeout(() => toast.remove(), 350);
+        }, 3000);
+      }
+
+      const floatingBtn = document.getElementById('floating-roulette-btn');
+      const rouletteModal = document.getElementById('roulette-modal');
+      const closeRouletteBtn = document.getElementById('close-roulette-btn');
+      const finishRouletteBtn = document.getElementById('finish-roulette-btn');
+
+      // Initialize floating button visibility based on user status
+      async function initRouletteFloatingBtn() {
+        const userId = localStorage.getItem('JOIN_USER_ID');
+        console.log('Initializing roulette for userId:', userId);
+
+        if (!userId) {
+          console.log('User not logged in, showing roulette entice button');
+          floatingBtn.classList.remove('hidden');
+          return;
+        }
+
+        try {
+          // If already spun today, hide the button completely
+          const status = await NavAuth.fetchAPI(`/api/coupons/spin-status`, { timeout: 3000 }).catch(e => {
+            console.error('Status check failed:', e);
+            return { remainSpins: 0 }; // Keep button visible if check fails
+          });
+
+          console.log('Daily spin status:', status);
+          // 調整：無論是否有剩餘次數，皆保持顯示
+          floatingBtn.classList.remove('hidden');
+        } catch (err) {
+          console.error('Init roulette error:', err);
+          floatingBtn.classList.remove('hidden'); // Fallback to show
+        }
+      }
+
+      // Open Modal and load initial data
+      let _rouletteOpening = false;
+      async function openRouletteModal() {
+        if (_rouletteOpening) return;
+        _rouletteOpening = true;
+        try {
+        const userId = localStorage.getItem('JOIN_USER_ID');
+
+        if (!userId) {
+          showToast('請先登入即可參加每日輪盤抽獎！', 'warning');
+          return;
+        }
+
+        rouletteModal.classList.remove('hidden');
+
+        // Hide all steps initially
+        document.getElementById('roulette-step-brand').classList.add('hidden');
+        document.getElementById('roulette-step-wheel').classList.add('hidden');
+        document.getElementById('roulette-step-result').classList.add('hidden');
+
+        try {
+          const status = await NavAuth.fetchAPI(`/api/coupons/spin-status`);
+          if (status && status.remainSpins <= 0) {
+            // Should not happen as button is hidden, but just in case
+            showToast('您今日已參加過轉盤遊戲囉！', 'info');
+            closeRouletteModal();
+            return;
+          }
+
+          document.getElementById('roulette-step-brand').classList.remove('hidden');
+          loadRouletteBrands();
+        } catch (err) {
+          console.error('Failed to init roulette', err);
+          document.getElementById('roulette-step-brand').classList.remove('hidden');
+          loadRouletteBrands(); // Fallback load
+        }
+        } finally {
+          _rouletteOpening = false;
+        }
+      }
+
+      function closeRouletteModal() {
+        if (isSpinning) return; // Prevent closing while spinning
+        rouletteModal.classList.add('hidden');
+      }
+
+      async function loadRouletteBrands() {
+        const grid = document.getElementById('roulette-brands-grid');
+        try {
+          const brands = await NavAuth.fetchAPI('/api/game-wheel/brands');
+          const data = brands && brands.length > 0 ? brands : [];
+
+          if (data.length === 0) {
+            grid.innerHTML = '<p class="col-span-full text-center opacity-70">目前沒有可參加的品牌</p>';
+            return;
+          }
+
+          grid.innerHTML = data.map(brand => {
+            const logoHtml = brand.logoUrl
+              ? `<img src="${brand.logoUrl}" class="w-full h-full object-cover" alt="${brand.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+              : '';
+            const fallbackHtml = `<span style="display:${brand.logoUrl ? 'none' : 'flex'}" class="w-full h-full items-center justify-center text-white font-black text-xl">${brand.name.charAt(0)}</span>`;
+            return `
+            <div onclick="selectBrand(${brand.id}, '${brand.name.replace(/'/g, "\\'")}')"
+                 class="bg-white/10 hover:bg-white/20 border border-white/20 rounded-3xl p-6 cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 flex flex-col items-center justify-center gap-4 backdrop-blur-sm shadow-xl">
+              <div class="w-16 h-16 rounded-full overflow-hidden bg-white/20 border-2 border-white/30 flex items-center justify-center">
+                ${logoHtml}${fallbackHtml}
+              </div>
+              <span class="text-lg font-bold text-center text-white drop-shadow-md">${brand.name}</span>
+            </div>`;
+          }).join('');
+        } catch (err) {
+          grid.innerHTML = '<p class="col-span-full text-center opacity-70">無法載入品牌清單</p>';
+        }
+      }
+
+      window.selectBrand = async (brandId, brandName) => {
+        selectedBrandId = brandId;
+        document.getElementById('roulette-store-name').innerText = brandName;
+
+        try {
+          const res = await NavAuth.fetchAPI(`/api/game-wheel/menu/${brandId}`, { cache: true, ttl: 3600000 });
+          const wheelOptions = res.wheelOptions || [];
+          categories = wheelOptions.map(c => c.categoryName || '獎項');
+          drawWheel(categories);
+
+          document.getElementById('roulette-step-brand').classList.add('hidden');
+          document.getElementById('roulette-step-wheel').classList.remove('hidden');
+        } catch (err) {
+          categories = ["招牌奶茶", "純茶系列", "果茶系列", "口感加料", "季節限定", "全品項"];
+          drawWheel(categories);
+          document.getElementById('roulette-step-brand').classList.add('hidden');
+          document.getElementById('roulette-step-wheel').classList.remove('hidden');
+        }
+      };
+
+      // 優化轉盤繪製邏輯
+      function drawWheel(cats) {
+        const container = document.getElementById('wheel-segments');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const n = cats.length;
+        const degStep = 360 / n;
+
+        // 三種切片顏色
+        const COLOR_WHITE       = '#FFFFFF';
+        const COLOR_LIGHT_ORANGE = '#FFD4A8';  // 淺橘
+        const COLOR_DARK_ORANGE  = '#F97316';  // 深橘
+
+        // 決定每格顏色：偶數→白/深橘交替；奇數→同樣交替但最後一格改淺橘
+        function sliceColor(i) {
+          if (i % 2 === 1) return COLOR_DARK_ORANGE;
+          if (i === n - 1 && n % 2 === 1) return COLOR_LIGHT_ORANGE;
+          return COLOR_WHITE;
+        }
+
+        // conic-gradient 畫切片底色
+        const stops = cats.map((_, i) =>
+          `${sliceColor(i)} ${i * degStep}deg ${(i + 1) * degStep}deg`
+        ).join(', ');
+        container.style.background = `conic-gradient(${stops})`;
+
+        // 文字 & 分隔線
+        cats.forEach((cat, i) => {
+          const rotation = i * degStep;
+          const isDark = sliceColor(i) === COLOR_DARK_ORANGE;
+
+          const wrapper = document.createElement('div');
+          wrapper.className = 'absolute inset-0 flex items-start justify-center pt-8 md:pt-12';
+          wrapper.style.transform = `rotate(${rotation + degStep / 2}deg)`;
+
+          const span = document.createElement('span');
+          span.className = `font-black text-xs md:text-sm tracking-widest px-2 text-center break-words max-w-[80px] ${isDark ? 'text-white' : 'text-brand-dark'}`;
+          span.innerText = cat;
+          wrapper.appendChild(span);
+          container.appendChild(wrapper);
+
+          // 分隔線
+          const lineRot = rotation;
+          const line = document.createElement('div');
+          line.className = 'absolute top-0 left-1/2 w-0.5 h-1/2 origin-bottom';
+          line.style.cssText = `transform: translateX(-50%) rotate(${lineRot}deg); background: rgba(251,146,60,0.4);`;
+          container.appendChild(line);
+        });
+      }
+
+      const spinBtn = document.getElementById('spin-btn');
+      spinBtn?.addEventListener('click', async () => {
+        if (isSpinning) return;
+        const userId = localStorage.getItem('JOIN_USER_ID') || '1'; // Default for demo
+
+        isSpinning = true;
+        spinBtn.disabled = true;
+        spinBtn.innerText = '轉動中...';
+
+        try {
+          const result = await NavAuth.fetchAPI('/api/coupons/spin', {
+            method: 'POST',
+            body: JSON.stringify({ brandId: selectedBrandId })
+          });
+
+          let catIndex = categories.indexOf(result.category);
+          if (catIndex === -1) catIndex = 0; // Safe fallback
+
+          const degStep = 360 / categories.length;
+          // Calculate target to stop exactly on the category
+          // Note: Pointer is at 0 degrees (top). 
+          const targetRotation = 360 - (catIndex * degStep);
+
+          // Add 6 full circles for dramatic effect
+          const totalRotation = currentRotation + (360 * 6) + (targetRotation - (currentRotation % 360));
+          currentRotation = totalRotation;
+
+          const wheel = document.getElementById('wheel');
+          wheel.style.transform = `rotate(${currentRotation}deg)`;
+
+          // 成功轉動後保持懸浮按鈕顯示（原本會隱藏）
+          // if (floatingBtn) floatingBtn.classList.add('hidden');
+
+          setTimeout(() => {
+            showResult(result);
+            isSpinning = false;
+            spinBtn.innerText = '立即抽獎'; // Reset for next time
+          }, 4600); // slightly longer than CSS transition
+
+        } catch (err) {
+          console.error('Spin API Error:', err);
+          let errorMsg = '抽獎發生異常，請重試！';
+          if (err instanceof Error) {
+            errorMsg = err.message;
+          } else if (typeof err === 'string') {
+            errorMsg = err;
+          }
+          showToast(errorMsg, 'error');
+          isSpinning = false;
+          spinBtn.disabled = false;
+          spinBtn.innerText = '立即抽獎';
+        }
+      });
+
+      function showResult(result) {
+        document.getElementById('win-product-name').innerText = result.productName;
+        const couponEl = document.getElementById('win-coupon-code');
+        if (couponEl) couponEl.classList.add('hidden');
+
+        const couponImg = document.getElementById('win-coupon-image');
+        if (couponImg && result.couponImageUrl) {
+          couponImg.src = result.couponImageUrl;
+          couponImg.closest('div').classList.remove('hidden');
+        } else if (couponImg) {
+          couponImg.closest('div').classList.add('hidden');
+        }
+
+        document.getElementById('roulette-step-wheel').classList.add('hidden');
+        document.getElementById('roulette-step-result').classList.remove('hidden');
+      }
+
+      // 綁定懸浮按鈕與 Modal 事件
+      floatingBtn?.addEventListener('click', openRouletteModal);
+      closeRouletteBtn?.addEventListener('click', closeRouletteModal);
+      
+      // Background click to close
+      rouletteModal.addEventListener('click', (e) => {
+        if (e.target === rouletteModal) closeRouletteModal();
+      });
+
+      // Prevent bubble from content
+      document.getElementById('roulette-modal-content')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+
+      // 完成抽獎，關閉 Modal，但不隱藏懸浮按鈕
+      finishRouletteBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeRouletteModal();
+        // 保持懸浮按鈕顯示（原本會隱藏）
+        // floatingBtn.classList.add('hidden');
+        // Refresh coupons if user goes to that tab
+        if (document.getElementById('tab-coupons').classList.contains('bg-brand-orange')) {
+          loadUserCoupons();
+        }
+      });
+
+      // Initialize the floating button on load
+      initRouletteFloatingBtn();
+
+
+      // Load initial stores
+      loadStores();
+      initHeaderSearch();
+      loadCurrentOrders();
+
+      // Scroll-to-top button visibility
+      const scrollTopBtn = document.getElementById('scroll-top-btn');
+      window.addEventListener('scroll', () => {
+        if (window.scrollY > 300) {
+          scrollTopBtn.classList.remove('opacity-0', 'pointer-events-none');
+          scrollTopBtn.classList.add('opacity-100');
+        } else {
+          scrollTopBtn.classList.add('opacity-0', 'pointer-events-none');
+          scrollTopBtn.classList.remove('opacity-100');
+        }
+      }, { passive: true });
+
+
+      // 登入後第一次進入首頁，且尚未定位時，才自動彈出定位視窗（每次登入只拱一次）
+      setTimeout(() => {
+        const _isValidCoord = (v) => v && v !== 'null' && v !== 'undefined' && !isNaN(parseFloat(v));
+        const _alreadyLocated = _isValidCoord(localStorage.getItem('userLat')) && _isValidCoord(localStorage.getItem('userLng'));
+        if (!localStorage.getItem('JOIN_LOCATION_MODAL_SHOWN') && !_alreadyLocated) {
+          localStorage.setItem('JOIN_LOCATION_MODAL_SHOWN', '1');
+          document.getElementById('locationTrigger')?.click();
+        }
+      }, 400);
+
+      // Refresh stores when location changed (clear cache first)
+      window.addEventListener('locationChanged', () => {
+        sessionStorage.removeItem('nearbyStores');
+        loadStores();
+      });
+
+      // --- Hero Carousel Logic ---
+
+      // 模擬您的圖片資料
+      const slides = [
+        './images/BN-1.jpg',
+        './images/BN-2.jpg',
+        './images/BN-3.jpg'
+      ];
+
+      let currentIndex = 0;
+      let isHovered = false;
+      let touchStart = 0;
+      let touchEnd = 0;
+      let autoPlayInterval;
+
+      // DOM 元素
+      const track = document.getElementById('carousel-track');
+      const dotsContainer = document.getElementById('pagination-dots');
+      const carouselArea = document.getElementById('carousel-area');
+      const prevBtn = document.getElementById('prev-btn');
+      const nextBtn = document.getElementById('next-btn');
+
+      // 初始化輪播圖
+      function initCarousel() {
+        // 渲染圖片
+        track.innerHTML = slides.map((slide, index) => `
+        <div class="w-[85%] flex-shrink-0 h-full px-1 md:px-2 slide-item" data-index="${index}">
+          <div class="slide-bg w-full h-full bg-center bg-cover bg-no-repeat rounded-xl shadow-sm transition-all duration-500 ease-out"
+               style="background-image: url('${slide}')"
+               role="img" aria-label="Slide ${index + 1}">
+          </div>
+        </div>
+      `).join('');
+
+        // 渲染圓點指示器
+        dotsContainer.innerHTML = slides.map((_, index) => `
+        <button class="dot-btn transition-all duration-300 rounded-full h-2" data-index="${index}" aria-label="Go to slide ${index + 1}"></button>
+      `).join('');
+
+        // 綁定動態生成的元素事件
+        document.querySelectorAll('.slide-item').forEach(item => {
+          item.addEventListener('click', (e) => {
+            const index = parseInt(item.getAttribute('data-index'));
+            if (currentIndex !== index) {
+              e.stopPropagation();
+              goToSlide(index);
+            }
+          });
+        });
+
+        document.querySelectorAll('.dot-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            goToSlide(parseInt(btn.getAttribute('data-index')));
+          });
+        });
+
+        updateCarousel();
+        startAutoPlay();
+      }
+
+      // 更新輪播圖畫面
+      function updateCarousel() {
+        // 85%寬度置中公式: translateX(calc(7.5% - currentIndex * 85%))
+        track.style.transform = `translateX(calc(7.5% - ${currentIndex * 85}%))`;
+
+        // 更新圖片樣式 (當前放至100%，兩側半透明並縮小)
+        document.querySelectorAll('.slide-bg').forEach((bg, index) => {
+          if (index === currentIndex) {
+            bg.classList.remove('opacity-40', 'scale-[0.95]');
+            bg.classList.add('opacity-100', 'scale-100');
+          } else {
+            bg.classList.remove('opacity-100', 'scale-100');
+            bg.classList.add('opacity-40', 'scale-[0.95]');
+          }
+        });
+
+        // 更新圓點樣式
+        document.querySelectorAll('.dot-btn').forEach((btn, index) => {
+          if (index === currentIndex) {
+            btn.classList.remove('bg-white/60', 'w-2', 'hover:bg-white/80');
+            btn.classList.add('bg-white', 'w-6');
+          } else {
+            btn.classList.remove('bg-white', 'w-6');
+            btn.classList.add('bg-white/60', 'w-2', 'hover:bg-white/80');
+          }
+        });
+      }
+
+      // 控制功能
+      function nextSlide() {
+        currentIndex = currentIndex === slides.length - 1 ? 0 : currentIndex + 1;
+        updateCarousel();
+      }
+
+      function prevSlide() {
+        currentIndex = currentIndex === 0 ? slides.length - 1 : currentIndex - 1;
+        updateCarousel();
+      }
+
+      function goToSlide(index) {
+        currentIndex = index;
+        updateCarousel();
+      }
+
+      // 自動播放機制
+      function startAutoPlay() {
+        stopAutoPlay();
+        autoPlayInterval = setInterval(() => {
+          if (!isHovered) {
+            nextSlide();
+          }
+        }, 4000); // 4秒切換一次
+      }
+
+      function stopAutoPlay() {
+        if (autoPlayInterval) clearInterval(autoPlayInterval);
+      }
+
+      // --- 事件監聽器綁定 ---
+
+      // 左右按鈕
+      prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        prevSlide();
+      });
+
+      nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        nextSlide();
+      });
+
+      // 滑鼠移入暫停自動播放
+      carouselArea.addEventListener('mouseenter', () => isHovered = true);
+      carouselArea.addEventListener('mouseleave', () => isHovered = false);
+
+      // 手機版觸控滑動
+      carouselArea.addEventListener('touchstart', (e) => {
+        touchStart = e.targetTouches[0].clientX;
+      }, { passive: true });
+
+      carouselArea.addEventListener('touchmove', (e) => {
+        touchEnd = e.targetTouches[0].clientX;
+      }, { passive: true });
+
+      carouselArea.addEventListener('touchend', () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > 50;
+        const isRightSwipe = distance < -50;
+
+        if (isLeftSwipe) {
+          nextSlide();
+        } else if (isRightSwipe) {
+          prevSlide();
+        }
+
+        // 重置觸控座標
+        touchStart = 0;
+        touchEnd = 0;
+      });
+
+      // 啟動程式
+      initCarousel();
+
+    });
+  </script>
+
+  <!-- Toast Notification：放在 body 最底層確保 z-index 在 root stacking context，不被 header 蓋住 -->
+  <div id="index-toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none" aria-live="polite"></div>
+
+</body>
+
+</html>

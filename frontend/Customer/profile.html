@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>個人資料 - JOIN揪</title>
+    <link href="css/output.css" rel="stylesheet" />
+    <link href="css/footer.css" rel="stylesheet" />
+    <link href="css/profile.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Leaflet JS for Map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+
+        @keyframes heart-pop {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.4);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .heart-pop {
+            animation: heart-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .favorite-heart-filled {
+            fill: currentColor !important;
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+    <!-- Main Header -->
+    <!-- BEGIN: MainHeader -->
+    <header class="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 py-3 lg:px-10">
+        <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <!-- Logo -->
+            <a href="index.html" class="flex items-center gap-2 flex-shrink-0" data-purpose="logo-container">
+                <img src="images/logo.png" alt="JOIN Logo" class="h-10 w-auto object-contain" />
+            </a>
+
+            <!-- Search and Location -->
+            <div class="flex-grow max-w-2xl hidden md:flex items-center bg-gray-100 rounded-full px-4 py-2 gap-3"
+                data-purpose="search-bar">
+                <!-- Added ID for triggering the modal -->
+                <div id="locationTrigger"
+                    class="flex items-center gap-1 border-r border-gray-300 pr-3 cursor-pointer hover:text-brand-orange transition-colors">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+                        <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                            stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+                        <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round"
+                            stroke-width="2">
+                        </path>
+                    </svg>
+                    <span id="nav-location-text" class="text-sm text-gray-600">正在定位...</span>
+                </div>
+                <div class="flex items-center gap-2 flex-grow">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+                        <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round"
+                            stroke-linejoin="round" stroke-width="2"></path>
+                    </svg>
+                    <input id="header-search-input" class="bg-transparent border-none focus:ring-0 text-sm w-full p-0"
+                        placeholder="搜尋想喝的飲品、店家..." type="text" autocomplete="off" />
+                </div>
+            </div>
+
+            <!-- User Actions -->
+            <div class="flex items-center gap-4 lg:gap-6" data-purpose="user-nav">
+                <div class="flex items-center gap-4 text-gray-600">
+                    <a href="profile.html?section=notifications"
+                        class="hover:text-brand-orange transition-colors fa-regular fa-bell" style="font-size: 22px;">
+                    </a>
+                    <a href="orders.html"
+                        class="hover:text-brand-orange transition-colors fa-solid fa-clock-rotate-left"
+                        style="font-size: 20px;">
+                    </a>
+                    <div class="relative group" id="cart-dropdown-wrapper">
+                        <a href="cart_details.html"
+                            class="hover:text-brand-orange transition-colors relative block py-2 fa-solid fa-cart-shopping"
+                            style="font-size: 20px;">
+                            <span id="cart-badge"
+                                class="absolute -top-1 -right-1 bg-brand-orange text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+                        </a>
+                        <!-- Cart Dropdown Menu -->
+                        <div id="cart-dropdown-menu"
+                            class="hidden group-hover:block absolute right-0 mt-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 py-4 z-50">
+                            <div class="px-4 mb-3 flex justify-between items-center">
+                                <h3 class="font-bold text-gray-800">我的購物車</h3>
+                                <span id="cart-count-text" class="text-xs text-gray-400">共 0 項品項</span>
+                            </div>
+                            <div id="cart-items-container" class="max-h-60 overflow-y-auto px-4 space-y-3 mb-4">
+                                <!-- Items will be injected here -->
+                                <p class="text-center text-gray-400 text-sm py-4">購物車是空的</p>
+                            </div>
+                            <div class="px-4 pt-3 border-t border-gray-50">
+                                <div class="flex justify-between mb-4">
+                                    <span class="text-gray-500">總計</span>
+                                    <span id="cart-total-price" class="font-bold text-brand-orange text-lg">$0</span>
+                                </div>
+                                <a href="cart_details.html"
+                                    class="block w-full bg-brand-orange text-white text-center py-2.5 rounded-xl font-bold hover:bg-orange-600 transition-colors">
+                                    查看購物車
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="profile.html?section=favorites"
+                        class="hover:text-brand-orange transition-colors fa-solid fa-heart" style="font-size: 20px;">
+                    </a>
+                </div>
+                <button
+                    class="bg-brand-orange text-white px-6 py-2 rounded-full font-medium hover:bg-orange-600 transition-colors">登入</button>
+
+                <!-- User Profile link -->
+                <a href="profile.html" class="hover:text-brand-orange transition-colors">
+                    <div class="relative" id="user-dropdown-wrapper">
+                        <div id="user-avatar-container"
+                            class="w-10 h-10 bg-gray-200 rounded-full overflow-hidden border border-gray-100 cursor-pointer transition-transform hover:scale-105">
+                            <img id="nav-user-avatar" alt="Profile" class="w-full h-full object-cover rounded-full"
+                                src="images/default_avatar.png" onerror="this.src='images/default_avatar.png'" />
+                        </div>
+                    </div>
+                </a>
+
+            </div>
+        </div>
+    </header>
+    <!-- END: MainHeader -->
+    <main class="flex-grow max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-0 lg:py-10 w-full transition-all duration-500">
+        <div class="flex flex-col lg:flex-row gap-0 lg:gap-8">
+            <aside class="w-full lg:w-64 flex-shrink-0 profile-sidebar-wrapper">
+                <div
+                    class="bg-white dark:bg-zinc-900 rounded-none lg:rounded-2xl p-4 lg:p-6 shadow-none lg:shadow-sm border-none lg:border border-gray-100 dark:border-zinc-800">
+                    <div class="mb-6 hidden lg:block">
+                        <h2 class="text-xl font-bold mb-1">會員中心</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">管理您的帳戶資訊</p>
+                    </div>
+                    <nav class="space-y-1 hide-scrollbar" id="profile-sidebar">
+                        <a class="flex items-center gap-3 px-4 py-3 bg-primary text-white rounded-xl font-medium cursor-pointer"
+                            data-section="profile">
+                            <i data-lucide="user" class="w-5 h-5"></i>
+                            個人資料
+                        </a>
+                        <a class="flex items-center gap-3 px-4 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                            data-section="password">
+                            <i data-lucide="lock" class="w-5 h-5"></i>
+                            修改密碼
+                        </a>
+                        <a class="flex items-center gap-3 px-4 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                            data-section="payment">
+                            <i data-lucide="credit-card" class="w-5 h-5"></i>
+                            付款方式
+                        </a>
+                        <a class="flex items-center gap-3 px-4 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                            data-section="address">
+                            <i data-lucide="map" class="w-5 h-5"></i>
+                            常用地址
+                        </a>
+                        <a class="hidden flex items-center gap-3 px-4 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                            data-section="carrier">
+                            <i data-lucide="qr-code" class="w-5 h-5"></i>
+                            載具綁定
+                        </a>
+                        <a class="flex items-center gap-3 px-4 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                            data-section="notifications">
+                            <i data-lucide="bell" class="w-5 h-5"></i>
+                            訊息通知
+                        </a>
+                        <a class="flex items-center gap-3 px-4 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                            data-section="favorites">
+                            <i data-lucide="heart" class="w-5 h-5"></i>
+                            收藏店家
+                        </a>
+                        <a class="flex items-center gap-3 px-4 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                            data-section="wallet">
+                            <i data-lucide="wallet" class="w-5 h-5"></i>
+                            錢包餘額與儲值
+                        </a>
+                    </nav>
+                    <div class="mt-10 pt-6 border-t border-gray-100 dark:border-zinc-800 hidden lg:block">
+                        <button onclick="NavAuth.logout()"
+                            class="flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all active:scale-95 w-full font-bold">
+                            <i data-lucide="log-out" class="w-5 h-5"></i>
+                            登出帳號
+                        </button>
+                    </div>
+                </div>
+            </aside>
+            <section class="flex-grow px-4 lg:px-0 py-6 lg:py-0">
+                <div
+                    class="bg-white dark:bg-zinc-900 rounded-3xl p-6 md:p-8 lg:p-12 shadow-sm border border-gray-100 dark:border-zinc-800 transition-all duration-300">
+                    <div id="section-container">
+                        <!-- Profile Section -->
+                        <div id="section-profile" class="profile-section section-animate-in">
+                            <h1 class="text-3xl font-black mb-2 tracking-tight">個人資料</h1>
+                            <p class="text-gray-500 dark:text-gray-400 mb-10">請確保您的聯絡資訊是最新的，以便我們提供更好的服務。</p>
+                            <div class="flex flex-col items-center mb-10">
+                                <div class="relative cursor-pointer group" id="avatar-click-area">
+                                    <div id="profile-avatar-display"
+                                        class="w-24 h-24 aspect-square rounded-full bg-gray-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden border-4 border-white dark:border-zinc-700 shadow-xl group-hover:border-primary/30 transition-all duration-300">
+                                        <i data-lucide="user" class="w-10 h-10 text-gray-400"></i>
+                                    </div>
+                                    <button id="change-avatar-btn"
+                                        class="absolute bottom-0 right-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white border-2 border-white dark:border-zinc-900 shadow-lg group-hover:scale-110 transition-transform">
+                                        <i data-lucide="camera" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                                <p class="text-xs font-bold text-gray-400 mt-4 uppercase tracking-widest">點擊更換大頭貼</p>
+                            </div>
+                            <div class="space-y-6 max-w-2xl">
+                                <div>
+                                    <label class="block text-sm font-bold mb-2">暱稱</label>
+                                    <input id="profile-username"
+                                        class="w-full px-4 py-3 bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
+                                        type="text" placeholder="請輸入暱稱" />
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold mb-2">手機號碼</label>
+                                    <p id="profile-phone" class="text-base text-gray-700 dark:text-gray-200 py-1"></p>
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-4 mt-12">
+                                <button id="save-profile-btn"
+                                    class="px-8 py-3 bg-primary text-white rounded-xl font-medium shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors">
+                                    儲存變更
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Password Section -->
+                        <div id="section-password" class="hidden section-animate-in">
+                            <h1 class="text-3xl font-black mb-2 tracking-tight">修改密碼</h1>
+                            <p class="text-gray-500 dark:text-gray-400 mb-10">為了帳戶安全，建議您定期更改密碼。</p>
+                            <div class="space-y-6 max-w-2xl">
+                                <div>
+                                    <label class="block text-sm font-bold mb-2">當前密碼</label>
+                                    <div class="relative">
+                                        <input id="old-password" type="password"
+                                            class="w-full px-4 py-3 pr-12 bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                                        <button type="button" onclick="togglePwdVisibility('old-password', this)"
+                                            class="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors">
+                                            <i data-lucide="eye" class="w-5 h-5"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold mb-2">新密碼</label>
+                                    <div class="relative">
+                                        <input id="new-password" type="password"
+                                            class="w-full px-4 py-3 pr-12 bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                                        <button type="button" onclick="togglePwdVisibility('new-password', this)"
+                                            class="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors">
+                                            <i data-lucide="eye" class="w-5 h-5"></i>
+                                        </button>
+                                    </div>
+                                    <p class="text-xs text-gray-400 mt-1.5">需輸入 8-16 位英數組合密碼</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold mb-2">確認新密碼</label>
+                                    <div class="relative">
+                                        <input id="confirm-password" type="password"
+                                            class="w-full px-4 py-3 pr-12 bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-primary outline-none" />
+                                        <button type="button" onclick="togglePwdVisibility('confirm-password', this)"
+                                            class="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors">
+                                            <i data-lucide="eye" class="w-5 h-5"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-4 mt-12">
+                                <button id="change-password-btn"
+                                    class="px-8 py-3 bg-primary text-white rounded-xl font-medium shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors">
+                                    更新密碼
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Wallet Section -->
+                        <div id="section-wallet" class="hidden section-animate-in">
+                            <h1 class="text-3xl font-black mb-2 tracking-tight">錢包餘額與儲值</h1>
+                            <p class="text-gray-500 dark:text-gray-400 mb-8">管理您的儲值金與查看交易紀錄。</p>
+
+                            <div class="premium-wallet-card p-10 rounded-[2.5rem] text-white mb-10 shadow-2xl">
+                                <div class="relative z-10">
+                                    <p class="text-sm font-bold opacity-80 mb-2 uppercase tracking-widest">Available
+                                        Balance</p>
+                                    <h2 class="text-5xl font-black mb-1" id="wallet-balance-display">$0.00</h2>
+                                    <div class="flex items-center gap-2 text-white/60 text-xs mt-4">
+                                        <i data-lucide="shield-check" class="size-4"></i>
+                                        <span>加密通訊受保護的交易</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                                <div
+                                    class="bg-gray-50 dark:bg-zinc-800/50 p-6 rounded-2xl border border-gray-100 dark:border-zinc-700">
+                                    <h3 class="font-bold mb-4">快速儲值</h3>
+                                    <div class="grid grid-cols-3 gap-3 mb-4">
+                                        <button
+                                            class="recharge-opt px-3 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg hover:border-primary transition-all"
+                                            data-amount="100">$100</button>
+                                        <button
+                                            class="recharge-opt px-3 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg hover:border-primary transition-all"
+                                            data-amount="500">$500</button>
+                                        <button
+                                            class="recharge-opt px-3 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg hover:border-primary transition-all"
+                                            data-amount="1000">$1000</button>
+                                    </div>
+                                    <div class="relative mb-6">
+                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                                        <input id="recharge-amount" type="number" placeholder="輸入自定義金額"
+                                            class="w-full pl-8 pr-4 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                                    </div>
+                                    <button id="recharge-btn"
+                                        class="w-full py-3 bg-primary text-white rounded-xl font-bold">立即儲值</button>
+                                </div>
+
+                                <div
+                                    class="bg-gray-50 dark:bg-zinc-800/50 p-6 rounded-2xl border border-gray-100 dark:border-zinc-700">
+                                    <h3 class="font-bold mb-4">付款方式</h3>
+                                    <div id="wallet-default-card">
+                                        <div
+                                            class="flex items-center gap-4 p-4 bg-white dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-zinc-700">
+                                            <i data-lucide="credit-card" class="w-7 h-7 text-gray-400"></i>
+                                            <div class="flex-grow">
+                                                <p class="font-bold">Visa **** 1234</p>
+                                                <p class="text-xs text-gray-400">已設為預設付款方式</p>
+                                            </div>
+                                            <i data-lucide="chevron-right" class="w-5 h-5 text-gray-400"></i>
+                                        </div>
+                                    </div>
+                                    <button onclick="window.switchSection('payment')"
+                                        class="mt-4 text-primary text-sm font-bold flex items-center gap-1 hover:underline">
+                                        <i data-lucide="plus" class="w-4 h-4"></i> 管理付款方式
+                                    </button>
+                                </div>
+                            </div>
+
+                            <h3 class="font-bold mb-4">交易紀錄</h3>
+                            <div id="credit-records" class="space-y-3">
+                                <div class="flex flex-col items-center justify-center py-12 opacity-40">
+                                    <i data-lucide="receipt-text" class="size-16 mb-4"></i>
+                                    <p class="text-gray-500 font-medium tracking-wide">正在載入交易紀錄...</p>
+                                </div>
+                            </div>
+                            <div class="mt-6 text-center">
+                                <button id="load-more-wallet-btn"
+                                    class="hidden px-6 py-2 border border-gray-200 dark:border-zinc-700 rounded-full text-sm text-gray-500 hover:border-primary hover:text-primary transition-all">
+                                    查看更多紀錄
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Favorites Section -->
+                        <div id="section-favorites" class="hidden section-animate-in">
+                            <h1 class="text-3xl font-black mb-2 tracking-tight">收藏店家</h1>
+                            <p class="text-gray-500 dark:text-gray-400 mb-8">您喜愛的美味口袋名單。</p>
+                            <div id="favorites-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="col-span-full flex flex-col items-center justify-center py-16 opacity-30">
+                                    <i data-lucide="heart" class="size-20 mb-4"></i>
+                                    <p class="text-xl font-bold tracking-tight">目前還沒有任何收藏</p>
+                                    <p class="text-sm mt-2">快去探索更多美味飲品吧！</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Address Section -->
+                        <div id="section-address" class="hidden section-animate-in">
+                            <h1 class="text-3xl font-black mb-2 tracking-tight">常用地址</h1>
+                            <p class="text-gray-500 dark:text-gray-400 mb-8">管理您的外送地址列表。</p>
+                            <div class="space-y-4 max-w-2xl">
+                                <!-- 已儲存地址列表 -->
+                                <div id="extra-addresses-list" class="space-y-3"></div>
+                                <div>
+                                    <label class="block text-sm font-bold mb-2">地址</label>
+                                    <input id="addr-street"
+                                        class="w-full px-4 py-3 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl outline-none"
+                                        placeholder="如：台北市信義區松仁路100號" />
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold mb-2">地址標籤（另存時使用）</label>
+                                    <input id="addr-label"
+                                        class="w-full px-4 py-3 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl outline-none"
+                                        placeholder="如：公司、學校、朋友家" />
+                                </div>
+                                <div class="flex gap-4 mt-4">
+                                    <button id="confirm-update-btn"
+                                        class="hidden flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20">確認更新</button>
+                                    <button id="cancel-edit-btn"
+                                        class="hidden flex-1 py-3 border border-gray-300 text-gray-500 rounded-xl font-bold hover:bg-gray-50 transition-colors">取消</button>
+                                    <button id="save-new-address-btn"
+                                        class="flex-1 py-3 border-2 border-primary text-primary rounded-xl font-bold hover:bg-orange-50 transition-colors">另存為新地址</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Other Stub Sections (Mock) -->
+                        <div id="section-payment" class="hidden section-animate-in">
+                            <h1 class="text-3xl font-black mb-2 tracking-tight">付款方式管理</h1>
+                            <p class="text-gray-500 dark:text-gray-400 mb-8">新增、刪除或設定預設信用卡。</p>
+                            <div class="max-w-2xl">
+                                <!-- 已儲存卡片列表 -->
+                                <div id="payment-cards-list" class="space-y-3 mb-6"></div>
+                                <!-- 新增卡片表單 -->
+                                <div id="add-card-panel"
+                                    class="hidden bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-700 p-6 mb-4">
+                                    <h3 class="font-bold mb-5">新增信用卡</h3>
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="block text-sm font-bold mb-2">持卡人姓名</label>
+                                            <input id="card-name"
+                                                class="w-full px-4 py-3 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl outline-none"
+                                                placeholder="如：WANG XIAO MING" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-bold mb-2">卡號</label>
+                                            <div class="relative">
+                                                <input id="card-number"
+                                                    class="w-full px-4 py-3 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl outline-none tracking-widest"
+                                                    placeholder="0000 0000 0000 0000" maxlength="19" />
+                                                <span id="card-type-badge"
+                                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-primary"></span>
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label class="block text-sm font-bold mb-2">到期日</label>
+                                                <input id="card-expiry"
+                                                    class="w-full px-4 py-3 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl outline-none"
+                                                    placeholder="MM/YY" maxlength="5" />
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-bold mb-2">安全碼</label>
+                                                <input id="card-cvv" type="password"
+                                                    class="w-full px-4 py-3 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl outline-none"
+                                                    placeholder="•••" maxlength="4" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-3 mt-6">
+                                        <button id="save-card-btn"
+                                            class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20">儲存卡片</button>
+                                        <button id="cancel-card-btn"
+                                            class="flex-1 py-3 border-2 border-gray-200 dark:border-zinc-700 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">取消</button>
+                                    </div>
+                                </div>
+                                <button id="add-card-btn"
+                                    class="w-full py-3 border-2 border-dashed border-gray-200 dark:border-zinc-700 text-gray-400 rounded-xl font-medium hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                                    <i data-lucide="plus" class="w-5 h-5"></i> 新增信用卡
+                                </button>
+                            </div>
+                        </div>
+                        <div id="section-carrier" class="hidden text-center py-20">
+                            <i data-lucide="qr-code" class="w-16 h-16 text-gray-200 mx-auto mb-4"></i>
+                            <h2 class="text-xl font-bold">載具綁定</h2>
+                            <p class="text-gray-500 mt-2">輸入載具編號（如 /ABC1234）</p>
+                            <input class="mt-6 px-4 py-3 border rounded-xl max-w-xs mx-auto block" placeholder="手機條碼" />
+                            <button class="mt-4 px-8 py-2 bg-primary text-white rounded-lg">儲存</button>
+                        </div>
+                        <div id="section-notifications" class="hidden text-center py-20">
+                            <i data-lucide="bell" class="w-16 h-16 text-gray-200 mx-auto mb-4"></i>
+                            <h2 class="text-xl font-bold">訊息通知</h2>
+                            <p class="text-gray-500 mt-2">您目前沒有新的系統訊息。</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+    <!-- BEGIN: Footer -->
+    <footer class="main-footer">
+
+        <div class="footer-content">
+
+
+            <div class="footer-left">
+                <img src="images/logo.png" alt="JOIN 探飲 LOGO" class="footer-logo">
+
+                <div class="footer-desc">
+                    最懂你的飲品揪團平台。<br>
+                    不管是辦公室下午茶，還是好友聚會，<br>
+                    一鍵發起，輕鬆揪飲！
+                </div>
+            </div>
+
+            <div class="footer-right">
+
+                <div class="footer-contact-title">
+                    聯絡我們
+                </div>
+
+                <div class="footer-contact-list">
+
+                    <div class="footer-contact-item">
+                        <i class="fa-regular fa-envelope"></i>
+                        join_drink@gmail.com
+                    </div>
+
+                    <div class="footer-contact-item">
+                        <i class="fa-solid fa-phone"></i>
+                        04-1234-5678
+                    </div>
+
+                    <div class="footer-contact-item">
+                        <i class="fa-solid fa-location-dot"></i>
+                        408臺中市南屯區公益路二段51號18樓
+                    </div>
+
+                </div>
+
+            </div>
+
+
+        </div>
+
+        <div class="footer-bottom">
+            © 2026 JOIN 揪飲 - 本平台供飲品揪團平台. All Rights Reserved.
+        </div>
+
+    </footer>
+    <!-- END: Footer -->
+    <script src="js/nav-auth.js"></script>
+    <script src="js/crypto-js.min.js"></script>
+    <script>
+        function togglePwdVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const icon = btn.querySelector('i');
+            if (!input) return;
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            icon.setAttribute('data-lucide', isHidden ? 'eye-off' : 'eye');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('profile-toast');
+            const icon = document.getElementById('profile-toast-icon');
+            const text = document.getElementById('profile-toast-text');
+            if (!toast) return;
+            const icons = { success: '✓', error: '✕', info: 'ℹ' };
+            toast.className = `profile-toast profile-toast--${type}`;
+            icon.textContent = icons[type] || '✓';
+            text.textContent = message;
+            void toast.offsetWidth;
+            toast.classList.add('profile-toast--show');
+            clearTimeout(toast._hideTimer);
+            toast._hideTimer = setTimeout(() => toast.classList.remove('profile-toast--show'), 3000);
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const userId = localStorage.getItem('JOIN_USER_ID');
+            if (!userId) {
+                window.location.href = 'auth/login.html';
+                return;
+            }
+
+            // --- Section Switching Logic ---
+            const sidebar = document.getElementById('profile-sidebar');
+            const sections = document.querySelectorAll('#section-container > div');
+            const sidebarLinks = sidebar.querySelectorAll('a[data-section]');
+
+            const switchSection = (sectionId) => {
+                const sidebar = document.getElementById('profile-sidebar');
+                const sidebarLinks = sidebar.querySelectorAll('a[data-section]');
+                const sections = document.querySelectorAll('#section-container > div');
+
+                sections.forEach(s => {
+                    s.classList.add('hidden', 'opacity-0');
+                    s.classList.remove('section-animate-in');
+                });
+
+                const target = document.getElementById(`section-${sectionId}`);
+                if (target) {
+                    target.classList.remove('hidden');
+                    // Reset animation
+                    void target.offsetWidth;
+                    target.classList.remove('opacity-0');
+                    target.classList.add('section-animate-in');
+                }
+
+                let activeLink = null;
+                sidebarLinks.forEach(l => {
+                    if (l.getAttribute('data-section') === sectionId) {
+                        l.classList.remove('text-gray-600', 'dark:text-gray-400', 'hover:bg-gray-50', 'dark:hover:bg-zinc-800');
+                        l.classList.add('bg-primary', 'text-white', 'shadow-md', 'scale-105');
+                        activeLink = l;
+                    } else {
+                        l.classList.add('text-gray-600', 'dark:text-gray-400', 'hover:bg-gray-50', 'dark:hover:bg-zinc-800');
+                        l.classList.remove('bg-primary', 'text-white', 'shadow-md', 'scale-105');
+                    }
+                });
+
+                if (activeLink && window.innerWidth < 1024) {
+                    const container = sidebar;
+                    const scrollLeft = activeLink.offsetLeft - (container.offsetWidth / 2) + (activeLink.offsetWidth / 2);
+                    container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+                }
+
+                // Trigger specific section loaders
+                if (sectionId === 'favorites') loadFavorites();
+                if (sectionId === 'wallet') loadWallet();
+                if (sectionId === 'address') loadAllAddresses();
+                if (sectionId === 'payment') loadPaymentCards();
+            };
+            window.switchSection = switchSection;
+
+            // --- Drag to Scroll Implementation ---
+            const initDragScroll = (el) => {
+                let isDown = false;
+                let startX;
+                let scrollLeft;
+
+                el.addEventListener('mousedown', (e) => {
+                    if (window.innerWidth >= 1024) return;
+                    isDown = true;
+                    el.classList.add('active');
+                    startX = e.pageX - el.offsetLeft;
+                    scrollLeft = el.scrollLeft;
+                    el.style.scrollBehavior = 'auto'; // Disable smooth scroll while dragging
+                });
+
+                el.addEventListener('mouseleave', () => {
+                    isDown = false;
+                });
+
+                el.addEventListener('mouseup', () => {
+                    isDown = false;
+                    el.style.scrollBehavior = 'smooth';
+                });
+
+                el.addEventListener('mousemove', (e) => {
+                    if (!isDown) return;
+                    e.preventDefault();
+                    const x = e.pageX - el.offsetLeft;
+                    const walk = (x - startX) * 2; // Scroll multiplier
+                    el.scrollLeft = scrollLeft - walk;
+                });
+            };
+
+            if (sidebar) initDragScroll(sidebar);
+
+            sidebarLinks.forEach(link => {
+                link.addEventListener('click', () => {
+                    switchSection(link.getAttribute('data-section'));
+                });
+            });
+
+            // --- Drag-to-Scroll Implementation for Navigation ---
+            let isDown = false;
+            let startX;
+            let scrollLeft;
+
+            sidebar.addEventListener('mousedown', (e) => {
+                if (window.innerWidth >= 1024) return;
+                isDown = true;
+                sidebar.classList.add('active');
+                startX = e.pageX - sidebar.offsetLeft;
+                scrollLeft = sidebar.scrollLeft;
+            });
+            sidebar.addEventListener('mouseleave', () => {
+                isDown = false;
+            });
+            sidebar.addEventListener('mouseup', () => {
+                isDown = false;
+            });
+            sidebar.addEventListener('mousemove', (e) => {
+                if (!isDown || window.innerWidth >= 1024) return;
+                e.preventDefault();
+                const x = e.pageX - sidebar.offsetLeft;
+                const walk = (x - startX) * 2; // Scroll speed
+                sidebar.scrollLeft = scrollLeft - walk;
+            });
+
+
+            // --- Data Initialization ---
+            const normalizeFavorites = (favorites) => {
+                if (!Array.isArray(favorites)) return [];
+
+                return favorites
+                    .map(item => item?.store ? item : { store: item })
+                    .filter(item => item?.store?.id);
+            };
+
+            const loadUserData = async () => {
+                try {
+                    const user = await NavAuth.fetchAPI(`/api/users/${userId}`);
+                    if (!user) throw new Error('Failed to fetch user');
+
+                    // Profile Section
+                    // 修正：暱稱欄位預設呈現使用者的名稱 (user.name)，因為後端 UserResponse 主要是 name 欄位
+                    document.getElementById('profile-username').value = user.username || user.name || '';
+                    document.getElementById('profile-phone').textContent = user.phone || '';
+                    const avatarSrc = user.picUrl || localStorage.getItem(`userAvatar_${userId}`) || 'images/default_avatar.png';
+                    document.getElementById('profile-avatar-display').innerHTML =
+                        `<img src="${avatarSrc}" class="w-full h-full object-cover rounded-full" onerror="this.src='images/default_avatar.png'">`;
+                    localStorage.setItem(`userAvatar_${userId}`, avatarSrc);
+                    const navAvatar = document.getElementById('nav-user-avatar');
+                    if (navAvatar) navAvatar.src = avatarSrc;
+
+                    // Address Section (populated by loadAllAddresses)
+
+                    // Wallet Balance
+                    document.getElementById('wallet-balance-display').innerText = `$${(user.balance || 0).toFixed(2)}`;
+                } catch (err) {
+                    console.error(err);
+                }
+            };
+
+            await loadUserData();
+
+            // --- Profile Update ---
+            document.getElementById('save-profile-btn').addEventListener('click', async () => {
+                const username = document.getElementById('profile-username').value;
+
+                try {
+                    await NavAuth.fetchAPI(`/api/users/${userId}/profile`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ username })
+                    });
+                    showToast('個人資料已更新');
+                    loadUserData();
+                } catch (error) {
+                    showToast('更新失敗: ' + error.message, 'error');
+                }
+            });
+
+            // --- Password Update ---
+            document.getElementById('change-password-btn').addEventListener('click', async () => {
+                const oldPassword = document.getElementById('old-password').value;
+                const newPassword = document.getElementById('new-password').value;
+                const confirmPassword = document.getElementById('confirm-password').value;
+
+                if (!oldPassword || !newPassword) return showToast('請輸入完整密碼', 'error');
+                const pwdRule = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,16}$/;
+                if (!pwdRule.test(newPassword)) {
+                    showToast('新密碼需為 8-16 位英數組合', 'error');
+                    return;
+                }
+                if (newPassword !== confirmPassword) {
+                    showToast('新密碼與確認密碼不符', 'error');
+                    return;
+                }
+
+                const payload = {
+                    oldPassword: oldPassword,
+                    newPassword: newPassword
+                };
+
+                try {
+                    await NavAuth.fetchAPI(`/api/users/${userId}/change-password`, {
+                        method: 'POST',
+                        body: JSON.stringify(payload)
+                    });
+                    showToast('密碼修改成功');
+                    document.getElementById('old-password').value = '';
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('confirm-password').value = '';
+                } catch (error) {
+                    showToast('修改失敗: ' + error.message, 'error');
+                }
+            });
+
+            // --- Address Management ---
+            let editingAddressId = null;
+
+            const resetEditForm = () => {
+                editingAddressId = null;
+                document.getElementById('addr-street').value = '';
+                document.getElementById('addr-label').value = '';
+                document.getElementById('confirm-update-btn').classList.add('hidden');
+                document.getElementById('cancel-edit-btn').classList.add('hidden');
+                document.getElementById('save-new-address-btn').classList.remove('hidden');
+            };
+
+            const loadAllAddresses = async () => {
+                try {
+                    const addresses = await NavAuth.fetchAPI(`/api/users/${userId}/address`);
+                    if (!Array.isArray(addresses)) return;
+
+                    const container = document.getElementById('extra-addresses-list');
+                    if (addresses.length === 0) {
+                        container.innerHTML = '';
+                    } else {
+                        const iconMap = { '公司': 'briefcase', '學校': 'book-open', '朋友家': 'users' };
+                        container.innerHTML = addresses.map(addr => {
+                            const icon = iconMap[addr.label] || 'map-pin';
+                            const escAddr = (addr.address || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                            const escLabel = (addr.label || '').replace(/'/g, "\\'");
+                            return `
+                            <div class="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-700 flex justify-between items-start">
+                                <div class="flex gap-3">
+                                    <i data-lucide="${icon}" class="w-5 h-5 text-gray-400 mt-0.5 shrink-0"></i>
+                                    <div>
+                                        <p class="font-bold text-sm mb-0.5">${addr.label || '其他'}</p>
+                                        <p class="text-sm text-gray-500">${addr.address || '未填寫地址'}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2 shrink-0 ml-3">
+                                    <button onclick="editExtraAddress(${addr.id}, '${escAddr}', '${escLabel}')"
+                                        class="text-gray-400 hover:text-primary transition-colors cursor-pointer" title="編輯">
+                                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="deleteExtraAddress(${addr.id})"
+                                        class="text-gray-400 hover:text-primary transition-colors cursor-pointer" title="刪除">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>`;
+                        }).join('');
+                        lucide.createIcons();
+                    }
+                } catch (_) { }
+            };
+
+            // 點擊地址鉛筆 → 填入表單
+            window.editExtraAddress = (id, address, label) => {
+                editingAddressId = id;
+                document.getElementById('addr-street').value = address;
+                document.getElementById('addr-label').value = label;
+                document.getElementById('confirm-update-btn').classList.remove('hidden');
+                document.getElementById('cancel-edit-btn').classList.remove('hidden');
+                document.getElementById('save-new-address-btn').classList.add('hidden');
+                document.getElementById('addr-street').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            };
+
+            // 刪除地址
+            window.deleteExtraAddress = async (addressId) => {
+                try {
+                    await NavAuth.fetchAPI(`/api/users/${userId}/addresses/${addressId}`, { method: 'DELETE' });
+                    if (editingAddressId === addressId) resetEditForm();
+                    showToast('地址已刪除');
+                    loadAllAddresses();
+                } catch (e) {
+                    showToast('刪除失敗', 'error');
+                }
+            };
+
+            // 取消編輯
+            document.getElementById('cancel-edit-btn').addEventListener('click', resetEditForm);
+
+            // 確認更新
+            document.getElementById('confirm-update-btn').addEventListener('click', async () => {
+                const street = document.getElementById('addr-street').value.trim();
+                const label = document.getElementById('addr-label').value.trim();
+                if (!street) { showToast('請填寫地址', 'error'); return; }
+                try {
+                    await NavAuth.fetchAPI(`/api/users/${userId}/addresses/${editingAddressId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ street, label })
+                    });
+                    showToast('地址已更新');
+                    resetEditForm();
+                    loadAllAddresses();
+                } catch (e) {
+                    showToast('更新失敗', 'error');
+                }
+            });
+
+            // 另存為新地址
+            document.getElementById('save-new-address-btn').addEventListener('click', async () => {
+                const street = document.getElementById('addr-street').value.trim();
+                const label = document.getElementById('addr-label').value.trim();
+                if (!street) { showToast('請填寫地址內容', 'error'); return; }
+                try {
+                    await NavAuth.fetchAPI(`/api/users/${userId}/addresses`, {
+                        method: 'POST',
+                        body: JSON.stringify({ street, label: label || '其他' })
+                    });
+                    showToast('新地址已儲存');
+                    resetEditForm();
+                    loadAllAddresses();
+                } catch (e) {
+                    showToast('儲存失敗', 'error');
+                }
+            });
+
+            // --- Payment Card Management (localStorage demo) ---
+            const PAYMENT_KEY = `paymentCards_${userId}`;
+
+            const getCards = () => {
+                try {
+                    const data = localStorage.getItem(PAYMENT_KEY);
+                    if (data) return JSON.parse(data);
+                } catch (_) { }
+                const demo = [{ id: 1000000001, type: 'Visa', last4: '1234', expiry: '12/28', name: 'DEMO USER', isDefault: true }];
+                localStorage.setItem(PAYMENT_KEY, JSON.stringify(demo));
+                return demo;
+            };
+
+            const saveCards = (cards) => localStorage.setItem(PAYMENT_KEY, JSON.stringify(cards));
+
+            const detectCardType = (num) => {
+                const n = num.replace(/\s/g, '');
+                if (/^4/.test(n)) return 'Visa';
+                if (/^5[1-5]/.test(n) || /^2[2-7]\d{2}/.test(n)) return 'Mastercard';
+                if (/^35(2[89]|[3-8]\d)/.test(n)) return 'JCB';
+                if (/^3[47]/.test(n)) return 'AmEx';
+                return '信用卡';
+            };
+
+            const cardGradient = (type) => ({
+                'Visa': 'from-blue-500 to-blue-700',
+                'Mastercard': 'from-red-500 to-orange-500',
+                'JCB': 'from-green-500 to-emerald-600',
+                'AmEx': 'from-gray-600 to-gray-800',
+            }[type] || 'from-orange-400 to-primary');
+
+            const updateWalletPaymentDisplay = (cards) => {
+                const el = document.getElementById('wallet-default-card');
+                if (!el) return;
+                const def = cards.find(c => c.isDefault) || cards[0];
+                if (def) {
+                    el.innerHTML = `
+                        <div class="flex items-center gap-4 p-4 bg-white dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-zinc-700">
+                            <i data-lucide="credit-card" class="w-7 h-7 text-gray-400"></i>
+                            <div class="flex-grow">
+                                <p class="font-bold">${def.type} **** ${def.last4}</p>
+                                <p class="text-xs text-gray-400">已設為預設付款方式</p>
+                            </div>
+                            <i data-lucide="chevron-right" class="w-5 h-5 text-gray-400"></i>
+                        </div>`;
+                    lucide.createIcons();
+                } else {
+                    el.innerHTML = '<p class="text-sm text-gray-400 py-2">尚未新增付款方式</p>';
+                }
+            };
+
+            const loadPaymentCards = () => {
+                const cards = getCards();
+                const container = document.getElementById('payment-cards-list');
+                if (container) {
+                    if (cards.length === 0) {
+                        container.innerHTML = '<p class="text-center py-6 text-gray-400">尚未新增任何付款方式</p>';
+                    } else {
+                        container.innerHTML = cards.map(c => `
+                            <div class="p-5 bg-white dark:bg-zinc-800 rounded-2xl border border-gray-100 dark:border-zinc-700 flex items-center gap-4">
+                                <div class="w-10 h-7 rounded-md bg-gradient-to-br ${cardGradient(c.type)} flex items-center justify-center shrink-0">
+                                    <i data-lucide="credit-card" class="w-4 h-4 text-white"></i>
+                                </div>
+                                <div class="flex-grow min-w-0">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <p class="font-bold">${c.type} **** ${c.last4}</p>
+                                        ${c.isDefault ? '<span class="text-[10px] px-2 py-0.5 bg-orange-50 text-primary rounded-full font-bold border border-orange-200">預設</span>' : ''}
+                                    </div>
+                                    <p class="text-xs text-gray-400 truncate">${c.name} · 有效期 ${c.expiry}</p>
+                                </div>
+                                <div class="flex items-center gap-3 shrink-0">
+                                    ${!c.isDefault ? `<button onclick="setDefaultCard(${c.id})" class="text-xs text-primary font-bold hover:underline whitespace-nowrap">設為預設</button>` : ''}
+                                    <button onclick="deleteCard(${c.id})" class="text-gray-300 hover:text-red-400 transition-colors cursor-pointer" title="刪除">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>`).join('');
+                        lucide.createIcons();
+                    }
+                }
+                updateWalletPaymentDisplay(cards);
+            };
+
+            window.setDefaultCard = (id) => {
+                const cards = getCards().map(c => ({ ...c, isDefault: c.id === id }));
+                saveCards(cards);
+                loadPaymentCards();
+                showToast('已設為預設付款方式');
+            };
+
+            window.deleteCard = (id) => {
+                const cards = getCards();
+                const target = cards.find(c => c.id === id);
+                if (target && target.isDefault && cards.length > 1) {
+                    showToast('請先設定其他卡片為預設後再刪除', 'error');
+                    return;
+                }
+                saveCards(cards.filter(c => c.id !== id));
+                loadPaymentCards();
+                showToast('卡片已刪除');
+            };
+
+            document.getElementById('add-card-btn').addEventListener('click', () => {
+                const panel = document.getElementById('add-card-panel');
+                panel.classList.toggle('hidden');
+                if (!panel.classList.contains('hidden')) lucide.createIcons();
+            });
+
+            document.getElementById('cancel-card-btn').addEventListener('click', () => {
+                document.getElementById('add-card-panel').classList.add('hidden');
+                ['card-name', 'card-number', 'card-expiry', 'card-cvv'].forEach(fid => {
+                    const el = document.getElementById(fid);
+                    if (el) el.value = '';
+                });
+                document.getElementById('card-type-badge').textContent = '';
+            });
+
+            document.getElementById('card-number').addEventListener('input', (e) => {
+                let val = e.target.value.replace(/\D/g, '').substring(0, 16);
+                e.target.value = val.replace(/(.{4})/g, '$1 ').trim();
+                document.getElementById('card-type-badge').textContent = val.length >= 1 ? detectCardType(val) : '';
+            });
+
+            document.getElementById('card-expiry').addEventListener('input', (e) => {
+                let val = e.target.value.replace(/\D/g, '').substring(0, 4);
+                if (val.length > 2) val = val.slice(0, 2) + '/' + val.slice(2);
+                e.target.value = val;
+            });
+
+            document.getElementById('save-card-btn').addEventListener('click', () => {
+                const name = document.getElementById('card-name').value.trim().toUpperCase();
+                const rawNum = document.getElementById('card-number').value.replace(/\s/g, '');
+                const expiry = document.getElementById('card-expiry').value.trim();
+
+                if (!name) return showToast('請輸入持卡人姓名', 'error');
+                if (rawNum.length < 13) return showToast('請輸入有效卡號', 'error');
+                if (!/^\d{2}\/\d{2}$/.test(expiry)) return showToast('請輸入有效到期日（MM/YY）', 'error');
+
+                const cards = getCards();
+                const newCard = {
+                    id: Date.now(),
+                    type: detectCardType(rawNum),
+                    last4: rawNum.slice(-4),
+                    expiry,
+                    name,
+                    isDefault: cards.length === 0
+                };
+                cards.push(newCard);
+                saveCards(cards);
+
+                document.getElementById('add-card-panel').classList.add('hidden');
+                ['card-name', 'card-number', 'card-expiry', 'card-cvv'].forEach(fid => {
+                    const el = document.getElementById(fid);
+                    if (el) el.value = '';
+                });
+                document.getElementById('card-type-badge').textContent = '';
+                loadPaymentCards();
+                showToast('信用卡已新增');
+            });
+
+            // --- Wallet & Recharge ---
+            let walletPage = 1;
+            const walletSize = 10;
+
+            const loadWallet = async (append = false) => {
+                if (!append) {
+                    walletPage = 1;
+                    document.getElementById('load-more-wallet-btn').classList.add('hidden');
+                }
+
+                try {
+                    const resp = await NavAuth.fetchAPI(`/api/wallet/transactions?page=${walletPage}&size=${walletSize}`);
+                    const container = document.getElementById('credit-records');
+                    const recordList = (resp && resp.transactions) ? resp.transactions : [];
+
+                    if (!append && recordList.length === 0) {
+                        container.innerHTML = '<p class="text-center py-10 text-gray-400">尚無交易紀錄</p>';
+                        return;
+                    }
+
+                    const html = recordList.map(r => {
+                        let fullType = r.type || '';
+                        let mainType = fullType;
+                        let subDesc = '';
+
+                        // 解析後端可能包含的 /n 描述格式
+                        if (fullType.includes('\n') || fullType.includes('/n')) {
+                            const separator = fullType.includes('\n') ? '\n' : '/n';
+                            const parts = fullType.split(separator);
+                            mainType = parts[0];
+                            subDesc = parts[1];
+                        } else if (fullType.startsWith('ESCROW')) {
+                            mainType = 'ESCROW';
+                            subDesc = fullType.substring(6);
+                        }
+
+                        let label = '其他交易';
+                        const t = mainType.toUpperCase();
+                        const isPositive = parseFloat(r.amount) >= 0;
+
+                        if (t === 'TOPUP' || t === 'RECHARGE') {
+                            label = '帳戶儲值';
+                        } else if (t === 'INCOME' || t.includes('收到') || t.includes('接收')) {
+                            label = '接收補款';
+                        } else if (t.includes('補款') || t.includes('REPAYMENT')) {
+                            label = isPositive ? '接收補款' : '主動補款';
+                        } else if (t === 'PAYMENT' || t === 'ESCROW' || t.includes('消費扣款')) {
+                            if (subDesc.includes('補款') || fullType.includes('補款')) {
+                                label = isPositive ? '接收補款' : '主動補款';
+                            } else {
+                                label = '消費扣款';
+                            }
+                        } else if (t === 'REFUND') {
+                            label = '退款';
+                        }
+
+                        return `
+                        <div class="flex justify-between items-center p-4 bg-white dark:bg-zinc-800 rounded-xl border border-gray-100 dark:border-zinc-700">
+                            <div>
+                                <p class="font-bold">${label}</p>
+                                <p class="text-xs text-gray-400">${new Date(r.createdAt).toLocaleString()}</p>
+                                <p class="text-[10px] text-gray-300 mt-1">${subDesc || ''}</p>
+                            </div>
+                            <p class="font-bold ${r.amount >= 0 ? 'text-green-500' : 'text-red-500'}">
+                                ${r.amount >= 0 ? '+' : ''}${parseFloat(r.amount).toFixed(2)}
+                            </p>
+                        </div>
+                        `;
+                    }).join('');
+
+                    if (append) {
+                        container.insertAdjacentHTML('beforeend', html);
+                    } else {
+                        container.innerHTML = html;
+                    }
+
+                    // 檢查是否有下一頁
+                    if (resp && resp.total > walletPage * walletSize) {
+                        document.getElementById('load-more-wallet-btn').classList.remove('hidden');
+                    } else {
+                        document.getElementById('load-more-wallet-btn').classList.add('hidden');
+                    }
+                } catch (error) {
+                    console.error('Failed to load wallet:', error);
+                    document.getElementById('credit-records').innerHTML = '<p class="text-center py-10 text-red-400">載入交易紀錄失敗，請重新整理頁面</p>';
+                }
+            };
+
+            document.getElementById('load-more-wallet-btn').addEventListener('click', () => {
+                walletPage++;
+                loadWallet(true);
+            });
+
+            document.querySelectorAll('.recharge-opt').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.getElementById('recharge-amount').value = btn.getAttribute('data-amount');
+                });
+            });
+
+            document.getElementById('recharge-btn').addEventListener('click', async () => {
+                const amount = document.getElementById('recharge-amount').value;
+                if (!amount || amount <= 0) return showToast('請輸入有效金額', 'error');
+
+                try {
+                    await NavAuth.fetchAPI(`/api/users/${userId}/recharge`, {
+                        method: 'POST',
+                        body: JSON.stringify({ amount: parseFloat(amount) })
+                    });
+                    showToast('儲值成功');
+                    document.getElementById('recharge-amount').value = '';
+                    loadUserData();
+                    loadWallet();
+                } catch (error) {
+                    showToast('儲值失敗', 'error');
+                }
+            });
+
+            // --- Favorites Loader ---
+            window.toggleProfileFavorite = async (btn, storeId) => {
+                const userId = localStorage.getItem('JOIN_USER_ID');
+                try {
+                    btn.disabled = true;
+                    btn.classList.add('heart-pop');
+
+                    const result = await NavAuth.toggleFavorite(userId, storeId);
+                    if (result && result.status === 'removed') {
+                        // Fade out parent card for smooth effect
+                        const card = btn.closest('.group');
+                        if (card) {
+                            card.classList.add('opacity-0', 'scale-95');
+                            card.style.transition = 'all 0.4s ease';
+                            setTimeout(() => loadFavorites(), 400);
+                        } else {
+                            loadFavorites();
+                        }
+                    } else {
+                        btn.classList.remove('heart-pop');
+                    }
+                } catch (e) {
+                    console.error('Toggle failed:', e);
+                } finally {
+                    btn.disabled = false;
+                }
+            };
+
+            const loadFavorites = async () => {
+                try {
+                    const favorites = normalizeFavorites(await NavAuth.fetchAPI(`/api/user-favorites/user/${userId}`));
+                    const container = document.getElementById('favorites-container');
+
+                    if (!favorites || favorites.length === 0) {
+                        container.innerHTML = '<p class="col-span-full text-center py-10 text-gray-400">尚未收藏任何店家</p>';
+                        return;
+                    }
+                    const BRAND_COLORS = ['#FF6B35', '#FF8C42', '#F7B731', '#26C9A8', '#4ECDC4', '#45B7D1', '#A29BFE', '#FD79A8'];
+                    const brandColor = (name) => {
+                        let hash = 0;
+                        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+                        return BRAND_COLORS[Math.abs(hash) % BRAND_COLORS.length];
+                    };
+
+                    container.innerHTML = favorites.map(f => {
+                        const s = f.store || {};
+                        const name = s.storeName || s.name || '未知店家';
+                        const image = s.coverUrl || s.imageUrl || 'https://images.unsplash.com/photo-1544145945-f904253d0c7e?w=400&h=300&fit=crop';
+                        const rating = s.avgRating || null;
+                        const hasBrand = !!(s.brandLogoUrl || s.brandName);
+                        const initial = (s.brandName || '').charAt(0).toUpperCase() || '?';
+
+                        return `
+                        <div
+                            onclick="location.href='store.html?id=${s.id}'"
+                            class="bg-white rounded-[24px] overflow-hidden border border-gray-100 group cursor-pointer hover:-translate-y-1 transition-all duration-300 relative"
+                            style="box-shadow: 0 8px 30px rgba(0,0,0,0.12)">
+
+                            <!-- 收藏按鈕 -->
+                            <button
+                                onclick="event.stopPropagation(); toggleProfileFavorite(this, ${s.id})"
+                                class="absolute top-4 left-4 z-20 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-all text-brand-orange">
+                                <i data-lucide="heart" class="w-5 h-5 favorite-heart-filled"></i>
+                            </button>
+
+                            <div class="h-48 relative overflow-hidden">
+                                <img src="${image}"
+                                     class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                     alt="${name}">
+                                <!-- 評分 badge -->
+                                <div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm flex items-center gap-1 group-hover:bg-brand-orange group-hover:text-white transition-colors">
+                                    <i data-lucide="star" class="w-3 h-3 fill-current"></i>
+                                    <span class="text-xs font-bold">${rating ? Number(rating).toFixed(1) : '--'}</span>
+                                </div>
+                            </div>
+
+                            <div class="p-5">
+                                <div class="flex justify-between items-start mb-2 text-brand-text-dark">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        ${hasBrand ? `
+                                        <div class="flex-shrink-0 rounded-full overflow-hidden border border-gray-100 shadow-sm"
+                                             style="width:48px;height:48px;background:${brandColor(s.brandName)}">
+                                            ${s.brandLogoUrl
+                                    ? `<img src="${s.brandLogoUrl}" class="w-full h-full object-cover" alt="${s.brandName || ''}"
+                                                        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                                    : ''}
+                                            <span class="w-full h-full flex items-center justify-center text-white font-bold text-sm"
+                                                  style="${s.brandLogoUrl ? 'display:none' : ''}">${initial}</span>
+                                        </div>` : ''}
+                                        <h3 class="font-extrabold text-lg truncate">${name}</h3>
+                                    </div>
+                                </div>
+                                ${s.address ? `
+                                <p class="text-xs text-gray-400 mb-3 truncate">${s.address}</p>` : ''}
+                                <div class="flex items-center justify-end">
+                                    <button class="bg-brand-orange/10 text-brand-orange px-3 py-2 rounded-xl flex items-center gap-1 group-hover:bg-brand-orange group-hover:text-white transition-all text-xs font-bold">
+                                        前往店家 <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    }).join('');
+
+                    if (window.lucide) lucide.createIcons();
+                } catch (e) {
+                    console.error('Failed to load favorites:', e);
+                    const container = document.getElementById('favorites-container');
+                    if (container) {
+                        container.innerHTML = '<p class="col-span-full text-center py-10 text-red-500">載入收藏清單失敗，請稍後再試</p>';
+                    }
+                }
+            };
+
+            // Avatar Upload (Mock)
+            const avatarModal = document.getElementById('avatar-url-modal');
+            const avatarInput = document.getElementById('avatar-url-input');
+            const avatarConfirm = document.getElementById('avatar-url-confirm');
+            const avatarCancel = document.getElementById('avatar-url-cancel');
+
+            const openAvatarModal = () => {
+                avatarInput.value = '';
+                avatarModal.classList.remove('hidden');
+                setTimeout(() => avatarInput.focus(), 50);
+            };
+            document.getElementById('change-avatar-btn').addEventListener('click', openAvatarModal);
+            document.getElementById('avatar-click-area').addEventListener('click', (e) => {
+                if (e.target !== document.getElementById('change-avatar-btn') && !document.getElementById('change-avatar-btn').contains(e.target)) {
+                    openAvatarModal();
+                }
+            });
+
+            avatarCancel.addEventListener('click', () => avatarModal.classList.add('hidden'));
+            avatarModal.addEventListener('click', e => { if (e.target === avatarModal) avatarModal.classList.add('hidden'); });
+
+            avatarConfirm.addEventListener('click', () => {
+                const url = avatarInput.value.trim();
+                if (!url) { showToast('請輸入圖片網址', 'error'); return; }
+                avatarModal.classList.add('hidden');
+                NavAuth.fetchAPI(`/api/users/${userId}/avatar`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ avatarUrl: url })
+                }).then(() => {
+                    showToast('頭像已更新');
+                    document.getElementById('profile-avatar-display').innerHTML =
+                        `<img src="${url}" class="w-full h-full object-cover">`;
+                    localStorage.setItem(`userAvatar_${userId}`, url);
+                    const navAvatar = document.getElementById('nav-user-avatar');
+                    if (navAvatar) navAvatar.src = url;
+                }).catch(error => {
+                    showToast('頭像更新失敗: ' + error.message, 'error');
+                });
+            });
+
+            avatarInput.addEventListener('keydown', e => { if (e.key === 'Enter') avatarConfirm.click(); });
+
+            // --- Initialize payment display ---
+            loadPaymentCards();
+
+            // --- URL Parameter Support for Section Switching ---
+            // Moved to the end to ensure all functions (loadFavorites, loadWallet, etc.) are defined before use
+            const urlParams = new URLSearchParams(window.location.search);
+            const sectionParam = urlParams.get('section');
+            if (sectionParam) {
+                switchSection(sectionParam);
+            }
+        });
+    </script>
+
+    <!-- Avatar URL Modal -->
+    <div id="avatar-url-modal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 hidden">
+        <div class="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 class="text-base font-bold text-gray-800 dark:text-white mb-1">更換大頭貼</h3>
+            <p class="text-xs text-gray-400 mb-4">請貼上圖片網址</p>
+            <input id="avatar-url-input" type="url" placeholder="https://..."
+                class="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-brand-orange mb-5" />
+            <div class="flex gap-3 justify-end">
+                <button id="avatar-url-cancel"
+                    class="px-4 py-2 rounded-full text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors">取消</button>
+                <button id="avatar-url-confirm"
+                    class="px-5 py-2 rounded-full text-sm font-semibold bg-primary text-white hover:opacity-90 transition-opacity">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Toast -->
+    <div id="profile-toast">
+        <span id="profile-toast-icon" class="profile-toast-icon"></span>
+        <span id="profile-toast-text"></span>
+    </div>
+
+    <!-- Location Selection Modal Overlay -->
+    <!-- Added id="locationModal" and class "hidden" so it's hidden by default -->
+    <div id="locationModal"
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+        <!-- Modal Container -->
+        <!-- Removed inline onclick preventing propagation, handled in script now -->
+        <div
+            class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all transform">
+            <!-- Close Button -->
+            <!-- Removed inline style change and added id="closeModalBtn" -->
+            <button id="closeModalBtn"
+                class="absolute top-6 right-6 z-10 p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+
+            <!-- Modal Body -->
+            <div class="overflow-y-auto p-8 space-y-6 scrollbar-hide">
+                <!-- Header -->
+                <div class="text-center">
+                    <h3 class="text-2xl font-bold text-brand-dark">選擇您的位置</h3>
+                </div>
+
+                <!-- Map Container (hidden, reserved for future use) -->
+                <div id="map-container"
+                    class="relative w-full aspect-video rounded-3xl overflow-hidden border border-gray-100 shadow-inner z-0 hidden"
+                    style="height: 240px;">
+                    <div class="flex items-center justify-center h-full bg-gray-50">
+                        <span class="text-sm text-gray-400">地圖載入中...</span>
+                    </div>
+                </div>
+
+                <!-- GPS Action -->
+                <div class="space-y-3">
+                    <button
+                        class="w-full flex items-center justify-center gap-2 h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+                        <i data-lucide="map-pin" class="w-5 h-5"></i>
+                        <span>自動定位</span>
+                    </button>
+                    <p class="text-center text-sm text-brand-text-gray">
+                        獲取精確位置以獲得更好的送餐體驗
+                    </p>
+                    <!-- 定位反映欄位 -->
+                    <div id="modal-gps-status-row"
+                        class="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white transition-all duration-200">
+                        <div id="modal-gps-indicator"
+                            class="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0 flex items-center justify-center">
+                        </div>
+                        <span id="modal-gps-status-text" class="text-sm text-gray-400">尚未定位</span>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div class="flex items-center gap-4 py-2">
+                    <div class="h-px flex-1 bg-gray-100"></div>
+                    <span class="text-sm font-medium text-gray-400">或</span>
+                    <div class="h-px flex-1 bg-gray-100"></div>
+                </div>
+
+                <!-- City / District / Address -->
+                <div class="space-y-4">
+                    <!-- Hidden elements kept for nav-auth.js compatibility -->
+                    <input id="modal-address-input" type="hidden" />
+                    <button id="modal-search-btn" type="button" class="hidden" aria-hidden="true"></button>
+                    <!-- 縣市 + 行政區 -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="relative z-20">
+                            <label class="block text-sm font-bold text-gray-600 mb-2">縣市 <span
+                                    class="text-red-500">*</span></label>
+                            <div class="relative w-full">
+                                <input type="text" id="modal-city" placeholder="請搜尋或選擇縣市" autocomplete="off"
+                                    class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow cursor-text text-sm" />
+                                <i data-lucide="chevron-down"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                                <div id="modal-city-dropdown"
+                                    class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="relative z-10">
+                            <label class="block text-sm font-bold text-gray-600 mb-2">行政區 <span
+                                    class="text-red-500">*</span></label>
+                            <div class="relative w-full">
+                                <input type="text" id="modal-district" placeholder="請先選擇縣市" disabled autocomplete="off"
+                                    class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow disabled:opacity-50 disabled:cursor-not-allowed cursor-text text-sm" />
+                                <i data-lucide="chevron-down"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                                <div id="modal-district-dropdown"
+                                    class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 新增地址 -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-sm font-bold text-gray-600">新增地址</label>
+                            <span class="text-xs text-gray-400">範例格式：新安路一段5號</span>
+                        </div>
+                        <input id="modal-street"
+                            class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow text-sm"
+                            placeholder="請輸入完整地址（不含大樓名稱、樓層資訊）" type="text" />
+                    </div>
+
+                    <!-- 常用地址選擇面板 -->
+                    <div id="common-address-panel" class="hidden space-y-2 pt-2">
+                        <p class="text-sm font-bold text-gray-600">選擇常用地址</p>
+                        <div id="common-address-list" class="space-y-2 max-h-44 overflow-y-auto scrollbar-hide">
+                            <!-- 由 JS 動態注入 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-8 bg-gray-50 border-t border-gray-100 space-y-4">
+                <div class="flex gap-4">
+                    <button id="commonAddressBtn"
+                        class="w-full flex items-center justify-center gap-2 h-14 bg-gray-100 text-brand-dark rounded-2xl font-medium hover:bg-gray-200 transition-colors">
+                        <i data-lucide="history" class="w-5 h-5"></i>
+                        <span>使用常用地址</span>
+                    </button>
+                    <button id="confirmLocationBtn"
+                        class="w-full h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+                        確認位置
+                    </button>
+                </div>
+                <p class="text-[11px] text-center text-gray-400 leading-relaxed px-4">
+                    您的位置僅用於計算運費與提供鄰近餐廳建議
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mapping Logic -->
+    <script src="js/official-map-logic.js"></script>
+    <script src="js/location-modal-logic.js"></script>
+    <script src="js/nav-auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+
+</html>

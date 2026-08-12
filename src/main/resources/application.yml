@@ -1,0 +1,92 @@
+# JoinDrink 主設定檔
+#
+# 原則：不放明文密鑰。所有敏感值改由環境變數注入，冒號後的預設值僅供
+#       「本機 docker compose up」開箱即用，正式環境請務必以環境變數覆寫。
+#
+# 本機啟動：docker compose up -d 之後直接跑，不需額外設定。
+
+server:
+  port: ${SERVER_PORT:8082}
+
+spring:
+  application:
+    name: joindrink
+
+  security:
+    user:
+      name: none
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+
+  # ── 本機 MySQL（docker-compose.yml 提供）─────────────────
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:joindrink}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Taipei&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${DB_USERNAME:joindrink}
+    password: ${DB_PASSWORD:joindrink}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 600000        # 10分鐘沒用就釋放
+      max-lifetime: 1800000       # 連線最長存活 30分鐘（要比 MySQL wait_timeout 短）
+      connection-timeout: 30000   # 等待連線最多 30秒
+      keepalive-time: 60000       # 每 60秒 ping 一次保持連線
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:true}
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        jdbc:
+          time_zone: Asia/Taipei
+
+  # ── 真實 Redis（docker-compose.yml 提供，已停用 embedded-redis）──
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 1
+          max-wait: 2000ms
+
+firebase:
+  # 支援 classpath: 與 file: 兩種前綴；金鑰缺失時只會停用社群登入，不影響其他功能
+  config-path: ${FIREBASE_CONFIG_PATH:classpath:serviceAccountKey.json}
+
+# ⚠️ AuthService 讀的是 sms.mode（非 app.sms.mode），必須放在頂層才會生效
+sms:
+  mode: ${SMS_MODE:mock}          # mock：跳過 Firebase 手機驗證 / firebase：實際驗證
+
+app:
+  reset_password_url: ${RESET_PASSWORD_URL:http://localhost:5173/Resetpassword}
+
+jwt:
+  # 本機預設值僅供開發，正式環境務必以 JWT_SECRET 覆寫（HS512 需 ≥64 字元）
+  secret: ${JWT_SECRET:LocalDevOnlySecretForJoinDrinkDoNotUseInProductionMustBeAtLeast64Chars!}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+# 💡 Cloudinary 設定（無環境變數時停用上傳，不會導致啟動失敗）
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+  api-key: ${CLOUDINARY_API_KEY:}
+  api-secret: ${CLOUDINARY_API_SECRET:}
+
+# 💡 優惠券模板底圖
+coupon:
+  template-url: ${COUPON_TEMPLATE_URL:}
+
+logging:
+  level:
+    org.springframework.data.redis: WARN

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-TW">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700&amp;display=block"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ec5b13",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#221610",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <script src="js/brand-shell-boot.js"></script>
+    <style>
+        aside nav a { display: flex; align-items: center; gap: 12px; white-space: nowrap; font-size: 14px; text-decoration: none; }
+        aside nav a .material-symbols-outlined { flex-shrink: 0; }
+        .sidebar-item-active {
+            background-color: #ec5b13;
+            color: white;
+        }
+
+        @media (max-width: 1023.98px) {
+            html[data-brand-shell-boot="true"] body:not([data-brand-shell-ready="true"]) aside {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                z-index: 40;
+                width: min(18rem, calc(100vw - 2.5rem));
+                max-width: calc(100vw - 2.5rem);
+                transform: translateX(-110%);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside {
+                width: 5.75rem !important;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside>div:first-child {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside>div:first-child a {
+                width: 100%;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside>div:first-child img {
+                height: 3.5rem;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside nav a {
+                justify-content: center;
+                gap: 0;
+                padding-left: 0.75rem;
+                padding-right: 0.75rem;
+            }
+
+            html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"] body:not([data-brand-shell-ready="true"]) aside nav a span:not(.material-symbols-outlined) {
+                opacity: 0;
+                width: 0;
+                overflow: hidden;
+                pointer-events: none;
+            }
+        }
+
+        /* Prevent native select arrow from overlapping custom icon (ghosting) */
+        select[data-hq-store-region],
+        select[data-hq-store-create-region],
+        select[data-hq-store-edit-region] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: none;
+        }
+
+        select[data-hq-store-region]::-ms-expand,
+        select[data-hq-store-create-region]::-ms-expand,
+        select[data-hq-store-edit-region]::-ms-expand {
+            display: none;
+        }
+        body { opacity: 0; }
+    </style>
+    <title>JOIN揪飲 - 分店管理</title>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 transition-colors duration-200 h-screen overflow-hidden">
+    <div class="flex h-screen overflow-hidden">
+        <!-- 側邊欄 -->
+        <aside
+            class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-screen sticky top-0">
+            <div class="p-6 flex justify-center">
+                <a href="hq-dashboard.html" class="flex flex-col items-center gap-2" aria-label="回到首頁">
+                    <img src="img/logo_%23U53bb%23U80cc%23U6a94.png" alt="JOIN揪飲" class="h-20 w-auto object-contain" />
+
+                </a>
+            </div>
+            <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    href="hq-dashboard.html">
+                    <span class="material-symbols-outlined text-[22px]">dashboard</span>
+                    <span class="text-sm font-medium">全局儀表板</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl sidebar-item-active transition-colors"
+                    href="hq-store-management.html">
+                    <span class="material-symbols-outlined text-[22px]">storefront</span>
+                    <span class="text-sm font-semibold">分店管理</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    href="hq-menu-overview.html">
+                    <span class="material-symbols-outlined text-[22px]">restaurant_menu</span>
+                    <span class="text-sm font-medium">品牌菜單</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    href="hq-brand-financial-overview.html">
+                    <span class="material-symbols-outlined text-[22px]">payments</span>
+                    <span class="text-sm font-medium">財務匯總</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    href="hq-hot-and-slow-selling-items-trend.html">
+                    <span class="material-symbols-outlined text-[22px]">bar_chart_4_bars</span>
+                    <span class="text-sm font-medium">全局報表</span>
+                </a>
+            </nav>
+        </aside>
+        <!-- 主要內容區 -->
+        <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <!-- 頁首 -->
+            <header
+                class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 z-10">
+                <div class="flex items-center">
+                    <h2 class="text-xl font-bold">分店管理</h2>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-3 cursor-pointer group">
+                        <div class="text-right">
+                            <p class="text-base font-bold leading-tight group-hover:text-primary transition-colors"><span data-brand-admin-name>Admin</span></p>
+                        </div>
+                        <div
+                            class="size-9 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700">
+                            <img class="w-full h-full object-cover" data-alt="Avatar"
+                                data-brand-admin-avatar src="https://lh3.googleusercontent.com/aida-public/AB6AXuDfz8Z2MuvXmB3vZG1V4Fz8wCpHuiF8ydw8y-qrPzY4DkJN8oIy6_a4EhBHgAyOF-Em82go2xBbEAqvjMbfhgEO2t0YV1AZPpTNd-cIjaSr1D9zZti6OnqYehuKr9DMd_CxE4dKZFcZXTGwCNdg24CnZTPapkxF_3SKBfulDY-sl-InzgD9OP5snlTIyN_vLa9w40m1nNh8gMKDFIPp7Azj4WpLkRnlmSdbs0xLHLY2ph8HQ6zYkDfPSXnfyZu0Fa0Jy54r_dOkpG7y" />
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <!-- 主頁內容 -->
+            <main class="flex-1 overflow-hidden">
+                <div class="h-full overflow-y-auto p-8 space-y-6">
+                    <!-- 工具列區 -->
+                    <div
+                        class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+                        <div class="flex flex-col gap-4">
+                            <!-- 搜尋與主要操作 -->
+                            <div class="flex flex-wrap items-center justify-between gap-4">
+                                <div class="flex flex-1 min-w-[300px] gap-3">
+                                    <div class="relative flex-1">
+                                        <span
+                                            class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                                        <input
+                                            class="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-lg focus:ring-2 focus:ring-primary/20 text-sm placeholder:text-slate-400"
+                                            placeholder="搜尋店名..." type="search" data-hq-store-search
+                                            name="store-search" autocomplete="off" autocapitalize="off"
+                                            autocorrect="off" spellcheck="false" readonly />
+                                    </div>
+                                    <div class="relative">
+                                        <span
+                                            class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">location_on</span>
+                                        <select class="sr-only" data-hq-store-region>
+                                            <option value="all" selected>所有區域</option>
+                                            <option value="北部">北部</option>
+                                            <option value="中部">中部</option>
+                                            <option value="南部">南部</option>
+                                        </select>
+                                        <button
+                                            class="flex items-center gap-2 pl-10 pr-10 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                                            type="button" data-hq-store-region-button aria-haspopup="menu"
+                                            aria-expanded="false">
+                                            <span data-hq-store-region-label>所有區域</span>
+                                        </button>
+                                        <span
+                                            class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none select-none leading-none">expand_more</span>
+                                    </div>
+                                </div>
+                                <button
+                                    class="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                                    type="button" data-hq-store-create-open>
+                                    <span class="material-symbols-outlined">add</span>
+                                    新增分店
+                                </button>
+                            </div>
+                            <!-- 批次操作 -->
+                        </div>
+                    </div>
+                    <!-- 表格內容 -->
+                    <div
+                        class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse" data-hq-store-table>
+                                <thead>
+                                    <tr
+                                        class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                        <th
+                                            class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                            分店名稱 (Branch Name)</th>
+                                        <th
+                                            class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                            分店評分 (Branch Rating)</th>
+                                        <th
+                                            class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                            區域 (Region)</th>
+                                        <th
+                                            class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                            店長暱稱 (Manager)</th>
+                                        <th
+                                            class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                            店長手機號碼 (Phone)  </th>
+                                        <th
+                                            class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                            即時狀態 (Status)</th>
+                                        <th
+                                            class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">
+                                            操作 (Actions)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tr><td colspan="7" class="px-6 py-8 text-center text-sm text-slate-400">載入中...</td></tr>
+                    </tbody>
+                            </table>
+                        </div>
+                        <!-- 分頁（為營造雲端系統風格而新增） -->
+                        <div
+                            class="px-6 py-4 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                            <p class="text-xs text-slate-500 font-medium" data-store-count>載入中...</p>
+                            <div class="flex gap-2">
+                                <button
+                                    class="size-8 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-400 disabled:opacity-50">
+                                    <span class="material-symbols-outlined text-sm">chevron_left</span>
+                                </button>
+                                <button
+                                    class="size-8 flex items-center justify-center rounded bg-primary text-white font-bold text-xs">1</button>
+                                <button
+                                    class="size-8 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-400 disabled:opacity-50">
+                                    <span class="material-symbols-outlined text-sm">chevron_right</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 額外資訊／快速統計區塊 -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 新增分店彈窗 -->
+    <div class="fixed inset-0 z-50 hidden" data-hq-store-create-modal>
+        <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-md p-4 flex items-center justify-center"
+            data-hq-store-create-backdrop>
+            <div class="w-full max-w-[560px] bg-white dark:bg-background-dark rounded-xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 dark:border-slate-800"
+                role="dialog" aria-modal="true" aria-labelledby="hq-store-create-title">
+                <div
+                    class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100" id="hq-store-create-title">新增分店
+                    </h2>
+                    <button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                        type="button" aria-label="關閉" data-hq-store-create-close>
+                        <span class="material-symbols-outlined text-slate-500">close</span>
+                    </button>
+                </div>
+                <div class="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
+                    <div class="flex flex-col gap-2 items-center">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">分店封面照 <span class="text-red-500">*</span></label>
+                        <label
+                            class="w-full flex items-center gap-4 p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl hover:border-primary/50 transition-colors bg-slate-50/50 dark:bg-slate-900/20 cursor-pointer"
+                            data-create-cover-zone>
+                            <input class="sr-only" type="file" accept="image/*" data-create-cover-input required />
+                            <div class="w-20 h-14 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-400 overflow-hidden shrink-0"
+                                data-create-cover-preview>
+                                <span class="material-symbols-outlined text-2xl">image</span>
+                            </div>
+                            <div class="text-left text-xs text-slate-500 dark:text-slate-400">
+                                <p class="font-semibold text-slate-700 dark:text-slate-200">上傳封面背景</p>
+                                <p data-create-cover-hint>建議比例 16:9</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">分店名稱 <span class="text-red-500">*</span></label>
+                        <input
+                            class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                            placeholder="請輸入分店名稱" type="text" data-hq-store-create-name required />
+                        </div>
+                        <!-- 登入帳號 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">登入帳號 <span class="text-red-500">*</span></label>
+                            <input data-store-account
+                                class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400"
+                                placeholder="請輸入登入帳號（如：store_tp01）" type="text" required />
+                        </div>
+                        <!-- 登入密碼 -->
+                        <div class="space-y-2">
+                            <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">登入密碼 <span class="text-red-500">*</span></label>
+                            <input
+                                class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400"
+                                placeholder="請輸入初始密碼" type="password" data-hq-store-create-password required />
+                        </div>
+                        <div class="hidden">
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">所屬區域 <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <select
+                                class="w-full appearance-none px-4 pr-12 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                data-hq-store-create-region required>
+                                <option disabled selected value="">請選擇區域</option>
+                                <option value="north">北部</option>
+                                <option value="central">中部</option>
+                                <option value="south">南部</option>
+                            </select>
+                            <span
+                                class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 select-none leading-none">expand_more</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">店長名稱 <span class="text-red-500">*</span></label>
+                            <input
+                                class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                placeholder="請輸入姓名" type="text" data-hq-store-create-manager required />
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">店長手機號碼 <span class="text-red-500">*</span></label>
+                            <input
+                                class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                placeholder="09xx-xxx-xxx" type="tel" data-hq-store-create-phone required />
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">門市地址 <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <input
+                                class="w-full pl-11 pr-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                placeholder="請輸入完整地址" type="text" data-hq-store-create-address required />
+                            <span
+                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">location_on</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-5">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">緯度 (Latitude) <span class="text-red-500">*</span></label>
+                            <input
+                                class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                placeholder="例：25.0330" type="number" step="any" data-hq-store-create-lat required />
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">經度 (Longitude) <span class="text-red-500">*</span></label>
+                            <input
+                                class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                placeholder="例：121.5654" type="number" step="any" data-hq-store-create-lng required />
+                        </div>
+                    </div>
+                </div>
+                <div
+                    class="flex items-center justify-end gap-3 px-6 py-5 bg-slate-50/50 dark:bg-slate-900/20 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                        class="px-6 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        type="button" data-hq-store-create-close>取消</button>
+                    <button
+                        class="px-8 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center gap-2"
+                        type="button" data-hq-store-create-close data-hq-store-create-save>
+                        <span class="material-symbols-outlined text-sm">check_circle</span>
+                        確認新增
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯分店彈窗 -->
+    <div class="fixed inset-0 z-50 hidden" data-hq-store-edit-modal>
+        <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-md p-4 flex items-center justify-center"
+            data-hq-store-edit-backdrop>
+            <div class="w-full max-w-[560px] bg-white dark:bg-background-dark rounded-xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 dark:border-slate-800"
+                role="dialog" aria-modal="true" aria-labelledby="hq-store-edit-title">
+                <div
+                    class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100" id="hq-store-edit-title">編輯分店</h2>
+                    <button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                        type="button" aria-label="關閉" data-hq-store-edit-close>
+                        <span class="material-symbols-outlined text-slate-500">close</span>
+                    </button>
+                </div>
+                <div class="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
+                    <div class="flex flex-col gap-2 items-center">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">分店封面照</label>
+                        <label
+                            class="w-full flex items-center gap-4 p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl hover:border-primary/50 transition-colors bg-slate-50/50 dark:bg-slate-900/20 cursor-pointer"
+                            data-edit-cover-zone>
+                            <input class="sr-only" type="file" accept="image/*" data-edit-cover-input />
+                            <div class="w-20 h-14 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-400 overflow-hidden shrink-0"
+                                data-edit-cover-preview>
+                                <span class="material-symbols-outlined text-2xl">image</span>
+                            </div>
+                            <div class="text-left text-xs text-slate-500 dark:text-slate-400">
+                                <p class="font-semibold text-slate-700 dark:text-slate-200">上傳封面背景</p>
+                                <p data-edit-cover-hint>建議比例 16:9</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">分店名稱</label>
+                        <input
+                            class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                            placeholder="請輸入分店名稱" type="text" data-hq-store-edit-name />
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">所屬區域</label>
+                        <div class="relative">
+                            <select
+                                class="w-full appearance-none px-4 pr-12 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                data-hq-store-edit-region>
+                                <option disabled value="">請選擇區域</option>
+                                <option value="north">北部</option>
+                                <option value="central">中部</option>
+                                <option value="south">南部</option>
+                            </select>
+                            <span
+                                class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 select-none leading-none">expand_more</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">店長名稱</label>
+                            <input
+                                class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                placeholder="請輸入姓名" type="text" data-hq-store-edit-manager />
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">店長手機號碼</label>
+                            <input
+                                class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                placeholder="09xx-xxx-xxx" type="tel" data-hq-store-edit-phone />
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">門市地址</label>
+                        <div class="relative">
+                            <input
+                                class="w-full pl-11 pr-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                placeholder="請輸入完整地址" type="text" data-hq-store-edit-address />
+                            <span
+                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">location_on</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-5">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">緯度 (Latitude)</label>
+                            <input
+                                class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                placeholder="例：25.0330" type="number" step="any" data-hq-store-edit-lat />
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">經度 (Longitude)</label>
+                            <input
+                                class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                placeholder="例：121.5654" type="number" step="any" data-hq-store-edit-lng />
+                        </div>
+                    </div>
+                </div>
+                <div
+                    class="flex items-center justify-end gap-3 px-6 py-5 bg-slate-50/50 dark:bg-slate-900/20 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                        class="px-6 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        type="button" data-hq-store-edit-close>取消</button>
+                    <button
+                        class="px-8 py-2.5 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center gap-2"
+                        type="button" data-hq-store-edit-save>
+                        <span class="material-symbols-outlined text-sm">check_circle</span>
+                        確認更新
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/brand-api.js"></script>
+<script src="js/hq-store-management.js"></script>
+<script src="js/hq-store-api.js"></script>
+<script>document.addEventListener('DOMContentLoaded',function(){requestAnimationFrame(function(){document.body.style.opacity='1';});});</script>
+</body>
+
+</html>

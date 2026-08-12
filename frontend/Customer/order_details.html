@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-TW">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>訂單詳情 - JOIN 揪飲</title>
+    <!-- DNS Prefetch & Preconnect for faster CDN resolution -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
+    <link rel="dns-prefetch" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link href="css/output.css" rel="stylesheet" />
+    <link href="css/footer.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Leaflet JS: deferred since map is not immediately visible -->
+    <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Stomp & SockJS for Real-time status sync -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; }
+    </style>
+</head>
+
+<body class="bg-white text-text-primary-light min-h-screen flex flex-col antialiased">
+
+    <!-- BEGIN: MainHeader -->
+    <header class="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 py-3 lg:px-10">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <a href="index.html" class="flex items-center gap-2 flex-shrink-0" data-purpose="logo-container">
+          <img src="images/logo.png" alt="JOIN Logo" class="h-10 w-auto object-contain" />
+        </a>
+        <div class="flex-grow max-w-2xl hidden md:flex items-center bg-gray-100 rounded-full px-4 py-2 gap-3" data-purpose="search-bar">
+          <div id="locationTrigger" class="flex items-center gap-1 border-r border-gray-300 pr-3 cursor-pointer hover:text-brand-orange transition-colors">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+              <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+            </svg>
+            <span id="nav-location-text" class="text-sm text-gray-600">正在定位...</span>
+          </div>
+          <div class="flex items-center gap-2 flex-grow">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+            </svg>
+            <input id="header-search-input" class="bg-transparent border-none focus:ring-0 text-sm w-full p-0" placeholder="搜尋想喝的飲品、店家..." type="text" autocomplete="off" />
+          </div>
+        </div>
+        <div class="flex items-center gap-4 lg:gap-6" data-purpose="user-nav">
+          <div class="flex items-center gap-4 text-gray-600">
+            <a href="profile.html?section=notifications" class="hover:text-brand-orange transition-colors fa-regular fa-bell" style="font-size: 22px;"></a>
+            <a href="orders.html" class="hover:text-brand-orange transition-colors fa-solid fa-clock-rotate-left" style="font-size: 20px;"></a>
+            <div class="relative group" id="cart-dropdown-wrapper">
+              <a href="cart_details.html" class="hover:text-brand-orange transition-colors relative block py-2 fa-solid fa-cart-shopping" style="font-size: 20px;">
+                <span id="cart-badge" class="absolute -top-1 -right-1 bg-brand-orange text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+              </a>
+              <div id="cart-dropdown-menu" class="hidden group-hover:block absolute right-0 mt-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 py-4 z-50">
+                <div class="px-4 mb-3 flex justify-between items-center">
+                  <h3 class="font-bold text-gray-800">我的購物車</h3>
+                  <span id="cart-count-text" class="text-xs text-gray-400">共 0 項品項</span>
+                </div>
+                <div id="cart-items-container" class="max-h-60 overflow-y-auto px-4 space-y-3 mb-4">
+                  <p class="text-center text-gray-400 text-sm py-4">購物車是空的</p>
+                </div>
+                <div class="px-4 pt-3 border-t border-gray-50">
+                  <div class="flex justify-between mb-4">
+                    <span class="text-gray-500">總計</span>
+                    <span id="cart-total-price" class="font-bold text-brand-orange text-lg">$0</span>
+                  </div>
+                  <a href="cart_details.html" class="block w-full bg-brand-orange text-white text-center py-2.5 rounded-xl font-bold hover:bg-orange-600 transition-colors">查看購物車</a>
+                </div>
+              </div>
+            </div>
+            <a href="profile.html?section=favorites" class="hover:text-brand-orange transition-colors fa-solid fa-heart" style="font-size: 20px;"></a>
+          </div>
+          <button class="bg-brand-orange text-white px-6 py-2 rounded-full font-medium hover:bg-orange-600 transition-colors">登入</button>
+          <a href="profile.html" class="hover:text-brand-orange transition-colors">
+            <div class="relative" id="user-dropdown-wrapper">
+              <div id="user-avatar-container" class="w-10 h-10 bg-gray-200 rounded-full overflow-hidden border border-gray-100 cursor-pointer transition-transform hover:scale-105">
+                <img id="nav-user-avatar" alt="Profile" class="w-full h-full object-cover" src="images/default_avatar.png" />
+              </div>
+            </div>
+          </a>
+        </div>
+      </div>
+    </header>
+    <!-- END: MainHeader -->
+
+    <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="mb-6">
+            <div class="flex items-center gap-3 flex-wrap">
+                <h1 class="text-2xl font-bold text-text-primary-light">訂單詳情</h1>
+                <span id="order-id-display" class="text-gray-700 text-sm font-bold tracking-wide"></span>
+            </div>
+        </div>
+        <div class="flex flex-col lg:flex-row gap-6">
+            <!-- 左欄：訂單資訊 + 商品 -->
+            <div class="flex-1 flex flex-col gap-6">
+                <!-- 訂單基本資訊卡 -->
+                <div class="bg-surface-light rounded-xl px-6 py-10 shadow-sm border border-border-light grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-6">
+                    <div class="rounded-xl overflow-hidden bg-gray-100 h-44 sm:h-full">
+                        <img alt="Store front" class="w-full h-full object-cover hidden" />
+                    </div>
+                    <div class="flex flex-col justify-between">
+                        <div>
+                            <h2 id="store-name" class="text-xl font-bold text-text-primary-light mb-4"></h2>
+                            <!-- 狀態列 -->
+                            <div class="flex flex-col gap-2.5 text-sm mb-5">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-gray-500 shrink-0">訂單狀態</span>
+                                    <span id="order-status-badge" class="px-3 py-0.5 rounded-full text-xs font-semibold text-white"></span>
+                                    <button id="progress-modal-btn"
+                                        class="hidden px-3 py-0.5 rounded-full text-xs font-medium border border-brand-orange text-brand-orange bg-white hover:bg-orange-50 transition-colors cursor-pointer">
+                                        點我查詢進度
+                                    </button>
+                                </div>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <span class="text-gray-500 shrink-0">付款狀態</span>
+                                    <span id="payment-status-badge" class="hidden px-3 py-0.5 rounded-full text-xs font-medium"></span>
+                                </div>
+                                <div id="rating-row" class="flex items-center gap-2 mt-2 hidden">
+                                    <span class="text-gray-500 shrink-0">評星</span>
+                                    <div id="rating-stars-display" class="flex gap-0.5"></div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-3 text-sm text-text-secondary-light mt-3">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="calendar" class="w-4 h-4 shrink-0"></i>
+                                    <span id="order-time-display"></span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="map-pin" class="w-4 h-4 shrink-0"></i>
+                                    <span class="font-medium shrink-0">取貨地址</span>
+                                    <span id="order-address-display" class="text-gray-600"></span>
+                                </div>
+                                <div id="order-note-row" class="flex items-start gap-2 hidden">
+                                    <i data-lucide="sticky-note" class="w-4 h-4 text-gray-400 shrink-0 mt-0.5"></i>
+                                    <span class="font-medium shrink-0">訂單備註</span>
+                                    <span id="order-note-display" class="text-gray-600 break-all"></span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="credit-card" class="w-4 h-4 text-gray-400 shrink-0"></i>
+                                    <span class="font-medium shrink-0">支付方式</span>
+                                    <span id="payment-method-display" class="text-gray-600"></span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <i id="store-phone-icon" data-lucide="phone" class="w-4 h-4 text-gray-400 shrink-0"></i>
+                                    <span class="font-medium shrink-0">店家電話</span>
+                                    <span id="store-phone-display" class="text-gray-600"></span>
+                                </div>
+                                <div class="flex items-center gap-2 hidden">
+                                    <i id="manager-phone-icon" data-lucide="user-round" class="w-4 h-4 text-gray-400 shrink-0"></i>
+                                    <span class="font-medium shrink-0">店長電話</span>
+                                    <span id="manager-phone-display" class="text-gray-600"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 補款提示框 -->
+                <div id="repayment-box"
+                    class="bg-warning-light rounded-xl p-4 border border-warning-text-light/20 flex items-start gap-3 hidden">
+                    <div class="bg-warning-text-light text-white rounded-full w-8 h-8 flex items-center justify-center shrink-0">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                    </div>
+                    <div class="pt-1 text-sm text-text-primary-light">
+                        此訂單由團長代墊，請點擊右方補款按鈕，將款項付給團長。
+                    </div>
+                </div>
+
+                <!-- 商品明細 -->
+                <div id="order-items-list"
+                    class="bg-surface-light rounded-xl overflow-hidden shadow-sm border border-border-light">
+                    <div class="p-4 border-b-2 border-gray-200 bg-gray-50">
+                        <h3 class="font-bold text-gray-800">商品明細</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右欄：費用匯總 -->
+            <div class="w-full lg:w-80 shrink-0">
+                <div class="bg-surface-light rounded-xl p-6 shadow-sm border border-border-light sticky top-24">
+                    <h3 class="font-bold text-lg text-text-primary-light mb-6">費用明細</h3>
+                    <div class="space-y-4 mb-6 text-sm">
+                        <div class="flex justify-between text-text-secondary-light">
+                            <span>品項金額</span>
+                            <span id="subtotal-display" class="text-text-primary-light">$0</span>
+                        </div>
+                        <div class="flex justify-between text-text-secondary-light" id="discount-row" style="display: none;">
+                            <span>優惠折扣</span>
+                            <span id="discount-display" class="text-brand-orange">-$0</span>
+                        </div>
+                        <div class="flex justify-between text-text-secondary-light" id="paid-members-row" style="display: none;">
+                            <span>團員已付金額</span>
+                            <span id="paid-members-display" class="text-emerald-500">$0</span>
+                        </div>
+                    </div>
+                    <div class="border-t border-border-light pt-4 mb-6">
+                        <div class="flex justify-between items-center">
+                            <span id="total-label" class="font-bold text-text-primary-light">訂單總額</span>
+                            <span id="total-display" class="text-4xl font-bold text-primary">$0</span>
+                        </div>
+                        <div id="remaining-info" class="mt-2 text-right hidden">
+                            <span class="text-xs text-text-tertiary-light">團長實付：</span>
+                            <span id="host-real-pay" class="text-sm font-bold text-primary">$0</span>
+                        </div>
+                    </div>
+                    <button id="repay-to-host-btn"
+                        class="w-full bg-primary hover:bg-primary-hover text-white py-3 rounded-lg font-bold text-base transition-colors shadow-sm mb-3 hidden">
+                        立即補款 (使用儲值金)
+                    </button>
+                    <button id="continue-order-btn"
+                        class="w-full bg-orange-500 hover:bg-orange-600 text-white py-3.5 rounded-lg font-bold text-base transition-colors mt-2 hidden">
+                        繼續訂購
+                    </button>
+                    <button id="cancel-order-btn"
+                        class="w-full border-2 border-red-400 text-red-500 hover:bg-red-50 py-2.5 rounded-lg font-semibold text-sm transition-colors mt-2 hidden">
+                        取消訂單
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- BEGIN: Footer -->
+    <footer class="main-footer">
+      <div class="footer-content">
+        <div class="footer-left">
+          <img src="images/logo.png" alt="JOIN 探飲 LOGO" class="footer-logo">
+          <div class="footer-desc">
+            最懂你的飲品揪團平台。<br>
+            不管是辦公室下午茶，還是好友聚會，<br>
+            一鍵發起，輕鬆揪飲！
+          </div>
+        </div>
+        <div class="footer-right">
+          <div class="footer-contact-title">聯絡我們</div>
+          <div class="footer-contact-list">
+            <div class="footer-contact-item">
+              <i class="fa-regular fa-envelope"></i>
+              <a href="mailto:join@joindink.com">join@joindink.com</a>
+            </div>
+            <div class="footer-contact-item">
+              <i class="fa-solid fa-phone"></i>
+              04-1234-5678
+            </div>
+            <div class="footer-contact-item">
+              <i class="fa-solid fa-location-dot"></i>
+              408臺中市南屯區公益路二段51號18樓
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        © 2026 JOIN 揪飲 - 本平台供飲品揪團平台. All Rights Reserved.
+      </div>
+    </footer>
+    <!-- END: Footer -->
+
+    <!-- Location Modal -->
+    <div id="locationModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+      <div class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all transform">
+        <button id="closeModalBtn" class="absolute top-6 right-6 z-10 p-2 text-gray-400 hover:text-gray-600 transition-colors">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+        <div class="overflow-y-auto p-8 space-y-6 scrollbar-hide">
+          <div class="text-center">
+            <h3 class="text-2xl font-bold text-brand-dark">選擇您的位置</h3>
+          </div>
+          <div id="map-container" class="relative w-full aspect-video rounded-3xl overflow-hidden border border-gray-100 shadow-inner z-0 hidden" style="height: 240px;">
+            <div class="flex items-center justify-center h-full bg-gray-50">
+              <span class="text-sm text-gray-400">地圖載入中...</span>
+            </div>
+          </div>
+          <div class="space-y-3">
+            <button class="w-full flex items-center justify-center gap-2 h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+              <i data-lucide="map-pin" class="w-5 h-5"></i>
+              <span>自動定位</span>
+            </button>
+            <p class="text-center text-sm text-brand-text-gray">獲取精確位置以獲得更好的送餐體驗</p>
+            <div id="modal-gps-status-row" class="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white transition-all duration-200">
+              <div id="modal-gps-indicator" class="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0 flex items-center justify-center"></div>
+              <span id="modal-gps-status-text" class="text-sm text-gray-400">尚未定位</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 py-2">
+            <div class="h-px flex-1 bg-gray-100"></div>
+            <span class="text-sm font-medium text-gray-400">或</span>
+            <div class="h-px flex-1 bg-gray-100"></div>
+          </div>
+          <div class="space-y-4">
+            <input id="modal-address-input" type="hidden" />
+            <button id="modal-search-btn" type="button" class="hidden" aria-hidden="true"></button>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="relative z-20">
+                <label class="block text-sm font-bold text-gray-600 mb-2">縣市 <span class="text-red-500">*</span></label>
+                <div class="relative w-full">
+                  <input type="text" id="modal-city" placeholder="請搜尋或選擇縣市" autocomplete="off"
+                    class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow cursor-text text-sm" />
+                  <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                  <div id="modal-city-dropdown" class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden"></div>
+                </div>
+              </div>
+              <div class="relative z-10">
+                <label class="block text-sm font-bold text-gray-600 mb-2">行政區 <span class="text-red-500">*</span></label>
+                <div class="relative w-full">
+                  <input type="text" id="modal-district" placeholder="請先選擇縣市" disabled autocomplete="off"
+                    class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow disabled:opacity-50 disabled:cursor-not-allowed cursor-text text-sm" />
+                  <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                  <div id="modal-district-dropdown" class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden"></div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between items-center mb-2">
+                <label class="block text-sm font-bold text-gray-600">新增地址</label>
+                <span class="text-xs text-gray-400">範例格式：新安路一段5號</span>
+              </div>
+              <input id="modal-street"
+                class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow text-sm"
+                placeholder="請輸入完整地址（不含大樓名稱、樓層資訊）" type="text" />
+            </div>
+            <div id="common-address-panel" class="hidden space-y-2 pt-2">
+              <p class="text-sm font-bold text-gray-600">選擇常用地址</p>
+              <div id="common-address-list" class="space-y-2 max-h-44 overflow-y-auto scrollbar-hide"></div>
+            </div>
+          </div>
+        </div>
+        <div class="p-8 bg-gray-50 border-t border-gray-100 space-y-4">
+          <div class="flex gap-4">
+            <button id="commonAddressBtn" class="w-full flex items-center justify-center gap-2 h-14 bg-gray-100 text-brand-dark rounded-2xl font-medium hover:bg-gray-200 transition-colors">
+              <i data-lucide="history" class="w-5 h-5"></i>
+              <span>使用常用地址</span>
+            </button>
+            <button id="confirmLocationBtn" class="w-full h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">確認位置</button>
+          </div>
+          <p class="text-[11px] text-center text-gray-400 leading-relaxed px-4">您的位置僅用於計算運費與提供鄰近餐廳建議</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 訂單進度 Modal -->
+    <div id="order-progress-modal"
+        class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+        <div class="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+            <div class="px-6 pt-6 pb-4 border-b border-gray-100">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-800">訂單狀態</h3>
+                        <div class="flex items-center gap-2 mt-1.5">
+                            <span id="pm-status-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold border"></span>
+                            <span id="pm-order-no" class="text-xs text-gray-400 font-medium"></span>
+                        </div>
+                    </div>
+                    <button id="close-progress-modal"
+                        class="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="pm-timeline" class="px-6 py-5 space-y-0 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <!-- 評星 Modal -->
+    <div id="rating-modal" class="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+        <div class="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden">
+            <div class="px-6 pt-6 pb-4 border-b border-gray-100">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-bold text-gray-800">評價此次訂購</h3>
+                    <button id="close-rating-modal" class="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="px-6 py-8 flex flex-col items-center gap-5">
+                <div id="rating-stars-input" class="flex gap-2"></div>
+                <p id="rating-hint" class="text-sm text-gray-400">點選星星給予評分</p>
+                <button id="submit-rating-btn"
+                    class="hidden w-full py-3.5 bg-brand-orange text-white rounded-2xl font-bold text-base hover:bg-orange-600 transition-colors shadow-md shadow-orange-100">
+                    送出評價
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 通知容器 -->
+    <div id="od-toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none" aria-live="polite"></div>
+
+    <!-- Scroll To Top Button -->
+    <button id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})"
+        class="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[80] w-11 h-11 bg-gray-400 hover:bg-gray-500 rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer opacity-0 pointer-events-none">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/>
+        </svg>
+    </button>
+    <script>(function(){var b=document.getElementById('scroll-top-btn');window.addEventListener('scroll',function(){if(window.scrollY>300){b.style.opacity='1';b.style.pointerEvents='auto';}else{b.style.opacity='0';b.style.pointerEvents='none';}});})();</script>
+
+    <!-- Scripts -->
+    <script src="js/official-map-logic.js"></script>
+    <script src="js/location-modal-logic.js"></script>
+    <script src="js/nav-auth.js"></script>
+
+    <script>
+        // ─── Hyper-Fast Global Fetch ──────────────────────────────────
+        // 在 DOM 解析的同時就發出請求，不等待 DOMContentLoaded
+        const _uParams = new URLSearchParams(window.location.search);
+        const orderId  = _uParams.get('id');
+        const userId   = localStorage.getItem('JOIN_USER_ID');
+        
+        let initialOrderPromise = null;
+        if (orderId && userId) {
+            // 定義此處以便後續呼叫
+            async function fetchOrderWithRetry(url, retries = 2, delay = 500) {
+                for (let i = 0; i <= retries; i++) {
+                    try {
+                        const raw = await NavAuth.fetchAPI(url);
+                        const res = raw.data || raw;
+                        if (res && (res.id || res.orderId)) return res;
+                    } catch (e) {
+                        if (i === retries) throw e;
+                    }
+                    await new Promise(r => setTimeout(r, delay));
+                }
+            }
+            initialOrderPromise = fetchOrderWithRetry(`/api/orders/${orderId}`);
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!orderId || !userId) {
+                window.location.href = 'orders.html';
+                return;
+            }
+
+            // ─── 狀態對應表 ────────────────────────────────────────────
+            const statusMap = {
+                'SUBMITTED': { label: '訂單已送出', class: 'bg-yellow-100 text-yellow-800' },
+                'PREPARING': { label: '製作中',     class: 'bg-blue-100 text-blue-700' },
+                'COMPLETED': { label: '已完成',     class: 'bg-emerald-100 text-emerald-700' },
+                'CANCELLED': { label: '已取消',     class: 'bg-slate-100 text-slate-500' },
+                'REJECTED':  { label: '不成立',     class: 'bg-red-100 text-red-700' },
+            };
+
+            function getStatusInfo(order) {
+                if (order.status === 'OPEN') {
+                    return order.type === 'GROUP'
+                        ? { label: '揪團中',    class: 'bg-orange-500 text-white' }
+                        : { label: '訂單已送出', class: 'bg-yellow-100 text-yellow-800' };
+                }
+                if (order.status === 'READY') {
+                    return order.deliveryType === 'delivery'
+                        ? { label: '配送中', class: 'bg-orange-100 text-orange-600' }
+                        : { label: '待取餐', class: 'bg-orange-100 text-orange-600' };
+                }
+                return statusMap[order.status] || { label: order.status, class: 'bg-slate-100 text-slate-500' };
+            }
+
+            // ─── DOM refs ─────────────────────────────────────────────
+            const orderStatusBadge  = document.getElementById('order-status-badge');
+            const orderIdText       = document.getElementById('order-id-display');
+            const storeNameEl       = document.getElementById('store-name');
+            const storeImageEl      = document.querySelector('img[alt="Store front"]');
+            const orderTimeEl       = document.getElementById('order-time-display');
+            const addressEl         = document.getElementById('order-address-display');
+            const itemsContainer    = document.getElementById('order-items-list');
+            const repaymentSection  = document.getElementById('repayment-box');
+            const subtotalEl        = document.getElementById('subtotal-display');
+            const totalEl           = document.getElementById('total-display');
+            const repayBtn          = document.getElementById('repay-to-host-btn');
+            const cancelBtn         = document.getElementById('cancel-order-btn');
+            const continueBtn       = document.getElementById('continue-order-btn');
+
+            let isHydrated = false;
+
+            // ─── Instant Hydration (轉場瞬間水合) ───────────────────
+            (function hydrate() {
+                try {
+                    const stubData = JSON.parse(sessionStorage.getItem('JOIN_ORDER_STUB') || '{}');
+                    if (stubData && String(stubData.orderId) === String(orderId)) {
+                        console.log('Applying Enhanced Hydration Stub:', stubData);
+                        if (stubData.storeName) storeNameEl.innerText = stubData.storeName;
+                        if (stubData.total) totalEl.innerText = `$${Math.round(stubData.total)}`;
+                        if (stubData.status) {
+                            const info = getStatusInfo({ status: stubData.status, type: stubData.type, deliveryType: stubData.deliveryType });
+                            orderStatusBadge.innerText = info.label;
+                            orderStatusBadge.className = `px-3 py-1 rounded-full text-xs font-bold shadow-sm ${info.class}`;
+                            orderStatusBadge.classList.remove('hidden');
+                        }
+                        orderIdText.innerText = `#JK${String(orderId).padStart(6, '0')}`;
+                        
+                        // 語境化品項摘要 (Contextual Placeholder)
+                        if (stubData.itemsSummary) {
+                            itemsContainer.innerHTML = `
+                                <div class="p-6 text-center animate-pulse">
+                                    <div class="flex flex-col items-center gap-3">
+                                        <div class="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center">
+                                            <i data-lucide="shopping-bag" class="w-6 h-6 text-brand-orange"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-slate-700">正在備妥：${stubData.itemsSummary}</p>
+                                            <p class="text-[10px] text-slate-400 mt-1">請稍候，正在取得最新訂單清單...</p>
+                                        </div>
+                                    </div>
+                                </div>`;
+                            if (window.lucide) lucide.createIcons({ root: itemsContainer });
+                            isHydrated = true;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Hydration failed', e);
+                }
+            })();
+
+            // ─── groupOrder 變數（必須在頂層宣告）────────────────────
+            let groupOrder = null;
+
+            // ─── Toast ────────────────────────────────────────────────
+            function showToast(message, type = 'info') {
+                const container = document.getElementById('od-toast');
+                if (!container) return;
+                const icons = {
+                    success: `<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`,
+                    error:   `<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>`,
+                    warning: `<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`,
+                    info:    `<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+                };
+                const styles = { success: 'bg-emerald-500 text-white', error: 'bg-red-500 text-white', warning: 'bg-orange-500 text-white', info: 'bg-slate-700 text-white' };
+                const toast = document.createElement('div');
+                toast.className = `pointer-events-auto flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl text-sm font-semibold max-w-xs transition-all duration-300 ${styles[type] || styles.info}`;
+                toast.innerHTML = `${icons[type] || icons.info}<span>${message}</span>`;
+                container.appendChild(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(-12px)';
+                    setTimeout(() => toast.remove(), 350);
+                }, 3000);
+            }
+
+            function showConfirm(msg) {
+                return new Promise(resolve => {
+                    const overlay = document.createElement('div');
+                    overlay.className = 'fixed inset-0 z-[10000] flex items-center justify-center bg-black/40';
+                    overlay.innerHTML = `
+                        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-[90%] p-6 text-center">
+                            <p class="text-slate-800 text-base font-semibold mb-6">${msg}</p>
+                            <div class="flex gap-3 justify-center">
+                                <button data-role="cancel" class="px-5 py-2 rounded-xl border border-slate-300 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition">取消</button>
+                                <button data-role="ok" class="px-5 py-2 rounded-xl bg-brand-orange text-white font-semibold text-sm hover:brightness-110 transition">確定</button>
+                            </div>
+                        </div>`;
+                    document.body.appendChild(overlay);
+                    overlay.querySelector('[data-role="ok"]').onclick = () => { overlay.remove(); resolve(true); };
+                    overlay.querySelector('[data-role="cancel"]').onclick = () => { overlay.remove(); resolve(false); };
+                });
+            }
+
+            // ─── 付款狀態 Badge ───────────────────────────────────────
+            function updatePaymentBadge(items) {
+                const badge = document.getElementById('payment-status-badge');
+                if (!badge || !items || !items.length) return;
+                const statuses = items.map(i => (i.paymentStatus || '').toUpperCase());
+                let status = null;
+                if (statuses.includes('UNPAID'))               status = 'UNPAID';
+                else if (statuses.includes('PENDING'))         status = 'PENDING';
+                else if (statuses.every(s => s === 'PAID'))    status = 'PAID';
+                else if (statuses.every(s => s === 'REFUNDED'))status = 'REFUNDED';
+                const warnIcon = `<svg class="w-3 h-3 inline-block mr-0.5 -mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`;
+                const config = {
+                    PENDING:  { label: '等待付款',              cls: 'bg-amber-100 text-amber-700' },
+                    UNPAID:   { label: `${warnIcon}需補款`,     cls: 'bg-red-100 text-red-600' },
+                    PAID:     { label: '已付款',                cls: 'bg-emerald-100 text-emerald-700' },
+                    REFUNDED: { label: '已退款',                cls: 'bg-sky-100 text-sky-600' },
+                };
+                if (status && config[status]) {
+                    badge.innerHTML = config[status].label;
+                    badge.className = `inline-flex items-center px-3 py-0.5 rounded-full text-xs font-medium ${config[status].cls}`;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
+
+            // ─── fetchOrderWithRetry ──────────────────────────────────
+            async function fetchOrderWithRetry(url, retries = 2, delay = 500) {
+                for (let i = 0; i <= retries; i++) {
+                    try {
+                        const res = await NavAuth.fetchAPI(url);
+                        if (res && (res.id || res.orderId)) return res;
+                    } catch (e) {
+                        if (i === retries) throw e;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+
+            // ─── 商品列渲染 ───────────────────────────────────────────
+            function renderItemRow(item, showPaymentBadge = false, isGroupCart = false, index = 0) {
+                const quantity = item.quantity || 1;
+                const discountAmount = item.discountAmount || 0;
+                
+                // --- 金額邏輯 ---
+                // 對於 Host 視角 (isGroupCart=true)，後端傳來的是 Gross (fp)，應扣除折價顯示 Net。
+                // 對於 Solo 或 Member 視角 (isGroupCart=false)，後端傳來的是 Net (fp-disc)，應加上折價顯示 Gross。
+                let itemNet = 0, itemGross = 0;
+                if (isGroupCart) {
+                    itemGross = item.finalPrice || 0;
+                    itemNet   = Math.max(0, itemGross - discountAmount);
+                } else {
+                    itemNet   = item.finalPrice || 0;
+                    itemGross = itemNet + discountAmount;
+                }
+
+                // --- 顯示明細 ---
+                const unitPrice = quantity > 0 ? (itemGross / quantity) : 0;
+                const priceBreakdown = quantity > 1 
+                    ? `<span class="text-[10px] text-gray-400 font-normal">($${Math.round(unitPrice)} x ${quantity})</span>`
+                    : '';
+
+                const isPaid   = item.paymentStatus && item.paymentStatus.toUpperCase() === 'PAID';
+                const isUnpaid = item.paymentStatus && item.paymentStatus.toUpperCase() === 'UNPAID';
+                const ice      = item.iceSnapshot   || item.ice;
+                const sugar    = item.sugarSnapshot || item.sugar;
+                const size     = item.sizeSnapshot  || item.size;
+                const optionsText = [ice, sugar, size].filter(Boolean).join(' / ');
+                
+                const toppingsHtml = (item.toppings || []).map(t =>
+                    `<span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 mt-1 inline-block font-medium mr-1">${t.toppingName || t.name}</span>`
+                ).join('');
+
+                let paymentBadgeHtml = '';
+                if (showPaymentBadge) {
+                    if (isPaid)   paymentBadgeHtml = '<span class="text-[10px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded border border-emerald-100 mt-1 inline-block font-bold">已付款</span>';
+                    else if (isUnpaid) paymentBadgeHtml = '<span class="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded border border-red-100 mt-1 inline-block font-bold">待補款</span>';
+                }
+
+                return `
+                    <div class="flex items-start gap-4 py-5 border-b border-orange-100 last:border-0 ${index % 2 === 0 ? 'bg-white' : 'bg-orange-50'} hover:bg-orange-100/60 rounded-xl px-5 transition-colors">
+                        <div class="w-14 h-14 rounded-xl overflow-hidden bg-orange-100 shrink-0 relative flex items-center justify-center">
+                            ${(item.imageUrl || item.logoUrl)
+                                ? `<img src="${item.imageUrl || item.logoUrl}" alt="${item.productNameSnapshot || ''}" class="absolute inset-0 w-full h-full object-cover" loading="lazy">`
+                                : `<i data-lucide="cup-soda" class="w-6 h-6 text-brand-orange"></i>`}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <p class="font-bold text-brand-dark truncate">${item.productNameSnapshot || item.productName || '飲品'}</p>
+                                ${discountAmount > 0 ? `<span class="bg-red-50 text-red-500 text-[10px] px-1.5 py-0.5 rounded border border-red-100 font-bold">已折抵 $${Math.round(discountAmount)}</span>` : ''}
+                                ${paymentBadgeHtml}
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">${optionsText}</p>
+                            <div class="flex flex-wrap items-center mt-1">${toppingsHtml}</div>
+                            <div class="flex items-center gap-2 mt-2">
+                                <span class="text-xs font-bold text-gray-400">數量 : ${quantity}</span>
+                            </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <div class="flex flex-col items-end">
+                                <p class="font-bold text-brand-dark">$${Math.round(itemNet)}</p>
+                                ${priceBreakdown}
+                                ${discountAmount > 0 ? `<p class="text-[10px] text-gray-400 line-through mt-0.5">$${Math.round(itemGross)}</p>` : ''}
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            // ─── 主載入函式 ───────────────────────────────────────────
+            async function loadOrderDetails() {
+                // ── 僅在未水合時顯示骨架屏 ─────────────────────────────
+                if (!isHydrated) {
+                    const skeletonRow = () => `
+                        <div class="animate-pulse flex items-center gap-4 px-5 py-5 border-b border-orange-100">
+                            <div class="w-14 h-14 bg-gray-200 rounded-xl shrink-0"></div>
+                            <div class="flex-1 space-y-2">
+                                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                                <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                            </div>
+                            <div class="w-12 h-5 bg-gray-200 rounded"></div>
+                        </div>`;
+                    itemsContainer.innerHTML = `
+                        <div class="p-4 border-b border-gray-200 bg-gray-50">
+                            <div class="animate-pulse h-5 bg-gray-200 rounded w-24"></div>
+                        </div>
+                        ${skeletonRow()}${skeletonRow()}${skeletonRow()}`;
+                    
+                    storeNameEl.innerHTML = '<div class="animate-pulse h-6 bg-gray-200 rounded w-48 mb-2"></div>';
+                    addressEl.innerHTML   = '<div class="animate-pulse h-4 bg-gray-100 rounded w-64"></div>';
+                }
+
+                try {
+                    // ── Step 1：取得訂單 (使用全域並行請求) ────────────────
+                    const order = await (initialOrderPromise || fetchOrderWithRetry(`/api/orders/${orderId}`));
+                    window._cachedOrder = order;
+
+                    // ── 立即更新訂單資訊，不等後續 API ───────────────────
+                    const statusInfo = getStatusInfo(order);
+                    orderStatusBadge.innerText   = statusInfo.label;
+                    orderStatusBadge.className   = `px-3 py-0.5 rounded-full text-xs font-semibold ${statusInfo.class}`;
+
+                    const progressBtn2 = document.getElementById('progress-modal-btn');
+                    if (!['CANCELLED', 'REJECTED'].includes((order.status || '').toUpperCase())) {
+                        progressBtn2.classList.remove('hidden');
+                    }
+
+                    orderIdText.innerText = `#JK${orderId.toString().padStart(6, '0')}`;
+
+                    const submittedAt = order.submittedAt;
+                    orderTimeEl.innerText = submittedAt
+                        ? `下單時間：${new Date(submittedAt).toLocaleString()}`
+                        : `建立時間：${new Date(order.orderTime || order.createdAt).toLocaleString()}`;
+
+                    const isDelivery = order.deliveryType === 'delivery';
+                    addressEl.innerText = isDelivery
+                        ? order.deliveryAddress
+                        : (order.storeAddress || '');
+
+                    cancelBtn.classList.toggle('hidden', !['OPEN', 'SUBMITTED'].includes(order.status));
+
+                    if (order.status === 'OPEN') {
+                        continueBtn.classList.remove('hidden');
+                        continueBtn.onclick = order.type === 'GROUP'
+                            ? () => { location.href = `group_order.html?token=${order.shareToken}&storeId=${order.storeId}`; }
+                            : () => { location.href = `cart_details.html?id=${order.storeId}`; };
+                    } else {
+                        continueBtn.classList.add('hidden');
+                    }
+
+                    if (order.note) {
+                        document.getElementById('order-note-display').innerText = order.note;
+                        document.getElementById('order-note-row').classList.remove('hidden');
+                    }
+                    const pmMap = { 'WALLET': '電子錢包', 'STORE_CREDIT': '電子錢包', 'CASH': '現金付款', 'LINEPAY': 'Line Pay', 'CREDIT': '信用卡' };
+                    document.getElementById('payment-method-display').innerText = pmMap[order.paymentMethod] || order.paymentMethod || '未指定';
+
+                    // ── 從 order 直接推導揪團資訊，省去一次 API 呼叫 ─────
+                    const isGroupOrder = order.type === 'GROUP';
+                    if (isGroupOrder) {
+                        groupOrder = { shareToken: order.shareToken, hostId: order.hostId, id: order.id };
+                    }
+                    const isHost = isGroupOrder && String(order.hostId) === String(userId);
+
+                    // ── Step 2：並行發出 store + items + rating 請求 ──────
+                    const isFinalized = ['COMPLETED', 'CANCELLED', 'REJECTED'].includes(order.status?.toUpperCase());
+
+                    const storePromise = NavAuth.fetchAPI(`/api/stores/${order.storeId}`, { cache: true, ttl: 300000 })
+                        .catch(e => { console.warn('Store fetch error', e); return null; });
+
+                    let itemsPromise;
+                    if (isGroupOrder && isHost) {
+                        itemsPromise = NavAuth.fetchAPI(`/api/group-orders/${groupOrder.shareToken}`, { cache: isFinalized, ttl: 600000 })
+                            .catch(e => { console.warn('Group items error', e); return { items: [] }; });
+                    } else {
+                        itemsPromise = NavAuth.fetchAPI(`/api/orders/${orderId}/items?userId=${userId}`, { cache: isFinalized, ttl: 600000 })
+                            .catch(e => { console.warn('Items fetch error', e); return []; });
+                    }
+
+                    const ratingPromise = order.status === 'COMPLETED'
+                        ? NavAuth.fetchAPI(`/api/orders/${orderId}/rating`, { cache: true, ttl: 600000 })
+                            .catch(e => { console.warn('Rating fetch error', e); return null; })
+                        : Promise.resolve(null);
+
+                    // ── Step 3：漸進式渲染 (Progressive Rendering) ──────────
+                    // 1. 處理店家資訊 (異步)
+                    storePromise.then(store => {
+                        if (!store) return;
+                        storeNameEl.innerText = store.name || store.storeName;
+                        const imgSrc = store.imageUrl || store.coverUrl;
+                        if (imgSrc) { 
+                            storeImageEl.src = imgSrc; 
+                            storeImageEl.loading = "lazy";
+                            storeImageEl.classList.remove('hidden'); 
+                        }
+                        const storePhoneEl   = document.getElementById('store-phone-display');
+                        const storePhoneIcon = document.getElementById('store-phone-icon');
+                        if (storePhoneEl && store.storePhone) {
+                            storePhoneEl.innerText  = store.storePhone;
+                            storePhoneEl.className  = 'text-gray-700';
+                            if (storePhoneIcon) storePhoneIcon.className = 'w-4 h-4 text-primary shrink-0';
+                        }
+                        const managerPhoneEl   = document.getElementById('manager-phone-display');
+                        const managerPhoneIcon = document.getElementById('manager-phone-icon');
+                        if (managerPhoneEl && store.phone) {
+                            managerPhoneEl.innerText  = store.phone;
+                            managerPhoneEl.className  = 'text-gray-700';
+                            if (managerPhoneIcon) managerPhoneIcon.className = 'w-4 h-4 text-primary shrink-0';
+                        }
+                        if (!isDelivery && !order.storeAddress) {
+                            addressEl.innerText = store.address || store.storeAddress || '（店家地址未提供）';
+                        }
+                        if (window.lucide) {
+                            const storeContainer = document.querySelector('.bg-white.rounded-3xl.shadow-sm.p-6.border');
+                            if (storeContainer) lucide.createIcons({ root: storeContainer });
+                        }
+                    });
+
+                    // 2. 處理商品清單 (關鍵路徑 - 改為直接等待其解鎖渲染)
+                    const itemsResult = await itemsPromise;
+                    const ratingData  = await ratingPromise; // 等待評分（通常很快）
+
+                    // ── 渲染品項 ─────────────────────────────────────────
+                    if (isGroupOrder && isHost) {
+                        // ── 團長視角 ──────────────────────────────────
+                        const allItems = itemsResult.items || (Array.isArray(itemsResult) ? itemsResult : []);
+
+                        const itemsByUser = {};
+                        allItems.forEach(item => {
+                            const uid = item.userId;
+                            if (!itemsByUser[uid]) itemsByUser[uid] = { userName: item.userName || `成員 #${uid}`, items: [] };
+                            itemsByUser[uid].items.push(item);
+                        });
+
+                        const hostUserId = String(groupOrder.hostId);
+                        const sortedUIDs = Object.keys(itemsByUser).sort(a => a === hostUserId ? -1 : 1);
+                        let html = '';
+
+                        for (const uid of sortedUIDs) {
+                            const group          = itemsByUser[uid];
+                            const isThisHost     = String(uid) === hostUserId;
+                            const memberNetTotal = group.items.reduce((s, i) => s + (i.finalPrice - (i.discountAmount || 0)), 0);
+
+                            const allPaid = group.items.every(i => i.paymentStatus && i.paymentStatus.toUpperCase() === 'PAID');
+                            const payStatusLabel = isThisHost
+                                ? '<span class="text-[10px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded border border-emerald-100 font-bold">團長 · 已付款</span>'
+                                : allPaid
+                                    ? '<span class="text-[10px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded border border-emerald-100 font-bold">已付款</span>'
+                                    : '<span class="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded border border-red-100 font-bold">待補款</span>';
+
+                            html += `
+                            <div class="border-b border-border-light last:border-0">
+                                <div class="p-4 bg-background-light/50 flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
+                                            <i data-lucide="user" class="w-4 h-4 text-primary"></i>
+                                        </div>
+                                        <span class="font-bold text-sm text-text-primary-light">${group.userName}</span>
+                                        ${payStatusLabel}
+                                    </div>
+                                    <span class="font-bold text-primary text-sm">$${Math.round(memberNetTotal)}</span>
+                                </div>
+                                ${group.items.map((item, idx) => renderItemRow(item, !isThisHost, true, idx)).join('')}
+                            </div>`;
+                        }
+
+                        itemsContainer.innerHTML = `
+                            <div class="p-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+                                <h3 class="font-bold text-gray-800">團購商品明細</h3>
+                                <span class="text-xs text-gray-500">${Object.keys(itemsByUser).length} 位成員</span>
+                            </div>
+                            ${html}`;
+                        // 團長已在結帳時付清整筆訂單（扣除團員已付部分），
+                        // 但品項層級的 paymentStatus 仍為 WAITING_SUBMIT/UNPAID，
+                        // 所以訂單已提交後，團長的付款狀態直接視為 PAID。
+                        const hostItems = allItems.filter(i => String(i.userId) === hostUserId);
+                        const orderSubmitted = ['SUBMITTED','PREPARING','READY','COMPLETED'].includes(order.status);
+                        if (isHost && orderSubmitted) {
+                            updatePaymentBadge(hostItems.map(i => ({ ...i, paymentStatus: 'PAID' })));
+                        } else {
+                            updatePaymentBadge(hostItems);
+                        }
+
+                        const totalGross    = allItems.reduce((s, i) => s + (i.totalGroupPrice || (i.finalPrice || 0)), 0);
+                        const totalDiscount = allItems.reduce((s, i) => s + (i.totalGroupDiscount || (i.discountAmount || 0)), 0);
+                        const paidByMembers = allItems.reduce((s, i) => {
+                            if (String(i.userId) !== hostUserId && i.paymentStatus && i.paymentStatus.toUpperCase() === 'PAID') {
+                                return s + (i.finalPrice - (i.discountAmount || 0));
+                            }
+                            return s;
+                        }, 0);
+
+                        subtotalEl.innerText = `$${Math.round(totalGross)}`;
+                        totalEl.innerText    = `$${Math.round(order.finalAmount || (totalGross - totalDiscount))}`;
+                        document.getElementById('total-label').innerText = '訂單總金額';
+
+                        const discountRow = document.getElementById('discount-row');
+                        if (totalDiscount > 0 && discountRow) {
+                            discountRow.style.display = 'flex';
+                            document.getElementById('discount-display').innerText = `-$${Math.round(totalDiscount)}`;
+                        }
+
+                        const paidMembersRow = document.getElementById('paid-members-row');
+                        if (paidMembersRow) {
+                            paidMembersRow.style.display = 'flex';
+                            document.getElementById('paid-members-display').innerText = `$${Math.round(paidByMembers)}`;
+                        }
+
+                        const remainingSection = document.getElementById('remaining-info');
+                        if (remainingSection) {
+                            remainingSection.classList.remove('hidden');
+                            const hostShare = (order.finalAmount || (totalGross - totalDiscount)) - paidByMembers;
+                            document.getElementById('host-real-pay').innerText = `$${Math.round(hostShare)}`;
+                        }
+
+                        repaymentSection.classList.add('hidden');
+                        repayBtn.classList.add('hidden');
+
+                    } else if (isGroupOrder && !isHost) {
+                        // ── 團員視角 ──────────────────────────────────
+                        const items = Array.isArray(itemsResult) ? itemsResult : [];
+                        let personalUnpaidTotal = 0;
+                        let hasUnpaidItems      = false;
+                        let itemsHtml = '';
+
+                        items.forEach((item, idx) => {
+                            const isUnpaid = item.paymentStatus && item.paymentStatus.toUpperCase() === 'UNPAID';
+                            const itemCost = item.finalPrice || 0;
+                            if (isUnpaid) { hasUnpaidItems = true; personalUnpaidTotal += itemCost; }
+                            itemsHtml += renderItemRow(item, true, false, idx);
+                        });
+
+                        itemsContainer.innerHTML = `
+                            <div class="p-4 border-b border-border-light bg-background-light/50">
+                                <h3 class="font-bold text-text-primary-light">我的品項</h3>
+                            </div>
+                            ${itemsHtml}`;
+                        updatePaymentBadge(items);
+
+                        const grossTotal    = items.reduce((s, i) => s + (i.finalPrice + (i.discountAmount || 0)), 0);
+                        const totalDiscount = items.reduce((s, i) => s + (i.discountAmount || 0), 0);
+                        subtotalEl.innerText = `$${Math.round(grossTotal)}`;
+                        totalEl.innerText    = `$${Math.round(hasUnpaidItems ? personalUnpaidTotal : (grossTotal - totalDiscount))}`;
+
+                        const totalLabel = document.getElementById('total-label');
+                        if (totalLabel) totalLabel.innerText = hasUnpaidItems ? '待補款總額' : '已付總額';
+
+                        const discountRow = document.getElementById('discount-row');
+                        if (totalDiscount > 0 && discountRow) {
+                            discountRow.style.display = 'flex';
+                            document.getElementById('discount-display').innerText = `-$${Math.round(totalDiscount)}`;
+                        }
+
+                        if (hasUnpaidItems) {
+                            repaymentSection.classList.remove('hidden');
+                            repayBtn.classList.remove('hidden');
+                            repayBtn.innerText = `付款給團長 $${Math.round(personalUnpaidTotal)} (儲值金)`;
+                        } else {
+                            repaymentSection.classList.add('hidden');
+                            repayBtn.classList.add('hidden');
+                        }
+
+                    } else {
+                        // ── 個人訂單視角 ───────────────────────────────
+                        const items = Array.isArray(itemsResult) ? itemsResult : [];
+                        let itemsHtml = '';
+                        items.forEach((item, idx) => { itemsHtml += renderItemRow(item, false, false, idx); });
+
+                        itemsContainer.innerHTML = `
+                            <div class="p-4 border-b border-gray-200 bg-gray-50">
+                                <h3 class="font-bold text-gray-800">商品明細</h3>
+                            </div>
+                            ${itemsHtml}`;
+
+                        const paymentStatusRow = document.getElementById('payment-status-badge')?.closest('.flex');
+                        if (paymentStatusRow) paymentStatusRow.classList.add('hidden');
+
+                        const grossTotal    = items.reduce((s, i) => s + (i.finalPrice + (i.discountAmount || 0)), 0);
+                        const totalDiscount = items.reduce((s, i) => s + (i.discountAmount || 0), 0);
+                        const finalAmount   = order.finalAmount || (grossTotal - totalDiscount);
+
+                        document.getElementById('total-label').innerText = '總金額';
+                        subtotalEl.innerText = `$${Math.round(grossTotal)}`;
+                        totalEl.innerText    = `$${Math.round(finalAmount)}`;
+
+                        const discountRow = document.getElementById('discount-row');
+                        if (totalDiscount > 0 && discountRow) {
+                            discountRow.style.display = 'flex';
+                            document.getElementById('discount-display').innerText = `-$${Math.round(totalDiscount)}`;
+                        }
+
+                        repaymentSection.classList.add('hidden');
+                        repayBtn.classList.add('hidden');
+                    }
+
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                    // ── 評星邏輯 ──────────────────────────────────────
+                    if (ratingData) {
+                        if (ratingData.ratingSubmitted && ratingData.myRating) {
+                            showRatingDisplay(ratingData.myRating);
+                        } else if (ratingData.canRate) {
+                            showToast('來為您的訂單評價吧！', 'info');
+                            setTimeout(() => openRatingModal(), 600);
+                        }
+                    }
+
+                } catch (err) {
+                    console.error('Load details error:', err);
+                    const isTimeout = err.message && err.message.includes('超時');
+                    itemsContainer.innerHTML = `
+                        <div class="p-8 text-center">
+                            <div class="w-14 h-14 mx-auto mb-3 bg-red-50 rounded-full flex items-center justify-center">
+                                <i data-lucide="${isTimeout ? 'wifi-off' : 'alert-circle'}" class="w-7 h-7 text-red-400"></i>
+                            </div>
+                            <p class="text-red-500 font-bold mb-1">${isTimeout ? '連線逾時' : '載入失敗'}</p>
+                            <p class="text-gray-400 text-xs mb-4">${err.message || '未知錯誤'}</p>
+                            <button onclick="location.reload()" class="px-5 py-2 bg-brand-orange text-white rounded-full text-sm font-bold hover:bg-orange-600 transition-colors">
+                                重新載入
+                            </button>
+                        </div>`;
+                    if (window.lucide) lucide.createIcons();
+                }
+            }
+
+            // ─── 補款按鈕 ─────────────────────────────────────────────
+            repayBtn.addEventListener('click', async () => {
+                if (!groupOrder) return;
+                if (!(await showConfirm('確定要使用儲值金補款給團長嗎？'))) return;
+                try {
+                    repayBtn.disabled = true;
+                    repayBtn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin inline-block mr-1"></i> 處理中...';
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                    const res = await fetch(NavAuth.getApiUrl(`/api/group-orders/${groupOrder.shareToken}/repay`), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('JOIN_TOKEN')}`
+                        },
+                        body: JSON.stringify({ userId: parseInt(userId) })
+                    });
+
+                    if (res.ok) {
+                        showToast('補款成功！', 'success');
+                        loadOrderDetails();
+                    } else {
+                        const data = await res.json();
+                        if (data.error && data.error.includes('Insufficient store credit')) {
+                            if (await showConfirm('目前餘額不足，是否前往儲值?')) {
+                                window.location.href = 'profile.html?section=store_credit';
+                                return;
+                            }
+                        }
+                        showToast(data.error || '補款失敗', 'error');
+                    }
+                } catch (e) {
+                    showToast('系統錯誤，請稍後再試', 'error');
+                } finally {
+                    repayBtn.disabled  = false;
+                    repayBtn.innerText = '付款給團長 (使用儲值金)';
+                }
+            });
+
+            // ─── 取消訂單按鈕 ─────────────────────────────────────────
+            cancelBtn.addEventListener('click', async () => {
+                if (!(await showConfirm('確定要取消這筆訂單嗎？'))) return;
+                try {
+                    cancelBtn.disabled  = true;
+                    cancelBtn.innerText = '取消中...';
+                    const res = await fetch(NavAuth.getApiUrl(`/api/orders/${orderId}/cancel/v2?userId=${userId}`), {
+                        method: 'PUT',
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('JOIN_TOKEN')}` }
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        showToast('訂單已取消', 'success');
+                        loadOrderDetails();
+                    } else {
+                        showToast(data.error || '取消失敗，請稍後再試', 'error');
+                    }
+                } catch (e) {
+                    showToast('系統錯誤，請稍後再試', 'error');
+                } finally {
+                    cancelBtn.disabled  = false;
+                    cancelBtn.innerText = '取消訂單';
+                }
+            });
+
+            // ─── 載入頁面 ─────────────────────────────────────────────
+            loadOrderDetails();
+
+            // ─── 訂單進度 Modal ───────────────────────────────────────
+            const progressModal    = document.getElementById('order-progress-modal');
+            const closeProgressBtn = document.getElementById('close-progress-modal');
+            const progressBtn      = document.getElementById('progress-modal-btn');
+
+            closeProgressBtn.addEventListener('click', () => progressModal.classList.add('hidden'));
+            progressModal.addEventListener('click', e => { if (e.target === progressModal) progressModal.classList.add('hidden'); });
+
+            const pmStatusStyles = {
+                OPEN:      { label: '訂購中',     cls: 'bg-orange-500 text-white border-orange-500' },
+                SUBMITTED: { label: '訂單已送出', cls: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+                PREPARING: { label: '製作中',     cls: 'bg-blue-100 text-blue-700 border-blue-200' },
+                READY:     { label: '待取餐',     cls: 'bg-orange-100 text-orange-600 border-orange-200' },
+                COMPLETED: { label: '已完成',     cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+                CANCELLED: { label: '已取消',     cls: 'bg-slate-100 text-slate-500 border-slate-200' },
+                REJECTED:  { label: '不成立',     cls: 'bg-red-100 text-red-700 border-red-200' },
+            };
+
+            function buildSteps(status, isDelivery, isGroup, orderTime, submittedAt, preparingAt, readyAt, completedAt) {
+                const fmt = t => t ? new Date(t).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }) : '';
+                const step4Label = isDelivery ? '配送中' : '待取餐';
+                const step4Sub   = isDelivery ? '外送員正在前往您的路途中' : '您的飲品已準備好，請前往取餐';
+                const step4Icon  = isDelivery ? 'bike' : 'bell';
+                const ORDER      = ['SUBMITTED', 'PREPARING', 'READY', 'COMPLETED'];
+                const currentIdx = Math.max(0, ORDER.indexOf(status));
+
+                const steps = [
+                    { icon: 'package',  label: '訂單已送出', sub: '待店家確認您的訂單',   time: fmt(submittedAt), badgeCls: 'bg-yellow-100 text-yellow-700' },
+                    { icon: 'chef-hat', label: '製作中',     sub: '店家正在為您準備飲品',  time: fmt(preparingAt), badgeCls: 'bg-blue-100 text-blue-700' },
+                    { icon: step4Icon,  label: step4Label,   sub: step4Sub,                time: fmt(readyAt),     badgeCls: 'bg-orange-100 text-orange-600' },
+                    { icon: 'flag',     label: '完成',       sub: '感謝您的惠顧！',         time: fmt(completedAt), badgeCls: 'bg-emerald-100 text-emerald-700' },
+                ];
+
+                if (status === 'CANCELLED' || status === 'REJECTED') {
+                    const errLabel = status === 'CANCELLED' ? '已取消' : '已拒絕';
+                    const errSub   = status === 'CANCELLED' ? '訂單已取消' : '店家無法接受此訂單';
+                    const doneCount = Math.max(0, currentIdx);
+                    return steps.slice(0, 2).concat([
+                        { icon: status === 'CANCELLED' ? 'x-circle' : 'alert-circle', label: errLabel, sub: errSub, time: '' }
+                    ]).map((s, i) => ({ ...s, state: i < doneCount ? 'done' : (i === doneCount ? 'active' : 'error') }));
+                }
+
+                return steps.map((s, i) => ({
+                    ...s,
+                    state: i < currentIdx ? 'done' : (i === currentIdx ? 'active' : 'pending'),
+                }));
+            }
+
+            function renderTimeline(steps) {
+                return steps.map((s, idx) => {
+                    const isLast = idx === steps.length - 1;
+                    let circleClass, iconColor;
+                    if (s.state === 'done' || s.state === 'active') { circleClass = 'bg-brand-orange'; iconColor = 'text-white'; }
+                    else if (s.state === 'error')                   { circleClass = 'bg-red-500';      iconColor = 'text-white'; }
+                    else                                            { circleClass = 'bg-gray-100';     iconColor = 'text-gray-300'; }
+
+                    const iconSvg  = s.state === 'done'
+                        ? `<i data-lucide="check" class="w-4 h-4 ${iconColor}"></i>`
+                        : `<i data-lucide="${s.icon}" class="w-4 h-4 ${iconColor}"></i>`;
+                    const badgeCls = s.state === 'pending' ? 'bg-gray-100 text-gray-400' : (s.badgeCls || 'bg-gray-100 text-gray-500');
+                    const subClass = s.state === 'pending' ? 'text-gray-300' : 'text-gray-500';
+
+                    return `
+                    <div class="flex gap-4 ${isLast ? '' : 'pb-1'}">
+                        <div class="flex flex-col items-center self-stretch translate-y-[3px]">
+                            <div class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${circleClass}">${iconSvg}</div>
+                            ${!isLast ? `<div class="w-0.5 flex-1 mt-1 mb-1 ${s.state === 'done' ? 'bg-brand-orange' : 'bg-gray-200'}"></div>` : ''}
+                        </div>
+                        <div class="pb-6 min-w-0 self-start">
+                            <div class="h-9 flex items-center gap-2 flex-wrap">
+                                <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full ${badgeCls}">${s.label}</span>
+                                ${s.time ? `<span class="text-xs text-gray-400">${s.time}</span>` : ''}
+                            </div>
+                            <p class="text-xs ${subClass}">${s.sub}</p>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+
+            progressBtn.addEventListener('click', () => {
+                const cachedOrder = window._cachedOrder;
+                if (!cachedOrder) return;
+                const st    = (cachedOrder.status || '').toUpperCase();
+                let style   = pmStatusStyles[st] || { label: st, cls: 'bg-slate-100 text-slate-500 border-slate-200' };
+                if (st === 'OPEN' && cachedOrder.type !== 'GROUP') style = { label: '訂單已送出', cls: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
+                if (st === 'OPEN' && cachedOrder.type === 'GROUP') style = { ...style, label: '揪團中' };
+                if (st === 'READY' && cachedOrder.deliveryType === 'delivery') style = { ...style, label: '配送中' };
+
+                document.getElementById('pm-status-badge').textContent = style.label;
+                document.getElementById('pm-status-badge').className   = `px-2.5 py-0.5 rounded-full text-xs font-semibold border ${style.cls}`;
+                document.getElementById('pm-order-no').textContent     = `訂單編號：#JK${String(cachedOrder.id || '').padStart(6, '0')}`;
+
+                const steps = buildSteps(
+                    st,
+                    cachedOrder.deliveryType === 'delivery',
+                    cachedOrder.type === 'GROUP',
+                    cachedOrder.orderTime || cachedOrder.createdAt,
+                    cachedOrder.submittedAt,
+                    cachedOrder.preparingAt,
+                    cachedOrder.readyAt,
+                    cachedOrder.completedAt
+                );
+                document.getElementById('pm-timeline').innerHTML = renderTimeline(steps);
+                if (window.lucide) lucide.createIcons();
+                progressModal.classList.remove('hidden');
+            });
+
+            // ─── 評星功能 ─────────────────────────────────────────────
+            const STAR_SVG_FILLED  = `<svg class="w-10 h-10 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>`;
+            const STAR_SVG_EMPTY   = `<svg class="w-10 h-10 text-gray-200" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>`;
+            const STAR_MINI_FILLED = `<svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>`;
+            const STAR_MINI_EMPTY  = `<svg class="w-5 h-5 text-gray-200" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>`;
+            let selectedRating = 0;
+
+            function renderInputStars(filled) {
+                const container = document.getElementById('rating-stars-input');
+                if (!container) return;
+                container.innerHTML = '';
+                for (let i = 1; i <= 5; i++) {
+                    const btn = document.createElement('button');
+                    btn.type      = 'button';
+                    btn.className = 'hover:scale-110 transition-transform';
+                    btn.innerHTML = i <= filled ? STAR_SVG_FILLED : STAR_SVG_EMPTY;
+                    btn.addEventListener('click', () => {
+                        selectedRating = i;
+                        renderInputStars(i);
+                        document.getElementById('submit-rating-btn').classList.remove('hidden');
+                        document.getElementById('rating-hint').textContent = `您選擇了 ${i} 顆星`;
+                    });
+                    container.appendChild(btn);
+                }
+            }
+
+            function openRatingModal() {
+                selectedRating = 0;
+                renderInputStars(0);
+                document.getElementById('submit-rating-btn').classList.add('hidden');
+                document.getElementById('rating-hint').textContent = '點選星星給予評分';
+                document.getElementById('rating-modal').classList.remove('hidden');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+
+            function showRatingDisplay(rating) {
+                const row     = document.getElementById('rating-row');
+                const starsEl = document.getElementById('rating-stars-display');
+                if (!row || !starsEl) return;
+                starsEl.innerHTML = Array.from({ length: 5 }, (_, i) => i < rating ? STAR_MINI_FILLED : STAR_MINI_EMPTY).join('');
+                row.classList.remove('hidden');
+            }
+
+            document.getElementById('close-rating-modal').addEventListener('click', () => {
+                document.getElementById('rating-modal').classList.add('hidden');
+            });
+            document.getElementById('rating-modal').addEventListener('click', e => {
+                if (e.target === document.getElementById('rating-modal')) document.getElementById('rating-modal').classList.add('hidden');
+            });
+
+            document.getElementById('submit-rating-btn').addEventListener('click', async () => {
+                if (!selectedRating) return;
+                const btn = document.getElementById('submit-rating-btn');
+                btn.disabled    = true;
+                btn.textContent = '送出中...';
+                try {
+                    await NavAuth.fetchAPI(`/api/orders/${orderId}/rating`, {
+                        method: 'POST',
+                        body: JSON.stringify({ rating: selectedRating })
+                    });
+                    // 清除快取，避免下次載入時彈出評分 modal
+                    const cacheKey = `cache_${NavAuth.getApiUrl(`/api/orders/${orderId}/rating`)}`;
+                    sessionStorage.removeItem(cacheKey);
+                    document.getElementById('rating-modal').classList.add('hidden');
+                    showToast('感謝您的評價！', 'success');
+                    showRatingDisplay(selectedRating);
+                } catch (e) {
+                    showToast('送出評價失敗，請稍後再試', 'error');
+                    btn.disabled    = false;
+                    btn.textContent = '送出評價';
+                }
+            });
+
+            // ── WebSocket 即時狀態同步 ─────────────────────────────
+            let stompClient = null;
+            function connectOrderSocket() {
+                const socket = new SockJS(NavAuth.getApiUrl('/ws-cart'));
+                stompClient = Stomp.over(socket);
+                stompClient.debug = null;
+                stompClient.connect({}, () => {
+                    stompClient.subscribe(`/topic/order/${orderId}`, (message) => {
+                        const data = JSON.parse(message.body);
+                        const newStatus = data.status;
+                        if (!newStatus) return;
+                        console.log(`[Real-time] Order ${orderId} status → ${newStatus}`);
+
+                        // 更新狀態標籤
+                        const info = getStatusInfo({ status: newStatus, type: window._cachedOrder?.type, deliveryType: window._cachedOrder?.deliveryType });
+                        orderStatusBadge.innerText = info.label;
+                        orderStatusBadge.className = `px-3 py-0.5 rounded-full text-xs font-semibold ${info.class}`;
+
+                        // 更新取消按鈕顯示
+                        cancelBtn.classList.toggle('hidden', !['OPEN', 'SUBMITTED'].includes(newStatus));
+
+                        // 更新進度 Modal 內的狀態
+                        const pmBadge = document.getElementById('pm-status-badge');
+                        if (pmBadge) {
+                            const PROGRESS_STYLES = {
+                                SUBMITTED: { label: '訂單已送出', cls: 'bg-amber-50 text-amber-600 border-amber-200' },
+                                PREPARING: { label: '製作中',     cls: 'bg-blue-50 text-blue-600 border-blue-200' },
+                                READY:     { label: '待取餐',     cls: 'bg-orange-50 text-orange-600 border-orange-200' },
+                                COMPLETED: { label: '已完成',     cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+                                CANCELLED: { label: '已取消',     cls: 'bg-slate-100 text-slate-500 border-slate-200' },
+                                REJECTED:  { label: '不成立',     cls: 'bg-red-50 text-red-600 border-red-200' },
+                            };
+                            const pStyle = PROGRESS_STYLES[newStatus];
+                            if (pStyle) {
+                                pmBadge.textContent = pStyle.label;
+                                pmBadge.className = `px-2.5 py-0.5 rounded-full text-xs font-semibold border ${pStyle.cls}`;
+                            }
+                        }
+
+                        // 快取更新快取狀態
+                        if (window._cachedOrder) window._cachedOrder.status = newStatus;
+
+                        showToast(`訂單狀態已更新：${info.label}`, 'info');
+                    });
+                }, () => {
+                    setTimeout(connectOrderSocket, 5000);
+                });
+            }
+            connectOrderSocket();
+        });
+    </script>
+</body>
+</html>

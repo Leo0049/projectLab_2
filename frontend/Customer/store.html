@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="css/output.css" rel="stylesheet" />
+  <link href="css/footer.css" rel="stylesheet" />
+  <link href="css/store.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Leaflet CSS for Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <!-- Leaflet JS for Map -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <style>
+    @keyframes heart-pop {
+      0% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.4);
+      }
+
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    .heart-pop {
+      animation: heart-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .favorite-heart-filled {
+      fill: currentColor !important;
+    }
+
+    /* Skeleton Loading UI */
+    .skeleton {
+      background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+      background-size: 200% 100%;
+      animation: skeleton-loading 1.5s infinite;
+    }
+
+    @keyframes skeleton-loading {
+      0% {
+        background-position: 200% 0;
+      }
+
+      100% {
+        background-position: -200% 0;
+      }
+    }
+
+    .skeleton-text {
+      height: 1rem;
+      border-radius: 0.25rem;
+    }
+
+    .skeleton-title {
+      height: 1.5rem;
+      border-radius: 0.25rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .skeleton-card {
+      height: 350px;
+      border-radius: 1rem;
+    }
+
+    .skeleton-button {
+      height: 42px;
+      border-radius: 0.75rem;
+      background-color: #f3f4f6;
+    }
+
+    /* 隱藏滾動條但保持滾動功能 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      /* IE and Edge */
+      scrollbar-width: none;
+      /* Firefox */
+    }
+
+    /* Image Loading Optimization */
+    .img-fade-in {
+      opacity: 0;
+      transition: opacity 0.5s ease-in-out;
+    }
+
+    .img-loaded {
+      opacity: 1 !important;
+    }
+
+    .bg-skeleton {
+      background-color: #f3f4f6;
+    }
+  </style>
+</head>
+
+<body class="text-brand-dark">
+  <!-- Main Header -->
+  <!-- BEGIN: MainHeader -->
+  <header class="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 py-3 lg:px-10">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <!-- Logo -->
+      <a href="index.html" class="flex items-center gap-2 flex-shrink-0" data-purpose="logo-container">
+        <img src="images/logo.png" alt="JOIN Logo" class="h-10 w-auto object-contain" />
+      </a>
+
+      <!-- Search and Location -->
+      <div class="flex-grow max-w-2xl hidden md:flex items-center bg-gray-100 rounded-full px-4 py-2 gap-3"
+        data-purpose="search-bar">
+        <!-- Added ID for triggering the modal -->
+        <div id="locationTrigger"
+          class="flex items-center gap-1 border-r border-gray-300 pr-3 cursor-pointer hover:text-brand-orange transition-colors">
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+            <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+              stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+            <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+            </path>
+          </svg>
+          <span id="nav-location-text" class="text-sm text-gray-600">正在定位...</span>
+        </div>
+        <div class="flex items-center gap-2 flex-grow">
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round"
+              stroke-width="2"></path>
+          </svg>
+          <input id="header-search-input" class="bg-transparent border-none focus:ring-0 text-sm w-full p-0"
+            placeholder="搜尋想喝的飲品、店家..." type="text" autocomplete="off" />
+        </div>
+      </div>
+
+      <!-- User Actions -->
+      <div class="flex items-center gap-4 lg:gap-6" data-purpose="user-nav">
+        <div class="flex items-center gap-4 text-gray-600">
+          <a href="profile.html?section=notifications"
+            class="hover:text-brand-orange transition-colors fa-regular fa-bell" style="font-size: 22px;">
+          </a>
+          <a href="orders.html" class="hover:text-brand-orange transition-colors fa-solid fa-clock-rotate-left"
+            style="font-size: 20px;">
+          </a>
+          <div class="relative group" id="cart-dropdown-wrapper">
+            <a href="cart_details.html"
+              class="hover:text-brand-orange transition-colors relative block py-2 fa-solid fa-cart-shopping"
+              style="font-size: 20px;">
+              <span id="cart-badge"
+                class="absolute -top-1 -right-1 bg-brand-orange text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+            </a>
+            <!-- Cart Dropdown Menu -->
+            <div id="cart-dropdown-menu"
+              class="hidden group-hover:block absolute right-0 mt-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 py-4 z-50">
+              <div class="px-4 mb-3 flex justify-between items-center">
+                <h3 class="font-bold text-gray-800">我的購物車</h3>
+                <span id="cart-count-text" class="text-xs text-gray-400">共 0 項品項</span>
+              </div>
+              <div id="cart-items-container" class="max-h-60 overflow-y-auto px-4 space-y-3 mb-4">
+                <!-- Items will be injected here -->
+                <p class="text-center text-gray-400 text-sm py-4">購物車是空的</p>
+              </div>
+              <div class="px-4 pt-3 border-t border-gray-50">
+                <div class="flex justify-between mb-4">
+                  <span class="text-gray-500">總計</span>
+                  <span id="cart-total-price" class="font-bold text-brand-orange text-lg">$0</span>
+                </div>
+                <a href="cart_details.html"
+                  class="block w-full bg-brand-orange text-white text-center py-2.5 rounded-xl font-bold hover:bg-orange-600 transition-colors">
+                  查看購物車
+                </a>
+              </div>
+            </div>
+          </div>
+          <a href="profile.html?section=favorites" class="hover:text-brand-orange transition-colors fa-solid fa-heart"
+            style="font-size: 20px;">
+          </a>
+        </div>
+        <button
+          class="bg-brand-orange text-white px-6 py-2 rounded-full font-medium hover:bg-orange-600 transition-colors">登入</button>
+
+        <!-- User Profile link -->
+        <a href="profile.html" class="hover:text-brand-orange transition-colors">
+          <div class="relative" id="user-dropdown-wrapper">
+            <div id="user-avatar-container"
+              class="w-10 h-10 bg-gray-200 rounded-full overflow-hidden border border-gray-100 cursor-pointer transition-transform hover:scale-105">
+              <img id="nav-user-avatar" alt="Profile" class="w-full h-full object-cover"
+                src="images/default_avatar.png" />
+            </div>
+          </div>
+        </a>
+
+      </div>
+    </div>
+  </header>
+  <!-- END: MainHeader -->
+  <!-- END: MainHeader -->
+
+  <!-- BEGIN: MainContent -->
+  <main class="max-w-7xl mx-auto py-6 px-4">
+    <!-- Group Order Info Banner -->
+    <div id="group-info-banner"
+      class="mb-6 bg-brand-orange/10 border border-brand-orange/20 rounded-xl p-4 flex items-center justify-between hidden">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-brand-orange rounded-full flex items-center justify-center text-white">
+          <i data-lucide="users" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-brand-orange">您正在參與揪團中</h3>
+          <p class="text-xs text-orange-700/70" id="group-host-info">正在載入團長資訊...</p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <a href="group_order.html" id="view-group-link"
+          class="px-4 py-2 bg-brand-orange text-white text-sm font-bold rounded-lg hover:bg-orange-600 transition-colors">查看團購狀況</a>
+      </div>
+    </div>
+
+    <!-- BEGIN: StoreHero -->
+    <!-- ===== Store Hero ===== -->
+    <section class="mb-8" data-purpose="store-banner">
+
+      <!-- 封面圖 -->
+      <div class="relative w-full h-[300px] rounded-xl overflow-hidden shadow-lg">
+
+        <!-- 背景圖 -->
+        <img id="store-hero-img" class="w-full h-full object-cover img-fade-in" src="" alt="Store Cover" loading="eager" />
+
+        <!-- 品牌 Logo -->
+        <div id="store-brand-logo"
+          class="absolute top-4 left-4 z-20 rounded-full overflow-hidden border-2 border-white shadow-lg hidden"
+          style="width:80px;height:80px;background:#FF6B35">
+          <img id="store-brand-logo-img" src="" alt="" class="w-full h-full object-cover img-fade-in"
+            onerror="this.style.display='none';document.getElementById('store-brand-logo-initial').style.display='flex'"
+            onload="this.classList.add('img-loaded')">
+          <span id="store-brand-logo-initial"
+            class="w-full h-full flex items-center justify-center text-white font-bold text-2xl"
+            style="display:none"></span>
+        </div>
+
+        <!-- 黑色遮罩 -->
+        <div class="absolute inset-0 bg-black/30 z-10 flex flex-col justify-end p-8 text-white">
+
+          <!-- 狀態 -->
+          <div class="flex gap-2 mb-4">
+            <span class="bg-green-500 text-[10px] px-2 py-0.5 rounded font-bold">營業中</span>
+          </div>
+
+          <!-- 店名 + 收藏 -->
+          <div class="flex items-center justify-between">
+            <h1 id="store-name" class="text-4xl font-bold">載入中...</h1>
+
+            <button id="favorite-btn"
+              class="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center hover:bg-white/40 transition-all text-white border border-white/30 hidden">
+              <i data-lucide="heart" class="w-6 h-6"></i>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ===== 店家資訊列 ===== -->
+
+      <div class="store-info-panel">
+
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-x-6 gap-y-4 text-sm">
+
+          <!-- 評分 -->
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-gray-400">評星★</span>
+            <span id="store-avg-rating" class="font-medium">-</span>
+            <br>
+            <hr>
+          </div>
+
+          <!-- 營業時間 -->
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-gray-400">營業時間</span>
+            <span id="store-opening-hours" class="font-medium">載入中...</span>
+            <br>
+            <hr>
+          </div>
+
+          <!-- 地址 -->
+          <div class="flex flex-col gap-1 col-span-2 md:col-span-1">
+            <span class="text-xs text-gray-400">地址</span>
+            <span id="store-address" class="font-medium truncate">載入中...</span>
+            <br>
+            <hr>
+          </div>
+
+          <!-- 距離 -->
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-gray-400">距離</span>
+            <span id="store-distance" class="font-medium">-</span>
+            <br>
+            <hr>
+          </div>
+
+          <!-- 電話 -->
+          <div class="flex flex-col gap-1">
+            <br>
+            <span class="text-xs text-gray-400">電話</span>
+            <a id="store-phone" href="#" class="font-medium text-orange-500">-</a>
+          </div>
+
+          <!-- 外送範圍 -->
+          <div class="flex flex-col gap-1">
+            <br>
+            <span class="text-xs text-gray-400">外送範圍</span>
+            <span id="store-max-delivery" class="font-medium">-</span>
+          </div>
+
+          <!-- 最低外送金額 -->
+          <div class="flex flex-col gap-1">
+            <br>
+            <span class="text-xs text-gray-400">最低外送金額</span>
+            <span id="store-min-amount" class="font-medium">-</span>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+    <!-- END: StoreHero -->
+    <!-- BEGIN: MenuSection -->
+    <div class="flex gap-8">
+      <!-- Sidebar Navigation -->
+      <aside class="w-48 shrink-0">
+        <div class="sticky-sidebar flex flex-col gap-1">
+          <h3 class="text-sm font-bold text-gray-400 mb-2 px-3">菜單分類</h3>
+          <div id="category-list" class="flex flex-col gap-1">
+            <!-- Categories will be loaded here -->
+          </div>
+        </div>
+      </aside>
+      <!-- Menu Grid -->
+      <div class="flex-1">
+        <div id="menu-container">
+          <!-- Skeleton Loader -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="skeleton skeleton-card"></div>
+            <div class="skeleton skeleton-card"></div>
+            <div class="skeleton skeleton-card"></div>
+            <div class="skeleton skeleton-card md:hidden lg:block"></div>
+            <div class="skeleton skeleton-card lg:hidden xl:block"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- END: MenuSection -->
+  </main>
+  <!-- END: MainContent -->
+  <!-- BEGIN: MainFooter -->
+  <!-- BEGIN: Footer -->
+  <footer class="main-footer">
+
+    <div class="footer-content">
+
+
+      <div class="footer-left">
+        <img src="images/logo.png" alt="JOIN 探飲 LOGO" class="footer-logo">
+
+        <div class="footer-desc">
+          最懂你的飲品揪團平台。<br>
+          不管是辦公室下午茶，還是好友聚會，<br>
+          一鍵發起，輕鬆揪飲！
+        </div>
+      </div>
+
+      <div class="footer-right">
+
+        <div class="footer-contact-title">
+          聯絡我們
+        </div>
+
+        <div class="footer-contact-list">
+
+          <div class="footer-contact-item">
+            <i class="fa-regular fa-envelope"></i>
+            join_drink@gmail.com
+          </div>
+
+          <div class="footer-contact-item">
+            <i class="fa-solid fa-phone"></i>
+            04-1234-5678
+          </div>
+
+          <div class="footer-contact-item">
+            <i class="fa-solid fa-location-dot"></i>
+            408臺中市南屯區公益路二段51號18樓
+          </div>
+
+        </div>
+
+      </div>
+
+
+    </div>
+
+    <div class="footer-bottom">
+      © 2026 JOIN 揪飲 - 本平台供飲品揪團平台. All Rights Reserved.
+    </div>
+
+  </footer>
+  <!-- END: Footer -->
+  <!-- END: MainFooter -->
+  <!-- Customization Modal Overlay -->
+  <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 hidden"
+    id="customization-modal">
+    <!-- Modal Container -->
+    <div
+      class="bg-white w-full max-w-[500px] max-h-[90vh] overflow-y-auto no-scrollbar rounded-xl shadow-2xl flex flex-col relative">
+      <!-- Header -->
+      <header
+        class="sticky top-0 z-50 flex items-center justify-between border-b border-slate-200 bg-white/95 backdrop-blur px-6 py-4">
+        <div class="flex items-center gap-3 text-slate-900">
+          <i data-lucide="coffee" class="text-brand-orange w-6 h-6"></i>
+          <h2 class="text-lg font-bold leading-tight" id="modal-product-name">客製化飲品</h2>
+        </div>
+        <button
+          class="flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 text-slate-600 hover:bg-[#ec5b13]/10 hover:text-[#ec5b13] transition-colors"
+          onclick="document.getElementById('customization-modal').classList.add('hidden')">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </header>
+      <!-- Content -->
+      <div class="flex-1">
+        <!-- Hero Image -->
+        <div class="aspect-video w-full bg-slate-200 overflow-hidden">
+          <div id="modal-product-image" class="w-full h-full bg-center bg-no-repeat bg-cover">
+          </div>
+        </div>
+        <!-- Info Section -->
+        <div class="p-6">
+          <div class="flex justify-between items-start mb-2">
+            <h1 class="text-2xl font-bold text-slate-900" id="modal-product-title">飲品名稱</h1>
+            <p class="text-xl font-bold text-[#ec5b13]" id="modal-product-price-display">$0</p>
+          </div>
+          <p class="text-slate-600 text-sm leading-relaxed mb-6" id="modal-product-description">
+            商品描述。
+          </p>
+          <!-- Selection: Cup Size -->
+          <div class="mb-6" id="modal-size-section">
+            <h3 class="text-base font-bold text-slate-900 mb-3">杯型</h3>
+            <div class="grid grid-cols-2 gap-3" id="modal-size-options" data-custom-group="Size">
+              <button
+                class="flex items-center justify-center py-3 px-4 rounded-lg border-2 border-[#ec5b13] bg-[#ec5b13]/5 text-[#ec5b13] font-semibold active-btn"
+                onclick="selectCustomOption(this)">
+                中杯 M
+              </button>
+              <button
+                class="flex items-center justify-center py-3 px-4 rounded-lg border-2 border-slate-200 text-slate-600 font-medium hover:border-[#ec5b13]/50 transition-colors"
+                onclick="selectCustomOption(this)">
+                大杯 L
+              </button>
+            </div>
+          </div>
+          <div class="mb-8">
+            <h3 class="text-base font-bold text-slate-900 mb-3">冰塊</h3>
+            <div class="grid grid-cols-3 gap-2" id="modal-ice-options" data-custom-group="Ice">
+              <!-- Dynamic content -->
+            </div>
+          </div>
+          <!-- Selection: Sweetness -->
+          <div class="mb-8">
+            <h3 class="text-base font-bold text-slate-900 mb-3">甜度</h3>
+            <div class="grid grid-cols-3 gap-2" id="modal-sweetness-options" data-custom-group="Sweetness">
+              <!-- Dynamic content -->
+            </div>
+          </div>
+          <div class="mb-8">
+            <h3 class="text-base font-bold text-slate-900 mb-3">加料</h3>
+            <div class="grid grid-cols-2 gap-2" id="modal-topping-options" data-custom-group="Topping">
+              <!-- Dynamic content -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <!-- Footer / Action Bar -->
+      <footer
+        class="sticky bottom-0 bg-white border-t border-slate-200 p-6 flex flex-col gap-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-900 font-bold">數量</span>
+          <div class="flex items-center gap-4 bg-slate-100 rounded-full px-4 py-2">
+            <button id="modal-qty-minus" class="text-slate-500 hover:text-[#ec5b13] transition-colors">
+              <i data-lucide="minus" class="w-4 h-4"></i>
+            </button>
+            <span id="modal-qty-display"
+              class="text-slate-900 font-bold text-lg min-w-[20px] text-center">1</span>
+            <button id="modal-qty-plus" class="text-slate-500 hover:text-[#ec5b13] transition-colors">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+        <button id="modal-add-to-cart"
+          class="w-full bg-[#ec5b13] hover:bg-[#ec5b13]/90 text-white py-4 rounded-xl font-bold text-lg flex justify-between items-center px-8 transition-all active:scale-[0.98]">
+          <span>加入購物車</span>
+          <span id="modal-total-price-display" class="bg-white/20 px-3 py-1 rounded-lg">總計 $0</span>
+        </button>
+      </footer>
+    </div>
+  </div>
+  <!-- Toast Notification -->
+  <div id="store-toast" class="store-toast" aria-live="polite">
+    <span id="store-toast-icon" class="store-toast-icon"></span>
+    <span id="store-toast-msg"></span>
+  </div>
+
+  <!-- Common Utilities -->
+  <script src="js/cart.js"></script>
+  <script src="js/nav-auth.js"></script>
+  <!-- Store Specific Logic -->
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Initialize Auth and Location
+      if (window.NavAuth) {
+        NavAuth.checkAuth();
+        NavAuth.initLocationModal();
+      }
+
+      const urlParams = new URLSearchParams(window.location.search);
+      let storeId = urlParams.get('id');
+      let currentStoreLogo = null;
+      let groupToken = urlParams.get('token') || urlParams.get('group');
+
+      // Persistence: If token in URL, save it.
+      if (groupToken) {
+        sessionStorage.setItem('activeGroupToken', groupToken);
+      } else if (!storeId) {
+        // Only fall back to sessionStorage if NO storeId is provided in URL
+        groupToken = sessionStorage.getItem('activeGroupToken');
+      }
+
+      if (!storeId && !groupToken) {
+        showToast('未指定店家 ID 或 揪團 Token', 'error');
+        setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+        return;
+      }
+
+      let groupOrder = null;
+      if (groupToken) {
+        try {
+          // 使用 /join/ 路徑（公開端點，不需登入）
+          const groupData = await NavAuth.fetchAPI(`/api/group-orders/join/${groupToken}`);
+          if (groupData) {
+            groupOrder = groupData;
+
+            // If the order is closed, clear session storage and ignore it
+            const orderStatus = groupOrder.status || groupOrder.groupOrder?.status;
+            if (orderStatus && orderStatus !== 'OPEN') {
+              sessionStorage.removeItem('activeGroupToken');
+              groupToken = null;
+              groupOrder = null;
+              // 依狀態給對應中文提示
+              const statusMsgMap = {
+                REJECTED: '此揪團訂單已被拒絕，無法繼續點餐',
+                CANCELLED: '此揪團已取消',
+                COMPLETED: '此揪團已完成',
+                SUBMITTED: '此揪團已提交，無法新增品項',
+              };
+              const msg = statusMsgMap[orderStatus.toUpperCase()] || '此揪團已結束';
+              if (!storeId) {
+                showToast(msg, 'error');
+                setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+                return;
+              }
+              showToast(msg, 'warning');
+            } else {
+              // Only overwrite storeId if it's null (user came via token link or no id)
+              // OR if the user explicitly provided a token in the URL for this store
+              if (!storeId || urlParams.get('token') || urlParams.get('group')) {
+                storeId = groupOrder.storeId
+                  || groupOrder.groupOrder?.store?.id
+                  || groupOrder.groupOrder?.storeId
+                  || null;
+              }
+              if (!storeId) {
+                showToast('無法取得揪團的店家資訊，請重試', 'error');
+                setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+                return;
+              }
+
+              // 取得揪團店家 ID，進行跨店校驗
+              const groupStoreId = groupOrder.storeId || groupOrder.groupOrder?.store?.id || groupOrder.groupOrder?.storeId;
+              
+              const banner = document.getElementById('group-info-banner');
+              const hostInfo = document.getElementById('group-host-info');
+              const viewGroupLink = document.getElementById('view-group-link');
+
+              // 若從 sessionStorage 取得 token，且與當前瀏覽店家不符，則隱藏橫幅
+              if (!urlParams.get('token') && !urlParams.get('group') && groupStoreId && storeId && String(groupStoreId) !== String(storeId)) {
+                if (banner) banner.classList.add('hidden');
+                console.log('Group token store mismatch, hiding banner');
+              } else {
+                if (banner) banner.classList.remove('hidden');
+                if (hostInfo) hostInfo.innerText = `此為團購專屬頁面，您的點餐將直接加入該團購。`;
+                // 動態更新連結帶上 token
+                if (viewGroupLink && groupToken) {
+                  viewGroupLink.href = `group_order.html?token=${groupToken}`;
+                }
+              }
+            }
+          } else {
+            // Token invalid or order not found
+            sessionStorage.removeItem('activeGroupToken');
+            groupToken = null;
+            console.error('Failed to fetch group order');
+          }
+        } catch (e) {
+          console.error('Error fetching group order:', e);
+          // 清除失效的 token，避免帶著 null storeId 繼續執行
+          sessionStorage.removeItem('activeGroupToken');
+          groupToken = null;
+        }
+      }
+
+      // 若 token 取得失敗且無 storeId，終止執行
+      if (!storeId && !groupToken) {
+        showToast('無法載入店家資訊，請確認連結是否有效', 'error');
+        setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+        return;
+      }
+      
+      /**
+       * Optimize image URL for faster loading (Cloudinary, Unsplash support)
+       */
+      function optimizeImageUrl(url, width = null, height = null) {
+        if (!url || typeof url !== 'string') return url;
+        if (!url.startsWith('http')) return url;
+        
+        // Cloudinary: Add f_auto, q_auto and resize
+        if (url.includes('cloudinary.com') && url.includes('/upload/')) {
+          const parts = url.split('/upload/');
+          let transform = 'f_auto,q_auto';
+          if (width && height) {
+            transform += `,w_${width},h_${height},c_fill`;
+          } else if (width) {
+            transform += `,w_${width},c_limit`;
+          }
+          return `${parts[0]}/upload/${transform}/${parts[1]}`;
+        }
+        
+        // Unsplash: Append quality and format params
+        if (url.includes('unsplash.com')) {
+          try {
+            const u = new URL(url);
+            if (width) u.searchParams.set('w', width);
+            if (height) u.searchParams.set('h', height);
+            u.searchParams.set('auto', 'format');
+            u.searchParams.set('q', '75');
+            return u.toString();
+          } catch(e) { return url; }
+        }
+        
+        return url;
+      }
+
+      // ===== Toast 工具函式 =====
+      function showToast(message, type = 'success') {
+        const toast = document.getElementById('store-toast');
+        const icon = document.getElementById('store-toast-icon');
+        const msg = document.getElementById('store-toast-msg');
+        if (!toast) return;
+        icon.textContent = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+        msg.textContent = message;
+        toast.className = `store-toast store-toast--${type} store-toast--show`;
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(() => {
+          toast.classList.remove('store-toast--show');
+        }, 3000);
+      }
+
+      const menuContainer = document.getElementById('menu-container');
+      const categoryList = document.getElementById('category-list');
+      const storeNameEl = document.getElementById('store-name');
+      const storeAddressEl = document.getElementById('store-address');
+
+      // Optimization: Product Data Registry
+      const productRegistry = new Map();
+
+      // Modal Elements
+      const modal = document.getElementById('customization-modal');
+      const modalTitle = document.getElementById('modal-product-title');
+      const modalHeaderName = document.getElementById('modal-product-name');
+      const modalPrice = document.getElementById('modal-product-price-display');
+      const modalDesc = document.getElementById('modal-product-description');
+      const modalImg = document.getElementById('modal-product-image');
+      const qtyDisplay = document.getElementById('modal-qty-display');
+
+      async function loadStoreData() {
+        try {
+          // Fetch Store Info (with caching)
+          let store = null;
+          try {
+            store = await NavAuth.fetchAPI(`/api/stores/${storeId}`, { cache: true, ttl: 300000 });
+          } catch (e) {
+            console.warn('Individual store fetch failed, fallback to public store info');
+            store = await NavAuth.fetchAPI(`/api/stores/${storeId}/info`, { cache: true, ttl: 300000 });
+          }
+
+          if (store) {
+            // Support both direct and wrapped data (Result pattern)
+            const s = store.data || store;
+            if (storeNameEl) storeNameEl.innerText = s.name || s.storeName || '-';
+            // Handle different property names (Address vs street/city)
+            const address = s.address || `${s.city || ''}${s.district || ''}${s.street || ''}`;
+            if (storeAddressEl) storeAddressEl.innerText = address;
+            document.title = `${s.name || s.storeName} | JOIN 揪飲`;
+
+            // 動態填入評分
+            const ratingEl = document.getElementById('store-avg-rating');
+            if (ratingEl) {
+              const rating = s.rating ?? s.avgRating;
+              ratingEl.textContent = (rating != null && Number(rating) > 0)
+                ? Number(rating).toFixed(1)
+                : '-';
+            }
+
+            // 動態填入今日營業時間
+            const openingHoursEl = document.getElementById('store-opening-hours');
+            if (openingHoursEl) {
+              const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+              const todayKey = dayKeys[new Date().getDay()];
+              try {
+                const hours = typeof s.openingHours === 'string'
+                  ? JSON.parse(s.openingHours)
+                  : s.openingHours;
+                const today = hours && hours[todayKey];
+                if (!hours || !today) {
+                  openingHoursEl.textContent = '未設定';
+                } else if (today.closed) {
+                  openingHoursEl.textContent = '今日公休';
+                  openingHoursEl.classList.add('text-gray-400');
+                } else {
+                  openingHoursEl.textContent = `${today.open} – ${today.close}`;
+                }
+              } catch (e) {
+                openingHoursEl.textContent = s.openingHours || '未設定';
+              }
+            }
+
+            // 動態填入距離
+            const distanceEl = document.getElementById('store-distance');
+            let computedKm = s.distance != null ? parseFloat(s.distance) : null;
+            if (distanceEl) {
+              if (computedKm != null) {
+                distanceEl.textContent = `${computedKm} km`;
+              } else if (s.latitude && s.longitude) {
+                const userLat = parseFloat(localStorage.getItem('userLat'));
+                const userLng = parseFloat(localStorage.getItem('userLng'));
+                if (!isNaN(userLat) && !isNaN(userLng)) {
+                  const R = 6371;
+                  const dLat = (s.latitude - userLat) * Math.PI / 180;
+                  const dLng = (s.longitude - userLng) * Math.PI / 180;
+                  const a = Math.sin(dLat / 2) ** 2
+                    + Math.cos(userLat * Math.PI / 180) * Math.cos(s.latitude * Math.PI / 180)
+                    * Math.sin(dLng / 2) ** 2;
+                  computedKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                  distanceEl.textContent = `${computedKm.toFixed(1)} km`;
+                }
+              }
+            }
+
+            // 動態填入電話
+            const phoneEl = document.getElementById('store-phone');
+            if (phoneEl) {
+              const phoneNumber = s.storePhone || s.phone;
+              phoneEl.textContent = phoneNumber || '-';
+              if (phoneNumber) phoneEl.href = `tel:${phoneNumber}`;
+            }
+
+            // 動態填入最遠外送距離
+            const maxDeliveryEl = document.getElementById('store-max-delivery');
+            const maxKm = parseFloat(s.maxDeliveryKm);
+            if (maxDeliveryEl) {
+              maxDeliveryEl.textContent = (!isNaN(maxKm) && maxKm > 0) ? `${maxKm} km` : '-';
+            }
+
+            // 動態填入最低外送金額
+            const minAmountEl = document.getElementById('store-min-amount');
+            if (minAmountEl) {
+              const minAmt = parseFloat(s.minDeliveryAmount);
+              minAmountEl.textContent = (!isNaN(minAmt) && minAmt > 0) ? `$${minAmt}` : '-';
+            }
+
+            // 動態注入封面圖
+            const heroImg = document.getElementById('store-hero-img');
+            if (heroImg) {
+              const fallback = 'https://images.unsplash.com/photo-1544145945-f904253d0c7e?w=1280&h=600&fit=crop';
+              const rawSrc = s.coverUrl || s.imageUrl || fallback;
+              heroImg.src = optimizeImageUrl(rawSrc, 1200, 600);
+              heroImg.onload = () => heroImg.classList.add('img-loaded');
+              heroImg.onerror = () => { heroImg.src = fallback; };
+            }
+
+            // 品牌 Logo（相容兩種資料結構：flat brandLogoUrl / 巢狀 brand.logoUrl）
+            const brandLogoWrap = document.getElementById('store-brand-logo');
+            const brandLogoImg = document.getElementById('store-brand-logo-img');
+            const brandInitialEl = document.getElementById('store-brand-logo-initial');
+            const brandLogoUrl = s.brandLogoUrl || s.brand?.logoUrl;
+            const brandName = s.brandName || s.brand?.name || s.brand?.brandName || '';
+            if (brandLogoWrap && (brandLogoUrl || brandName)) {
+              const BRAND_COLORS = ['#FF6B35', '#FF8C42', '#F7B731', '#26C9A8', '#4ECDC4', '#45B7D1', '#A29BFE', '#FD79A8'];
+              let hash = 0;
+              for (let i = 0; i < brandName.length; i++) hash = brandName.charCodeAt(i) + ((hash << 5) - hash);
+              brandLogoWrap.style.background = BRAND_COLORS[Math.abs(hash) % BRAND_COLORS.length];
+              if (brandLogoUrl) {
+                brandLogoImg.src = brandLogoUrl;
+                brandLogoImg.alt = brandName;
+                brandLogoImg.style.display = '';
+                brandInitialEl.style.display = 'none';
+              } else {
+                brandLogoImg.style.display = 'none';
+                brandInitialEl.style.display = 'flex';
+                brandInitialEl.textContent = brandName.charAt(0).toUpperCase() || '?';
+              }
+              brandLogoWrap.classList.remove('hidden');
+            }
+
+            // Favorite button logic
+            const favoriteBtn = document.getElementById('favorite-btn');
+            const userId = localStorage.getItem('JOIN_USER_ID');
+            if (favoriteBtn && userId) {
+              favoriteBtn.classList.remove('hidden');
+              // Initial check
+              const isFavorited = await NavAuth.checkFavorite(userId, storeId);
+              if (isFavorited) {
+                favoriteBtn.classList.add('text-brand-orange');
+                favoriteBtn.innerHTML = '<i data-lucide="heart" class="w-6 h-6 favorite-heart-filled"></i>';
+                if (window.lucide) lucide.createIcons();
+              }
+
+              favoriteBtn.onclick = async () => {
+                try {
+                  favoriteBtn.disabled = true;
+                  favoriteBtn.classList.add('heart-pop');
+                  setTimeout(() => favoriteBtn.classList.remove('heart-pop'), 300);
+
+                  const result = await NavAuth.toggleFavorite(userId, storeId);
+                  if (result && result.status === 'added') {
+                    favoriteBtn.classList.add('text-brand-orange');
+                    favoriteBtn.innerHTML = '<i data-lucide="heart" class="w-6 h-6 favorite-heart-filled"></i>';
+                  } else if (result && result.status === 'removed') {
+                    favoriteBtn.classList.remove('text-brand-orange');
+                    favoriteBtn.innerHTML = '<i data-lucide="heart" class="w-6 h-6"></i>';
+                  }
+                  if (window.lucide) lucide.createIcons();
+                } catch (e) {
+                  console.error('Toggle favorite failed:', e);
+                } finally {
+                  favoriteBtn.disabled = false;
+                }
+              };
+            }
+            if (store.getBrand && store.getBrand.logoUrl) {
+              currentStoreLogo = store.getBrand.logoUrl;
+            } else if (s.brand && s.brand.logoUrl) {
+              currentStoreLogo = s.brand.logoUrl;
+            }
+          }
+
+          // Fetch Products (with caching)
+          const products = await NavAuth.fetchAPI(`/api/products/store/${storeId}`, { cache: true, ttl: 300000 });
+
+          // 移除 skeleton
+          const skeleton = document.getElementById('menu-skeleton');
+          if (skeleton) skeleton.remove();
+
+          if (!products || products.length === 0) {
+            menuContainer.innerHTML = '<div class="py-10 text-center text-gray-400">目前沒有商品</div>';
+            return;
+          }
+
+          // Group products by category
+          const groups = products.reduce((acc, p) => {
+            const cat = p.category || '精選商品';
+            if (!acc[cat]) acc[cat] = [];
+            acc[cat].push(p);
+            return acc;
+          }, {});
+
+          // Render Categories Sidebar
+          if (categoryList) {
+            categoryList.innerHTML = Object.keys(groups).map((cat, index) => `
+              <a class="${index === 0 ? 'sidebar-active' : 'text-gray-600 hover:bg-gray-100'} px-3 py-3 rounded-l-lg font-medium flex justify-between items-center" href="#cat-${cat}">
+                ${cat}
+              </a>
+            `).join('');
+          }
+
+          // Optimization: Populate Registry instead of stringifying to DOM
+          products.forEach(p => productRegistry.set(String(p.id), p));
+
+          // Render Menu Sections
+          menuContainer.innerHTML = Object.keys(groups).map(cat => `
+            <section class="mb-12" id="cat-${cat}">
+              <div class="flex items-center gap-2 mb-6">
+                <div class="w-1.5 h-6 bg-orange-600 rounded-full"></div>
+                <h2 class="text-2xl font-bold text-gray-800">${cat}</h2>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                ${groups[cat].map(p => {
+            const pName = p.name || p.productName || '飲品';
+            const pImg = p.imageUrl || p.logoUrl || '';
+            const resolvedImg = pImg ? (pImg.startsWith('http') ? pImg : 'images/' + pImg) : 'https://images.unsplash.com/photo-1544145945-f90425340c7e?w=400&h=300&fit=crop';
+            const tempLabels = [];
+            if (p.canBeIced) tempLabels.push(`<span class="w-6 h-6 bg-blue-500 rounded flex items-center justify-center text-white shadow-sm" title="可製冷飲"><i class="fa-solid fa-snowflake text-[11px]"></i></span>`);
+            if (p.canBeHot) tempLabels.push(`<span class="w-6 h-6 bg-red-500 rounded flex items-center justify-center text-white shadow-sm" title="可製熱飲"><i class="fa-solid fa-fire text-[11px]"></i></span>`);
+            const labelsHtml = tempLabels.length > 0 ? `<div class="absolute top-2 left-2 flex gap-1">${tempLabels.join('')}</div>` : '';
+
+            return `
+                  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer"
+                    data-product='${JSON.stringify(p).replace(/'/g, "&apos;")}'
+                    data-product-id="${p.id}"
+                    onclick='openCustomizationModal(this)'>
+                    <div class="relative h-64 bg-slate-100 flex items-center justify-center overflow-hidden">
+                      <img src="${optimizeImageUrl(resolvedImg, 400, 300)}" 
+                        class="w-full h-full object-cover img-fade-in" 
+                        alt="${pName}" loading="lazy" 
+                        onload="this.classList.add('img-loaded')">
+                      ${labelsHtml}
+                    </div>
+                    <div class="p-4 flex-1 flex flex-col">
+                      <h4 class="font-bold text-lg text-gray-800 mb-1">${pName}</h4>
+                      <p class="text-xs text-gray-400 mb-4 h-8 overflow-hidden">${p.description || ''}</p>
+                      <div class="mt-auto flex justify-between items-center">
+                        <span class="text-xl font-bold text-orange-600">$${p.basePrice || p.price}</span>
+                        <button class="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center font-bold text-xl hover:bg-orange-600 active:scale-95 transition-all">+</button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+          }).join('')}
+              </div>
+            </section>
+          `).join('');
+
+        } catch (error) {
+          console.error('Error loading store data:', error);
+          const skeleton = document.getElementById('menu-skeleton');
+          if (skeleton) skeleton.remove();
+          menuContainer.innerHTML = '<div class="py-10 text-center text-red-400">載入失敗，請稍後再試</div>';
+        }
+      }
+
+      loadStoreData();
+
+      let currentProduct = null;
+      let currentQty = 1;
+      let currentSpecs = [];
+
+      window.openCustomizationModal = async (btn) => {
+        const productId = btn.getAttribute('data-product-id');
+        const product = productRegistry.get(String(productId));
+        if (!product) return;
+
+        product.price = product.price || product.basePrice || 0;
+
+        currentProduct = product;
+        currentQty = 1;
+        currentSpecs = [];
+
+        const remarkInput = document.getElementById('modal-remark-input');
+        if (remarkInput) remarkInput.value = '';
+
+        if (modalHeaderName) modalHeaderName.innerText = product.name || '飲品';
+        if (modalTitle) modalTitle.innerText = product.name || '飲品';
+        if (modalPrice) modalPrice.innerText = `$${product.price}`;
+        if (modalDesc) modalDesc.innerText = product.description || '';
+
+        const imgUrl = (product.imageUrl || product.logoUrl) ?
+          ((product.imageUrl || product.logoUrl).startsWith('http') ? (product.imageUrl || product.logoUrl) : '/images/' + (product.imageUrl || product.logoUrl)) :
+          'https://via.placeholder.com/400x300?text=' + product.name;
+        
+        const optimizedModalImg = optimizeImageUrl(imgUrl, 600, 400);
+        if (modalImg) {
+          modalImg.style.backgroundImage = `url("${optimizedModalImg}")`;
+          modalImg.style.opacity = '0';
+          const tempImg = new Image();
+          tempImg.onload = () => { modalImg.style.opacity = '1'; modalImg.style.transition = 'opacity 0.3s ease'; };
+          tempImg.src = optimizedModalImg;
+        }
+
+        // Pre-fetch skeletons for options
+        const sizeGroup = document.getElementById('modal-size-options');
+        const iceGroup = document.getElementById('modal-ice-options');
+        const sweetGroup = document.getElementById('modal-sweetness-options');
+        const toppingGroup = document.getElementById('modal-topping-options');
+
+        const skeletonHtml = (count = 3) => Array(count).fill('<div class="skeleton skeleton-button"></div>').join('');
+        if (sizeGroup) sizeGroup.innerHTML = skeletonHtml(2);
+        if (iceGroup) iceGroup.innerHTML = skeletonHtml(3);
+        if (sweetGroup) sweetGroup.innerHTML = skeletonHtml(3);
+        if (toppingGroup) toppingGroup.innerHTML = skeletonHtml(4);
+
+        // Instant Open: Show the modal right away with basic info and skeletons
+        updateModalUI();
+        if (modal) modal.classList.remove('hidden');
+
+        // Fetch customization (V2 Optimized with Caching)
+        try {
+          const queryParam = (storeId && storeId !== 'null') ? `?storeId=${storeId}` : '';
+          const url = `/api/products/${product.id}/customization/v2${queryParam}`;
+          const data = await NavAuth.fetchAPI(url, { cache: true, ttl: 300000 });
+
+          if (data) {
+            const resultData = data.data || data;
+
+            // Detect structure: DTO style (flat specs) or Map style (categorized)
+            let specs = [];
+            let iceOpts = [];
+            let sweetOpts = [];
+            let sizeOpts = [];
+            let toppings = [];
+
+            if (Array.isArray(resultData.specs)) {
+              // DTO style
+              specs = resultData.specs;
+              iceOpts = specs.filter(s => (s.type || '').trim().toUpperCase() === 'ICE');
+              sweetOpts = specs.filter(s => (s.type || '').trim().toUpperCase() === 'SWEETNESS');
+              sizeOpts = specs.filter(s => (s.type || '').trim().toUpperCase() === 'SIZE');
+            } else if (resultData.iceOptions || resultData.sweetnessOptions || resultData.sizeOptions) {
+              // Map style
+              iceOpts = resultData.iceOptions || [];
+              sweetOpts = resultData.sweetnessOptions || [];
+              sizeOpts = resultData.sizeOptions || [];
+            }
+
+            const rawToppings = resultData.toppings || resultData.toppingOptions || [];
+            toppings = (Array.isArray(rawToppings) ? rawToppings : []).map(t => ({
+              toppingId: t.id || t.toppingId,
+              name: t.name || t.customName || t.toppingName || '配料',
+              price: t.price || t.brandPrice || 0
+            }));
+
+            // Save maxToppings for this session
+            currentProduct.maxToppings = resultData.maxToppings != null ? resultData.maxToppings : 3;
+
+            // Map and normalize options
+            const mapOpt = s => ({
+              id: s.brandSpecId || s.id || s.specId || 0,
+              name: s.specName || s.name || s.customName || '選項',
+              price: s.extraPrice || s.price || 0
+            });
+
+            const finalSize = sizeOpts.map(mapOpt);
+            const finalIce = iceOpts.map(mapOpt);
+            const finalSweet = sweetOpts.map(mapOpt);
+
+            // Render Size
+            const sizeGroup = document.getElementById('modal-size-options');
+            const sizeSection = document.getElementById('modal-size-section');
+            if (sizeGroup) {
+              sizeGroup.setAttribute('data-custom-group', 'Size');
+              if (finalSize.length === 1) {
+                // Fixed: hide the entire size section, store "固定" as snapshot
+                if (sizeSection) sizeSection.classList.add('hidden');
+                sizeGroup.innerHTML = `<button class="hidden active-btn" data-extra-price="${finalSize[0].price}" data-spec-id="${finalSize[0].id}">固定</button>`;
+              } else if (finalSize.length === 0) {
+                // No size options: hide the entire size section, use "固定" as snapshot instead of "標準杯"
+                if (sizeSection) sizeSection.classList.add('hidden');
+                sizeGroup.innerHTML = `<button class="hidden active-btn" data-extra-price="0" data-spec-id="0">固定</button>`;
+              } else {
+                if (sizeSection) sizeSection.classList.remove('hidden');
+                sizeGroup.innerHTML = finalSize.map((s, idx) => `
+                  <button
+                    class="flex items-center justify-center py-3 px-4 rounded-lg border-2 ${idx === 0 ? 'border-[#ec5b13] bg-[#ec5b13]/5 text-[#ec5b13] font-semibold active-btn' : 'border-slate-200 text-slate-600 font-medium'} hover:border-[#ec5b13]/50 transition-colors"
+                    data-extra-price="${s.price}" data-spec-id="${s.id}"
+                    onclick="selectCustomOption(this)">
+                    ${s.name} ${s.price > 0 ? '(+$' + s.price + ')' : ''}
+                  </button>
+                `).join('');
+              }
+            }
+
+            // Render Ice
+            const iceGroup = document.getElementById('modal-ice-options');
+            if (iceGroup) {
+              iceGroup.setAttribute('data-custom-group', 'Ice');
+              if (finalIce.length === 1) {
+                // Fixed: show "固定" label, store actual value via data-actual-value
+                iceGroup.innerHTML = `<button class="py-2 text-sm rounded-lg border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn cursor-default" data-spec-id="${finalIce[0].id}" data-actual-value="${finalIce[0].name}">固定</button>`;
+              } else {
+                iceGroup.innerHTML = finalIce.length > 0 ? finalIce.map((s, idx) => `
+                  <button class="py-2 text-sm rounded-lg border ${idx === 0 ? 'border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn' : 'border-slate-200 text-slate-600'} "
+                     data-spec-id="${s.id}"
+                     onclick="selectCustomOption(this)">${s.name}</button>
+                `).join('') : '<button class="py-2 text-sm rounded-lg border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn" onclick="selectCustomOption(this)" data-spec-id="0">正常冰</button>';
+              }
+            }
+
+            // Render Sweetness
+            const sweetGroup = document.getElementById('modal-sweetness-options');
+            if (sweetGroup) {
+              sweetGroup.setAttribute('data-custom-group', 'Sweetness');
+              if (finalSweet.length === 1) {
+                // Fixed: show "固定" label, store actual value via data-actual-value
+                sweetGroup.innerHTML = `<button class="py-2 text-sm rounded-lg border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn cursor-default" data-spec-id="${finalSweet[0].id}" data-actual-value="${finalSweet[0].name}">固定</button>`;
+              } else {
+                sweetGroup.innerHTML = finalSweet.length > 0 ? finalSweet.map((s, idx) => `
+                  <button class="py-2 text-sm rounded-lg border ${idx === 0 ? 'border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn' : 'border-slate-200 text-slate-600'} "
+                     data-spec-id="${s.id}"
+                     onclick="selectCustomOption(this)">${s.name}</button>
+                `).join('') : '<button class="py-2 text-sm rounded-lg border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn" onclick="selectCustomOption(this)" data-spec-id="0">正常甜</button>';
+              }
+            }
+
+            // Render Toppings
+            const toppingGroup = document.getElementById('modal-topping-options');
+            if (toppingGroup) {
+              const maxT = currentProduct.maxToppings;
+              const toppingHeader = toppingGroup.previousElementSibling;
+              if (toppingHeader && toppingHeader.tagName === 'H3') {
+                toppingHeader.innerHTML = `加料 <span class="text-[11px] font-normal text-slate-400 ml-1">(最多可選 ${maxT} 種)</span>`;
+              }
+              toppingGroup.setAttribute('data-custom-group', 'Topping');
+              toppingGroup.innerHTML = toppings.length > 0 ? toppings.map(t => `
+                <button class="py-2 text-sm rounded-lg border border-slate-200 text-slate-600 flex justify-between px-3 items-center group transition-colors"
+                  data-price="${t.price}" data-id="${t.toppingId}"
+                  onclick="toggleTopping(this)">
+                  <span>${t.name}</span>
+                  <span class="text-[10px] text-gray-400">$${t.price > 0 ? '+' + t.price : '免額外支付'}</span>
+                </button>
+              `).join('') : '<p class="text-xs text-slate-400 col-span-2 text-center py-2">無加料選項</p>';
+            }
+          } else {
+            console.warn('Empty customization data from backend');
+          }
+        } catch (e) {
+          console.error('Failed to fetch customization:', e);
+        }
+      };
+
+      window.toggleTopping = (btn) => {
+        const isActive = btn.classList.contains('active-topping');
+        const maxT = currentProduct ? (currentProduct.maxToppings || 3) : 3;
+
+        if (!isActive) {
+          const currentCount = document.querySelectorAll('.active-topping').length;
+          if (currentCount >= maxT) {
+            showToast(`此商品最多只能選擇 ${maxT} 種配料喔`, 'info');
+            // Briefly shake the button to indicate error
+            btn.classList.add('animate-shake');
+            setTimeout(() => btn.classList.remove('animate-shake'), 400);
+            return;
+          }
+        }
+
+        btn.classList.toggle('border-2');
+        btn.classList.toggle('border-[#ec5b13]');
+        btn.classList.toggle('bg-[#ec5b13]/5');
+        btn.classList.toggle('text-[#ec5b13]');
+        btn.classList.toggle('font-bold');
+        btn.classList.toggle('active-topping');
+
+        // Dynamic UI feedback: Dim out other non-active options if limit reached
+        setTimeout(updateToppingUIState, 0);
+        updateModalUI();
+      };
+
+      const updateToppingUIState = () => {
+        const activeToppings = document.querySelectorAll('.active-topping');
+        const maxT = currentProduct ? (currentProduct.maxToppings || 3) : 3;
+        const allToppings = document.querySelectorAll('[data-custom-group="Topping"] button');
+
+        if (activeToppings.length >= maxT) {
+          allToppings.forEach(btn => {
+            if (!btn.classList.contains('active-topping')) {
+              btn.classList.add('opacity-40', 'bg-slate-50', 'border-slate-100');
+              btn.classList.remove('hover:border-[#ec5b13]/50');
+            }
+          });
+        } else {
+          allToppings.forEach(btn => {
+            btn.classList.remove('opacity-40', 'bg-slate-50', 'border-slate-100');
+            btn.classList.add('hover:border-[#ec5b13]/50');
+          });
+        }
+      };
+
+      const updateModalUI = () => {
+        if (qtyDisplay) qtyDisplay.innerText = currentQty;
+
+        let extraPrice = 0;
+        const activeSize = document.querySelector('[data-custom-group="Size"] .active-btn');
+        if (activeSize && activeSize.dataset.extraPrice) {
+          extraPrice += parseFloat(activeSize.dataset.extraPrice);
+        }
+
+        const activeToppings = document.querySelectorAll('.active-topping');
+        activeToppings.forEach(t => {
+          extraPrice += parseFloat(t.dataset.price || 0);
+        });
+
+        const total = (parseFloat(currentProduct.price || 0) + extraPrice) * currentQty;
+        const priceEl = document.getElementById('modal-total-price-display');
+        if (priceEl) priceEl.innerText = `總計 $${total}`;
+      };
+
+      window.selectCustomOption = (btn) => {
+        const group = btn.closest('[data-custom-group]');
+        group.querySelectorAll('button').forEach(b => {
+          b.classList.remove('border-2', 'border-[#ec5b13]', 'bg-[#ec5b13]', 'bg-[#ec5b13]/5', 'text-white', 'text-[#ec5b13]', 'font-semibold', 'active-btn');
+          b.classList.add('border', 'border-slate-200', 'text-slate-600', 'font-medium');
+        });
+
+        btn.classList.add('border-2', 'border-[#ec5b13]', 'text-[#ec5b13]', 'font-semibold', 'active-btn');
+        btn.classList.remove('border-slate-200', 'text-slate-600', 'font-medium');
+
+        if (group.dataset.customGroup === 'Size') {
+          btn.classList.add('bg-[#ec5b13]/5');
+        } else {
+          btn.classList.add('bg-[#ec5b13]', 'text-white');
+          btn.classList.remove('text-[#ec5b13]');
+        }
+
+        updateModalUI();
+      };
+
+      document.getElementById('modal-qty-plus').onclick = () => {
+        currentQty++;
+        updateModalUI();
+      };
+
+      document.getElementById('modal-qty-minus').onclick = () => {
+        if (currentQty > 1) {
+          currentQty--;
+          updateModalUI();
+        }
+      };
+
+      document.getElementById('modal-add-to-cart').onclick = async () => {
+        if (!currentProduct) return;
+
+        // Collect customizations
+        const customizations = [];
+        let brandSpecId = null;
+        let sizeSnapshot = "標準杯";
+        let sugarSnapshot = null;
+        let iceSnapshot = null;
+
+        document.querySelectorAll('.active-btn').forEach(btn => {
+          const text = btn.innerText.trim();
+
+          if (btn.closest('[data-custom-group="Size"]')) {
+            brandSpecId = btn.dataset.specId ? parseInt(btn.dataset.specId) : null;
+            sizeSnapshot = text.split('(')[0].trim();
+            // 不再過濾 hidden，確保固定杯型也能產生標籤
+            customizations.push(text);
+          } else if (btn.closest('[data-custom-group="Ice"]')) {
+            iceSnapshot = text;
+            customizations.push(text);
+          } else if (btn.closest('[data-custom-group="Sweetness"]')) {
+            sugarSnapshot = text;
+            customizations.push(text);
+          } else {
+            customizations.push(text);
+          }
+        });
+
+        const toppingIds = [];
+        const toppingNamesArray = [];
+        const toppingPricesArray = [];
+        document.querySelectorAll('.active-topping').forEach(btn => {
+          const tName = btn.querySelector('span:first-child').innerText.trim().replace(' (售完)', '');
+          const tPrice = parseFloat(btn.dataset.price || '0');
+          customizations.push(`${tName} (+$${tPrice})`);
+          toppingNamesArray.push(tName);
+          toppingIds.push(parseInt(btn.dataset.id));
+          toppingPricesArray.push(tPrice);
+        });
+
+        const activeSizeBtn = document.querySelector('[data-custom-group="Size"] .active-btn');
+        let sizeExtra = activeSizeBtn && activeSizeBtn.dataset.extraPrice ? parseFloat(activeSizeBtn.dataset.extraPrice) : 0;
+
+        let toppingExtra = 0;
+        toppingPricesArray.forEach(p => {
+          toppingExtra += p;
+        });
+
+        const unitPrice = parseFloat(currentProduct.price) + sizeExtra + toppingExtra;
+
+        const item = {
+          productId: currentProduct.id,
+          productName: currentProduct.name,
+          basePrice: parseFloat(currentProduct.price),
+          price: unitPrice,
+          quantity: currentQty,
+          customization: customizations,
+          toppingNames: toppingNamesArray,
+          toppingPrices: toppingPricesArray,
+          brandSpecId: brandSpecId,
+          toppingIds: toppingIds,
+          sizeSnapshot: sizeSnapshot,
+          sugarSnapshot: sugarSnapshot,
+          iceSnapshot: iceSnapshot,
+          categoryId: currentProduct.categoryId,
+          imageUrl: currentProduct.imageUrl ? (currentProduct.imageUrl.startsWith('http') ? currentProduct.imageUrl : '/images/' + currentProduct.imageUrl) : null,
+          storeId: parseInt(storeId),
+          storeName: storeNameEl.innerText,
+          storeLogoUrl: currentStoreLogo
+        };
+
+        if (groupToken) {
+          const userId = localStorage.getItem('JOIN_USER_ID');
+          const userName = localStorage.getItem('JOIN_USER_NAME') || '團員';
+
+          if (!userId) {
+            showToast('請先登入以參與揪團', 'error');
+            setTimeout(() => { window.location.href = `auth/login.html?redirect=${encodeURIComponent(window.location.href)}`; }, 1500);
+            return;
+          }
+
+          try {
+            const addBtn = document.getElementById('modal-add-to-cart');
+            addBtn.disabled = true;
+            const textSpan = addBtn.querySelector('span:first-child');
+            if (textSpan) textSpan.innerText = '正在加入揪團...';
+
+            await NavAuth.fetchAPI(`/api/group-orders/${groupToken}/items`, {
+              method: 'POST',
+              body: JSON.stringify({
+                productId: item.productId,
+                productName: item.productName,
+                qty: item.quantity,
+                unitPrice: item.price,
+                finalPrice: item.price * item.quantity,
+                iceSnapshot: customizations.find(c => c.includes('冰') || c === '溫' || c === '熱') || "正常冰",
+                sugarSnapshot: customizations.find(c => c.includes('糖')) || "正常甜",
+                brandSpecId: item.brandSpecId,
+                toppingIds: item.toppingIds,
+                toppingNames: item.toppingNames,
+                toppingPrices: item.toppingPrices,
+                sizeSnapshot: item.sizeSnapshot,
+                userId: parseInt(userId),
+                userName: userName
+              })
+            });
+
+            showToast('已成功加入揪團！點餐內容已同步至雲端。', 'success');
+            if (modal) modal.classList.add('hidden');
+          } catch (err) {
+            console.error('Group add item error:', err);
+            showToast('加入失敗：' + (err.message || '未知錯誤'), 'error');
+          } finally {
+            const addBtn = document.getElementById('modal-add-to-cart');
+            addBtn.disabled = false;
+            // Restore text but preserve the price span if we need to, 
+            // actually updateModalUI will handle the full update.
+            const textSpan = addBtn.querySelector('span:first-child');
+            if (textSpan) textSpan.innerText = '加入購物車';
+            updateModalUI();
+          }
+        } else {
+          // Regular Cart Logic
+          if (Cart.addItem(item)) {
+            showToast(`已加入購物車：${item.productName}`, 'success');
+            if (modal) modal.classList.add('hidden');
+          }
+        }
+      };
+    });
+  </script>
+  <!-- Location Selection Modal Overlay -->
+  <!-- Added id="locationModal" and class "hidden" so it's hidden by default -->
+  <div id="locationModal"
+    class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+    <!-- Modal Container -->
+    <!-- Removed inline onclick preventing propagation, handled in script now -->
+    <div
+      class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all transform">
+      <!-- Close Button -->
+      <!-- Removed inline style change and added id="closeModalBtn" -->
+      <button id="closeModalBtn"
+        class="absolute top-6 right-6 z-10 p-2 text-gray-400 hover:text-gray-600 transition-colors">
+        <i data-lucide="x" class="w-6 h-6"></i>
+      </button>
+
+      <!-- Modal Body -->
+      <div class="overflow-y-auto p-8 space-y-6 scrollbar-hide">
+        <!-- Header -->
+        <div class="text-center">
+          <h3 class="text-2xl font-bold text-brand-dark">選擇您的位置</h3>
+        </div>
+
+        <!-- Map Container (hidden, reserved for future use) -->
+        <div id="map-container"
+          class="relative w-full aspect-video rounded-3xl overflow-hidden border border-gray-100 shadow-inner z-0 hidden"
+          style="height: 240px;">
+          <div class="flex items-center justify-center h-full bg-gray-50">
+            <span class="text-sm text-gray-400">地圖載入中...</span>
+          </div>
+        </div>
+
+        <!-- GPS Action -->
+        <div class="space-y-3">
+          <button
+            class="w-full flex items-center justify-center gap-2 h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+            <i data-lucide="map-pin" class="w-5 h-5"></i>
+            <span>自動定位</span>
+          </button>
+          <p class="text-center text-sm text-brand-text-gray">
+            獲取精確位置以獲得更好的送餐體驗
+          </p>
+          <!-- 定位反映欄位 -->
+          <div id="modal-gps-status-row"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white transition-all duration-200">
+            <div id="modal-gps-indicator"
+              class="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0 flex items-center justify-center">
+            </div>
+            <span id="modal-gps-status-text" class="text-sm text-gray-400">尚未定位</span>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="flex items-center gap-4 py-2">
+          <div class="h-px flex-1 bg-gray-100"></div>
+          <span class="text-sm font-medium text-gray-400">或</span>
+          <div class="h-px flex-1 bg-gray-100"></div>
+        </div>
+
+        <!-- City / District / Address -->
+        <div class="space-y-4">
+          <!-- Hidden elements kept for nav-auth.js compatibility -->
+          <input id="modal-address-input" type="hidden" />
+          <button id="modal-search-btn" type="button" class="hidden" aria-hidden="true"></button>
+          <!-- 縣市 + 行政區 -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="relative z-20">
+              <label class="block text-sm font-bold text-gray-600 mb-2">縣市 <span class="text-red-500">*</span></label>
+              <div class="relative w-full">
+                <input type="text" id="modal-city" placeholder="請搜尋或選擇縣市" autocomplete="off"
+                  class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow cursor-text text-sm" />
+                <i data-lucide="chevron-down"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                <div id="modal-city-dropdown"
+                  class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                </div>
+              </div>
+            </div>
+            <div class="relative z-10">
+              <label class="block text-sm font-bold text-gray-600 mb-2">行政區 <span class="text-red-500">*</span></label>
+              <div class="relative w-full">
+                <input type="text" id="modal-district" placeholder="請先選擇縣市" disabled autocomplete="off"
+                  class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow disabled:opacity-50 disabled:cursor-not-allowed cursor-text text-sm" />
+                <i data-lucide="chevron-down"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                <div id="modal-district-dropdown"
+                  class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- 新增地址 -->
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label class="block text-sm font-bold text-gray-600">新增地址</label>
+              <span class="text-xs text-gray-400">範例格式：新安路一段5號</span>
+            </div>
+            <input id="modal-street"
+              class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow text-sm"
+              placeholder="請輸入完整地址（不含大樓名稱、樓層資訊）" type="text" />
+          </div>
+
+          <!-- 常用地址選擇面板 -->
+          <div id="common-address-panel" class="hidden space-y-2 pt-2">
+            <p class="text-sm font-bold text-gray-600">選擇常用地址</p>
+            <div id="common-address-list" class="space-y-2 max-h-44 overflow-y-auto scrollbar-hide">
+              <!-- 由 JS 動態注入 -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-8 bg-gray-50 border-t border-gray-100 space-y-4">
+        <div class="flex gap-4">
+          <button id="commonAddressBtn"
+            class="w-full flex items-center justify-center gap-2 h-14 bg-gray-100 text-brand-dark rounded-2xl font-medium hover:bg-gray-200 transition-colors">
+            <i data-lucide="history" class="w-5 h-5"></i>
+            <span>使用常用地址</span>
+          </button>
+          <button id="confirmLocationBtn"
+            class="w-full h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+            確認位置
+          </button>
+        </div>
+        <p class="text-[11px] text-center text-gray-400 leading-relaxed px-4">
+          您的位置僅用於計算運費與提供鄰近餐廳建議
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Prompt Modal (移出 function，放到 body 結尾) -->
+  <div id="auth-prompt-modal"
+    class="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-xs w-full p-7 flex flex-col items-center relative animate-fadein">
+      <button onclick="document.getElementById('auth-prompt-modal').classList.add('hidden')"
+        class="absolute top-3 right-3 text-gray-400 hover:text-gray-600">
+        <i data-lucide='x' class="w-6 h-6"></i>
+      </button>
+      <i data-lucide="user" class="w-10 h-10 text-orange-500 mb-2"></i>
+      <h3 class="text-lg font-bold mb-2 text-slate-800">請選擇登入方式</h3>
+      <p class="text-sm text-slate-500 mb-6 text-center">您尚未登入，請選擇以下方式繼續訂購</p>
+      <button id="guest-continue-btn"
+        class="w-full py-3 mb-3 rounded-xl font-bold text-orange-600 border border-orange-200 bg-orange-50 hover:bg-orange-100 transition-all">以訪客身分繼續</button>
+      <button id="login-redirect-btn"
+        class="w-full py-3 rounded-xl font-bold text-white bg-orange-500 hover:bg-orange-600 transition-all">會員註冊 /
+        登入</button>
+    </div>
+  </div>
+  <script>
+    // 彈窗動畫
+    (function () {
+      if (!document.getElementById('fadein-style')) {
+        const style = document.createElement('style');
+        style.id = 'fadein-style';
+        style.innerHTML = `@keyframes fadein {from{opacity:0;transform:scale(0.96);}to{opacity:1;transform:scale(1);}}.animate-fadein{animation:fadein 0.25s cubic-bezier(.4,2,.6,1)}`;
+        document.head.appendChild(style);
+      }
+    })();
+    function showAuthPromptModal() {
+      const modal = document.getElementById('auth-prompt-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      // 綁定按鈕
+      const guestBtn = document.getElementById('guest-continue-btn');
+      const loginBtn = document.getElementById('login-redirect-btn');
+      guestBtn.onclick = () => {
+        modal.classList.add('hidden');
+        // 以訪客身分繼續（不設 userId，直接 return，讓流程繼續）
+      };
+      loginBtn.onclick = () => {
+        window.location.href = `auth/login.html?redirect=store.html?id=${storeId}`;
+      };
+    }
+  </script>
+  <!-- Mapping Logic -->
+  <script src="js/official-map-logic.js"></script>
+  <script src="js/location-modal-logic.js"></script>
+  <script src="js/cartHash.js"></script>
+  <script src="js/nav-auth.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+    });
+  </script>
+  <!-- Scroll To Top Button -->
+  <button id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})"
+    class="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[80] w-11 h-11 bg-gray-400 hover:bg-gray-500 rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer opacity-0 pointer-events-none">
+    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+    </svg>
+  </button>
+  <script>(function () { var b = document.getElementById('scroll-top-btn'); window.addEventListener('scroll', function () { if (window.scrollY > 300) { b.classList.remove('opacity-0', 'pointer-events-none'); b.classList.add('opacity-100'); } else { b.classList.add('opacity-0', 'pointer-events-none'); b.classList.remove('opacity-100'); } }, { passive: true }); })();</script>
+</body>
+
+</html>

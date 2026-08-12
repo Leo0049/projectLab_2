@@ -1,0 +1,3042 @@
+<!DOCTYPE html>
+
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>團購結帳 - JOIN 揪飲</title>
+    <!-- Tailwind CSS -->
+    <link href="css/output.css" rel="stylesheet" />
+    <link href="css/footer.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Leaflet JS for Map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- WebSocket Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+
+    <!-- Custom Tailwind configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            orange: '#FF6B00',
+                            dark: '#1e293b'
+                        },
+                        primary: '#FF6B00'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style data-purpose="custom-colors">
+        :root {
+            --primary-orange: #FF6B00;
+            --light-orange: #FFF5EE;
+            --bg-gray: #F8F9FA;
+            --border-gray: #E5E7EB;
+        }
+
+        .text-primary {
+            color: var(--primary-orange);
+        }
+
+        .bg-primary {
+            background-color: var(--primary-orange);
+        }
+
+        .border-primary {
+            border-color: var(--primary-orange);
+        }
+
+        .ring-primary {
+            --tw-ring-color: var(--primary-orange);
+        }
+
+        /* 隱藏滾動條 */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 font-sans text-slate-800 pb-20 lg:pb-0">
+    <!-- Main Header -->
+    <!-- BEGIN: MainHeader -->
+    <header class="sticky top-0 z-50 bg-white border-b border-gray-100 px-4 py-3 lg:px-10">
+        <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <!-- Logo -->
+            <a href="index.html" class="flex items-center gap-2 flex-shrink-0" data-purpose="logo-container">
+                <img src="images/logo.png" alt="JOIN Logo" class="h-10 w-auto object-contain" />
+            </a>
+
+            <!-- Search and Location -->
+            <div class="flex-grow max-w-2xl hidden md:flex items-center bg-gray-100 rounded-full px-4 py-2 gap-3"
+                data-purpose="search-bar">
+                <!-- Added ID for triggering the modal -->
+                <div id="locationTrigger"
+                    class="flex items-center gap-1 border-r border-gray-300 pr-3 cursor-pointer hover:text-brand-orange transition-colors">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+                        <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                            stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+                        <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round"
+                            stroke-width="2">
+                        </path>
+                    </svg>
+                    <span id="nav-location-text" class="text-sm text-gray-600">正在定位...</span>
+                </div>
+                <div class="flex items-center gap-2 flex-grow">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+                        <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round"
+                            stroke-linejoin="round" stroke-width="2"></path>
+                    </svg>
+                    <input id="header-search-input" class="bg-transparent border-none focus:ring-0 text-sm w-full p-0"
+                        placeholder="搜尋想喝的飲品、店家..." type="text" autocomplete="off" />
+                </div>
+            </div>
+
+            <!-- User Actions -->
+            <div class="flex items-center gap-4 lg:gap-6" data-purpose="user-nav">
+                <div class="flex items-center gap-4 text-gray-600">
+                    <a href="profile.html?section=notifications"
+                        class="hover:text-brand-orange transition-colors fa-regular fa-bell" style="font-size: 22px;">
+                    </a>
+                    <a href="orders.html"
+                        class="hover:text-brand-orange transition-colors fa-solid fa-clock-rotate-left"
+                        style="font-size: 20px;">
+                    </a>
+                    <div class="relative group" id="cart-dropdown-wrapper">
+                        <a href="cart_details.html"
+                            class="hover:text-brand-orange transition-colors relative block py-2 fa-solid fa-cart-shopping"
+                            style="font-size: 20px;">
+                            <span id="cart-badge"
+                                class="absolute -top-1 -right-1 bg-brand-orange text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+                        </a>
+                        <!-- Cart Dropdown Menu -->
+                        <div id="cart-dropdown-menu"
+                            class="hidden group-hover:block absolute right-0 mt-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 py-4 z-50">
+                            <div class="px-4 mb-3 flex justify-between items-center">
+                                <h3 class="font-bold text-gray-800">我的購物車</h3>
+                                <span id="cart-count-text" class="text-xs text-gray-400">共 0 項品項</span>
+                            </div>
+                            <div id="cart-items-container" class="max-h-60 overflow-y-auto px-4 space-y-3 mb-4">
+                                <!-- Items will be injected here -->
+                                <p class="text-center text-gray-400 text-sm py-4">購物車是空的</p>
+                            </div>
+                            <div class="px-4 pt-3 border-t border-gray-50">
+                                <div class="flex justify-between mb-4">
+                                    <span class="text-gray-500">總計</span>
+                                    <span id="cart-total-price" class="font-bold text-brand-orange text-lg">$0</span>
+                                </div>
+                                <a href="cart_details.html"
+                                    class="block w-full bg-brand-orange text-white text-center py-2.5 rounded-xl font-bold hover:bg-orange-600 transition-colors">
+                                    查看購物車
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="profile.html?section=favorites"
+                        class="hover:text-brand-orange transition-colors fa-solid fa-heart" style="font-size: 20px;">
+                    </a>
+                </div>
+                <button
+                    class="bg-brand-orange text-white px-6 py-2 rounded-full font-medium hover:bg-orange-600 transition-colors">登入</button>
+
+                <!-- User Profile link -->
+                <a href="profile.html" class="hover:text-brand-orange transition-colors">
+                    <div class="relative" id="user-dropdown-wrapper">
+                        <div id="user-avatar-container"
+                            class="w-10 h-10 bg-gray-200 rounded-full overflow-hidden border border-gray-100 cursor-pointer transition-transform hover:scale-105">
+                            <img id="nav-user-avatar" alt="Profile" class="w-full h-full object-cover"
+                                src="images/default_avatar.png" />
+                        </div>
+                    </div>
+                </a>
+
+            </div>
+        </div>
+    </header>
+    <!-- END: MainHeader -->
+    <!-- END: MainHeader -->
+
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- BEGIN: TitleArea -->
+        <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <h1 class="text-3xl font-bold flex items-center flex-wrap gap-x-4 gap-y-2" id="page-title">
+                <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
+                    <span id="initiator-name-display"
+                        class="text-primary underline decoration-primary/20 underline-offset-8">載入中...</span>
+                    <span>的團購訂單</span>
+                </span>
+                <span id="store-name-display" class="text-lg text-gray-400 font-normal italic hidden"></span>
+                <span id="role-badge"
+                    class="text-sm font-normal text-primary bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-100 shadow-sm hidden"></span>
+            </h1>
+            <p class="text-gray-500 mt-2" id="page-subtitle">大家一起喝飲料！請確認訂單內容並完成付款。</p>
+
+            <!-- Host Controls (Status & Manage) -->
+            <div id="host-controls"
+                class="hidden flex items-center gap-2 bg-white p-2 rounded-2xl border border-gray-100 shadow-sm">
+                <span class="text-sm font-bold ml-2 text-gray-500">揪團狀態:</span>
+                <div class="flex bg-gray-100 rounded-xl p-1">
+                    <button id="btn-status-open" onclick="updateGroupStatus('OPEN')"
+                        class="px-4 py-1.5 rounded-lg text-sm font-bold transition-all">開放中</button>
+                    <button id="btn-status-locked" onclick="updateGroupStatus('LOCKED')"
+                        class="px-4 py-1.5 rounded-lg text-sm font-bold transition-all">已鎖定</button>
+                </div>
+                <!-- Share Button for Host -->
+                <button id="btn-host-share"
+                    class="ml-2 px-3 py-2.5 bg-primary/10 text-primary rounded-xl hover:bg-primary hover:text-white transition-all flex items-center gap-1.5"
+                    title="分享揪團">
+                    <i data-lucide="share-2" class="w-5 h-5"></i>
+                    <span class="text-sm font-bold">揪團連結</span>
+                </button>
+                <!-- Delete Button for Host -->
+                <button id="btn-host-delete"
+                    class="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                    title="刪除揪團">
+                    <i data-lucide="trash-2" class="w-5 h-5"></i>
+                </button>
+                <button onclick="goToStore()"
+                    class="bg-white hover:bg-gray-50 text-primary px-4 py-2.5 rounded-xl font-bold border border-primary/20 transition-all flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                    新增商品
+                </button>
+            </div>
+
+            <!-- Member Actions -->
+            <div id="member-controls" class="hidden flex items-center gap-3">
+                <button id="btn-trigger-member-checkout"
+                    class="bg-primary hover:bg-orange-600 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-orange-200 transition-all flex items-center gap-2">
+                    <i data-lucide="wallet" class="w-5 h-5"></i>
+                    為我的餐點結帳
+                </button>
+                <button onclick="goToStore()"
+                    class="bg-white hover:bg-gray-50 text-primary px-4 py-2.5 rounded-xl font-bold border border-primary/20 transition-all flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                    新增商品
+                </button>
+            </div>
+        </div>
+        <!-- END: TitleArea -->
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <!-- BEGIN: LeftColumn (Content) -->
+            <div class="lg:col-span-8 space-y-6">
+
+                <!-- Delivery Method Section -->
+                <section id="section-delivery-method"
+                    class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hidden"
+                    data-purpose="delivery-method">
+                    <div class="flex items-center gap-2 mb-4">
+                        <i data-lucide="truck" class="w-5 h-5 text-primary"></i>
+                        <h2 class="font-bold text-lg">配送方式</h2>
+                    </div>
+                    <div class="flex gap-4">
+                        <button id="btn-delivery"
+                            class="flex-1 py-3 px-6 bg-primary text-white rounded-xl font-medium text-center transition hover:opacity-90 shadow-[inset_0_0_0_2px_var(--primary-orange)]">外送
+                            (Delivery)</button>
+                        <button id="btn-pickup"
+                            class="flex-1 py-3 px-6 bg-gray-50 text-gray-500 rounded-xl font-medium text-center border border-gray-100 hover:bg-gray-100 transition">自取
+                            (Pickup)</button>
+                    </div>
+                </section>
+
+                <!-- Address Section (Structured Input - matching checkout.html) -->
+                <section id="section-delivery-address"
+                    class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hidden"
+                    data-purpose="delivery-address">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold flex items-center">
+                            <i data-lucide="map-pin" class="w-5 h-5 mr-2 text-primary"></i>
+                            外送地址
+                        </h2>
+                    </div>
+                    <!-- Address Inputs -->
+                    <!-- Address Inputs Area -->
+                    <div id="go-address-input-area" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="relative z-20">
+                                <label class="block text-sm font-bold text-gray-600 mb-2">縣市</label>
+                                <div class="relative w-full">
+                                    <input type="text" id="go-checkout-city" placeholder="請搜尋或選擇縣市" autocomplete="off"
+                                        class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow cursor-text" />
+                                    <i data-lucide="chevron-down"
+                                        class="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"></i>
+                                    <div id="go-city-dropdown-list"
+                                        class="hidden absolute top-full left-0 z-50 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-60 overflow-y-auto overflow-x-hidden">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="relative z-10">
+                                <label class="block text-sm font-bold text-gray-600 mb-2">行政區 <span
+                                        class="text-red-500">*</span></label>
+                                <div class="relative w-full">
+                                    <input type="text" id="go-checkout-district" placeholder="請先選擇縣市" disabled
+                                        autocomplete="off"
+                                        class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow disabled:opacity-50 disabled:cursor-not-allowed cursor-text" />
+                                    <i data-lucide="chevron-down"
+                                        class="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"></i>
+                                    <div id="go-district-dropdown-list"
+                                        class="hidden absolute top-full left-0 z-50 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-60 overflow-y-auto overflow-x-hidden">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-bold text-gray-600 mb-2">詳細地址</label>
+                            <input type="text" id="go-checkout-street" placeholder="街道、巷弄、門號、樓層"
+                                class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow" />
+                        </div>
+                        <button id="go-btn-confirm-address" onclick="goConfirmAddress()"
+                            class="w-full py-3 bg-primary text-white rounded-xl font-bold hover:bg-orange-600 transition-all shadow-md shadow-orange-100 flex items-center justify-center gap-2">
+                            <i data-lucide="check-circle" class="w-5 h-5"></i>
+                            確認地址
+                        </button>
+                    </div>
+
+                    <!-- Address Display Area (Confirmed) -->
+                    <div id="go-address-display-area"
+                        class="hidden p-4 bg-orange-50 rounded-xl border border-orange-100 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-primary shadow-sm">
+                                <i data-lucide="map-pin" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-black text-brand-orange tracking-widest uppercase">配送地址已確認
+                                </p>
+                                <p id="go-display-address-text" class="text-sm font-bold text-slate-800"></p>
+                            </div>
+                        </div>
+                        <button onclick="goEditAddress()" class="text-gray-400 hover:text-primary transition-colors p-2"
+                            title="變更地址">
+                            <i data-lucide="edit-3" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Order Content Section -->
+                <section class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm" data-purpose="order-items">
+                    <div class="flex items-center justify-center py-10">
+                        <i data-lucide="loader-2" class="w-8 h-8 animate-spin text-primary"></i>
+                    </div>
+                </section>
+
+                <!-- Payment Method Section -->
+                <section id="section-payment-selection"
+                    class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hidden"
+                    data-purpose="payment-selection">
+
+                    <!-- 備註欄 -->
+                    <div class="mb-6">
+                        <div class="flex items-center gap-2 mb-3">
+                            <i data-lucide="sticky-note" class="w-5 h-5 text-primary"></i>
+                            <h2 class="font-bold text-lg">備註 <span class="text-sm font-normal text-gray-400">（選填）</span></h2>
+                        </div>
+                        <textarea id="go-checkout-remarks" rows="3"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none transition-all"
+                            placeholder="例如：不要吸管、袋裝、其他特殊需求…"></textarea>
+                    </div>
+
+                    <div class="flex items-center gap-2 mb-6">
+                        <i data-lucide="credit-card" class="w-5 h-5 text-primary"></i>
+                        <h2 class="font-bold text-lg">付款方式</h2>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label
+                            class="relative flex items-center p-4 rounded-xl border-2 border-primary bg-orange-50/20 cursor-pointer transition-all">
+                            <input checked class="w-4 h-4 text-primary focus:ring-primary border-gray-300"
+                                name="payment" type="radio" value="CREDIT_CARD" />
+                            <div class="ml-3 flex items-center gap-2">
+                                <span class="w-8 h-5 bg-slate-700 rounded flex items-center justify-center">
+                                    <i data-lucide="credit-card" class="w-3 h-3 text-white"></i>
+                                </span>
+                                <span class="font-bold text-sm">信用卡 / 簽帳金融卡</span>
+                            </div>
+                            <span class="absolute right-3 top-2 text-[10px] text-primary font-bold">選取中</span>
+                        </label>
+
+                        <label
+                            class="flex items-center p-4 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-all">
+                            <input class="w-4 h-4 text-primary focus:ring-primary border-gray-300" name="payment"
+                                type="radio" value="CASH" />
+                            <div class="ml-3 flex items-center gap-2">
+                                <span class="w-8 h-5 bg-gray-400 rounded flex items-center justify-center text-white">
+                                    <i data-lucide="banknote" class="w-3 h-3 text-white"></i>
+                                </span>
+                                <span class="font-medium text-sm text-gray-700">貨到付款</span>
+                            </div>
+                        </label>
+                        <label
+                            class="flex items-center p-4 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-all">
+                            <input class="w-4 h-4 text-primary focus:ring-primary border-gray-300" name="payment"
+                                type="radio" value="STORE_CREDIT" />
+                            <div class="ml-3 flex items-center gap-2">
+                                <span class="w-8 h-5 bg-orange-400 rounded flex items-center justify-center text-white">
+                                    <i data-lucide="wallet" class="w-3 h-3 text-white"></i>
+                                </span>
+                                <div>
+                                    <span class="font-medium text-sm text-gray-700 block leading-tight">儲值金付款</span>
+                                    <span class="text-[10px] text-gray-400">可用餘額: $<span
+                                            id="host-credit-balance">0</span></span>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </section>
+
+                <!-- Host Coupon Section -->
+                <section id="section-host-coupon"
+                    class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hidden" data-purpose="host-coupon">
+                    <div class="flex items-center gap-2 mb-4">
+                        <i data-lucide="ticket" class="w-5 h-5 text-primary"></i>
+                        <h2 class="font-bold text-lg">優惠券</h2>
+                    </div>
+                    <button id="host-open-coupon-btn" type="button"
+                        class="w-full border-2 border-dashed border-gray-200 hover:border-primary bg-white hover:bg-orange-50/30 text-gray-500 hover:text-primary font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="ticket" class="w-4 h-4"></i> 選擇優惠券
+                    </button>
+                    <div id="host-selected-coupon-display"
+                        class="hidden mt-3 p-3 rounded-xl border-2 border-emerald-200 bg-emerald-50/50 items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="ticket" class="w-4 h-4 text-emerald-600"></i>
+                            <div>
+                                <div id="host-selected-coupon-name" class="text-sm font-bold text-emerald-700"></div>
+                                <div id="host-selected-coupon-discount" class="text-xs text-emerald-500 font-medium">
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="hostRemoveCoupon()"
+                            class="text-red-400 hover:text-red-600 transition-colors p-1">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </section>
+            </div>
+            <!-- END: LeftColumn -->
+
+            <!-- BEGIN: RightColumn (Summary) -->
+            <aside class="lg:col-span-4 sticky top-24 space-y-4" data-purpose="checkout-summary">
+                <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-md">
+                    <h3 id="summary-title" class="text-xl font-bold mb-6">訂單摘要</h3>
+                    <div class="space-y-4 mb-8">
+                        <div class="flex justify-between text-gray-600">
+                            <span id="summary-subtotal-label">小計</span>
+                            <span id="summary-subtotal" class="font-medium">$0</span>
+                        </div>
+                        <div id="summary-delivery-row" class="flex justify-between text-gray-600 hidden">
+                            <span>外送費</span>
+                            <span id="summary-delivery-fee" class="font-medium">$0</span>
+                        </div>
+                        <div id="summary-coupon-row" class="flex justify-between text-emerald-600 hidden">
+                            <span>團員已付金額</span>
+                            <span id="summary-paid-amount" class="font-bold text-sm">$0</span>
+                        </div>
+                        <div class="pt-4 border-t border-gray-100 flex justify-between items-end">
+                            <span class="text-lg font-bold">總計</span>
+                            <div class="text-right">
+                                <span id="summary-total" class="text-3xl font-bold text-primary">$0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Important Notice for Host -->
+                    <div id="host-notice"
+                        class="bg-orange-50/50 p-4 rounded-xl border border-orange-100/50 flex gap-3 mb-6 hidden">
+                        <div class="text-primary mt-1">
+                            <i data-lucide="info" class="w-4 h-4"></i>
+                        </div>
+                        <p class="text-xs text-gray-600 leading-relaxed">
+                            作為團長，您需要先完成支付。若有團員尚未付款，將由您代墊剩餘金額。
+                        </p>
+                    </div>
+
+                    <button id="btn-main-action"
+                        class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 text-lg shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                        載入中...
+                    </button>
+                </div>
+            </aside>
+            <!-- END: RightColumn -->
+        </div>
+    </main>
+
+    <!-- BEGIN: Footer -->
+    <footer class="main-footer">
+
+        <div class="footer-content">
+
+
+            <div class="footer-left">
+                <img src="images/logo.png" alt="JOIN 探飲 LOGO" class="footer-logo">
+
+                <div class="footer-desc">
+                    最懂你的飲品揪團平台。<br>
+                    不管是辦公室下午茶，還是好友聚會，<br>
+                    一鍵發起，輕鬆揪飲！
+                </div>
+            </div>
+
+            <div class="footer-right">
+
+                <div class="footer-contact-title">
+                    聯絡我們
+                </div>
+
+                <div class="footer-contact-list">
+
+                    <div class="footer-contact-item">
+                        <i class="fa-regular fa-envelope"></i>
+                        join_drink@gmail.com
+                    </div>
+
+                    <div class="footer-contact-item">
+                        <i class="fa-solid fa-phone"></i>
+                        04-1234-5678
+                    </div>
+
+                    <div class="footer-contact-item">
+                        <i class="fa-solid fa-location-dot"></i>
+                        408臺中市南屯區公益路二段51號18樓
+                    </div>
+
+                </div>
+
+            </div>
+
+
+        </div>
+
+        <div class="footer-bottom">
+            © 2026 JOIN 揪飲 - 本平台供飲品揪團平台. All Rights Reserved.
+        </div>
+
+    </footer>
+    <!-- END: Footer -->
+
+    <!-- ========================================== -->
+    <!-- Modals Section                             -->
+    <!-- ========================================== -->
+
+    <!-- Member Checkout Review Modal -->
+    <div id="member-checkout-modal"
+        class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white w-full md:max-w-md md:rounded-2xl rounded-t-2xl flex flex-col max-h-[90vh] shadow-xl">
+            <div class="px-5 py-4 border-b flex justify-between items-center shrink-0">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <i data-lucide="receipt" class="w-5 h-5 text-primary"></i> 確認個人餐點
+                </h2>
+                <button id="btn-close-member-checkout"
+                    class="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">
+                    <i data-lucide="x" class="w-5 h-5 text-gray-700"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-5 relative bg-gray-50/50">
+                <p class="text-sm text-gray-500 mb-4">以下是您在此揪團中尚未付款的餐點：</p>
+                <div id="member-checkout-items" class="space-y-3 mb-6">
+                    <!-- Items injected here (Merged by Key) -->
+                </div>
+
+                <!-- Coupon Selection Section -->
+                <div class="mb-4">
+                    <button id="go-open-coupon-modal-btn" type="button"
+                        class="w-full border-2 border-dashed border-gray-200 hover:border-primary bg-white hover:bg-orange-50/30 text-gray-500 hover:text-primary font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="ticket" class="w-4 h-4"></i> 選擇優惠券
+                    </button>
+                    <div id="go-selected-coupon-display"
+                        class="hidden mt-3 p-3 rounded-xl border-2 border-emerald-200 bg-emerald-50/50 items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="ticket" class="w-4 h-4 text-emerald-600"></i>
+                            <div>
+                                <div id="go-selected-coupon-name" class="text-sm font-bold text-emerald-700"></div>
+                                <div id="go-selected-coupon-discount" class="text-xs text-emerald-500 font-medium">
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="goRemoveCoupon()"
+                            class="text-red-400 hover:text-red-600 transition-colors p-1">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                    <span class="font-bold text-gray-700">個人應付總額</span>
+                    <span id="member-checkout-total" class="font-bold text-2xl text-primary">$0</span>
+                </div>
+            </div>
+
+            <div class="p-4 border-t bg-white shrink-0 rounded-b-2xl space-y-4">
+                <!-- 選擇付款方式 -->
+                <div>
+                    <p class="text-sm font-bold text-gray-700 mb-2">選擇付款方式</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label
+                            class="relative flex items-center p-3 rounded-xl border-2 border-primary bg-orange-50/20 cursor-pointer transition-all member-pay-option">
+                            <input checked type="radio" name="member-payment" value="CREDIT_CARD" class="sr-only">
+                            <i data-lucide="credit-card" class="w-4 h-4 text-primary mr-2 member-pay-icon"></i>
+                            <span class="font-bold text-sm text-gray-800 member-pay-text">信用卡</span>
+                            <span
+                                class="absolute right-2 top-2 text-[10px] text-primary font-bold member-pay-check">✓</span>
+                        </label>
+                        <label
+                            class="relative flex items-center p-3 rounded-xl border border-gray-100 bg-white cursor-pointer transition-all member-pay-option hover:bg-gray-50">
+                            <input type="radio" name="member-payment" value="STORE_CREDIT" class="sr-only">
+                            <i data-lucide="wallet" class="w-4 h-4 text-gray-400 mr-2 member-pay-icon"></i>
+                            <div class="min-w-0">
+                                <span
+                                    class="font-bold text-sm text-gray-500 member-pay-text block leading-tight">儲值金</span>
+                                <span class="text-[10px] text-gray-400">可用餘額: $<span
+                                        id="member-credit-balance">0</span></span>
+                            </div>
+                            <span
+                                class="absolute right-2 top-2 text-[10px] text-primary font-bold member-pay-check hidden">✓</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button id="btn-confirm-member-pay"
+                    class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm text-lg">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i> 確認付款
+                </button>
+                <button id="btn-cancel-member-pay"
+                    class="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 font-bold py-2.5 rounded-xl transition-colors text-sm">
+                    返回購物車
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Order Coupon Modal -->
+    <div id="go-coupon-modal"
+        class="hidden fixed inset-0 bg-slate-900/60 z-[60] flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm">
+        <div class="bg-white w-full md:max-w-md md:rounded-2xl rounded-t-2xl flex flex-col max-h-[80vh] shadow-xl">
+            <div class="px-5 py-4 border-b flex justify-between items-center shrink-0">
+                <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <i data-lucide="ticket" class="w-5 h-5 text-primary"></i> 選擇優惠券
+                </h2>
+                <button onclick="goCloseCouponModal()"
+                    class="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">
+                    <i data-lucide="x" class="w-5 h-5 text-gray-700"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-5 bg-gray-50/50">
+                <div id="go-coupon-list-container" class="space-y-3">
+                    <p class="text-center text-gray-400 py-10">載入中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Premium Customization Modal -->
+    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 hidden"
+        id="customization-modal">
+        <div
+            class="bg-white w-full max-w-[500px] max-h-[92vh] overflow-y-auto scrollbar-hide rounded-xl shadow-2xl flex flex-col relative px-2">
+            <header
+                class="sticky top-0 z-50 flex items-center justify-between border-b border-slate-200 bg-white/95 backdrop-blur px-6 py-4">
+                <div class="flex items-center gap-3 text-slate-900">
+                    <i data-lucide="coffee" class="text-brand-orange w-6 h-6"></i>
+                    <h2 class="text-lg font-bold leading-tight" id="modal-product-name">修改品項</h2>
+                </div>
+                <button
+                    class="flex items-center justify-center rounded-full w-10 h-10 bg-slate-100 text-slate-600 hover:bg-primary/10 hover:text-primary transition-colors"
+                    onclick="closeEditModal()">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </header>
+            <div class="flex-1">
+                <div class="p-6">
+                    <div class="flex justify-between items-start mb-2">
+                        <h1 class="text-2xl font-bold text-slate-900" id="modal-product-title">飲品名稱</h1>
+                        <p class="text-xl font-bold text-primary" id="modal-product-price-display">$0</p>
+                    </div>
+                    <p class="text-slate-600 text-sm leading-relaxed mb-6" id="modal-product-description">修改您的點餐客製化選項。
+                    </p>
+
+                    <!-- Dynamic Customization Groups will be injected here -->
+                    <div id="modal-dynamic-specs" class="space-y-4">
+                        <!-- Example: Size, Ice, Sweetness, Base, etc. -->
+                    </div>
+                    <div class="mt-4">
+                        <h3 class="text-base font-bold text-slate-900 mb-2" id="modal-topping-title">加料</h3>
+                        <div class="grid grid-cols-2 gap-2" id="modal-topping-options" data-custom-group="Topping">
+                            <!-- Dynamic -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <footer
+                class="sticky bottom-0 bg-white border-t border-slate-200 p-6 flex flex-col gap-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                <div class="flex items-center justify-between">
+                    <span class="text-slate-900 font-bold">數量</span>
+                    <div class="flex items-center gap-4 bg-slate-100 rounded-full px-4 py-2">
+                        <button id="modal-qty-minus" class="text-slate-500 hover:text-primary transition-colors">
+                            <i data-lucide="minus" class="w-4 h-4"></i>
+                        </button>
+                        <span id="modal-qty-display"
+                            class="text-slate-900 font-bold text-lg min-w-[20px] text-center">1</span>
+                        <button id="modal-qty-plus" class="text-slate-500 hover:text-primary transition-colors">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+                <button id="save-edit-btn"
+                    class="w-full bg-primary hover:bg-orange-600 text-white py-4 rounded-xl font-bold text-lg flex justify-between items-center px-8 transition-all active:scale-[0.98]">
+                    <span>儲存修改</span>
+                    <span id="modal-footer-price-display" class="bg-white/20 px-3 py-1 rounded-lg">總計 $0</span>
+                </button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Group Order Share Modal -->
+    <div id="group-order-modal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 hidden">
+        <div
+            class="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col items-center p-6 relative">
+            <button onclick="document.getElementById('group-order-modal').classList.add('hidden')"
+                class="absolute top-4 right-4 p-1.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">
+                <i data-lucide="x" class="w-5 h-5 text-gray-700"></i>
+            </button>
+            <h3 class="text-xl font-bold text-gray-800 mb-2 mt-2">揪團專屬連結</h3>
+            <p class="text-sm text-gray-500 mb-6 text-center">掃描二維碼或複製下方連結邀請好友</p>
+
+            <div class="bg-white p-2 rounded-xl border border-gray-100 mb-6 inline-block shadow-sm">
+                <div id="qrcode"></div>
+            </div>
+
+            <button id="copy-link-btn"
+                class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm">
+                <i data-lucide="copy" class="w-4 h-4"></i> 複製連結
+            </button>
+            <input id="group-link-input" type="text" readonly class="sr-only">
+        </div>
+    </div>
+
+    <!-- Location Selection Modal Overlay -->
+    <!-- Location Selection Modal Overlay -->
+    <!-- Added id="locationModal" and class "hidden" so it's hidden by default -->
+    <div id="locationModal"
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+        <!-- Modal Container -->
+        <!-- Removed inline onclick preventing propagation, handled in script now -->
+        <div
+            class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all transform">
+            <!-- Close Button -->
+            <!-- Removed inline style change and added id="closeModalBtn" -->
+            <button id="closeModalBtn"
+                class="absolute top-6 right-6 z-10 p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+
+            <!-- Modal Body -->
+            <div class="overflow-y-auto p-8 space-y-6 scrollbar-hide">
+                <!-- Header -->
+                <div class="text-center">
+                    <h3 class="text-2xl font-bold text-brand-dark">選擇您的位置</h3>
+                </div>
+
+                <!-- Map Container (hidden, reserved for future use) -->
+                <div id="map-container"
+                    class="relative w-full aspect-video rounded-3xl overflow-hidden border border-gray-100 shadow-inner z-0 hidden"
+                    style="height: 240px;">
+                    <div class="flex items-center justify-center h-full bg-gray-50">
+                        <span class="text-sm text-gray-400">地圖載入中...</span>
+                    </div>
+                </div>
+
+                <!-- GPS Action -->
+                <div class="space-y-3">
+                    <button
+                        class="w-full flex items-center justify-center gap-2 h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+                        <i data-lucide="map-pin" class="w-5 h-5"></i>
+                        <span>自動定位</span>
+                    </button>
+                    <p class="text-center text-sm text-brand-text-gray">
+                        獲取精確位置以獲得更好的送餐體驗
+                    </p>
+                    <!-- 定位反映欄位 -->
+                    <div id="modal-gps-status-row"
+                        class="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white transition-all duration-200">
+                        <div id="modal-gps-indicator"
+                            class="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0 flex items-center justify-center">
+                        </div>
+                        <span id="modal-gps-status-text" class="text-sm text-gray-400">尚未定位</span>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div class="flex items-center gap-4 py-2">
+                    <div class="h-px flex-1 bg-gray-100"></div>
+                    <span class="text-sm font-medium text-gray-400">或</span>
+                    <div class="h-px flex-1 bg-gray-100"></div>
+                </div>
+
+                <!-- City / District / Address -->
+                <div class="space-y-4">
+                    <!-- Hidden elements kept for nav-auth.js compatibility -->
+                    <input id="modal-address-input" type="hidden" />
+                    <button id="modal-search-btn" type="button" class="hidden" aria-hidden="true"></button>
+                    <!-- 縣市 + 行政區 -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="relative z-20">
+                            <label class="block text-sm font-bold text-gray-600 mb-2">縣市 <span
+                                    class="text-red-500">*</span></label>
+                            <div class="relative w-full">
+                                <input type="text" id="modal-city" placeholder="請搜尋或選擇縣市" autocomplete="off"
+                                    class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow cursor-text text-sm" />
+                                <i data-lucide="chevron-down"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                                <div id="modal-city-dropdown"
+                                    class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="relative z-10">
+                            <label class="block text-sm font-bold text-gray-600 mb-2">行政區 <span
+                                    class="text-red-500">*</span></label>
+                            <div class="relative w-full">
+                                <input type="text" id="modal-district" placeholder="請先選擇縣市" disabled autocomplete="off"
+                                    class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow disabled:opacity-50 disabled:cursor-not-allowed cursor-text text-sm" />
+                                <i data-lucide="chevron-down"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                                <div id="modal-district-dropdown"
+                                    class="hidden absolute top-full left-0 z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] max-h-48 overflow-y-auto overflow-x-hidden">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 新增地址 -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-sm font-bold text-gray-600">新增地址</label>
+                            <span class="text-xs text-gray-400">範例格式：新安路一段5號</span>
+                        </div>
+                        <input id="modal-street"
+                            class="w-full px-4 py-3 outline-none rounded-xl border-none bg-gray-50 focus:ring-2 focus:ring-brand-orange text-brand-dark placeholder:text-gray-400 transition-shadow text-sm"
+                            placeholder="請輸入完整地址（不含大樓名稱、樓層資訊）" type="text" />
+                    </div>
+
+                    <!-- 常用地址選擇面板 -->
+                    <div id="common-address-panel" class="hidden space-y-2 pt-2">
+                        <p class="text-sm font-bold text-gray-600">選擇常用地址</p>
+                        <div id="common-address-list" class="space-y-2 max-h-44 overflow-y-auto scrollbar-hide">
+                            <!-- 由 JS 動態注入 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-8 bg-gray-50 border-t border-gray-100 space-y-4">
+                <div class="flex gap-4">
+                    <button id="commonAddressBtn"
+                        class="w-full flex items-center justify-center gap-2 h-14 bg-gray-100 text-brand-dark rounded-2xl font-medium hover:bg-gray-200 transition-colors">
+                        <i data-lucide="history" class="w-5 h-5"></i>
+                        <span>使用常用地址</span>
+                    </button>
+                    <button id="confirmLocationBtn"
+                        class="w-full h-14 bg-brand-orange text-white rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-200">
+                        確認位置
+                    </button>
+                </div>
+                <p class="text-[11px] text-center text-gray-400 leading-relaxed px-4">
+                    您的位置僅用於計算運費與提供鄰近餐廳建議
+                </p>
+            </div>
+        </div>
+    </div>
+    <script src="js/official-map-logic.js"></script>
+    <script src="js/location-modal-logic.js"></script>
+    <script src="js/cartHash.js"></script>
+    <script src="js/nav-auth.js"></script>
+
+    <!-- Scripts -->
+    <script>
+        // 自動攔截並在所有 fetch 請求帶入 JWT Token，解決純 fetch 的 403 Forbidden 錯誤
+        const originalFetch = window.fetch;
+        window.fetch = async function (url, options = {}) {
+            if (typeof url === 'string' && url.includes('/api/')) {
+                options.headers = options.headers || {};
+                const token = localStorage.getItem('JOIN_TOKEN');
+                if (token && !options.headers['Authorization'] && !options.headers['authorization']) {
+                    options.headers['Authorization'] = `Bearer ${token}`;
+                }
+            }
+            return originalFetch(url, options);
+        };
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 安全導航攔截器
+            const navigateTo = (url) => {
+                if (!url || typeof url !== 'string' || url.trim() === '') return;
+                try {
+                    window.location.href = url;
+                } catch (e) {
+                    try {
+                        const a = document.createElement('a');
+                        a.href = url;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    } catch (err) {
+                        console.error('導航失敗：', err);
+                    }
+                }
+            };
+
+            // Initialize Icons
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            // Setup Auth & User Info
+            const userId = localStorage.getItem('JOIN_USER_ID');
+            if (!userId) {
+                showToast('請先登入以檢視團購資訊', 'warning');
+                navigateTo('auth/login.html?redirect=group_order.html');
+                return;
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            let groupOrderToken = urlParams.get('token');
+            let storeId = urlParams.get('storeId') || urlParams.get('id') || '';
+
+            // DOM Elements
+            const orderItemsContainer = document.querySelector('[data-purpose="order-items"]');
+            const summarySubtotal = document.getElementById('summary-subtotal');
+            const summaryDeliveryFee = document.getElementById('summary-delivery-fee');
+            const summaryTotal = document.getElementById('summary-total');
+            const summaryTitle = document.getElementById('summary-title');
+            const summaryDeliveryRow = document.getElementById('summary-delivery-row');
+            const btnMainAction = document.getElementById('btn-main-action');
+
+            const roleBadge = document.getElementById('role-badge');
+            const hostControls = document.getElementById('host-controls');
+            const memberControls = document.getElementById('member-controls');
+            const hostNotice = document.getElementById('host-notice');
+
+            const btnStatusOpen = document.getElementById('btn-status-open');
+            const btnStatusLocked = document.getElementById('btn-status-locked');
+
+            const sectionDelivery = document.getElementById('section-delivery-method');
+            const sectionAddress = document.getElementById('section-delivery-address');
+            const sectionPayment = document.getElementById('section-payment-selection');
+
+            const btnDelivery = document.getElementById('btn-delivery');
+            const btnPickup = document.getElementById('btn-pickup');
+
+            // Structured Address elements
+            const goCheckoutCity = document.getElementById('go-checkout-city');
+            const goCheckoutDistrict = document.getElementById('go-checkout-district');
+            const goCheckoutStreet = document.getElementById('go-checkout-street');
+
+            const btnTriggerMemberCheckout = document.getElementById('btn-trigger-member-checkout');
+            const memberModal = document.getElementById('member-checkout-modal');
+            const btnCloseMemberModal = document.getElementById('btn-close-member-checkout');
+            const btnCancelMemberModal = document.getElementById('btn-cancel-member-pay');
+            const btnConfirmMemberPay = document.getElementById('btn-confirm-member-pay');
+
+            const customizationModal = document.getElementById('customization-modal');
+            const saveEditBtn = document.getElementById('save-edit-btn');
+
+            // State Variables
+            let currentStatus = 'OPEN';
+            let isHost = false;
+            let currentEditingItemId = null;
+            let cachedGroupData = null;
+            let storeDataForLink = null;
+            let currentStoreConfig = null;
+            let currentMaxToppings = 3; // 新增：加料上限紀錄
+
+            // UI State Variables
+            let currentDeliveryType = 'delivery';
+            let globalSubtotal = 0;
+            let globalTotalCups = 0;
+            let globalHasUnpaidItemsForMe = false;
+            let globalMyUnpaidAmount = 0;
+            let globalMySubtotal = 0;
+            let globalMyCups = 0;
+            let globalPaidAmountByOthers = 0;
+
+            // Coupon state
+            let goSelectedCoupon = null;
+            let goUserCoupons = [];
+            let hostSelectedCoupon = null;
+
+            // ==========================================
+            // Structured Address: Taiwan Regions Data
+            // ==========================================
+            const taiwanRegions = {
+                "台北市": ["中正區", "大同區", "中山區", "松山區", "大安區", "萬華區", "信義區", "士林區", "北投區", "內湖區", "南港區", "文山區"],
+                "新北市": ["板橋區", "三重區", "中和區", "永和區", "新莊區", "新店區", "樹林區", "鶯歌區", "三峽區", "淡水區", "汐止區", "瑞芳區", "土城區", "蘆洲區", "五股區", "泰山區", "林口區", "深坑區", "石碇區", "坪林區", "三芝區", "石門區", "八里區", "平溪區", "雙溪區", "貢寮區", "金山區", "萬里區", "烏來區"],
+                "桃園市": ["桃園區", "中壢區", "大溪區", "楊梅區", "蘆竹區", "大園區", "龜山區", "八德區", "龍潭區", "平鎮區", "新屋區", "觀音區", "復興區"],
+                "台中市": ["中區", "東區", "南區", "西區", "北區", "北屯區", "西屯區", "南屯區", "太平區", "大里區", "霧峰區", "烏日區", "豐原區", "后里區", "石岡區", "東勢區", "和平區", "新社區", "潭子區", "大雅區", "神岡區", "大肚區", "沙鹿區", "龍井區", "梧棲區", "清水區", "大甲區", "外埔區", "大安區"],
+                "台南市": ["中西區", "東區", "南區", "北區", "安平區", "安南區", "永康區", "歸仁區", "新化區", "左鎮區", "玉井區", "楠西區", "南化區", "仁德區", "關廟區", "龍崎區", "官田區", "麻豆區", "佳里區", "西港區", "七股區", "將軍區", "學甲區", "北門區", "新營區", "後壁區", "白河區", "東山區", "六甲區", "下營區", "柳營區", "鹽水區", "善化區", "大內區", "山上區", "新市區", "安定區"],
+                "高雄市": ["楠梓區", "左營區", "鼓山區", "三民區", "鹽埕區", "前金區", "新興區", "苓雅區", "前鎮區", "旗津區", "小港區", "鳳山區", "林園區", "大寮區", "大樹區", "大社區", "仁武區", "鳥松區", "岡山區", "橋頭區", "燕巢區", "田寮區", "阿蓮區", "路竹區", "湖內區", "茄萣區", "永安區", "彌陀區", "梓官區", "旗山區", "美濃區", "六龜區", "甲仙區", "杉林區", "內門區", "茂林區", "桃源區", "那瑪夏區"],
+                "基隆市": ["仁愛區", "信義區", "中正區", "中山區", "安樂區", "暖暖區", "七堵區"],
+                "新竹市": ["東區", "北區", "香山區"],
+                "嘉義市": ["東區", "西區"],
+                "新竹縣": ["竹北市", "竹東鎮", "新埔鎮", "關西鎮", "湖口鄉", "新豐鄉", "芎林鄉", "橫山鄉", "北埔鄉", "寶山鄉", "峨眉鄉", "尖石鄉", "五峰鄉"],
+                "苗栗縣": ["苗栗市", "苑裡鎮", "通霄鎮", "竹南鎮", "頭份市", "後龍鎮", "卓蘭鎮", "大湖鄉", "公館鄉", "銅鑼鄉", "南庄鄉", "頭屋鄉", "三義鄉", "西湖鄉", "造橋鄉", "三灣鄉", "獅潭鄉", "泰安鄉"],
+                "彰化縣": ["彰化市", "鹿港鎮", "和美鎮", "線西鄉", "伸港鄉", "福興鄉", "秀水鄉", "花壇鄉", "芬園鄉", "員林市", "溪湖鎮", "田中鎮", "大村鄉", "埔鹽鄉", "埔心鄉", "永靖鄉", "社頭鄉", "二水鄉", "北斗鎮", "二林鎮", "田尾鄉", "埤頭鄉", "芳苑鄉", "大城鄉", "竹塘鄉", "溪州鄉"],
+                "南投縣": ["南投市", "埔里鎮", "草屯鎮", "竹山鎮", "集集鎮", "名間鄉", "鹿谷鄉", "中寮鄉", "魚池鄉", "國姓鄉", "水里鄉", "信義鄉", "仁愛鄉"],
+                "雲林縣": ["斗六市", "斗南鎮", "虎尾鎮", "西螺鎮", "土庫鎮", "北港鎮", "古坑鄉", "大埤鄉", "莿桐鄉", "林內鄉", "二崙鄉", "崙背鄉", "麥寮鄉", "東勢鄉", "褒忠鄉", "臺西鄉", "元長鄉", "四湖鄉", "口湖鄉", "水林鄉"],
+                "嘉義縣": ["太保市", "朴子市", "布袋鎮", "大林鎮", "民雄鄉", "溪口鄉", "新港鄉", "六腳鄉", "東石鄉", "義竹鄉", "鹿草鄉", "水上鄉", "中埔鄉", "竹崎鄉", "梅山鄉", "番路鄉", "大埔鄉", "阿里山鄉"],
+                "屏東縣": ["屏東市", "潮州鎮", "東港鎮", "恆春鎮", "萬丹鄉", "長治鄉", "麟洛鄉", "九如鄉", "里港鄉", "鹽埔鄉", "高樹鄉", "萬巒鄉", "內埔鄉", "竹田鄉", "新埤鄉", "枋寮鄉", "新園鄉", "崁頂鄉", "林邊鄉", "南州鄉", "佳冬鄉", "琉球鄉", "車城鄉", "滿州鄉", "枋山鄉", "三地門鄉", "霧臺鄉", "瑪家鄉", "泰武鄉", "來義鄉", "春日鄉", "獅子鄉", "牡丹鄉"],
+                "宜蘭縣": ["宜蘭市", "羅東鎮", "蘇澳鎮", "頭城鎮", "礁溪鄉", "壯圍鄉", "員山鄉", "冬山鄉", "五結鄉", "三星鄉", "大同鄉", "南澳鄉"],
+                "花蓮縣": ["花蓮市", "鳳林鎮", "玉里鎮", "新城鄉", "吉安鄉", "壽豐鄉", "光復鄉", "豐濱鄉", "瑞穗鄉", "富里鄉", "秀林鄉", "萬榮鄉", "卓溪鄉"],
+                "臺東縣": ["臺東市", "成功鎮", "關山鎮", "卑南鄉", "大武鄉", "太麻里鄉", "東河鄉", "長濱鄉", "鹿野鄉", "池上鄉", "綠島鄉", "延平鄉", "海端鄉", "達仁鄉", "金峰鄉", "蘭嶼鄉"],
+                "澎湖縣": ["馬公市", "湖西鄉", "白沙鄉", "西嶼鄉", "望安鄉", "七美鄉"],
+                "金門縣": ["金城鎮", "金湖鎮", "金沙鎮", "金寧鄉", "烈嶼鄉", "烏坵鄉"],
+                "連江縣": ["南竿鄉", "北竿鄉", "莒光鄉", "東引鄉"]
+            };
+
+            // Searchable Dropdown Factory
+            function setupSearchableDropdown(inputId, listId, initialOptions, onSelectCallback) {
+                const input = document.getElementById(inputId);
+                const list = document.getElementById(listId);
+                let options = initialOptions;
+                let currentValidValue = '';
+
+                function renderList(filterText = '') {
+                    const filtered = options.filter(opt => opt.toLowerCase().includes(filterText.toLowerCase()));
+                    if (filtered.length === 0) {
+                        list.innerHTML = `<div class="p-3 text-sm text-gray-500 text-center font-medium">找不到相符的結果</div>`;
+                        return;
+                    }
+                    list.innerHTML = filtered.map(opt =>
+                        `<div class="dropdown-item p-3 px-4 text-sm font-medium text-slate-700 hover:bg-orange-50 hover:text-primary cursor-pointer transition-colors" data-value="${opt}">${opt}</div>`
+                    ).join('');
+
+                    list.querySelectorAll('.dropdown-item').forEach(item => {
+                        item.addEventListener('mousedown', (e) => {
+                            e.preventDefault();
+                            const val = e.target.getAttribute('data-value');
+                            input.value = val;
+                            currentValidValue = val;
+                            list.classList.add('hidden');
+                            if (onSelectCallback) onSelectCallback(val);
+                        });
+                    });
+                }
+
+                input.addEventListener('focus', () => {
+                    renderList(input.value);
+                    list.classList.remove('hidden');
+                });
+
+                input.addEventListener('input', (e) => {
+                    renderList(e.target.value);
+                    list.classList.remove('hidden');
+                });
+
+                input.addEventListener('blur', () => {
+                    list.classList.add('hidden');
+                    if (!options.includes(input.value)) {
+                        input.value = currentValidValue;
+                    } else if (input.value !== currentValidValue) {
+                        currentValidValue = input.value;
+                        if (onSelectCallback) onSelectCallback(currentValidValue);
+                    }
+                });
+
+                return {
+                    setValue: (val) => {
+                        if (options.includes(val)) {
+                            input.value = val;
+                            currentValidValue = val;
+                            if (onSelectCallback) onSelectCallback(val);
+                        }
+                    },
+                    setOptions: (newOptions) => {
+                        options = newOptions;
+                        input.value = '';
+                        currentValidValue = '';
+                    },
+                    getValue: () => currentValidValue
+                };
+            }
+
+            let goDistrictController;
+            const goCityController = setupSearchableDropdown('go-checkout-city', 'go-city-dropdown-list', Object.keys(taiwanRegions), (selectedCity) => {
+                const distInput = document.getElementById('go-checkout-district');
+                if (selectedCity && taiwanRegions[selectedCity]) {
+                    distInput.disabled = false;
+                    distInput.placeholder = '請搜尋或選擇行政區';
+                    goDistrictController.setOptions(taiwanRegions[selectedCity]);
+                } else {
+                    distInput.disabled = true;
+                    distInput.placeholder = '請先選擇縣市';
+                    goDistrictController.setOptions([]);
+                }
+            });
+            goDistrictController = setupSearchableDropdown('go-checkout-district', 'go-district-dropdown-list', [], () => { });
+
+            // Auto-load user profile address
+            NavAuth.fetchAPI(`/api/users/${userId}`)
+                .then(user => {
+                    // Update credit balance
+                    const balance = user.balance || 0;
+                    const hBalance = document.getElementById('host-credit-balance');
+                    if (hBalance) hBalance.innerText = balance;
+                    const mBalance = document.getElementById('member-credit-balance');
+                    if (mBalance) mBalance.innerText = balance;
+
+                    if (user.city && taiwanRegions[user.city]) {
+                        goCityController.setValue(user.city);
+                        if (user.district && taiwanRegions[user.city].includes(user.district)) {
+                            goDistrictController.setValue(user.district);
+                        }
+                    }
+                    if (user.street) document.getElementById('go-checkout-street').value = user.street;
+                })
+                .catch(err => console.error('Error fetching user profile for address:', err));
+
+            let isAddressConfirmed = false;
+            let confirmedLat = null;
+            let confirmedLng = null;
+
+            function checkDeliveryAvailability(showAlert = false) {
+                if (!currentStoreConfig || currentStatus !== 'LOCKED') return;
+
+                const allItems = cachedGroupData?.items || [];
+                const baseSubtotal = allItems.reduce((sum, item) => {
+                    const itemPrice = parseFloat(item.unitPrice || item.unitPriceSnapshot || 0);
+                    const quantity = parseInt(item.quantity || 1);
+                    const discountAmount = parseFloat(item.discountAmount || 0) || 0;
+                    const grossTotal = parseFloat(item.finalPrice || 0) || (itemPrice * quantity);
+                    const itemTotal = Math.max(0, grossTotal - discountAmount);
+                    return sum + itemTotal;
+                }, 0);
+
+                let isAvailable = true;
+                let reason = '';
+
+                // Logical Check: Only enforce address requirements if DELIVERY is selected
+                if (!currentStoreConfig.isDeliveryAvailable) {
+                    isAvailable = false;
+                    reason = '店家未開放外送';
+                } else if (currentDeliveryType === 'delivery') {
+                    const city = document.getElementById('go-checkout-city').value;
+                    const district = document.getElementById('go-checkout-district').value;
+                    const street = document.getElementById('go-checkout-street').value;
+
+                    if (!city || !district || !street) {
+                        isAvailable = false;
+                        reason = `請填寫完整地址並點擊確認`;
+                    } else if (!isAddressConfirmed) {
+                        isAvailable = false;
+                        reason = `請點擊確認地址以檢查範圍`;
+                    } else {
+                        if (baseSubtotal < (currentStoreConfig.minDeliveryAmount || 0)) {
+                            isAvailable = false;
+                            reason = `未達外送門檻：$${currentStoreConfig.minDeliveryAmount} (目前已選商品總額: $${Math.round(baseSubtotal)})`;
+                        } else if (currentStoreConfig.maxDeliveryKm > 0) {
+                            if (confirmedLat && confirmedLng && currentStoreConfig.latitude && currentStoreConfig.longitude) {
+                                const realDist = MapLogic.calculateDistance(
+                                    confirmedLat, confirmedLng,
+                                    parseFloat(currentStoreConfig.latitude), parseFloat(currentStoreConfig.longitude)
+                                );
+                                if (realDist > currentStoreConfig.maxDeliveryKm) {
+                                    isAvailable = false;
+                                    reason = `超出範圍 (預估 ${realDist.toFixed(1)}km > 限制 ${currentStoreConfig.maxDeliveryKm}km)`;
+                                }
+                            } else {
+                                // Fallback to mock if coordinates are missing
+                                const addressStr = city + district + street;
+                                let hash = 0;
+                                for (let i = 0; i < addressStr.length; i++) hash = addressStr.charCodeAt(i) + ((hash << 5) - hash);
+                                const mockDist = Math.abs(hash) % 100 / 10.0;
+                                if (mockDist > currentStoreConfig.maxDeliveryKm) {
+                                    isAvailable = false;
+                                    reason = `超出範圍 (預估 ${mockDist.toFixed(1)}km > 限制 ${currentStoreConfig.maxDeliveryKm}km)`;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // UI Update Section
+                if (!isAvailable) {
+                    // Only disable the DELIVERY button if the STORE doesn't support it at all
+                    const reallyUnavailable = !currentStoreConfig.isDeliveryAvailable;
+
+                    if (reallyUnavailable) {
+                        btnDelivery.disabled = true;
+                        btnDelivery.classList.add('opacity-50', 'cursor-not-allowed');
+                        if (currentDeliveryType === 'delivery') {
+                            btnPickup.click();
+                            showToast('外送不適用：' + reason, 'warning');
+                        }
+                    } else {
+                        btnDelivery.disabled = false;
+                        btnDelivery.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
+
+                    btnDelivery.title = reason;
+
+                    if (currentDeliveryType === 'delivery') {
+                        let warnMsg = document.getElementById('go-delivery-warn-msg');
+                        if (!warnMsg) {
+                            warnMsg = document.createElement('div');
+                            warnMsg.id = 'go-delivery-warn-msg';
+                            warnMsg.className = 'w-full text-center text-xs text-red-500 font-bold px-2 mt-2';
+                            btnDelivery.parentElement.parentElement.appendChild(warnMsg);
+                        }
+                        warnMsg.innerText = reason;
+
+                        btnMainAction.disabled = true;
+                        btnMainAction.classList.add('opacity-50', 'cursor-not-allowed');
+                        btnMainAction.title = reason;
+                    } else {
+                        const warnMsg = document.getElementById('go-delivery-warn-msg');
+                        if (warnMsg) warnMsg.remove();
+
+                        // If it's pickup, it's logically available even if delivery validation fails
+                        btnMainAction.disabled = false;
+                        btnMainAction.classList.remove('opacity-50', 'cursor-not-allowed');
+                        btnMainAction.title = '';
+                    }
+                } else {
+                    // Fully available
+                    btnDelivery.disabled = !currentStoreConfig.isDeliveryAvailable;
+                    btnDelivery.title = '';
+                    btnDelivery.classList.remove('opacity-50', 'cursor-not-allowed');
+                    const warnMsg = document.getElementById('go-delivery-warn-msg');
+                    if (warnMsg) warnMsg.remove();
+
+                    btnMainAction.disabled = false;
+                    btnMainAction.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btnMainAction.title = '';
+                }
+            }
+
+            window.goConfirmAddress = async () => {
+                const city = document.getElementById('go-checkout-city').value;
+                const district = document.getElementById('go-checkout-district').value;
+                const street = document.getElementById('go-checkout-street').value;
+
+                if (!city || !district || !street) {
+                    showToast('請填寫完整地址', 'warning');
+                    return;
+                }
+
+                const confirmBtn = document.querySelector('button[onclick="goConfirmAddress()"]');
+                const originalText = confirmBtn ? confirmBtn.innerHTML : '確認地址';
+                if (confirmBtn) {
+                    confirmBtn.disabled = true;
+                    confirmBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> 檢查中...';
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+
+                try {
+                    const fullAddress = `${city}${district}${street}`;
+                    const result = await MapLogic.geocode(fullAddress, { city, district, street });
+
+                    if (result) {
+                        confirmedLat = result.lat;
+                        confirmedLng = result.lng;
+                        isAddressConfirmed = true;
+                        checkDeliveryAvailability(true);
+
+                        // UI feedback
+                        const warnMsg = document.getElementById('go-delivery-warn-msg');
+                        if (!warnMsg || !btnDelivery.disabled) {
+                            document.getElementById('go-address-input-area').classList.add('hidden');
+                            const displayArea = document.getElementById('go-address-display-area');
+                            displayArea.classList.remove('hidden');
+                            displayArea.classList.add('flex');
+                            document.getElementById('go-display-address-text').innerText = `${city}${district}${street}`;
+                        } else {
+                            isAddressConfirmed = false;
+                        }
+                    } else {
+                        showToast('無法辨識此地址，請檢查輸入是否正確', 'error');
+                    }
+                } catch (err) {
+                    console.error('Confirm address error:', err);
+                    showToast('地址驗證失敗，請稍後再試', 'error');
+                } finally {
+                    if (confirmBtn) {
+                        confirmBtn.disabled = false;
+                        confirmBtn.innerHTML = originalText;
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                    }
+                }
+            };
+
+            window.goEditAddress = () => {
+                isAddressConfirmed = false;
+                document.getElementById('go-address-input-area').classList.remove('hidden');
+                document.getElementById('go-address-display-area').classList.add('hidden');
+                document.getElementById('go-address-display-area').classList.remove('flex');
+                checkDeliveryAvailability(false);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            };
+
+            // ==========================================
+            // Delivery / Pickup Toggle Logic
+            // ==========================================
+            btnDelivery.addEventListener('click', () => {
+                if (btnDelivery.disabled) return;
+                currentDeliveryType = 'delivery';
+                btnDelivery.className = 'flex-1 py-3 px-6 bg-primary text-white rounded-xl font-medium text-center transition hover:opacity-90 shadow-[inset_0_0_0_2px_var(--primary-orange)]';
+                btnPickup.className = 'flex-1 py-3 px-6 bg-gray-50 text-gray-500 rounded-xl font-medium text-center border border-gray-100 hover:bg-gray-100 transition';
+
+                if (isHost && currentStatus === 'LOCKED') {
+                    sectionAddress.classList.remove('hidden');
+                }
+                updateSummaryUI(globalSubtotal, globalTotalCups, globalHasUnpaidItemsForMe, globalMyUnpaidAmount, globalMySubtotal, globalMyCups, globalPaidAmountByOthers);
+                checkDeliveryAvailability(true);
+            });
+
+            btnPickup.addEventListener('click', () => {
+                currentDeliveryType = 'pickup';
+                btnPickup.className = 'flex-1 py-3 px-6 bg-primary text-white rounded-xl font-medium text-center transition hover:opacity-90 shadow-[inset_0_0_0_2px_var(--primary-orange)]';
+                btnDelivery.className = 'flex-1 py-3 px-6 bg-gray-50 text-gray-500 rounded-xl font-medium text-center border border-gray-100 hover:bg-gray-100 transition';
+
+                sectionAddress.classList.add('hidden');
+                updateSummaryUI(globalSubtotal, globalTotalCups, globalHasUnpaidItemsForMe, globalMyUnpaidAmount, globalMySubtotal, globalMyCups, globalPaidAmountByOthers);
+                checkDeliveryAvailability(false); // Ensure button state and warnings are refreshed
+            });
+
+            // ==========================================
+            // 核心功能：定義完全相同的品項並產生 CartItemKey
+            // ==========================================
+            function generateItemKey(item) {
+                const toppingsStr = (item.toppings || []).map(t => t.name).sort().join(',');
+                const ice = item.ice || item.iceSnapshot || '';
+                const sugar = item.sugar || item.sugarSnapshot || '';
+                const size = item.size || item.sizeSnapshot || '';
+                // Include ice/sugar/size/toppings in key to prevent merging different ones
+                return `${item.productId || 'NO_ID'}_${item.productName || 'Unnamed'}_${toppingsStr}_${ice}_${sugar}_${size}_${item.couponId || 'NONE'}_${item.discountAmount || 0}`;
+            }
+
+            // ==========================================
+            // UI 渲染：建立客製化標籤 (Tags)
+            // ==========================================
+            function createCustomizationTags(item) {
+                const sizeSnapshot = item.sizeSnapshot || item.size || "";
+                const iceSnapshot = item.iceSnapshot || item.ice || "";
+                const sugarSnapshot = item.sugarSnapshot || item.sugar || "";
+
+                const normalize = (s) => NavAuth.normalizeSpec(s);
+                let tags = [];
+                if (sizeSnapshot) tags.push(normalize(sizeSnapshot));
+                if (iceSnapshot) tags.push(normalize(iceSnapshot));
+                if (sugarSnapshot) tags.push(normalize(sugarSnapshot));
+
+                // Add toppings from the aggregate DTO
+                if (item.toppings && Array.isArray(item.toppings)) {
+                    item.toppings.forEach(t => {
+                        if (t && t.name) {
+                            const name = t.name;
+                            const price = t.price || 0;
+                            tags.push(price > 0 ? `${name} (+$${Math.round(price)})` : name);
+                        }
+                    });
+                }
+
+                // Final deduplication
+                const uniqueTags = [...new Set(tags)];
+                if (uniqueTags.length === 0) return '';
+
+                return `
+                    <div class="flex flex-wrap gap-1.5 mt-1.5 mb-2">
+                        ${uniqueTags.map(s => `<span class="px-2 py-0.5 bg-orange-50/50 text-primary border border-orange-100/60 rounded text-[11px] font-bold tracking-wide">${s}</span>`).join('')}
+                    </div>
+                `;
+            }
+
+            // ==========================================
+            // Main Logic: Load & Group Order
+            // ==========================================
+            async function loadGroupOrder() {
+                try {
+                    let fetchUrl = groupOrderToken ? NavAuth.getApiUrl(`/api/group-orders/join/${groupOrderToken}`) : NavAuth.getApiUrl(`/api/group-orders/active?userId=${userId}${storeId ? '&storeId=' + storeId : ''}`);
+
+                    const headers = {};
+                    const jwtToken = localStorage.getItem('JOIN_TOKEN');
+                    if (jwtToken) { headers['Authorization'] = `Bearer ${jwtToken}`; }
+
+                    const data = await NavAuth.fetchAPI(fetchUrl);
+                    if (!data) throw new Error('無法取得揪團資料');
+
+                    let groupOrder = data.groupOrder || (Array.isArray(data) ? (data.length > 0 ? data[0] : {}) : data);
+                    let items = data.items || (Array.isArray(data) ? (data.length > 0 ? (data[0].items || []) : []) : []);
+
+                    // Retry once if items are missing (could be DB sync latency)
+                    if (items.length === 0 && !window._hasRetriedLoad) {
+                        console.log('Items missing, retrying in 500ms...');
+                        window._hasRetriedLoad = true;
+                        setTimeout(loadGroupOrder, 500);
+                        return;
+                    }
+                    window._hasRetriedLoad = false;
+
+                    if (Array.isArray(data) && data.length > 0) {
+                        groupOrder = data[0].groupOrder || data[0];
+                        items = data[0].items || (Array.isArray(data[0]) ? data[0] : []);
+                        // Normalize the cached data for searching
+                        cachedGroupData = { groupOrder, items };
+                    } else {
+                        cachedGroupData = data;
+                    }
+
+                    groupOrderToken = groupOrder.shareToken || groupOrderToken;
+                    currentStatus = (groupOrder.status || 'OPEN').toUpperCase();
+                    isHost = groupOrder.initiatorId ? String(groupOrder.initiatorId) === String(userId) : false;
+                    storeDataForLink = groupOrder.storeId || storeId;
+
+                    // 更新發起人名稱顯示
+                    const initiatorDisplay = document.getElementById('initiator-name-display');
+                    if (initiatorDisplay) {
+                        initiatorDisplay.innerText = groupOrder.initiatorName || (isHost ? '我' : '團員');
+                    }
+
+                    let localSubtotal = 0;
+                    let localTotalCups = 0;
+                    // ... (此處省略部分程式碼以保持與目標比對一致)
+                    // 下方會繼續處理 Store Info
+                    let localMyUnpaidAmount = 0;
+                    let localHasUnpaidItemsForMe = false;
+                    let localMySubtotal = 0;
+                    let localMyCups = 0;
+                    let localPaidAmountByOthers = 0;
+
+                    if (items.length === 0) {
+                        renderEmptyCart();
+                    } else {
+                        // NEW: Fetch and display store name and config
+                        try {
+                            const storeResponse = await fetch(NavAuth.getApiUrl(`/api/stores/${storeDataForLink}`));
+                            if (storeResponse.ok) {
+                                const res = await storeResponse.json();
+                                const storeInfo = res.data || res;
+                                currentStoreConfig = storeInfo;
+                                document.getElementById('store-name-display').innerText = `(${storeInfo.storeName || storeInfo.name || '飲品實體店'})`;
+                                document.title = `${storeInfo.storeName || storeInfo.name || '揪團'} - JOIN 揪飲`;
+                                // Moved to end of loadGroupOrder to ensure globalSubtotal is fresh
+                            } else {
+                                document.getElementById('store-name-display').innerText = '';
+                            }
+                        } catch (e) {
+                            console.error('Failed to fetch store info:', e);
+                            document.getElementById('store-name-display').innerText = '團購結帳';
+                        }
+
+                        // 1. 跨店鋪與成員分組 (Store -> User -> CartItemKey)
+                        const stores = {};
+
+                        items.forEach(item => {
+                            const currentStoreId = item.storeId || groupOrder.storeId || storeId || 'default_store';
+                            const currentStoreName = item.storeName || groupOrder.storeName || '團購訂單';
+                            const uid = item.userId;
+                            const userName = item.userName || item.username || item.userNameSnapshot || `User ${uid}`;
+                            const isGroupHost = groupOrder.initiatorId ? String(uid) === String(groupOrder.initiatorId) : false;
+
+                            // 取得此項目的唯一識別碼
+                            const itemKey = generateItemKey(item);
+                            const itemQty = parseInt(item.qty || 0) || 1;
+                            // 使用後端 DTO 提供的 totalGroupPrice 作為此品項的總結算金額 (已包含該 row 的 qty)
+                            // 注意：DTO.totalGroupPrice 比 DTO.finalPrice 更可靠，因為後者已被修正為單杯單價
+                            const itemFullFinal = parseFloat(item.totalGroupPrice || 0) ||
+                                (parseFloat(item.finalPrice || item.unitPriceSnapshot || 0) * itemQty);
+
+                            // 建立層級
+                            if (!stores[currentStoreId]) stores[currentStoreId] = { storeName: currentStoreName, users: {} };
+                            if (!stores[currentStoreId].users[uid]) stores[currentStoreId].users[uid] = { userName, isHost: isGroupHost, mergedItems: {} };
+
+                            const userItems = stores[currentStoreId].users[uid].mergedItems;
+
+                            // 判斷是否為重複的 CartItemKey，進行合併累加
+                            if (!userItems[itemKey]) {
+                                userItems[itemKey] = {
+                                    ...item,
+                                    productName: item.productName || item.productNameSnapshot || '飲品',
+                                    unitPrice: item.unitPrice || item.unitPriceSnapshot || 0,
+                                    finalPrice: itemFullFinal,
+                                    note: item.note || item.customization || '',
+                                    qty: itemQty,
+                                    discountAmount: parseFloat(item.discountAmount || 0) || 0,
+                                    representativeId: (item.idList && item.idList.length > 0) ? item.idList[0] : item.id
+                                };
+                            } else {
+                                userItems[itemKey].qty += itemQty;
+                                userItems[itemKey].discountAmount += (parseFloat(item.discountAmount || 0) || 0);
+                                userItems[itemKey].finalPrice += itemFullFinal;
+                                // 取 paymentStatus 為 PAID 優先 (若有部分已付款的極端狀況)
+                                if (item.paymentStatus === 'PAID') userItems[itemKey].paymentStatus = 'PAID';
+                            }
+                        });
+
+                        // 2. 構建 HTML
+                        let html = '';
+
+                        Object.keys(stores).forEach(sId => {
+                            const storeInfo = stores[sId];
+                            html += `
+                                <div class="mb-8">
+                                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
+                                        <i data-lucide="store" class="w-5 h-5 text-gray-500"></i>
+                                        <h3 class="font-bold text-lg text-slate-800">${storeInfo.storeName}</h3>
+                                    </div>
+                            `;
+
+                            // 排序 User: 團長優先
+                            const sortedUsers = Object.entries(storeInfo.users).sort((a, b) => {
+                                if (a[1].isHost) return -1;
+                                if (b[1].isHost) return 1;
+                                return 0;
+                            });
+
+                            sortedUsers.forEach(([uid, group]) => {
+                                // Calculate if the entire group for this user is paid
+                                const allPaid = Object.values(group.mergedItems).every(item => item.paymentStatus && item.paymentStatus.toUpperCase() === 'PAID');
+
+                                html += `
+                                    <div class="mb-6">
+                                        <div class="flex items-center justify-between mb-3 w-full">
+                                            <div class="flex items-center gap-2">
+                                                ${group.isHost ? '<span class="bg-primary text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">團長</span>' : ''}
+                                                <span class="font-bold text-sm text-slate-700">${group.userName}${group.isHost ? ' (發起人)' : ''}</span>
+                                            </div>
+                                            ${allPaid
+                                        ? '<span class="text-[10px] px-2 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 whitespace-nowrap font-bold shadow-sm">已付款</span>'
+                                        : '<span class="text-[10px] px-2 py-1 bg-gray-100 text-gray-500 rounded-full border border-gray-200 whitespace-nowrap font-bold shadow-sm">待付款</span>'
+                                    }
+                                        </div>
+                                        <div class="space-y-3">
+                                `;
+
+                                // 迴圈渲染「合併後」的品項 (Merged Item)
+                                Object.values(group.mergedItems).forEach(item => {
+                                    const itemPrice = parseFloat(item.unitPrice || item.unitPriceSnapshot || 0) || 0;
+                                    const qty = item.qty || 1;
+                                    const discountAmount = parseFloat(item.discountAmount || 0) || 0;
+
+                                    // grossTotal 代表該合併組的總價 (單價 * 總數量)
+                                    const grossTotal = parseFloat(item.finalPrice || 0);
+                                    const itemTotal = Math.max(0, grossTotal - discountAmount);
+                                    const isPaid = item.paymentStatus && item.paymentStatus.toUpperCase() === 'PAID';
+
+                                    localSubtotal += itemTotal;
+                                    localTotalCups += qty;
+
+                                    if (isPaid) {
+                                        localPaidAmountByOthers += itemTotal;
+                                    }
+
+                                    const isMe = String(uid) === String(userId);
+
+                                    if (isMe) {
+                                        localMySubtotal += itemTotal;
+                                        localMyCups += qty;
+                                        if (!isPaid) {
+                                            localHasUnpaidItemsForMe = true;
+                                            localMyUnpaidAmount += itemTotal;
+                                        }
+                                    }
+
+                                    const canEdit = (isHost || isMe) && currentStatus === 'OPEN' && !isPaid;
+                                    const imgUrl = item.imageUrl || "https://images.unsplash.com/photo-1544145945-f90425340c7e?w=150&q=80";
+                                    const specTags = createCustomizationTags(item);
+
+                                    const displayPricePerCup = Math.round(grossTotal / (qty || 1));
+                                    html += `
+                                        <div class="flex items-start gap-4 bg-white p-4 rounded-xl relative group/item border border-gray-100 shadow-sm hover:border-primary/40 transition-colors">
+                                            <div class="w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-gray-50 border border-gray-100">
+                                                <img src="${imgUrl}" alt="${item.productName || '飲品'}" class="w-full h-full object-cover">
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="flex items-center gap-2 mb-0.5 flex-wrap">
+                                                    <p class="font-bold text-slate-800 text-base truncate">${item.productName || item.productNameSnapshot}</p>
+                                                </div>
+                                                ${specTags}
+                                                <div class="flex items-center gap-2">
+                                                    <div class="font-bold text-gray-400 text-sm">$${displayPricePerCup} <span class="text-xs font-normal">/ 杯</span></div>
+                                                    ${discountAmount > 0 ? `<span class="bg-red-50 text-red-500 text-[10px] px-1.5 py-0.5 rounded border border-red-100 font-bold">已折抵 $${discountAmount}</span>` : ''}
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Quantity Controls & Total -->
+                                            <div class="flex flex-col items-end justify-between self-stretch shrink-0 min-w-[70px]">
+                                                <div class="font-bold text-primary text-lg mb-2">$${itemTotal}</div>
+                                                
+                                                ${canEdit ? `
+                                                    <!-- 提供直覺的 + / - 數量調整按鈕 -->
+                                                    <div class="flex items-center gap-1 bg-gray-50 rounded-lg p-1 border border-gray-200">
+                                                        <button onclick="updateItemQty('${item.representativeId}', ${qty}, -1)" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-white hover:text-primary hover:shadow-sm rounded transition-all focus:outline-none">
+                                                            <i data-lucide="minus" class="w-3.5 h-3.5"></i>
+                                                        </button>
+                                                        <span class="w-5 text-center font-bold text-sm text-slate-700">${qty}</span>
+                                                        <button onclick="updateItemQty('${item.representativeId}', ${qty}, 1)" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-white hover:text-primary hover:shadow-sm rounded transition-all focus:outline-none">
+                                                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                                        </button>
+                                                    </div>
+                                                ` : `
+                                                    <div class="text-gray-500 font-bold text-sm px-2 py-1 bg-gray-50 rounded-lg border border-gray-100">x ${qty}</div>
+                                                `}
+                                            </div>
+                                            
+                                            <!-- Absolute edit (Ice/Sugar) and delete buttons -->
+                                            ${canEdit ? `
+                                                <div class="absolute -top-2.5 -right-2.5 hidden group-hover/item:flex items-center gap-1 bg-white shadow-md rounded-lg p-1 border border-gray-100 z-10">
+                                                    <button onclick="openEditModal('${item.representativeId}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-all" title="修改冰塊甜度">
+                                                        <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+                                                    </button>
+                                                    <button onclick="openItemCouponModal('${item.representativeId}', '${item.productName}')" class="p-1.5 text-orange-500 hover:bg-orange-50 rounded-md transition-all" title="使用優惠券">
+                                                        <i data-lucide="ticket" class="w-3.5 h-3.5"></i>
+                                                    </button>
+                                                    <button onclick="removeItem('${item.representativeId}')" class="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-all" title="刪除整項">
+                                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                                    </button>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    `;
+                                });
+                                html += `</div></div>`;
+                            });
+                            html += `</div>`;
+                        });
+
+                        orderItemsContainer.innerHTML = html;
+                    }
+
+                    // Update global state only at the end to maintain consistency for other event handlers
+                    globalSubtotal = localSubtotal;
+                    globalTotalCups = localTotalCups;
+                    globalMySubtotal = localMySubtotal;
+                    globalMyCups = localMyCups;
+                    globalHasUnpaidItemsForMe = localHasUnpaidItemsForMe;
+                    globalMyUnpaidAmount = localMyUnpaidAmount;
+                    globalPaidAmountByOthers = localPaidAmountByOthers;
+
+                    updateSummaryUI(localSubtotal, localTotalCups, localHasUnpaidItemsForMe, localMyUnpaidAmount, localMySubtotal, localMyCups, localPaidAmountByOthers);
+                    updateRoleAndStatusUI(currentStatus, localHasUnpaidItemsForMe);
+
+                    // Host summary sync check
+                    if (isHost && currentStatus === 'LOCKED') {
+                        detectAndSyncHostCoupon(items);
+                    }
+
+                    checkDeliveryAvailability(false); // Silent check on data load
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                } catch (error) {
+                    console.error('Error in loadGroupOrder:', error);
+                    orderItemsContainer.innerHTML = `
+                        <div class="text-center py-12 border-2 border-dashed border-gray-200 rounded-2xl">
+                            <i data-lucide="alert-circle" class="w-8 h-8 text-red-400 mx-auto mb-3"></i>
+                            <p class="text-slate-800 font-bold mb-1">載入失敗</p>
+                            <p class="text-gray-400 text-sm">${error.message}</p>
+                            <a href="index.html" class="inline-block mt-4 text-primary hover:underline text-sm font-medium">返回首頁</a>
+                        </div>
+                    `;
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            }
+
+            function renderEmptyCart() {
+                orderItemsContainer.innerHTML = `
+                    <div class="flex items-center gap-2 mb-6">
+                        <i data-lucide="shopping-cart" class="w-5 h-5 text-primary"></i>
+                        <h2 class="font-bold text-lg">訂單內容</h2>
+                    </div>
+                    <div class="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                        <i data-lucide="cup-soda" class="w-10 h-10 text-gray-300 mx-auto mb-2"></i>
+                        <p class="text-gray-500 font-medium">購物車是空的</p>
+                        <p class="text-gray-400 text-sm mt-1">邀請好友一起來點餐吧！</p>
+                    </div>
+                `;
+            }
+
+            // ==========================================
+            // UI State Management
+            // ==========================================
+            function updateSummaryUI(subtotal, totalCups, hasUnpaidItemsForMe, myUnpaidAmount, mySubtotal, myCups, paidAmount = 0) {
+                const subtotalLabel = document.getElementById('summary-subtotal-label');
+                const summaryPaidAmount = document.getElementById('summary-paid-amount');
+                const summaryPaidRow = document.getElementById('summary-coupon-row');
+
+                // 動態計算運費 (已移除外送費)
+                let applicableDeliveryFee = 0;
+
+                if (isHost) {
+                    // Host: 顯示所有成員的總計，並將折扣整併入小計
+                    subtotalLabel.innerText = '小計 (所有成員)';
+                    summaryTitle.innerText = `訂單摘要 (${totalCups} 杯)`;
+
+                    // 將品項折扣與揪團優惠券整併
+                    // subtotal 在 loadGroupOrder 中已包含總品項 grossTotal - itemDiscount
+                    const integratedSubtotal = Math.round(subtotal);
+                    summarySubtotal.innerText = `$${integratedSubtotal}`;
+
+                    summaryDeliveryRow.classList.add('hidden');
+                    summaryDeliveryFee.innerText = `$0`;
+
+                    // 更新團員已付金額列
+                    if (paidAmount > 0) {
+                        if (summaryPaidRow) {
+                            summaryPaidRow.classList.remove('hidden');
+                            summaryPaidRow.classList.add('flex');
+                            summaryPaidAmount.innerText = `-$${Math.round(paidAmount)}`;
+                        }
+                    } else {
+                        if (summaryPaidRow) summaryPaidRow.classList.add('hidden');
+                    }
+
+                    // 總計 = 整併後小計 - 團員已付金額
+                    let finalTotal = integratedSubtotal + applicableDeliveryFee - paidAmount;
+                    summaryTotal.innerText = `$${Math.max(0, Math.round(finalTotal))}`;
+                } else {
+                    // Member: 僅顯示自己的
+                    subtotalLabel.innerText = '小計';
+                    summaryTitle.innerText = `我的訂單 (${myCups} 杯)`;
+                    summarySubtotal.innerText = `$${Math.round(mySubtotal)}`;
+                    summaryDeliveryRow.classList.add('hidden');
+                    if (summaryPaidRow) summaryPaidRow.classList.add('hidden');
+                    summaryTotal.innerText = `$${Math.round(mySubtotal)}`;
+                }
+            }
+
+            function updateRoleAndStatusUI(status, hasUnpaidItemsForMe) {
+                roleBadge.innerText = isHost ? '團長' : '團員';
+                roleBadge.classList.remove('hidden', 'bg-orange-50', 'text-primary', 'border-orange-100', 'bg-blue-50', 'text-blue-600', 'border-blue-100');
+                if (isHost) {
+                    roleBadge.classList.add('bg-orange-50', 'text-primary', 'border-orange-100');
+                } else {
+                    roleBadge.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-100');
+                }
+
+                if (status === 'CLOSED') {
+                    btnMainAction.disabled = true;
+                    btnMainAction.innerText = '此揪團已結帳完成';
+                    btnMainAction.className = "w-full bg-gray-300 text-white font-bold py-4 rounded-xl flex items-center justify-center cursor-not-allowed";
+
+                    sectionDelivery.classList.add('hidden');
+                    sectionAddress.classList.add('hidden');
+                    sectionPayment.classList.add('hidden');
+                    document.getElementById('section-host-coupon').classList.add('hidden');
+                    hostNotice.classList.add('hidden');
+                    memberControls.classList.add('hidden');
+                    hostControls.classList.add('hidden');
+                } else if (isHost) {
+                    hostControls.classList.remove('hidden');
+                    memberControls.classList.add('hidden');
+
+                    btnStatusOpen.className = status === 'OPEN' ? 'px-4 py-1.5 rounded-lg text-sm font-bold bg-white text-primary shadow-sm' : 'px-4 py-1.5 rounded-lg text-sm font-bold text-gray-400 hover:text-gray-600';
+                    btnStatusLocked.className = status === 'LOCKED' ? 'px-4 py-1.5 rounded-lg text-sm font-bold bg-white text-primary shadow-sm' : 'px-4 py-1.5 rounded-lg text-sm font-bold text-gray-400 hover:text-gray-600';
+
+                    if (status === 'OPEN') {
+                        btnMainAction.disabled = false;
+                        btnMainAction.innerHTML = '<i data-lucide="lock" class="w-5 h-5"></i> 鎖定訂單並結帳';
+                        btnMainAction.className = "w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 text-lg shadow-lg transition-all active:scale-95";
+
+                        sectionDelivery.classList.add('hidden');
+                        sectionAddress.classList.add('hidden');
+                        sectionPayment.classList.add('hidden');
+                        document.getElementById('section-host-coupon').classList.add('hidden');
+                        hostNotice.classList.add('hidden');
+                    } else if (status === 'LOCKED') {
+                        btnMainAction.disabled = false;
+                        btnMainAction.innerHTML = '確認付款並送出訂單 <i data-lucide="arrow-right" class="w-5 h-5"></i>';
+                        btnMainAction.className = "w-full bg-primary hover:bg-orange-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 text-lg shadow-lg transition-all active:scale-95";
+
+                        sectionDelivery.classList.remove('hidden');
+                        if (currentDeliveryType === 'delivery') {
+                            sectionAddress.classList.remove('hidden');
+                        } else {
+                            sectionAddress.classList.add('hidden');
+                        }
+                        sectionPayment.classList.remove('hidden');
+                        document.getElementById('section-host-coupon').classList.remove('hidden');
+                        hostNotice.classList.remove('hidden');
+                    }
+                } else {
+                    hostControls.classList.add('hidden');
+                    sectionDelivery.classList.add('hidden');
+                    sectionAddress.classList.add('hidden');
+                    sectionPayment.classList.add('hidden');
+                    hostNotice.classList.add('hidden');
+
+                    if (status === 'OPEN') {
+                        memberControls.classList.remove('hidden');
+
+                        if (hasUnpaidItemsForMe) {
+                            btnTriggerMemberCheckout.disabled = false;
+                            btnTriggerMemberCheckout.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                            btnMainAction.disabled = false;
+                            btnMainAction.innerHTML = '<i data-lucide="wallet" class="w-5 h-5"></i> 為我的餐點結帳';
+                            btnMainAction.className = "w-full bg-[#06C755] hover:bg-[#05b34c] text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 text-lg shadow-lg transition-all active:scale-95";
+                        } else {
+                            btnTriggerMemberCheckout.disabled = true;
+                            btnTriggerMemberCheckout.classList.add('opacity-50', 'cursor-not-allowed');
+
+                            btnMainAction.disabled = true;
+                            btnMainAction.innerText = '您已結清或尚無餐點';
+                            btnMainAction.className = "w-full bg-gray-100 text-gray-400 font-bold py-4 rounded-xl flex items-center justify-center cursor-not-allowed border border-gray-200";
+                        }
+                    } else if (status === 'LOCKED') {
+                        memberControls.classList.add('hidden');
+
+                        btnMainAction.disabled = true;
+                        btnMainAction.innerHTML = '<i data-lucide="lock" class="w-5 h-5"></i> 團長結帳中...';
+                        btnMainAction.className = "w-full bg-orange-100 text-orange-600 font-bold py-4 rounded-xl flex items-center justify-center gap-2 cursor-wait border border-orange-200";
+                    }
+                }
+
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+
+            // ==========================================
+            // Actions (Host & Member)
+            // ==========================================
+
+            // + / - 增減數量邏輯
+            window.updateItemQty = async (itemId, currentQty, delta) => {
+                const newQty = currentQty + delta;
+
+                // 若減至 0，則執行刪除動作
+                if (newQty <= 0) {
+                    window.removeItem(itemId);
+                    return;
+                }
+
+                try {
+                    const res = await NavAuth.fetchAPI(`/api/group-orders/${groupOrderToken}/items/${itemId}?userId=${userId}`, {
+                        method: 'PUT',
+                        // 僅傳送目標數量，後端會自動比對代表品項的現有規格以增減數量
+                        body: JSON.stringify({ qty: newQty })
+                    });
+
+                    loadGroupOrder(); // 重新載入以顯示最新合併結果
+                } catch (error) {
+                    console.error('Update quantity error:', error);
+                    showToast('更新數量失敗: ' + (error.message || '請稍後再試'), 'error');
+                }
+            };
+
+            window.updateGroupStatus = async (newStatus) => {
+                if (newStatus === currentStatus) return;
+                try {
+                    await NavAuth.fetchAPI(`/api/group-orders/${groupOrderToken}/status?status=${newStatus}&hostId=${userId}`, {
+                        method: 'PUT'
+                    });
+                    currentStatus = newStatus;
+                    loadGroupOrder();
+                } catch (e) {
+                    console.error('Failed to update status:', e);
+                    showToast('狀態更新失敗: ' + (e.message || '請稍後再試'), 'error');
+                    loadGroupOrder(); // Sync back to actual status
+                }
+            };
+
+            window.goToStore = () => {
+                if (storeDataForLink) {
+                    let url = `store.html?id=${storeDataForLink}`;
+                    if (groupOrderToken) {
+                        url += `&token=${groupOrderToken}`;
+                    }
+                    navigateTo(url);
+                } else {
+                    navigateTo('index.html');
+                }
+            };
+
+            window.removeItem = async (itemId) => {
+                if (!await showConfirm('確定要刪除此品項嗎？')) return;
+                try {
+                    await NavAuth.fetchAPI(`/api/group-orders/${groupOrderToken}/items/${itemId}?userId=${userId}`, {
+                        method: 'DELETE'
+                    });
+                    loadGroupOrder();
+                } catch (e) {
+                    console.error('Remove error:', e);
+                    showToast(e.message || '刪除失敗', 'error');
+                }
+            };
+
+            btnMainAction.addEventListener('click', async () => {
+                if (isHost && currentStatus === 'OPEN') {
+                    if (await showConfirm("鎖定後團員將無法修改或新增餐點，確定鎖定嗎？")) {
+                        updateGroupStatus('LOCKED');
+                    }
+                } else if (isHost && currentStatus === 'LOCKED') {
+                    handleHostCheckout();
+                } else if (!isHost && currentStatus === 'OPEN') {
+                    openMemberCheckoutModal();
+                }
+            });
+
+            if (btnTriggerMemberCheckout) {
+                btnTriggerMemberCheckout.addEventListener('click', openMemberCheckoutModal);
+            }
+
+            async function handleHostCheckout() {
+                let selectedMethod = "CREDIT_CARD";
+                const activeRadio = document.querySelector('input[name="payment"]:checked');
+                if (activeRadio) {
+                    selectedMethod = activeRadio.value;
+                }
+
+                try {
+                    btnMainAction.disabled = true;
+                    btnMainAction.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> 處理中...';
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                    const data = await NavAuth.fetchAPI(`/api/group-orders/${groupOrderToken}/checkout`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            userId: parseInt(userId),
+                            paymentMethod: selectedMethod,
+                            deliveryType: currentDeliveryType,
+                            address: currentDeliveryType === 'delivery' ? `${document.getElementById('go-checkout-city').value}${document.getElementById('go-checkout-district').value}${document.getElementById('go-checkout-street').value}` : '',
+                            note: document.getElementById('go-checkout-remarks')?.value || '',
+                            couponId: hostSelectedCoupon ? hostSelectedCoupon.couponId : null
+                        })
+                    });
+
+                    showToast('訂單已提交成功！', 'success');
+                    navigateTo(`order_confirm.html?orderId=${data.orderId || data.id || data}`);
+                } catch (error) {
+                    console.error('Host checkout error:', error);
+                    showToast('結帳失敗: ' + (error.message || '請稍後再試'), 'error');
+                    btnMainAction.disabled = false;
+                    btnMainAction.innerHTML = '確認付款並送出訂單 <i data-lucide="arrow-right" class="w-5 h-5"></i>';
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            }
+
+            // ==========================================
+            // Member Checkout Modal Logic (Merged View)
+            // ==========================================
+            let memberMergedItemsCache = {};
+
+            async function openMemberCheckoutModal() {
+                if (!cachedGroupData) return;
+
+                const allItems = cachedGroupData.items || (Array.isArray(cachedGroupData) ? cachedGroupData : []);
+                const myUnpaidRaw = allItems.filter(item => String(item.userId) === String(userId) && item.paymentStatus !== 'PAID');
+
+                if (myUnpaidRaw.length === 0) {
+                    showToast('您目前沒有需要付款的餐點', 'info');
+                    return;
+                }
+
+                // 將結帳視窗內的個人品項同樣依照 CartItemKey 進行合併
+                memberMergedItemsCache = {};
+                myUnpaidRaw.forEach(item => {
+                    const key = generateItemKey(item);
+                    if (!memberMergedItemsCache[key]) {
+                        memberMergedItemsCache[key] = {
+                            ...item,
+                            // Ensure basePrice includes toppings (for display and calculation)
+                            basePrice: (parseFloat(item.finalPrice || 0) / (parseInt(item.qty || item.quantity) || 1)) || (parseFloat(item.unitPrice || item.unitPriceSnapshot || 0) || 0),
+                            qty: parseInt(item.qty || item.quantity) || 1,
+                            discountAmount: parseFloat(item.discountAmount || 0) || 0,
+                            totalGrossPrice: parseFloat(item.finalPrice || 0) || (parseFloat(item.unitPrice || item.unitPriceSnapshot || 0) * (parseInt(item.qty || item.quantity) || 1))
+                        };
+                    } else {
+                        memberMergedItemsCache[key].qty += (parseInt(item.qty || item.quantity) || 1);
+                        memberMergedItemsCache[key].discountAmount += (parseFloat(item.discountAmount || 0) || 0);
+                        memberMergedItemsCache[key].totalGrossPrice += (parseFloat(item.finalPrice || 0) || (parseFloat(item.unitPrice || item.unitPriceSnapshot || 0) * (parseInt(item.qty || item.quantity) || 1)));
+                    }
+                });
+
+                // 新增：偵測是否有品項已套用優惠券，並自動同步到 modal 選取狀態
+                await detectAndSyncModalCoupon(myUnpaidRaw);
+
+                // 計算不含優惠券的小計 (作為後續折扣基準)
+                memberCheckoutSubtotalCache = Object.values(memberMergedItemsCache).reduce((sum, item) => {
+                    return sum + item.totalGrossPrice;
+                }, 0);
+
+                renderMemberCheckoutUI();
+
+                memberModal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+
+            // 新增：獨立的渲染與總額計算邏輯
+            function renderMemberCheckoutUI() {
+                const itemsContainer = document.getElementById('member-checkout-items');
+                let displayedSubtotal = 0;
+
+                // 總折扣金額 (如果有選取 modal 層級的優惠券)
+                const modalDiscount = goSelectedCoupon ? parseFloat(goSelectedCoupon.discountAmount || 0) : 0;
+
+                itemsContainer.innerHTML = Object.values(memberMergedItemsCache).map(item => {
+                    // 如果 modal 有選中優惠券，則我們在品項上不重複顯示個別折扣 (或是顯示為 0)
+                    // 為了統一，我們在 UI 上顯示「原價」，最後在總額扣除
+                    const cost = item.totalGrossPrice;
+                    displayedSubtotal += cost;
+
+                    const specTags = createCustomizationTags(item);
+
+                    // 判斷是否顯示品項層級的折扣 (如果 modal 沒選，則顯示品項原本的)
+                    const itemDiscount = !goSelectedCoupon ? item.discountAmount : 0;
+
+                    return `
+                        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center gap-3">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-1">
+                                    <div class="font-bold text-gray-800 text-sm truncate">${item.productName || item.productNameSnapshot}</div>
+                                    <span class="text-xs font-bold text-primary ml-1 bg-orange-50 px-1.5 py-0.5 rounded">x ${item.qty}</span>
+                                </div>
+                                ${specTags}
+                                ${itemDiscount > 0 ? `<div class="mt-1"><span class="bg-red-50 text-red-500 text-[10px] px-1.5 py-0.5 rounded border border-red-100 font-bold">已折抵 $${itemDiscount}</span></div>` : ''}
+                            </div>
+                            <div class="font-bold text-gray-800 text-lg shrink-0">$${cost - itemDiscount}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                const finalTotal = Math.max(0, displayedSubtotal - (modalDiscount || Object.values(memberMergedItemsCache).reduce((s, i) => s + i.discountAmount, 0)));
+                document.getElementById('member-checkout-total').textContent = `$${finalTotal}`;
+            }
+
+            // 新增：偵測並同步項目的優惠券到 Modal
+            async function detectAndSyncModalCoupon(myItems) {
+                const itemWithCoupon = myItems.find(i => i.couponId);
+                if (itemWithCoupon) {
+                    try {
+                        goSelectedCoupon = await NavAuth.fetchAPI(`/api/coupons/${itemWithCoupon.couponId}`);
+                        document.getElementById('go-open-coupon-modal-btn').classList.add('hidden');
+                        const display = document.getElementById('go-selected-coupon-display');
+                        display.classList.remove('hidden');
+                        display.classList.add('flex');
+                        document.getElementById('go-selected-coupon-name').innerText = `${goSelectedCoupon.brandName} - ${goSelectedCoupon.productName}`;
+                        document.getElementById('go-selected-coupon-discount').innerText = `已省下 $${goSelectedCoupon.discountAmount}`;
+                    } catch (e) {
+                        console.error('Failed to auto-load item coupon:', e);
+                    }
+                } else {
+                    // Reset if no coupon found
+                    goSelectedCoupon = null;
+                    document.getElementById('go-open-coupon-modal-btn').classList.remove('hidden');
+                    document.getElementById('go-selected-coupon-display').classList.add('hidden');
+                    document.getElementById('go-selected-coupon-display').classList.remove('flex');
+                }
+            }
+
+            const closeMemberModal = () => {
+                memberModal.classList.add('hidden');
+                document.body.style.overflow = '';
+            };
+
+            btnCloseMemberModal.addEventListener('click', closeMemberModal);
+            btnCancelMemberModal.addEventListener('click', closeMemberModal);
+
+            memberModal.addEventListener('click', (e) => {
+                if (e.target === memberModal) closeMemberModal();
+            });
+
+            // 團員個人結帳付款方式 UI 切換
+            document.querySelectorAll('input[name="member-payment"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    document.querySelectorAll('.member-pay-option').forEach(label => {
+                        label.className = 'relative flex items-center p-3 rounded-xl border border-gray-100 bg-white cursor-pointer transition-all member-pay-option hover:bg-gray-50';
+                        label.querySelector('.member-pay-icon').classList.replace('text-primary', 'text-gray-400');
+                        label.querySelector('.member-pay-text').classList.replace('text-gray-800', 'text-gray-500');
+                        label.querySelector('.member-pay-check').classList.add('hidden');
+                    });
+
+                    const label = e.target.closest('label');
+                    label.className = 'relative flex items-center p-3 rounded-xl border-2 border-primary bg-orange-50/20 cursor-pointer transition-all member-pay-option';
+                    label.querySelector('.member-pay-icon').classList.replace('text-gray-400', 'text-primary');
+                    label.querySelector('.member-pay-text').classList.replace('text-gray-500', 'text-gray-800');
+                    label.querySelector('.member-pay-check').classList.remove('hidden');
+                });
+            });
+
+            btnConfirmMemberPay.addEventListener('click', async () => {
+                try {
+                    const selectedMethod = document.querySelector('input[name="member-payment"]:checked').value;
+                    const req = { userId: parseInt(userId), paymentMethod: selectedMethod, couponId: goSelectedCoupon ? goSelectedCoupon.couponId : null };
+
+                    btnConfirmMemberPay.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> 處理中...';
+                    btnConfirmMemberPay.disabled = true;
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                    const res = await fetch(NavAuth.getApiUrl(`/api/group-orders/${groupOrderToken}/member-checkout`), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(req)
+                    });
+
+                    const data = await res.json();
+
+                    if (!res.ok) {
+                        if (data.error && data.error.includes("Insufficient store credit")) {
+                            if (await showConfirm('目前餘額不足，是否進行儲值?')) {
+                                window.location.href = 'profile.html?section=store_credit';
+                                return;
+                            }
+                        }
+                        throw new Error(data.error || '付款失敗');
+                    }
+
+                    // 直接顯示成功並更新 UI，不再導向其他頁面
+                    showToast('付款完成！', 'success');
+                    closeMemberModal();
+                    loadGroupOrder();
+
+                } catch (e) {
+                    showToast("結帳失敗: " + e.message, 'error');
+                } finally {
+                    btnConfirmMemberPay.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5"></i> 確認付款';
+                    btnConfirmMemberPay.disabled = false;
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            });
+
+            // ==========================================
+            // Coupon Logic for Member Checkout
+            // ==========================================
+            let memberCheckoutSubtotalCache = 0;
+            let couponModalMode = 'member'; // 'member', 'host', or 'item'
+            let couponTargetItemId = null;
+            let couponTargetProductName = null;
+
+            document.getElementById('go-open-coupon-modal-btn').addEventListener('click', async () => {
+                couponModalMode = 'member';
+                document.getElementById('go-coupon-modal').classList.remove('hidden');
+                await goLoadCoupons('member');
+            });
+
+            document.getElementById('host-open-coupon-btn').addEventListener('click', async () => {
+                couponModalMode = 'host';
+                document.getElementById('go-coupon-modal').classList.remove('hidden');
+                await goLoadCoupons('host');
+            });
+
+            window.openItemCouponModal = async (itemId, productName) => {
+                couponModalMode = 'item';
+                couponTargetItemId = itemId;
+                couponTargetProductName = productName;
+                document.getElementById('go-coupon-modal').classList.remove('hidden');
+                await goLoadCoupons('item');
+            };
+
+            window.goCloseCouponModal = () => {
+                document.getElementById('go-coupon-modal').classList.add('hidden');
+            };
+
+            document.getElementById('go-coupon-modal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('go-coupon-modal')) goCloseCouponModal();
+            });
+
+            // Get the product names currently in the user's cart for coupon filtering
+            function getMyCartProductNames() {
+                if (!cachedGroupData) return [];
+                const allItems = cachedGroupData.items || (Array.isArray(cachedGroupData) ? cachedGroupData : []);
+                return [...new Set(allItems
+                    .filter(item => String(item.userId) === String(userId))
+                    .map(item => item.productName || item.productNameSnapshot)
+                    .filter(Boolean)
+                )];
+            }
+
+            function getMyCartCouponIds() {
+                if (!cachedGroupData) return [];
+                const allItems = cachedGroupData.items || (Array.isArray(cachedGroupData) ? cachedGroupData : []);
+                return [...new Set(allItems
+                    .filter(item => String(item.userId) === String(userId))
+                    .map(item => item.couponId)
+                    .filter(Boolean)
+                )];
+            }
+
+            // Get ALL product names in the group order (for host - they pay for everything)
+            function getAllCartProductNames() {
+                if (!cachedGroupData) return [];
+                const allItems = cachedGroupData.items || (Array.isArray(cachedGroupData) ? cachedGroupData : []);
+                return [...new Set(allItems
+                    .map(item => item.productName || item.productNameSnapshot)
+                    .filter(Boolean)
+                )];
+            }
+
+            async function goLoadCoupons(mode) {
+                const container = document.getElementById('go-coupon-list-container');
+                try {
+                    // Fetch all coupons using the existing consistent API
+                    const rawCoupons = await NavAuth.fetchAPI('/api/coupons/my');
+
+                    // 修正：從 GroupOrderDTO 的 brandId 欄位獲取
+                    const currentBrandId = cachedGroupData ? cachedGroupData.brandId : (cachedGroupData.groupOrder ? cachedGroupData.groupOrder.brandId : null);
+                    const allItems = cachedGroupData.items || (Array.isArray(cachedGroupData) ? cachedGroupData : []);
+
+                    let relevantProductIds = [];
+                    if (mode === 'host') {
+                        relevantProductIds = [...new Set(allItems.map(i => i.productId).filter(id => id != null))];
+                    } else if (mode === 'item') {
+                        // 在 item 模式下，itemID 是傳入的，直接找該品項
+                        const targetItem = allItems.find(i => String(i.representativeId || i.id) === String(couponTargetItemId) || (i.idList && i.idList.includes(Number(couponTargetItemId))));
+                        if (targetItem) {
+                            relevantProductIds = [targetItem.productId];
+                        } else {
+                            // 降級處理：如果找不到，根據產品名稱嘗試
+                            const byName = allItems.find(i => (i.productName || i.productNameSnapshot) === couponTargetProductName);
+                            if (byName) relevantProductIds = [byName.productId];
+                        }
+                    } else {
+                        // member 模式：獲取當前使用者所有未付品項的產品 ID
+                        relevantProductIds = [...new Set(allItems
+                            .filter(item => String(item.userId) === String(userId))
+                            .map(item => item.productId)
+                            .filter(id => id != null)
+                        )];
+                    }
+
+                    goUserCoupons = rawCoupons.filter(c => {
+                        // 1. 狀態必須是未使用
+                        if (c.status !== 'unused') return false;
+
+                        // 2. 品牌檢查 (Brand ID Matching)
+                        // c.brandId 可能為 Number, currentBrandId 可能為 Number
+                        if (currentBrandId && c.brandId && Number(c.brandId) !== Number(currentBrandId)) return false;
+
+                        // 3. 品項檢查 (Product ID Matching)
+                        // 若 c.productId 為 null/0，代表該品牌「全品項通用」
+                        if (c.productId && Number(c.productId) !== 0) {
+                            if (!relevantProductIds.map(Number).includes(Number(c.productId))) return false;
+                        }
+
+                        return true;
+                    });
+
+                    if (goUserCoupons.length === 0 && mode !== 'item') {
+                        container.innerHTML = `
+                            <div class="py-12 flex flex-col items-center justify-center text-gray-400">
+                                <i data-lucide="ticket" class="w-12 h-12 mb-3 opacity-20"></i>
+                                <p class="font-medium text-sm">尚無可用的優惠券</p>
+                                <p class="text-[10px] mt-1">需符合此品牌與選購品項才能使用</p>
+                            </div>
+                        `;
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                        return;
+                    }
+
+                    let innerHTML = '';
+                    if (mode === 'item') {
+                        innerHTML = `
+                            <div onclick="goSelectCoupon(-1)" class="p-4 mb-3 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 hover:border-primary cursor-pointer transition-all group flex items-center justify-center gap-2">
+                                <i data-lucide="slash" class="w-4 h-4 text-gray-400"></i>
+                                <span class="font-bold text-gray-500">不使用優惠券</span>
+                            </div>
+                        `;
+                    }
+
+                    innerHTML += goUserCoupons.map((c, idx) => `
+                        <div onclick="goSelectCoupon(${idx})" class="p-4 rounded-2xl border-2 border-dashed border-gray-100 bg-white hover:border-primary cursor-pointer transition-all group flex items-center justify-between">
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="px-2 py-0.5 bg-orange-100 text-brand-orange text-[10px] font-bold rounded-full">${c.brandName || '品牌券'}</span>
+                                    <span class="text-xs font-bold text-gray-600">${c.productName || '全系列適用'}</span>
+                                </div>
+                                <div class="text-[10px] text-gray-400">有效期至: ${new Date(c.expiryDate || c.expiredAt).toLocaleDateString()}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[10px] font-black text-brand-orange tracking-widest uppercase">DISCOUNT</div>
+                                <div class="text-xl font-black text-slate-800">$${Math.round(c.discountAmount)}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                    container.innerHTML = innerHTML;
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                } catch (err) {
+                    console.error('Failed to load coupons:', err);
+                    container.innerHTML = '<p class="text-center text-red-500 py-10">資料讀取失敗</p>';
+                }
+            }
+
+            // Dispatcher: route to the correct handler based on couponModalMode
+            window.goSelectCoupon = (idx) => {
+                if (couponModalMode === 'host') {
+                    hostApplyCoupon(idx);
+                } else if (couponModalMode === 'item') {
+                    itemApplyCoupon(idx);
+                } else {
+                    memberApplyCoupon(idx);
+                }
+            };
+
+            // ---- Member coupon helpers ----
+            function memberApplyCoupon(idx) {
+                goSelectedCoupon = goUserCoupons[idx];
+                document.getElementById('go-open-coupon-modal-btn').classList.add('hidden');
+                const display = document.getElementById('go-selected-coupon-display');
+                display.classList.remove('hidden');
+                display.classList.add('flex');
+                document.getElementById('go-selected-coupon-name').innerText = `${goSelectedCoupon.brandName} - ${goSelectedCoupon.productName}`;
+                document.getElementById('go-selected-coupon-discount').innerText = `已省下 $${goSelectedCoupon.discountAmount}`;
+
+                // 立即更新 UI
+                const couponVal = parseFloat(goSelectedCoupon.discountAmount || 0);
+                // 將折扣反映到對應的快取品項中 (為了讓 renderMemberCheckoutUI 能正確顯示標籤)
+                Object.values(memberMergedItemsCache).forEach(item => {
+                    if (item.productName === goSelectedCoupon.productName || item.productNameSnapshot === goSelectedCoupon.productName) {
+                        item.discountAmount = couponVal;
+                    } else {
+                        item.discountAmount = 0; // 確保只有一個品項有折扣
+                    }
+                });
+
+                renderMemberCheckoutUI();
+
+                // Sync to items
+                itemApplyCouponInModal(goSelectedCoupon.couponId, goSelectedCoupon.productName);
+
+                goCloseCouponModal();
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+
+            // 同步選擇到品項上
+            async function itemApplyCouponInModal(couponId, productName) {
+                if (!cachedGroupData) return;
+                const items = cachedGroupData.items || (Array.isArray(cachedGroupData) ? cachedGroupData : []);
+                const myUnpaid = items.filter(item => String(item.userId) === String(userId) && item.paymentStatus !== 'PAID');
+
+                // 優先套用到產品名稱相符的品項
+                let target = myUnpaid.find(i => i.productNameSnapshot === productName);
+                if (!target && myUnpaid.length > 0) target = myUnpaid[0];
+
+                if (target) {
+                    try {
+                        const response = await fetch(NavAuth.getApiUrl(`/api/group-orders/${groupOrderToken}/items/${target.id}/apply-coupon`), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId, couponId })
+                        });
+                        if (response.ok) {
+                            loadGroupOrder();
+                        }
+                    } catch (e) {
+                        console.error('Modal coupon sync failed:', e);
+                    }
+                }
+            }
+
+            window.goRemoveCoupon = async () => {
+                const cidToRemove = goSelectedCoupon ? goSelectedCoupon.couponId : null;
+                goSelectedCoupon = null;
+                document.getElementById('go-open-coupon-modal-btn').classList.remove('hidden');
+                document.getElementById('go-selected-coupon-display').classList.add('hidden');
+                document.getElementById('go-selected-coupon-display').classList.remove('flex');
+
+                // 立即清除快取中的所有折扣，確保 UI 標籤立即消失
+                Object.values(memberMergedItemsCache).forEach(item => {
+                    item.discountAmount = 0;
+                });
+
+                // 立即更新 UI
+                renderMemberCheckoutUI();
+
+                // Sync removal to items
+                if (cidToRemove) {
+                    const items = cachedGroupData.items || (Array.isArray(cachedGroupData) ? cachedGroupData : []);
+                    const myItemsWithThisCoupon = items.filter(i =>
+                        String(i.userId) === String(userId) &&
+                        String(i.couponId) === String(cidToRemove)
+                    );
+
+                    for (const it of myItemsWithThisCoupon) {
+                        try {
+                            await fetch(NavAuth.getApiUrl(`/api/group-orders/${groupOrderToken}/items/${it.id}/apply-coupon`), {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId, couponId: null })
+                            });
+                        } catch (e) { }
+                    }
+                    loadGroupOrder();
+                }
+            };
+
+            async function itemApplyCoupon(idx) {
+                const couponId = idx === -1 ? null : goUserCoupons[idx].couponId;
+                try {
+                    const response = await fetch(NavAuth.getApiUrl(`/api/group-orders/${groupOrderToken}/items/${couponTargetItemId}/apply-coupon`), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: userId,
+                            couponId: couponId
+                        })
+                    });
+
+                    if (response.ok) {
+                        goCloseCouponModal();
+                        loadGroupOrder();
+                    } else {
+                        const err = await response.json();
+                        showToast(err.error || '套用優惠券失敗', 'error');
+                    }
+                } catch (e) {
+                    console.error('Apply item coupon error:', e);
+                    showToast('發生錯誤，請稍後再試', 'error');
+                }
+            }
+
+            // 新增：偵測並同步團長的優惠券
+            async function detectAndSyncHostCoupon(allItems) {
+                // 團長檢視 summary 時，看自己的 unpaid 品項是否有 coupon
+                const myUnpaid = allItems.filter(i => String(i.userId) === String(userId) && i.paymentStatus !== 'PAID');
+                const itemWithCoupon = myUnpaid.find(i => i.couponId);
+
+                if (itemWithCoupon) {
+                    if (hostSelectedCoupon && String(hostSelectedCoupon.couponId) === String(itemWithCoupon.couponId)) return;
+                    try {
+                        const cRes = await fetch(NavAuth.getApiUrl(`/api/coupons/${itemWithCoupon.couponId}`));
+                        if (cRes.ok) {
+                            hostSelectedCoupon = await cRes.json();
+                            document.getElementById('host-open-coupon-btn').classList.add('hidden');
+                            const display = document.getElementById('host-selected-coupon-display');
+                            display.classList.remove('hidden');
+                            display.classList.add('flex');
+                            document.getElementById('host-selected-coupon-name').innerText = `${hostSelectedCoupon.brandName} - ${hostSelectedCoupon.productName}`;
+                            document.getElementById('host-selected-coupon-discount').innerText = `已省下 $${hostSelectedCoupon.discountAmount}`;
+                            updateSummaryUI(globalSubtotal, globalTotalCups, globalHasUnpaidItemsForMe, globalMyUnpaidAmount, globalMySubtotal, globalMyCups, globalPaidAmountByOthers);
+                        }
+                    } catch (e) {
+                        console.error('Failed to auto-load host coupon:', e);
+                    }
+                } else if (!hostSelectedCouponSyncing) {
+                    // 如果沒發現 coupon 且目前沒有正在同步中，則重設
+                    hostSelectedCoupon = null;
+                    document.getElementById('host-open-coupon-btn').classList.remove('hidden');
+                    document.getElementById('host-selected-coupon-display').classList.add('hidden');
+                    document.getElementById('host-selected-coupon-display').classList.remove('flex');
+                }
+            }
+            let hostSelectedCouponSyncing = false;
+
+            // ---- Host coupon helpers ----
+            function hostApplyCoupon(idx) {
+                hostSelectedCoupon = goUserCoupons[idx];
+                document.getElementById('host-open-coupon-btn').classList.add('hidden');
+                const display = document.getElementById('host-selected-coupon-display');
+                display.classList.remove('hidden');
+                display.classList.add('flex');
+                document.getElementById('host-selected-coupon-name').innerText = `${hostSelectedCoupon.brandName} - ${hostSelectedCoupon.productName}`;
+                document.getElementById('host-selected-coupon-discount').innerText = `已省下 $${hostSelectedCoupon.discountAmount}`;
+
+                // Sync to items (for immediate feedback on main list)
+                hostSyncToItems(hostSelectedCoupon.couponId, hostSelectedCoupon.productName);
+
+                // Refresh summary total with discount
+                updateSummaryUI(globalSubtotal, globalTotalCups, globalHasUnpaidItemsForMe, globalMyUnpaidAmount, globalMySubtotal, globalMyCups, globalPaidAmountByOthers);
+
+                goCloseCouponModal();
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+
+            async function hostSyncToItems(couponId, productName) {
+                hostSelectedCouponSyncing = true;
+                if (!cachedGroupData) return;
+                const items = cachedGroupData.items || (Array.isArray(cachedGroupData) ? cachedGroupData : []);
+                const myUnpaid = items.filter(item => String(item.userId) === String(userId) && item.paymentStatus !== 'PAID');
+
+                // 優先套用到產品名稱相符的品項
+                let target = myUnpaid.find(i => i.productNameSnapshot === productName);
+                if (!target && myUnpaid.length > 0) target = myUnpaid[0];
+
+                if (target) {
+                    try {
+                        await fetch(NavAuth.getApiUrl(`/api/group-orders/${groupOrderToken}/items/${target.id}/apply-coupon`), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId, couponId })
+                        });
+                        loadGroupOrder();
+                    } catch (e) { }
+                }
+                hostSelectedCouponSyncing = false;
+            }
+
+            window.hostRemoveCoupon = async () => {
+                const cidToRemove = hostSelectedCoupon ? hostSelectedCoupon.couponId : null;
+                hostSelectedCoupon = null;
+                document.getElementById('host-open-coupon-btn').classList.remove('hidden');
+                document.getElementById('host-selected-coupon-display').classList.add('hidden');
+                document.getElementById('host-selected-coupon-display').classList.remove('flex');
+
+                // Sync removal to items
+                if (cidToRemove) {
+                    hostSelectedCouponSyncing = true;
+                    const items = cachedGroupData.items || (Array.isArray(cachedGroupData) ? cachedGroupData : []);
+                    const myItemsWithThisCoupon = items.filter(i =>
+                        String(i.userId) === String(userId) &&
+                        String(i.couponId) === String(cidToRemove)
+                    );
+
+                    for (const it of myItemsWithThisCoupon) {
+                        try {
+                            await fetch(NavAuth.getApiUrl(`/api/group-orders/${groupOrderToken}/items/${it.id}/apply-coupon`), {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId, couponId: null })
+                            });
+                        } catch (e) { }
+                    }
+                    hostSelectedCouponSyncing = false;
+                } else {
+                    // Refresh summary total without discount
+                    updateSummaryUI(globalSubtotal, globalTotalCups, globalHasUnpaidItemsForMe, globalMyUnpaidAmount, globalMySubtotal, globalMyCups, globalPaidAmountByOthers);
+                }
+            };
+
+            // ==========================================
+            // Edit Item Modal Logic (客製化專用)
+            // ==========================================
+            let currentBasePrice = 0;
+            let currentItemQty = 1;
+
+            const updateEditModalPrice = () => {
+                let extraPrice = 0;
+                document.querySelectorAll('#modal-dynamic-specs .active-btn').forEach(btn => {
+                    extraPrice += parseFloat(btn.dataset.extraPrice || 0);
+                });
+                document.querySelectorAll('#modal-topping-options .active-topping').forEach(t => {
+                    extraPrice += parseFloat(t.dataset.price || 0);
+                });
+
+                const unitPrice = currentBasePrice + extraPrice;
+                const totalPrice = unitPrice * currentItemQty;
+
+                const priceDisplay = document.getElementById('modal-product-price-display');
+                const footerTotalDisplay = document.getElementById('modal-footer-price-display');
+                const qtyDisplay = document.getElementById('modal-qty-display');
+
+                if (priceDisplay) priceDisplay.innerText = `$${unitPrice.toFixed(0)}`;
+                if (footerTotalDisplay) footerTotalDisplay.innerText = `總計 $${totalPrice.toFixed(0)}`;
+                if (qtyDisplay) qtyDisplay.innerText = currentItemQty;
+            };
+
+            window.selectCustomOption = (btn) => {
+                const group = btn.closest('[data-custom-group]');
+                group.querySelectorAll('button').forEach(b => {
+                    b.classList.remove('border-2', 'border-primary', 'bg-primary', 'text-white', 'font-semibold', 'active-btn');
+                    b.classList.add('border', 'border-slate-200', 'text-slate-600');
+                });
+
+                btn.classList.add('border-2', 'border-primary', 'bg-primary', 'text-white', 'font-semibold', 'active-btn');
+                btn.classList.remove('border', 'border-slate-200', 'text-slate-600');
+
+                updateEditModalPrice();
+            };
+
+            window.openEditModal = async (itemId) => {
+                const allItems = cachedGroupData?.items || (Array.isArray(cachedGroupData) ? cachedGroupData : []);
+                const item = allItems.find(i => i.idList && i.idList.map(String).includes(String(itemId)));
+
+                if (!item) {
+                    console.error("未找到該品項:", itemId);
+                    return;
+                }
+
+                currentEditingItemId = itemId;
+                currentItemQty = item.qty || 1;
+
+                // 立即顯示彈窗並預填基礎資訊 (消除延遲感)
+                document.getElementById('modal-product-title').innerText = item.productName || item.productNameSnapshot || "修改品項";
+                document.getElementById('modal-product-price-display').innerText = `$${item.finalPrice || item.unitPriceSnapshot || 0}`;
+                customizationModal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+
+                const specContainer = document.getElementById('modal-dynamic-specs');
+                const toppingGroup = document.getElementById('modal-topping-options');
+
+                // 顯示載入中動畫
+                specContainer.innerHTML = '<div class="flex flex-col items-center justify-center py-10 w-full"><i data-lucide="loader-2" class="w-10 h-10 animate-spin text-primary mb-2"></i><p class="text-sm text-slate-400">正在準備選項...</p></div>';
+                toppingGroup.innerHTML = '';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                try {
+                    const storeId = cachedGroupData?.groupOrder?.storeId;
+                    const url = `/api/products/${item.productId}/customization/v2${storeId ? '?storeId=' + storeId : ''}`;
+                    // 啟用 10 分鐘快取 (TTL: 600,000ms)
+                    const resultData = await NavAuth.fetchAPI(url, { cache: true, ttl: 600000 });
+
+                    if (resultData) {
+                        const mapOpt = s => ({
+                            id: s.brandSpecId || s.id || s.specId || 0,
+                            name: (s.specName || s.name || s.customName || '選項').trim(),
+                            price: s.extraPrice || s.price || 0,
+                            type: (s.type || '').toUpperCase()
+                        });
+
+                        let iceOpts = [], sweetOpts = [], sizeOpts = [], toppings = [];
+                        if (Array.isArray(resultData.specs)) {
+                            const normalizedSpecs = resultData.specs.map(mapOpt);
+                            iceOpts = normalizedSpecs.filter(s => s.type === 'ICE');
+                            sweetOpts = normalizedSpecs.filter(s => s.type === 'SWEETNESS');
+                            sizeOpts = normalizedSpecs.filter(s => s.type === 'SIZE');
+                        } else {
+                            iceOpts = (resultData.iceOptions || []).map(mapOpt);
+                            sweetOpts = (resultData.sweetnessOptions || []).map(mapOpt);
+                            sizeOpts = (resultData.sizeOptions || []).map(mapOpt);
+                        }
+
+                        const rawToppings = resultData.toppings || resultData.toppingOptions || [];
+                        toppings = (Array.isArray(rawToppings) ? rawToppings : []).map(t => ({
+                            id: t.toppingId || t.id || 0,
+                            name: (t.name || t.customName || t.toppingName || '配料').trim(),
+                            price: t.price || t.brandPrice || 0
+                        }));
+
+                        currentBasePrice = parseFloat(resultData.basePrice || 0);
+                        currentMaxToppings = resultData.maxToppings || 3;
+                        const toppingTitle = document.getElementById('modal-topping-title');
+                        if (toppingTitle) toppingTitle.innerText = `加料 (最多 ${currentMaxToppings} 項)`;
+
+                        const groups = { 'SIZE': sizeOpts, 'ICE': iceOpts, 'SWEETNESS': sweetOpts };
+                        const typeLabels = { 'SIZE': '杯型', 'ICE': '溫度 / 冰塊', 'SWEETNESS': '甜度' };
+
+                        // 渲染規格
+                        specContainer.innerHTML = '';
+                        Object.keys(groups).forEach(type => {
+                            const opts = groups[type];
+                            if (opts.length === 0 && type !== 'SIZE') return;
+
+                            const groupDiv = document.createElement('div');
+                            groupDiv.className = 'mb-6';
+                            groupDiv.setAttribute('data-custom-group', type);
+
+                            const title = document.createElement('h3');
+                            title.className = 'text-base font-bold text-slate-900 mb-3';
+                            title.innerText = typeLabels[type] || type;
+                            groupDiv.appendChild(title);
+
+                            const btnContainer = document.createElement('div');
+                            btnContainer.className = 'grid grid-cols-3 gap-2';
+
+                            opts.forEach(s => {
+                                const btn = document.createElement('button');
+                                btn.className = 'py-2.5 text-sm rounded-xl border border-slate-200 text-slate-600 transition-all hover:border-primary/50';
+                                btn.innerText = s.name + (s.price > 0 ? ` (+$${s.price})` : '');
+                                btn.dataset.specId = s.id;
+                                btn.dataset.extraPrice = s.price;
+                                btn.onclick = () => selectCustomOption(btn);
+
+                                const btnBaseName = s.name;
+                                const isSelected = (type === 'SIZE' && (NavAuth.normalizeSpec(item.size) === NavAuth.normalizeSpec(btnBaseName) || 
+                                    NavAuth.normalizeSpec(item.sizeSnapshot) === NavAuth.normalizeSpec(btnBaseName) || 
+                                    (item.size === 'M' && btnBaseName === '中杯') || (item.size === 'L' && btnBaseName === '大杯'))) ||
+                                    (type === 'ICE' && (NavAuth.normalizeSpec(item.ice) === NavAuth.normalizeSpec(btnBaseName) || NavAuth.normalizeSpec(item.iceSnapshot || "固定") === NavAuth.normalizeSpec(btnBaseName))) ||
+                                    (type === 'SWEETNESS' && (NavAuth.normalizeSpec(item.sugar) === NavAuth.normalizeSpec(btnBaseName) || NavAuth.normalizeSpec(item.sugarSnapshot || "固定") === NavAuth.normalizeSpec(btnBaseName)));
+
+                                if (isSelected) {
+                                    btn.classList.add('border-2', 'border-primary', 'bg-primary', 'text-white', 'font-semibold', 'active-btn');
+                                    btn.classList.remove('border', 'border-slate-200', 'text-slate-600');
+                                }
+                                btnContainer.appendChild(btn);
+                            });
+
+                            if (type === 'SIZE' && opts.length === 0) {
+                                const btn = document.createElement('button');
+                                btn.className = 'py-2.5 text-sm rounded-xl border-2 border-primary bg-primary text-white font-semibold active-btn';
+                                btn.innerText = '標準杯';
+                                btn.dataset.specId = '0';
+                                btn.dataset.extraPrice = '0';
+                                btnContainer.appendChild(btn);
+                            }
+
+                            if (!btnContainer.querySelector('.active-btn') && btnContainer.children.length > 0) {
+                                const first = btnContainer.children[0];
+                                first.classList.add('border-2', 'border-primary', 'bg-primary', 'text-white', 'font-semibold', 'active-btn');
+                                first.classList.remove('border', 'border-slate-200', 'text-slate-600');
+                            }
+
+                            // 優化：若該類別只有一個選項且非加料，則隱藏該欄位
+                            if (opts.length === 1 || (type === 'SIZE' && opts.length === 0)) {
+                                groupDiv.classList.add('hidden');
+                            }
+
+                            groupDiv.appendChild(btnContainer);
+                            specContainer.appendChild(groupDiv);
+                        });
+
+                        // 渲染配料
+                        toppingGroup.innerHTML = toppings.map(t => {
+                            const isSelected = (item.toppings || []).some(it => it.name === t.name);
+                            return `
+                                <button class="py-2.5 text-sm rounded-xl border ${isSelected ? 'border-2 border-primary bg-orange-50/20 text-primary font-bold active-topping' : 'border-slate-200 text-slate-600'} flex justify-between px-3 items-center"
+                                    data-price="${t.price}" data-id="${t.id}"
+                                    onclick="toggleEditTopping(this)">
+                                    <span>${t.name}</span>
+                                    <span class="text-[10px] text-gray-400">+$${t.price}</span>
+                                </button>
+                            `;
+                        }).join('') || '<p class="text-xs text-gray-400 col-span-2 text-center py-2">無加料選項</p>';
+
+                        updateEditModalPrice();
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch customization:', e);
+                    specContainer.innerHTML = `<div class="text-center py-10"><p class="text-red-500 mb-2">抱歉，無法載入選項</p><button onclick="openEditModal('${itemId}')" class="text-sm text-primary underline">重新嘗試</button></div>`;
+                }
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            };
+
+            window.toggleEditTopping = (btn) => {
+                const isAdding = !btn.classList.contains('active-topping');
+                if (isAdding) {
+                    const currentCount = document.querySelectorAll('#modal-topping-options .active-topping').length;
+                    if (currentCount >= currentMaxToppings) {
+                        showToast(`此飲品最多僅能選擇 ${currentMaxToppings} 項加料`, 'warning');
+                        return;
+                    }
+                }
+                btn.classList.toggle('border-2');
+                btn.classList.toggle('border-primary');
+                btn.classList.toggle('bg-orange-50/20');
+                btn.classList.toggle('text-primary');
+                btn.classList.toggle('font-bold');
+                btn.classList.toggle('active-topping');
+                updateEditModalPrice();
+            };
+
+            window.closeEditModal = () => {
+                customizationModal.classList.add('hidden');
+                document.body.style.overflow = '';
+                currentEditingItemId = null;
+                // 強制重新載入一次以確保 UI (標籤等) 正確顯示
+                loadGroupOrder();
+            };
+
+            customizationModal.addEventListener('click', (e) => {
+                if (e.target === customizationModal) closeEditModal();
+            });
+
+            saveEditBtn.onclick = async () => {
+                if (!currentEditingItemId) return;
+
+                const customizations = [];
+                let brandSpecId = null;
+                let sizeSnapshot = "標準杯";
+                let sugarSnapshot = null;
+                let iceSnapshot = null;
+                let extraPrice = 0;
+
+                document.querySelectorAll('#modal-dynamic-specs .active-btn').forEach(btn => {
+                    const text = btn.innerText.trim();
+                    const group = btn.closest('[data-custom-group]');
+                    const type = group ? group.dataset.customGroup : "";
+                    const isHidden = group && group.classList.contains('hidden');
+
+                    // 只有非隱藏的群組才加入顯示標籤 (避免固定規格產生標籤)
+                    if (!isHidden) {
+                        customizations.push(NavAuth.normalizeSpec(text));
+                    }
+
+                    if (type === 'SIZE') {
+                        brandSpecId = btn.dataset.specId ? parseInt(btn.dataset.specId) : null;
+                        sizeSnapshot = text.split('(')[0].trim();
+                        extraPrice += parseFloat(btn.dataset.extraPrice || 0);
+                    } else if (type === 'ICE') {
+                        iceSnapshot = text;
+                    } else if (type === 'SWEETNESS') {
+                        sugarSnapshot = text;
+                    } else {
+                        extraPrice += parseFloat(btn.dataset.extraPrice || 0);
+                    }
+                });
+
+                const toppingIds = [];
+                const toppingTexts = [];
+                document.querySelectorAll('#modal-topping-options .active-topping').forEach(btn => {
+                    toppingIds.push(parseInt(btn.dataset.id));
+                    const tName = btn.querySelector('span').innerText.split('(')[0].trim();
+                    const tPrice = parseFloat(btn.dataset.price || 0);
+                    toppingTexts.push(tName);
+                    customizations.push(`${tName} (+$${tPrice})`);
+                    extraPrice += tPrice;
+                });
+
+                const unitPrice = currentBasePrice + extraPrice;
+                const finalPrice = unitPrice * (currentItemQty || 1);
+
+                try {
+                    saveEditBtn.disabled = true;
+                    saveEditBtn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> 儲存中...';
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                    const response = await fetch(NavAuth.getApiUrl(`/api/group-orders/${groupOrderToken}/items/${currentEditingItemId}?userId=${userId}`), {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            brandSpecId: brandSpecId,
+                            sizeSnapshot: NavAuth.normalizeSpec(sizeSnapshot),
+                            iceSnapshot: NavAuth.normalizeSpec(iceSnapshot || (item ? (item.iceSnapshot || item.ice || "固定") : "固定")),
+                            sugarSnapshot: NavAuth.normalizeSpec(sugarSnapshot || (item ? (item.sugarSnapshot || item.sugar || "固定") : "固定")),
+                            toppingIds: toppingIds,
+                            toppingNames: toppingTexts,
+                            toppingPrices: Array.from(document.querySelectorAll('#modal-topping-options .active-topping')).map(btn => parseFloat(btn.dataset.price || 0)),
+                            unitPriceSnapshot: unitPrice,
+                            finalPrice: finalPrice,
+                            qty: currentItemQty || 1,
+                            idList: item ? item.idList : [currentEditingItemId]
+                        })
+                    });
+
+                    if (response.ok) {
+                        closeEditModal();
+                        // 不需要手動呼叫 loadGroupOrder，因為 closeEditModal 裡面已經呼叫了
+                    } else {
+                        const err = await response.json();
+                        showToast(err.error || '儲設失敗', 'error');
+                    }
+                } catch (e) {
+                    console.error('儲存修改失敗:', e);
+                    showToast('系統錯誤，請稍後再試', 'error');
+                } finally {
+                    saveEditBtn.disabled = false;
+                    saveEditBtn.innerText = '儲存修改';
+                }
+            };
+
+            // ==========================================
+            // Share Modal & QR Code
+            // ==========================================
+            const shareBtn = document.getElementById('btn-host-share');
+            if (shareBtn) {
+                shareBtn.addEventListener('click', () => {
+                    const modal = document.getElementById('group-order-modal');
+                    const linkInput = document.getElementById('group-link-input');
+                    const qrcodeContainer = document.getElementById('qrcode');
+
+                    const baseUrl = window.location.href.split('?')[0].replace('group_order.html', 'store.html');
+                    const shareLink = `${baseUrl}?id=${storeDataForLink}&token=${groupOrderToken}`;
+                    linkInput.value = shareLink;
+
+                    qrcodeContainer.innerHTML = '';
+                    new QRCode(qrcodeContainer, {
+                        text: shareLink,
+                        width: 160,
+                        height: 160,
+                        colorDark: "#1e293b",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.Level ? QRCode.Level.H : 2
+                    });
+
+                    modal.classList.remove('hidden');
+                    document.body.style.overflow = 'hidden';
+                });
+            }
+
+            // 刪除訂單邏輯 (Delete Group Order)
+            const deleteBtn = document.getElementById('btn-host-delete');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', async () => {
+                    if (!await showConfirm('確定要取消並刪除整個揪團嗎？此操作無法復原，且所有團員的訂單都將被取消。')) return;
+
+                    try {
+                        deleteBtn.disabled = true;
+                        deleteBtn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                        const response = await fetch(NavAuth.getApiUrl(`/api/group-orders/token/${groupOrderToken}?hostId=${userId}`), {
+                            method: 'DELETE'
+                        });
+
+                        if (response.ok) {
+                            showToast('揪團已成功取消並刪除！', 'success');
+                            navigateTo('index.html');
+                        } else {
+                            const err = await response.json();
+                            showToast(err.error || '刪除失敗', 'error');
+                            deleteBtn.disabled = false;
+                            deleteBtn.innerHTML = '<i data-lucide="trash-2" class="w-5 h-5"></i>';
+                            if (typeof lucide !== 'undefined') lucide.createIcons();
+                        }
+                    } catch (e) {
+                        showToast('系統錯誤，請稍後再試', 'error');
+                        deleteBtn.disabled = false;
+                        deleteBtn.innerHTML = '<i data-lucide="trash-2" class="w-5 h-5"></i>';
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                    }
+                });
+            }
+
+            document.getElementById('copy-link-btn').addEventListener('click', function () {
+                const linkInput = document.getElementById('group-link-input');
+                linkInput.classList.remove('sr-only');
+                linkInput.select();
+                document.execCommand('copy');
+                linkInput.classList.add('sr-only');
+
+                const originalHTML = this.innerHTML;
+                this.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> 已複製';
+                this.classList.replace('bg-primary', 'bg-green-500');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                setTimeout(() => {
+                    this.innerHTML = originalHTML;
+                    this.classList.replace('bg-green-500', 'bg-primary');
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }, 2000);
+            });
+
+            document.getElementById('group-order-modal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('group-order-modal')) {
+                    document.getElementById('group-order-modal').classList.add('hidden');
+                    document.body.style.overflow = '';
+                }
+            });
+
+            // ==========================================
+            // WebSocket (Real-time updates)
+            // ==========================================
+            let stompClient = null;
+
+            function setupWebSocket() {
+                if (stompClient !== null) {
+                    try { stompClient.disconnect(); } catch (e) { }
+                }
+
+                const socket = new SockJS(NavAuth.getApiUrl('/ws-cart'));
+                stompClient = Stomp.over(socket);
+                stompClient.debug = null;
+
+                stompClient.connect({}, (frame) => {
+                    stompClient.subscribe('/topic/group/' + groupOrderToken, (message) => {
+                        const data = JSON.parse(message.body);
+
+                        if (data.type === 'GROUP_DELETED') {
+                            showToast('此揪團已被團長取消或解散。', 'warning');
+                            navigateTo('index.html');
+                        } else if (data.orderId) {
+                            // GROUP_CHECKOUT
+                            if (!isHost) {
+                                showToast('團長已完成結帳！即將前往訂單詳情。', 'info');
+                                navigateTo(`order_details.html?id=${data.orderId}`);
+                            }
+                        } else {
+                            // CART_UPDATED, STATUS_CHANGED, etc.
+                            loadGroupOrder();
+                        }
+                    });
+                }, (error) => {
+                    console.warn('WebSocket connection error, retrying in 5s...', error);
+                    setTimeout(setupWebSocket, 5000);
+                });
+            }
+
+            setupWebSocket();
+
+            loadGroupOrder();
+
+            document.querySelectorAll('input[name="payment"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    document.querySelectorAll('input[name="payment"]').forEach(r => {
+                        const label = r.closest('label');
+                        label.className = 'flex items-center p-4 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-all';
+                        const badge = label.querySelector('.absolute');
+                        if (badge) badge.remove();
+                    });
+
+                    const label = e.target.closest('label');
+                    label.className = 'relative flex items-center p-4 rounded-xl border-2 border-primary bg-orange-50/20 cursor-pointer transition-all';
+                    label.insertAdjacentHTML('beforeend', '<span class="absolute right-3 top-2 text-[10px] text-primary font-bold">選取中</span>');
+                });
+            });
+
+            // Quantity buttons in modal
+            const qtyMinus = document.getElementById('modal-qty-minus');
+            const qtyPlus = document.getElementById('modal-qty-plus');
+            if (qtyMinus) {
+                qtyMinus.onclick = () => {
+                    if (currentItemQty > 1) {
+                        currentItemQty--;
+                        updateEditModalPrice();
+                    }
+                };
+            }
+            if (qtyPlus) {
+                qtyPlus.onclick = () => {
+                    currentItemQty++;
+                    updateEditModalPrice();
+                };
+            }
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+    </script>
+    <!-- Scroll To Top Button -->
+    <button id="scroll-top-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})"
+        class="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[80] w-11 h-11 bg-gray-400 hover:bg-gray-500 rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer opacity-0 pointer-events-none">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+        </svg>
+    </button>
+    <script>(function () { var b = document.getElementById('scroll-top-btn'); window.addEventListener('scroll', function () { if (window.scrollY > 300) { b.classList.remove('opacity-0', 'pointer-events-none'); b.classList.add('opacity-100'); } else { b.classList.add('opacity-0', 'pointer-events-none'); b.classList.remove('opacity-100'); } }, { passive: true }); })();</script>
+    <!-- Toast -->
+    <div id="toast-container"
+        class="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none">
+    </div>
+    <script>
+        function showToast(msg, type = 'info') {
+            const colors = { info: 'bg-gray-800', warning: 'bg-amber-500', error: 'bg-red-500', success: 'bg-green-600' };
+            const el = document.createElement('div');
+            el.className = `${colors[type] || colors.info} text-white text-sm font-medium px-5 py-3 rounded-xl shadow-lg transition-all duration-300 opacity-0 translate-y-[-8px] pointer-events-auto`;
+            el.textContent = msg;
+            document.getElementById('toast-container').appendChild(el);
+            requestAnimationFrame(() => { el.classList.remove('opacity-0', 'translate-y-[-8px]'); });
+            setTimeout(() => {
+                el.classList.add('opacity-0', 'translate-y-[-8px]');
+                el.addEventListener('transitionend', () => el.remove());
+            }, 3000);
+        }
+
+        function showConfirm(msg) {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.className = 'fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 backdrop-blur-sm';
+                overlay.innerHTML = `
+                    <div class="bg-white rounded-2xl shadow-2xl px-8 py-6 max-w-sm w-full mx-4 flex flex-col gap-5">
+                        <p class="text-slate-800 text-base font-medium leading-relaxed">${msg}</p>
+                        <div class="flex gap-3 justify-end">
+                            <button id="confirm-cancel-btn" class="px-5 py-2 rounded-xl border border-slate-200 text-slate-500 text-sm font-semibold hover:bg-slate-50 transition-colors">取消</button>
+                            <button id="confirm-ok-btn" class="px-5 py-2 rounded-xl bg-[#ec5b13] text-white text-sm font-semibold hover:bg-[#d04e0f] transition-colors">確定</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(overlay);
+                overlay.querySelector('#confirm-ok-btn').addEventListener('click', () => { overlay.remove(); resolve(true); });
+                overlay.querySelector('#confirm-cancel-btn').addEventListener('click', () => { overlay.remove(); resolve(false); });
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
+            });
+        }
+    </script>
+</body>
+
+</html>

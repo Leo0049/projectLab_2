@@ -1,0 +1,224 @@
+﻿<!DOCTYPE html>
+
+<html lang="zh-TW"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>JOIN揪飲 - 外送設定</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"/>
+<script id="tailwind-config">
+ tailwind.config = {
+ darkMode:"class",
+ theme: {
+ extend: {
+ colors: {"primary":"#ec5b13","accent-orange":"#ec5b13","background-light":"#f8f6f6","background-dark":"#221610",
+ },
+ fontFamily: {"display": ["Plus Jakarta Sans"]
+ },
+ borderRadius: {"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"
+ },
+ },
+ },
+ }
+ </script>
+<style type="text/tailwindcss">
+ body {
+ font-family: 'Plus Jakarta Sans', sans-serif;
+ }
+ .material-symbols-outlined {
+ font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+ }
+ .no-scrollbar::-webkit-scrollbar {
+ display: none;
+ }
+ .no-scrollbar {
+ -ms-overflow-style: none;
+ scrollbar-width: none;
+ }
+ input:focus, textarea:focus {
+ outline: none;
+ border-color: #ec5b13 !important;
+ box-shadow: 0 0 0 1px #ec5b13 !important;
+ }
+ </style>
+ <script src="js/store-shell-boot.js"></script>
+    <style>
+        @media (max-width: 1023.98px) {
+            html[data-store-shell-boot="true"] body:not([data-store-shell-ready="true"]) aside {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                z-index: 50;
+                width: min(18rem, calc(100vw - 2.5rem));
+                max-width: calc(100vw - 2.5rem);
+                transform: translateX(-110%);
+            }
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display h-screen overflow-hidden">
+ <div class="flex h-screen overflow-hidden">
+ 
+<aside class="w-64 bg-white dark:bg-background-dark border-r border-primary/10 flex flex-col fixed h-full z-50">
+ <div class="p-6 flex items-center gap-3">
+ <a rel="prefetch" href="home.html" class="rounded-lg flex items-center justify-center" aria-label="回到首頁">
+ <img src="img/logo_%23U53bb%23U80cc%23U6a94.png" alt="Logo" class="object-contain" />
+ </a>
+ </div>
+ <nav class="flex-1 px-4 py-4 space-y-1">
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="home.html">
+ <span class="material-symbols-outlined">dashboard</span>
+ <span>首頁</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="store-basic-info.html">
+ <span class="material-symbols-outlined">store</span>
+ <span>商店管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="menu-drinks.html">
+ <span class="material-symbols-outlined">menu_book</span>
+ <span>菜單管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="order-all.html">
+ <span class="material-symbols-outlined">assignment</span>
+ <span>訂單管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="finance-revenue-overview.html">
+ <span class="material-symbols-outlined">payments</span>
+ <span>財務管理</span>
+ </a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors"
+ href="reports-business-overview.html">
+ <span class="material-symbols-outlined">monitoring</span>
+ <span>數據報表</span>
+ </a>
+ </nav>
+</aside>
+
+ <main class="flex-1 flex flex-col min-w-0 ml-64 overflow-hidden">
+ <script src="js/api-store-status.js"></script>
+ <header class="sticky top-0 z-40 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-primary/10 px-8 py-4 flex items-center justify-between">
+ <div class="flex items-center gap-2">
+ <span class="material-symbols-outlined text-primary text-xl">store</span>
+ <h3 class="text-lg font-black tracking-tight">商店管理</h3>
+ </div>
+ <div class="flex items-center gap-4">
+ <button id="storeStatusToggle" type="button" aria-pressed="true" data-status="loading"
+ class="flex items-center bg-slate-100 dark:bg-slate-800 px-4 py-2 rounded-lg border border-slate-200 transition-colors">
+ <span id="storeStatusDot" class="w-2 h-2 bg-slate-400 rounded-full mr-2"></span>
+ <span id="storeStatusLabel" class="text-sm font-bold text-slate-500">讀取中...</span>
+ </button>
+ <button type="button" aria-label="通知" data-notifications-bell class="w-10 h-10 flex items-center justify-center rounded-lg bg-orange-100/50 text-primary relative">
+ <span class="material-symbols-outlined">notifications</span>
+ <span class="hidden absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-background-dark" data-notifications-dot></span>
+ </button>
+ <div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border border-primary/20">
+ <img id="headerStoreLogo" alt="用戶頭像" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-67Jtctk8J1C7F-KqVSe2Mw9WH8NyLwEYMUDfB4UdBvWyqPysGNOtjr8BP-A7YDjhrXdS3HLeGGtTpArafjW4KZ0xWWrelcVu4JlBc6mqx-vsDU_50PEkm5dWfdBWvxJHiyo8vUBL1W2YQD_zulS67HyZIQRQxIxtzJ1E6RuAwDRgjJCuKbneLZ-ZwCIBih7VBbaEH09ir2q1t4oeSzjvAL1cEWbDldb7pi_cC8gjgvI0_fwaGiEd0oe-w-Unot2lfJVk4zhlha8m" />
+ </div>
+ </div>
+ </header>
+
+ <div class="flex-1 overflow-y-auto">
+ <!-- 商店管理二級分頁標籤 -->
+ <div class="sticky top-0 z-30 bg-background-light dark:bg-background-dark">
+ <div class="mx-8 mt-6 mb-6 bg-white dark:bg-slate-900 rounded-xl p-2 border border-slate-100 dark:border-slate-800 shadow-sm">
+ <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+ <a class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap transition-colors" href="store-basic-info.html">基本資料</a>
+ <a class="px-4 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary whitespace-nowrap transition-colors" href="store-delivery-settings.html">外送設定</a>
+ <a class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap transition-colors" href="store-business-hours.html">營業時間</a>
+ </div>
+ </div>
+ </div>
+
+ <div id="mainContentFade" class="p-8 pt-0 opacity-0 transition-opacity duration-300">
+ <div id="deliverySettingsRoot" class="max-w-5xl mx-auto w-full">
+<section class="mb-8">
+<h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800">
+<span class="material-symbols-outlined text-accent-orange">delivery_dining</span>
+ 外送設定
+ </h3>
+<div class="bg-white rounded-xl border border-slate-200 p-8 shadow-sm space-y-8">
+<div class="flex items-start justify-between gap-6 max-w-2xl">
+<div>
+<label class="font-bold text-slate-700 block">是否開啟外送</label>
+<p class="text-xs text-slate-400 mt-1">關閉後顧客將無法在前端選擇外送服務</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer shrink-0">
+<input id="deliveryEnabledToggle" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-orange"></div>
+</label>
+</div>
+
+<div class="space-y-3 max-w-2xl" data-delivery-dependent-section>
+<label class="font-bold text-slate-700 block">外送距離 (公里)</label>
+<div class="relative">
+<input id="maxDeliveryKm" class="w-full pr-12 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-accent-orange focus:border-accent-orange transition-all font-medium text-slate-700" placeholder="請輸入公里數" step="0.1" type="number" data-delivery-dependent/>
+<span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">km</span>
+</div>
+</div>
+<div class="space-y-3 max-w-2xl" data-delivery-dependent-section>
+<label class="font-bold text-slate-700 block">最低外送金額</label>
+<div class="relative">
+<input id="minDeliveryAmount" class="w-full pr-16 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-accent-orange focus:border-accent-orange transition-all font-medium text-slate-700" placeholder="請輸入金額" step="1" min="0" type="number" data-delivery-dependent/>
+<span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">元</span>
+</div>
+</div>
+</div>
+</section>
+<section class="mb-8">
+<h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800">
+<span class="material-symbols-outlined text-accent-orange">schedule</span>
+ 外送時間設定
+ </h3>
+<div class="bg-white rounded-xl border border-slate-200 p-8 shadow-sm" data-delivery-dependent-section>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-3xl">
+<div class="space-y-3">
+<label class="font-bold text-slate-700 block">外送開始時間</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 z-10 pointer-events-none">history_toggle_off</span>
+<input id="deliveryStartTime" class="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-accent-orange focus:border-accent-orange transition-all font-medium text-slate-700" type="time" data-delivery-dependent/>
+</div>
+</div>
+<div class="space-y-3">
+<label class="font-bold text-slate-700 block">外送結束時間</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 z-10 pointer-events-none">history_toggle_off</span>
+<input id="deliveryEndTime" class="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-accent-orange focus:border-accent-orange transition-all font-medium text-slate-700" type="time" data-delivery-dependent/>
+</div>
+</div>
+</div>
+<div class="mt-6 flex items-start gap-2 text-slate-400">
+<span class="material-symbols-outlined text-sm mt-0.5">info</span>
+<p class="text-xs italic">註：外送服務僅在上述時段內開放接單，與門市營業時間可分別設定。</p>
+</div>
+</div>
+</section>
+
+ <div class="flex justify-end pt-4">
+ <button class="px-10 py-3 bg-primary hover:bg-orange-600 text-white rounded-xl font-bold shadow-lg shadow-primary/20 transition-all flex items-center gap-2 transform active:scale-95">
+ <span class="material-symbols-outlined text-xl">save</span>
+ 儲存變更
+ </button>
+ </div>
+ </div> <!-- deliverySettingsRoot -->
+ </div> <!-- mainContentFade -->
+ </div> <!-- scrollable area -->
+ </main>
+</div> <!-- outer flex container -->
+<script src="js/store-api.js"></script>
+<script src="js/store-shell.js"></script>
+<script src="js/auth-guard.js"></script>
+<script src="js/sidebar-active.js"></script>
+<script src="js/notifications-drawer.js"></script>
+
+<script src="js/store-status-toggle.js"></script>
+ <script src="./js/ui-time-dropdown.js"></script>
+<script src="js/store-delivery-settings-toggle.js"></script>
+<script src="js/api-delivery.js"></script>
+</body></html>

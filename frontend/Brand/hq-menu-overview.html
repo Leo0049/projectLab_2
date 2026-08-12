@@ -1,0 +1,1250 @@
+<!doctype html>
+
+<html class="light" lang="zh-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700&amp;display=block"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#ec5b13",
+              "background-light": "#f8f6f6",
+              "background-dark": "#221610",
+            },
+            fontFamily: {
+              display: ["Public Sans", "sans-serif"],
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px",
+            },
+          },
+        },
+      };
+    </script>
+    <script src="js/brand-shell-boot.js"></script>
+    <style>
+      aside nav a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        white-space: nowrap;
+        font-size: 14px;
+        text-decoration: none;
+      }
+      aside nav a .material-symbols-outlined {
+        flex-shrink: 0;
+      }
+      .sidebar-item-active {
+        background-color: #ec5b13;
+        color: white;
+      }
+
+      @media (max-width: 1023.98px) {
+        html[data-brand-shell-boot="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside {
+          position: fixed;
+          top: 0;
+          left: 0;
+          bottom: 0;
+          z-index: 40;
+          width: min(18rem, calc(100vw - 2.5rem));
+          max-width: calc(100vw - 2.5rem);
+          transform: translateX(-110%);
+        }
+      }
+
+      @media (min-width: 1024px) {
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside {
+          width: 5.75rem !important;
+        }
+
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside
+          > div:first-child {
+          padding-left: 1rem;
+          padding-right: 1rem;
+        }
+
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside
+          > div:first-child
+          a {
+          width: 100%;
+        }
+
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside
+          > div:first-child
+          img {
+          height: 3.5rem;
+        }
+
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside
+          nav
+          a {
+          justify-content: center;
+          gap: 0;
+          padding-left: 0.75rem;
+          padding-right: 0.75rem;
+        }
+
+        html[data-brand-shell-boot="true"][data-brand-shell-boot-collapsed="true"]
+          body:not([data-brand-shell-ready="true"])
+          aside
+          nav
+          a
+          span:not(.material-symbols-outlined) {
+          opacity: 0;
+          width: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+      }
+    </style>
+    <title>JOIN揪飲 - 品牌菜單</title>
+  </head>
+
+  <body
+    class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 transition-colors duration-200 h-screen overflow-hidden"
+  >
+    <div class="flex h-screen overflow-hidden">
+      <!-- 側邊欄 -->
+      <aside
+        class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-screen sticky top-0"
+      >
+        <div class="p-6 flex justify-center">
+          <a
+            href="hq-dashboard.html"
+            class="flex flex-col items-center gap-2"
+            aria-label="回到首頁"
+          >
+            <img
+              src="img/logo_%23U53bb%23U80cc%23U6a94.png"
+              alt="JOIN揪飲"
+              class="h-20 w-auto object-contain"
+            />
+          </a>
+        </div>
+        <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+          <a
+            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            href="hq-dashboard.html"
+          >
+            <span class="material-symbols-outlined text-[22px]">dashboard</span>
+            <span class="text-sm font-medium">全局儀表板</span>
+          </a>
+          <a
+            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            href="hq-store-management.html"
+          >
+            <span class="material-symbols-outlined text-[22px]"
+              >storefront</span
+            >
+            <span class="text-sm font-medium">分店管理</span>
+          </a>
+          <a
+            class="flex items-center gap-3 px-3 py-2.5 rounded-xl sidebar-item-active transition-colors"
+            href="hq-menu-overview.html"
+          >
+            <span class="material-symbols-outlined text-[22px]"
+              >restaurant_menu</span
+            >
+            <span class="text-sm font-semibold">品牌菜單</span>
+          </a>
+          <a
+            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            href="hq-brand-financial-overview.html"
+          >
+            <span class="material-symbols-outlined text-[22px]">payments</span>
+            <span class="text-sm font-medium">財務匯總</span>
+          </a>
+          <a
+            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            href="hq-hot-and-slow-selling-items-trend.html"
+          >
+            <span class="material-symbols-outlined text-[22px]"
+              >bar_chart_4_bars</span
+            >
+            <span class="text-sm font-medium">全局報表</span>
+          </a>
+        </nav>
+      </aside>
+      <!-- 主要內容 -->
+      <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <!-- 頁首 -->
+        <header
+          class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 z-10"
+        >
+          <div class="flex items-center">
+            <h2 class="text-xl font-bold">品牌菜單</h2>
+          </div>
+          <div class="flex items-center gap-6">
+            <div class="flex items-center gap-3 cursor-pointer group">
+              <div class="text-right">
+                <p
+                  class="text-base font-bold leading-tight group-hover:text-primary transition-colors"
+                >
+                  <span data-brand-admin-name>Admin</span>
+                </p>
+              </div>
+              <div
+                class="size-9 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700"
+              >
+                <img
+                  class="w-full h-full object-cover"
+                  data-brand-admin-avatar
+                  src=""
+                />
+              </div>
+            </div>
+          </div>
+        </header>
+        <div
+          class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-8 shrink-0"
+        >
+          <nav class="flex gap-8 overflow-x-auto">
+            <a
+              class="py-4 border-b-2 border-primary text-primary font-semibold text-sm whitespace-nowrap"
+              href="hq-menu-overview.html"
+              >菜單總覽</a
+            >
+            <a
+              class="py-4 border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 font-semibold text-sm transition-colors whitespace-nowrap"
+              href="hq-specs-and-toppings-management.html"
+              >規格與配料管理</a
+            >
+          </nav>
+        </div>
+        <!-- 頁面內容 -->
+        <div class="flex-1 overflow-y-auto p-8">
+          <!-- 操作列 -->
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+            <div class="flex items-center gap-4 flex-1 min-w-[300px] max-w-xl">
+              <div class="relative flex-1">
+                <span
+                  class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  >search</span
+                >
+                <input
+                  class="w-full pl-10 pr-4 py-2 rounded-lg border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                  data-hq-menu-search
+                  placeholder="搜尋飲品名稱..."
+                  type="text"
+                />
+              </div>
+              <button
+                type="button"
+                data-hq-drink-create-open
+                class="bg-primary text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+              >
+                <span class="material-symbols-outlined text-lg">add</span>
+                新增飲品</button
+              ><button
+                type="button"
+                data-hq-category-create-open
+                class="bg-primary text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+              >
+                <span class="material-symbols-outlined text-lg">add</span>
+                新增分類
+              </button>
+            </div>
+          </div>
+          <!-- 分頁 -->
+          <div
+            class="flex border-b border-slate-200 dark:border-zinc-800 mb-8 overflow-x-auto whitespace-nowrap scrollbar-hide"
+            data-hq-menu-category-tabs
+          >
+            <button
+              type="button"
+              data-hq-menu-category-tab="全部"
+              aria-selected="true"
+              class="px-6 py-3 border-b-2 border-primary text-primary font-bold text-sm"
+            >
+              全部
+            </button>
+          </div>
+          <!-- 內容格線 -->
+          <div
+            class="grid grid-cols-1 xl:grid-cols-2 gap-8"
+            data-hq-menu-category-grid
+          ></div>
+        </div>
+      </main>
+    </div>
+
+    <!-- 新增飲品彈窗 -->
+    <div
+      data-hq-drink-create-modal
+      class="fixed inset-0 z-50 hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/50" data-hq-modal-backdrop></div>
+      <div class="relative h-full w-full overflow-y-auto">
+        <div class="min-h-full w-full p-4 flex items-center justify-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hq-drink-create-title"
+            class="w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-slate-200 dark:border-zinc-800 overflow-hidden"
+          >
+            <div class="p-6 flex items-start justify-between gap-4">
+              <div>
+                <h3 id="hq-drink-create-title" class="text-xl font-bold">
+                  新增飲品
+                </h3>
+                <p class="text-sm text-primary mt-1">新增飲品資訊與規格價格</p>
+              </div>
+              <button
+                type="button"
+                data-hq-modal-close
+                class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                aria-label="關閉"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div class="px-6 pb-6 space-y-6">
+              <div class="space-y-2">
+                <label class="text-sm font-semibold">飲品名稱</label>
+                <input
+                  data-hq-drink-name
+                  type="text"
+                  placeholder="請輸入飲品名稱"
+                  class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                />
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-sm font-semibold">所屬分類</label>
+                <select
+                  data-hq-drink-category
+                  class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                >
+                  <option value="季節限定">季節限定</option>
+                  <option value="奶茶類">奶茶類</option>
+                  <option value="純茶類">純茶類</option>
+                  <option value="果茶類">果茶類</option>
+                </select>
+              </div>
+
+              <div class="space-y-3">
+                <p class="text-sm font-semibold">規格售價</p>
+                <div class="space-y-3" data-hq-size-pricing-rows>
+                  <div class="flex items-center gap-2" data-hq-size-row>
+                    <input
+                      data-hq-drink-size-check="S"
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    <div class="w-24 shrink-0 py-2 text-sm font-medium">
+                      小杯 S
+                    </div>
+                    <div class="w-40 relative">
+                      <span
+                        class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        >$</span
+                      >
+                      <input
+                        data-hq-drink-size-price="S"
+                        type="number"
+                        class="w-full pl-7 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2" data-hq-size-row>
+                    <input
+                      data-hq-drink-size-check="M"
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    <div class="w-24 shrink-0 py-2 text-sm font-medium">
+                      中杯 M
+                    </div>
+                    <div class="w-40 relative">
+                      <span
+                        class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        >$</span
+                      >
+                      <input
+                        data-hq-drink-size-price="M"
+                        type="number"
+                        class="w-full pl-7 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2" data-hq-size-row>
+                    <input
+                      data-hq-drink-size-check="L"
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    <div class="w-24 shrink-0 py-2 text-sm font-medium">
+                      大杯 L
+                    </div>
+                    <div class="w-40 relative">
+                      <span
+                        class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        >$</span
+                      >
+                      <input
+                        data-hq-drink-size-price="L"
+                        type="number"
+                        class="w-full pl-7 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <p class="text-sm font-semibold">冰量</p>
+                <div class="flex flex-wrap gap-3">
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    正常冰
+                  </label>
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    少冰
+                  </label>
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    去冰
+                  </label>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <p class="text-sm font-semibold">甜度</p>
+                <div class="flex flex-wrap gap-3">
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    正常甜
+                  </label>
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    半糖
+                  </label>
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    無糖
+                  </label>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <p class="text-sm font-semibold">飲品圖片</p>
+                <div
+                  class="rounded-xl border border-dashed border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-4"
+                >
+                  <div class="flex items-center gap-4">
+                    <div
+                      class="w-16 h-16 rounded-xl overflow-hidden bg-slate-200 dark:bg-zinc-700 shrink-0"
+                    >
+                      <div
+                        class="w-full h-full bg-gradient-to-br from-slate-800 to-slate-950"
+                        data-hq-drink-image-preview
+                      ></div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-xs text-slate-500 dark:text-slate-400">
+                        建議尺寸 800 x 800 px，格式為 JPG, PNG
+                      </p>
+                      <div class="mt-3 flex items-center gap-2">
+                        <input
+                          id="hq-drink-create-image"
+                          data-hq-drink-image-input
+                          class="sr-only"
+                          type="file"
+                          accept="image/png,image/jpeg"
+                        />
+                        <label
+                          for="hq-drink-create-image"
+                          data-hq-drink-image-pick
+                          class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 text-primary text-sm font-bold cursor-pointer hover:bg-primary/15 transition-colors"
+                        >
+                          <span class="material-symbols-outlined text-sm"
+                            >upload</span
+                          >
+                          上傳圖片
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-sm font-semibold">飲品描述</label>
+                <textarea
+                  rows="4"
+                  placeholder="請輸入飲品描述"
+                  class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                ></textarea>
+              </div>
+            </div>
+
+            <div
+              class="px-6 py-5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-end gap-3"
+            >
+              <button
+                type="button"
+                data-hq-modal-close
+                class="px-6 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-bold hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                data-hq-drink-create-save
+                class="px-6 py-2 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-colors"
+              >
+                儲存變更
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 編輯飲品彈窗 -->
+    <div
+      data-hq-drink-edit-modal
+      class="fixed inset-0 z-50 hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/50" data-hq-modal-backdrop></div>
+      <div class="relative h-full w-full overflow-y-auto">
+        <div class="min-h-full w-full p-4 flex items-center justify-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hq-drink-edit-title"
+            class="w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-slate-200 dark:border-zinc-800 overflow-hidden"
+          >
+            <div class="p-6 flex items-start justify-between gap-4">
+              <div>
+                <h3 id="hq-drink-edit-title" class="text-xl font-bold">
+                  編輯飲品
+                </h3>
+                <p class="text-sm text-primary mt-1">更新飲品資訊與規格價格</p>
+              </div>
+              <button
+                type="button"
+                data-hq-modal-close
+                class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                aria-label="關閉"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div class="px-6 pb-6 space-y-6">
+              <div class="space-y-2">
+                <label class="text-sm font-semibold">飲品名稱</label>
+                <input
+                  data-hq-drink-name
+                  type="text"
+                  value="根枝甘露"
+                  class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                />
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-sm font-semibold">所屬分類</label>
+                <select
+                  data-hq-drink-category
+                  class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                >
+                  <option value="季節限定" selected>季節限定</option>
+                  <option value="奶茶類">奶茶類</option>
+                  <option value="純茶類">純茶類</option>
+                  <option value="果茶類">果茶類</option>
+                </select>
+              </div>
+
+              <div class="space-y-3">
+                <p class="text-sm font-semibold">規格售價</p>
+                <div class="space-y-3" data-hq-size-pricing-rows>
+                  <div class="flex items-center gap-2" data-hq-size-row>
+                    <input
+                      data-hq-drink-size-check="S"
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    <div class="w-24 shrink-0 py-2 text-sm font-medium">
+                      小杯 S
+                    </div>
+                    <div class="w-40 relative">
+                      <span
+                        class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        >$</span
+                      >
+                      <input
+                        data-hq-drink-size-price="S"
+                        type="number"
+                        value="75"
+                        class="w-full pl-7 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2" data-hq-size-row>
+                    <input
+                      data-hq-drink-size-check="M"
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    <div class="w-24 shrink-0 py-2 text-sm font-medium">
+                      中杯 M
+                    </div>
+                    <div class="w-40 relative">
+                      <span
+                        class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        >$</span
+                      >
+                      <input
+                        data-hq-drink-size-price="M"
+                        type="number"
+                        value="85"
+                        class="w-full pl-7 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2" data-hq-size-row>
+                    <input
+                      data-hq-drink-size-check="L"
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    <div class="w-24 shrink-0 py-2 text-sm font-medium">
+                      大杯 L
+                    </div>
+                    <div class="w-40 relative">
+                      <span
+                        class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        >$</span
+                      >
+                      <input
+                        data-hq-drink-size-price="L"
+                        type="number"
+                        value="95"
+                        class="w-full pl-7 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <p class="text-sm font-semibold">冰量</p>
+                <div class="flex flex-wrap gap-3">
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    正常冰
+                  </label>
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    少冰
+                  </label>
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    去冰
+                  </label>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <p class="text-sm font-semibold">甜度</p>
+                <div class="flex flex-wrap gap-3">
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    正常甜
+                  </label>
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    半糖
+                  </label>
+                  <label
+                    data-hq-drink-chip
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <input
+                      data-hq-drink-chip-check
+                      type="checkbox"
+                      checked
+                      class="size-4 rounded accent-primary"
+                    />
+                    無糖
+                  </label>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <p class="text-sm font-semibold">飲品圖片</p>
+                <div
+                  class="rounded-xl border border-dashed border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-4"
+                >
+                  <div class="flex items-center gap-4">
+                    <div
+                      class="w-16 h-16 rounded-xl overflow-hidden bg-slate-200 dark:bg-zinc-700 shrink-0"
+                    >
+                      <div
+                        class="w-full h-full bg-gradient-to-br from-amber-300 to-orange-500"
+                        data-hq-drink-image-preview
+                      ></div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-xs text-slate-500 dark:text-slate-400">
+                        建議尺寸 800 x 800 px，格式為 JPG, PNG
+                      </p>
+                      <div class="mt-3 flex items-center gap-2">
+                        <input
+                          id="hq-drink-edit-image"
+                          data-hq-drink-image-input
+                          class="sr-only"
+                          type="file"
+                          accept="image/png,image/jpeg"
+                        />
+                        <label
+                          for="hq-drink-edit-image"
+                          data-hq-drink-image-pick
+                          class="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 text-primary text-sm font-bold cursor-pointer hover:bg-primary/15 transition-colors"
+                        >
+                          <span class="material-symbols-outlined text-sm"
+                            >upload</span
+                          >
+                          更換圖片
+                        </label>
+                        <button
+                          type="button"
+                          data-hq-drink-image-remove
+                          class="px-3 py-2 rounded-xl bg-slate-100 dark:bg-zinc-700 text-slate-700 dark:text-slate-100 text-sm font-bold hover:bg-slate-200 dark:hover:bg-zinc-600 transition-colors"
+                        >
+                          移除
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-sm font-semibold">飲品描述</label>
+                <textarea
+                  rows="4"
+                  class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                >
+嚴選屏東在地愛文芒果，搭配鮮榨紅柚果肉、Q彈西米露，濃郁椰奶完美融合，層次感十足。</textarea
+                >
+              </div>
+            </div>
+
+            <div
+              class="px-6 py-5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-end gap-3"
+            >
+              <button
+                type="button"
+                data-hq-modal-close
+                class="px-6 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-bold hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                data-hq-drink-edit-save
+                class="px-6 py-2 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-colors"
+              >
+                儲存變更
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新增分類彈窗 -->
+    <div
+      data-hq-category-create-modal
+      class="fixed inset-0 z-50 hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/50" data-hq-modal-backdrop></div>
+      <div class="relative h-full w-full overflow-y-auto">
+        <div class="min-h-full w-full p-4 flex items-center justify-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hq-category-create-title"
+            class="w-full max-w-xl bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-slate-200 dark:border-zinc-800 overflow-hidden"
+          >
+            <div class="p-6 flex items-start justify-between gap-4">
+              <div>
+                <h3 id="hq-category-create-title" class="text-xl font-bold">
+                  新增分類
+                </h3>
+                <p class="text-sm text-primary mt-1">新增一個新的菜單分類</p>
+              </div>
+              <button
+                type="button"
+                data-hq-modal-close
+                class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                aria-label="關閉"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div class="px-6 pb-6 space-y-3">
+              <label class="text-sm font-semibold">分類名稱</label>
+              <div class="flex items-center gap-3">
+                <input
+                  data-hq-category-create-input
+                  type="text"
+                  placeholder="請輸入分類名稱"
+                  class="flex-1 rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                />
+                <button
+                  type="button"
+                  data-hq-category-create-submit
+                  class="px-4 py-2 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-colors"
+                >
+                  新增
+                </button>
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                分類名稱不可重複。
+              </p>
+              <div class="pt-2">
+                <label class="text-sm font-semibold">區域售價加價（元）</label>
+                <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div class="space-y-1">
+                    <label
+                      class="text-xs font-semibold text-slate-600 dark:text-slate-300"
+                      >北部</label
+                    >
+                    <input
+                      data-hq-category-create-region-north
+                      type="number"
+                      step="1"
+                      inputmode="numeric"
+                      placeholder="0"
+                      class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                  <div class="space-y-1">
+                    <label
+                      class="text-xs font-semibold text-slate-600 dark:text-slate-300"
+                      >中部</label
+                    >
+                    <input
+                      data-hq-category-create-region-central
+                      type="number"
+                      step="1"
+                      inputmode="numeric"
+                      placeholder="0"
+                      class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                  <div class="space-y-1">
+                    <label
+                      class="text-xs font-semibold text-slate-600 dark:text-slate-300"
+                      >南部</label
+                    >
+                    <input
+                      data-hq-category-create-region-south
+                      type="number"
+                      step="1"
+                      inputmode="numeric"
+                      placeholder="0"
+                      class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  未填寫視同無地區差價；例如北部填 5 表示此分類飲品北部售價 +5
+                  元。
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 編輯分類彈窗 -->
+    <div
+      data-hq-category-edit-modal
+      class="fixed inset-0 z-50 hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/50" data-hq-modal-backdrop></div>
+      <div class="relative h-full w-full overflow-y-auto">
+        <div class="min-h-full w-full p-4 flex items-center justify-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hq-category-edit-title"
+            class="w-full max-w-xl bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-slate-200 dark:border-zinc-800 overflow-hidden"
+          >
+            <div class="p-6 flex items-start justify-between gap-4">
+              <div>
+                <h3 id="hq-category-edit-title" class="text-xl font-bold">
+                  編輯分類
+                </h3>
+                <p class="text-sm text-primary mt-1">
+                  修改此分類名稱或刪除此分類
+                </p>
+              </div>
+              <button
+                type="button"
+                data-hq-modal-close
+                class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                aria-label="關閉"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div class="px-6 pb-6 space-y-3">
+              <label class="text-sm font-semibold">分類名稱</label>
+              <input
+                data-hq-category-edit-input
+                type="text"
+                placeholder="請輸入分類名稱"
+                class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+              />
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                分類名稱不可重複，且不包含「全部」。
+              </p>
+              <div class="pt-2">
+                <label class="text-sm font-semibold">區域售價加價（元）</label>
+                <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div class="space-y-1">
+                    <label
+                      class="text-xs font-semibold text-slate-600 dark:text-slate-300"
+                      >北部</label
+                    >
+                    <input
+                      data-hq-category-edit-region-north
+                      type="number"
+                      step="1"
+                      inputmode="numeric"
+                      placeholder="0"
+                      class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                  <div class="space-y-1">
+                    <label
+                      class="text-xs font-semibold text-slate-600 dark:text-slate-300"
+                      >中部</label
+                    >
+                    <input
+                      data-hq-category-edit-region-central
+                      type="number"
+                      step="1"
+                      inputmode="numeric"
+                      placeholder="0"
+                      class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                  <div class="space-y-1">
+                    <label
+                      class="text-xs font-semibold text-slate-600 dark:text-slate-300"
+                      >南部</label
+                    >
+                    <input
+                      data-hq-category-edit-region-south
+                      type="number"
+                      step="1"
+                      inputmode="numeric"
+                      placeholder="0"
+                      class="w-full rounded-xl border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  未填寫視為 0 元。
+                </p>
+              </div>
+            </div>
+
+            <div
+              class="px-6 py-5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between gap-3"
+            >
+              <button
+                type="button"
+                data-hq-category-edit-delete
+                class="px-6 py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 text-red-600 dark:text-red-400 font-bold hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors"
+              >
+                刪除此分類
+              </button>
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  data-hq-modal-close
+                  class="px-6 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-bold hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  data-hq-category-edit-save
+                  class="px-6 py-2 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-colors"
+                >
+                  儲存
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 刪除飲品確認彈窗 -->
+    <div
+      data-hq-drink-delete-modal
+      class="fixed inset-0 z-50 hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/50" data-hq-modal-backdrop></div>
+      <div class="relative h-full w-full overflow-y-auto">
+        <div class="min-h-full w-full p-4 flex items-center justify-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hq-drink-delete-title"
+            class="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-slate-200 dark:border-zinc-800 overflow-hidden"
+          >
+            <div class="p-6 flex items-start justify-between gap-4">
+              <div>
+                <h3 id="hq-drink-delete-title" class="text-xl font-bold">
+                  刪除飲品
+                </h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  確定要刪除此飲品嗎？此操作無法復原。
+                </p>
+              </div>
+              <button
+                type="button"
+                data-hq-modal-close
+                class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                aria-label="關閉"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div
+              class="px-6 py-5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-end gap-3"
+            >
+              <button
+                type="button"
+                data-hq-modal-close
+                class="px-6 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-bold hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                data-hq-drink-delete-confirm
+                class="px-6 py-2 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors"
+              >
+                確定刪除
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 刪除分類確認彈窗 -->
+    <div
+      data-hq-category-delete-modal
+      class="fixed inset-0 z-50 hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/50" data-hq-modal-backdrop></div>
+      <div class="relative h-full w-full overflow-y-auto">
+        <div class="min-h-full w-full p-4 flex items-center justify-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hq-category-delete-title"
+            class="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-slate-200 dark:border-zinc-800 overflow-hidden"
+          >
+            <div class="p-6 flex items-start justify-between gap-4">
+              <div>
+                <h3 id="hq-category-delete-title" class="text-xl font-bold">
+                  刪除分類
+                </h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  確定要刪除分類「<span
+                    data-hq-category-delete-name
+                    class="font-bold text-slate-700 dark:text-slate-100"
+                  ></span
+                  >」嗎？此操作無法復原。
+                </p>
+              </div>
+              <button
+                type="button"
+                data-hq-modal-close
+                class="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                aria-label="關閉"
+              >
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div
+              class="px-6 py-5 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-end gap-3"
+            >
+              <button
+                type="button"
+                data-hq-modal-close
+                class="px-6 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-bold hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                data-hq-category-delete-confirm
+                class="px-6 py-2 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors"
+              >
+                確定刪除
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/brand-api.js?v=5"></script>
+    <script src="js/hq-menu-category-tabs.js?v=5"></script>
+    <script src="js/hq-option-toggle-gray.js?v=4"></script>
+    <script src="js/hq-menu-drink-modals.js?v=3"></script>
+    <script src="js/hq-menu-overview-search.js?v=3"></script>
+    <script src="js/hq-menu-api.js?v=6"></script>
+  </body>
+</html>

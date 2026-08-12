@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+ <meta charset="utf-8" />
+ <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+ <title>JOIN揪飲 - 營業總覽</title>
+ <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+ <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+ <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet" />
+ <script id="tailwind-config">
+ tailwind.config = {
+ darkMode:"class",
+ theme: {
+ extend: {
+ colors: {"primary":"#ec5b13","background-light":"#f8f6f6","background-dark":"#221610",
+ },
+ fontFamily: {"display": ["Plus Jakarta Sans"] },
+ borderRadius: {"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px" },
+ },
+ },
+ }
+ </script>
+ <link rel="stylesheet" href="css/home.css">
+ <script src="js/store-shell-boot.js"></script>
+    <style>
+        @media (max-width: 1023.98px) {
+            html[data-store-shell-boot="true"] body:not([data-store-shell-ready="true"]) aside {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                z-index: 50;
+                width: min(18rem, calc(100vw - 2.5rem));
+                max-width: calc(100vw - 2.5rem);
+                transform: translateX(-110%);
+            }
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 h-screen overflow-hidden">
+ <div class="flex h-screen overflow-hidden">
+ 
+<aside class="w-64 bg-white dark:bg-background-dark border-r border-primary/10 flex flex-col fixed h-full z-50">
+ <div class="p-6 flex items-center gap-3">
+ <a rel="prefetch" href="home.html" class="rounded-lg flex items-center justify-center"><img src="img/logo_%23U53bb%23U80cc%23U6a94.png" alt="Logo" class="object-contain" /></a>
+ </div>
+ <nav class="flex-1 px-4 py-4 space-y-1">
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors" href="home.html"><span class="material-symbols-outlined">dashboard</span><span>首頁</span></a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors" href="store-basic-info.html"><span class="material-symbols-outlined">store</span><span>商店管理</span></a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors" href="menu-drinks.html"><span class="material-symbols-outlined">menu_book</span><span>菜單管理</span></a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors" href="order-all.html"><span class="material-symbols-outlined">assignment</span><span>訂單管理</span></a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors" href="finance-revenue-overview.html"><span class="material-symbols-outlined">payments</span><span>財務管理</span></a>
+ <a rel="prefetch" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-colors" href="reports-business-overview.html"><span class="material-symbols-outlined">monitoring</span><span>數據報表</span></a>
+ </nav>
+ </aside>
+
+ <main class="flex-1 flex flex-col min-w-0 ml-64 overflow-hidden">
+ <script src="js/api-store-status.js"></script>
+ <header class="sticky top-0 z-40 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-primary/10 px-8 py-4 flex items-center justify-between">
+ <div class="flex items-center gap-2">
+ <span class="material-symbols-outlined text-primary text-xl">monitoring</span>
+ <h3 class="text-lg font-black tracking-tight">數據報表</h3>
+ </div>
+ <div class="flex items-center gap-4">
+ <button id="storeStatusToggle" type="button" data-status="loading" class="flex items-center bg-slate-100 px-4 py-2 rounded-lg border border-slate-200">
+ <span id="storeStatusDot" class="w-2 h-2 bg-slate-400 rounded-full mr-2"></span>
+ <span id="storeStatusLabel" class="text-sm font-bold text-slate-500">讀取中...</span>
+ </button>
+ <button type="button" aria-label="通知" data-notifications-bell class="w-10 h-10 flex items-center justify-center rounded-lg bg-orange-100/50 text-primary relative">
+ <span class="material-symbols-outlined">notifications</span>
+ <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-background-dark hidden" data-notifications-dot></span>
+ </button>
+ <div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border border-primary/20">
+ <img alt="用戶頭像" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-67Jtctk8J1C7F-KqVSe2Mw9WH8NyLwEYMUDfB4UdBvWyqPysGNOtjr8BP-A7YDjhrXdS3HLeGGtTpArafjW4KZ0xWWrelcVu4JlBc6mqx-vsDU_50PEkm5dWfdBWvxJHiyo8vUBL1W2YQD_zulS67HyZIQRQxIxtzJ1E6RuAwDRgjJCuKbneLZ-ZwCIBih7VBbaEH09ir2q1t4oeSzjvAL1cEWbDldb7pi_cC8gjgvI0_fwaGiEd0oe-w-Unot2lfJVk4zhlha8m" />
+ </div>
+ </div>
+ </header>
+
+ <div id="mainContentFade" class="flex-1 overflow-y-auto invisible">
+ <div class="mx-4 md:mx-8 mt-4 md:mt-6 mb-4 md:mb-6">
+ <div class="bg-white dark:bg-slate-900 rounded-xl p-2 border border-primary/10 shadow-sm">
+ <nav class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+ <a class="px-4 py-1.5 rounded-lg text-sm font-bold bg-primary text-white shadow-md shadow-primary/20 whitespace-nowrap" href="reports-business-overview.html">營業總覽</a>
+ <a class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-50 whitespace-nowrap" href="reports-rating-stars.html">評分星數</a>
+ <a class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-50 whitespace-nowrap" href="reports-product-ranking.html">商品排行</a>
+ </nav>
+ </div>
+ </div>
+
+ <div id="overviewReportContainer" class="p-4 md:p-8">
+ <div class="max-w-6xl mx-auto space-y-4 md:space-y-8">
+ <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+ <div class="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-2xl border border-primary/10 shadow-sm">
+ <p class="text-xs font-bold text-slate-400 uppercase mb-1">今日營業額</p>
+ <h3 class="text-2xl md:text-3xl font-black" data-report-revenue>&nbsp;</h3>
+ </div>
+ <div class="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-2xl border border-primary/10 shadow-sm">
+ <p class="text-xs font-bold text-slate-400 uppercase mb-1">今日訂單數</p>
+ <h3 class="text-2xl md:text-3xl font-black" data-report-orders>&nbsp;</h3>
+ </div>
+ <div class="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-2xl border border-primary/10 shadow-sm">
+ <p class="text-xs font-bold text-slate-400 uppercase mb-1">平均客單價</p>
+ <h3 class="text-2xl md:text-3xl font-black" data-report-aov>&nbsp;</h3>
+ </div>
+ </div>
+
+ <div class="bg-white dark:bg-slate-900 p-4 md:p-8 rounded-xl border border-slate-200 shadow-sm">
+ <div class="flex items-center justify-between mb-4 md:mb-8">
+ <h3 class="text-base md:text-xl font-bold">每日營收趨勢圖</h3>
+ <div class="flex gap-2">
+ <button id="toggleThisWeek" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-bold border border-primary/20">
+ <span class="size-3 rounded-full bg-primary"></span>
+ <span>本週</span>
+ </button>
+ <button id="toggleLastWeek" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 text-slate-400 text-xs font-bold border border-slate-100">
+ <span class="size-3 rounded-full bg-slate-300"></span>
+ <span>上週</span>
+ </button>
+ </div>
+ </div>
+ <div class="h-[240px] md:h-[300px] w-full"><canvas id="salesTrendsChart"></canvas></div>
+ </div>
+
+ <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+ <div class="px-4 md:px-6 py-3 md:py-4 border-b border-slate-200 bg-slate-50/50"><h4 class="font-bold">近期營收明細</h4></div>
+ <div class="overflow-x-auto">
+ <table class="w-full text-left"><thead class="bg-slate-50 text-xs font-bold uppercase text-slate-500"><tr><th class="px-3 md:px-6 py-3 md:py-4">日期</th><th class="px-3 md:px-6 py-3 md:py-4">營收</th><th class="px-3 md:px-6 py-3 md:py-4">訂單數</th><th class="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap">平均客單價</th></tr></thead><tbody id="recentRevenueTableBody" class="divide-y divide-slate-100"></tbody></table>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+ </main>
+ </div>
+ <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+ <script src="js/store-api.js"></script>
+<script src="js/store-shell.js"></script>
+ <script src="js/auth-guard.js"></script>
+ <script src="js/sidebar-active.js"></script>
+ <script src="js/notifications-drawer.js"></script>
+ 
+ <script src="js/store-status-toggle.js"></script>
+ <script src="js/api-analytics.js"></script>
+ <script src="js/reports-sales-chart.js"></script>
+ 
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
+  <title>登入 | JOIN揪飲</title>
+
+  <link rel="stylesheet" href="./css/login.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <img src="./images/logo.png" alt="JOIN 揪飲 LOGO" class="logo-img">
+    </div>
+    <a class="header-register" href="register.html">註冊</a>
+  </header>
+
+  <!-- Login Section -->
+  <section class="login-section">
+    <div class="login-card">
+
+      <h2>歡迎回來</h2>
+      <p class="login-desc">請輸入您的帳號密碼以繼續使用 JOIN 揪飲</p>
+
+      <div class="login-tabs">
+        <div class="tab-slider" aria-hidden="true"></div>
+        <button type="button" class="tab active" data-target="personal">個人登入</button>
+        <button type="button" class="tab" data-target="corporate">企業登入</button>
+      </div>
+
+      <!-- 個人登入 -->
+      <div class="personal-section">
+        <form class="login-form" id="personal-form">
+
+          <label>手機號碼</label>
+          <div class="input-box">
+            <i class="fa-solid fa-mobile-screen"></i>
+            <input type="text" id="personal-phone" placeholder="請輸入您的手機號碼" />
+          </div>
+
+          <label>密碼</label>
+          <div class="input-box">
+            <i class="fa-solid fa-lock"></i>
+            <input type="password" id="personal-password" placeholder="請輸入您的密碼" />
+            <i class="fa-regular fa-eye toggle-password"></i>
+          </div>
+
+          <div class="forgot">
+            <a href="forgot-password.html">忘記密碼？</a>
+          </div>
+
+          <!-- 錯誤訊息區塊 -->
+          <p class="login-error" id="personal-error" style="display:none; color:#e53e3e; font-size:0.875rem; margin-bottom:8px;"></p>
+
+          <button type="button" class="login-btn" id="personal-login-btn">登入</button>
+
+        </form>
+      </div>
+
+      <!-- 企業登入 -->
+      <div class="corporate-section" hidden>
+        <form class="login-form corporate-form" id="corporate-form">
+
+          <label>帳號</label>
+          <div class="input-box">
+            <i class="fa-solid fa-user-tie"></i>
+            <input type="text" id="corporate-account" placeholder="請輸入企業帳號" />
+          </div>
+
+          <label>密碼</label>
+          <div class="input-box">
+            <i class="fa-solid fa-lock"></i>
+            <input type="password" id="corporate-password" placeholder="請輸入密碼" />
+            <i class="fa-regular fa-eye toggle-password"></i>
+          </div>
+
+          <!-- 錯誤訊息區塊 -->
+          <p class="login-error" id="corporate-error" style="display:none; color:#e53e3e; font-size:0.875rem; margin-bottom:8px;"></p>
+
+          <button type="button" class="login-btn" id="corporate-login-btn">企業登入</button>
+
+        </form>
+      </div>
+
+      <!-- 第三方登入（僅個人） -->
+      <div class="other-login">
+        <div class="divider">
+          <span>其他登入方式</span>
+        </div>
+        <div class="social-login">
+          <button type="button" class="social-btn" data-provider="GOOGLE">
+            <img src="./images/google.jpg" alt="Google" class="social-icon">
+            Google
+          </button>
+          <button type="button" class="social-btn" data-provider="FACEBOOK">
+            <img src="./images/fb.png" alt="Facebook" class="social-icon">
+            Facebook
+          </button>
+        </div>
+      </div>
+
+      <p class="register-link">
+        還沒有帳號？<a href="register.html">立即註冊</a>
+      </p>
+
+    </div>
+  </section>
+
+  <footer class="footer">
+    © 2024 JOIN 揪飲. All rights reserved.
+  </footer>
+
+  <script>
+    window.JOIN_API_BASE = 'http://localhost:8082';
+    window.JOIN_FIREBASE_CONFIG = {
+      apiKey: "AIzaSyCFQlAen8XIY0VTxzl0usNvz-FxO-gsRZM",
+      authDomain: "project-b5e05.firebaseapp.com",
+      projectId: "project-b5e05",
+      storageBucket: "project-b5e05.firebasestorage.app",
+      messagingSenderId: "302990497638",
+      appId: "1:302990497638:web:4ad06a28fce00b5e5d5aa7",
+      measurementId: "G-EZ7MPPE8ZN"
+    };
+  </script>
+
+  <script>
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error(`無法載入 ${src}`));
+        document.head.appendChild(s);
+      });
+    }
+
+    async function tryLoadFirebase() {
+      const candidates = [
+        'https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js',
+        'https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js',
+        'https://cdn.jsdelivr.net/npm/firebase@10.14.0/compat/app.js',
+        'https://cdn.jsdelivr.net/npm/firebase@10.14.0/compat/auth.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-app-compat.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-auth-compat.min.js'
+      ];
+      for (let i = 0; i < candidates.length; i += 2) {
+        try {
+          await loadScript(candidates[i]);
+          await loadScript(candidates[i + 1]);
+          return;
+        } catch (err) {
+          console.warn('Firebase CDN 失敗，嘗試下一個：', err.message);
+        }
+      }
+      throw new Error('所有 Firebase CDN 載入失敗');
+    }
+
+    (async () => {
+      try {
+        await tryLoadFirebase();
+        if (!window.firebase) throw new Error('firebase global 尚未建立');
+        if (window.JOIN_FIREBASE_CONFIG && !window.firebase.apps?.length) {
+          firebase.initializeApp(window.JOIN_FIREBASE_CONFIG);
+        }
+      } catch (err) {
+        console.error('Firebase 載入失敗', err);
+      }
+    })();
+  </script>
+
+  <script src="./js/login.js"></script>
+
+</body>
+
+</html>

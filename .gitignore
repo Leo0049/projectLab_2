@@ -1,0 +1,82 @@
+# === JoinDrink .gitignore (團隊協作加強版) ===
+
+# --- 建置產物 (Build Artifacts) ---
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+.mvn/wrapper/maven-wrapper.jar
+
+# --- 機密與環境變數 (Secrets & Env) ---
+# 強烈建議：密碼與 API Key 放在 .env，不要 commit 到 Git
+.env
+.env.local
+.env.*.local
+src/main/resources/serviceAccountKey.json
+# application.yml 本身只含 ${ENV_VAR:預設值}，可安全提交。
+# 但所有 profile 專用設定檔一律忽略（實務上都會塞真實密碼），
+# 只保留 *.example 範本供他人參考。
+src/main/resources/application-*.yml
+!src/main/resources/application-*.yml.example
+
+# --- 測試與臨時檔案 (Temp & Test Data) ---
+# 忽略開發過程中產生的測試資料
+seed_*.sql
+test_*.sql
+migrate_*.sql
+*.bak
+*.tmp
+*.temp
+chat.json
+
+# --- IDE 與編輯器設定 (IDE Settings) ---
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+# VS Code
+.vscode/
+.history/
+# Eclipse / STS
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+
+# --- AI 工具 (AI Assistant) ---
+.claude/
+.gemini/
+.geminiignore
+
+# --- 前端相關 (Frontend) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+.stylelintcache
+
+# --- Python 相關 (Python Cache) ---
+# 專案中有 Python 優化腳本
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# --- 作業系統檔案 (OS Generated) ---
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+.DS_Store
+.AppleDouble
+.LSOverride
