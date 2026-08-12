@@ -21,6 +21,11 @@ src/main/resources/serviceAccountKey.json
 src/main/resources/application-*.yml
 !src/main/resources/application-*.yml.example
 
+# --- 使用者上傳內容 (Runtime Uploads) ---
+# UploadController 會在執行期把檔案寫進這裡（目錄由 mkdirs() 自動建立），
+# 屬於使用者內容而非原始碼，不應進版控。
+src/main/resources/static/uploads/
+
 # --- 測試與臨時檔案 (Temp & Test Data) ---
 # 忽略開發過程中產生的測試資料
 seed_*.sql
