@@ -3,7 +3,9 @@ package com.example.demo.common;
 import com.example.demo.entity.Brand;
 import com.example.demo.entity.BrandSpecSetting;
 import com.example.demo.entity.BrandToppingSetting;
+import com.example.demo.entity.GroupOrder;
 import com.example.demo.entity.MenuCategory;
+import com.example.demo.entity.OrderItem;
 import com.example.demo.entity.ProductTemplate;
 import com.example.demo.entity.Region;
 import com.example.demo.entity.SpecMaster;
@@ -13,7 +15,9 @@ import com.example.demo.entity.User;
 import com.example.demo.repository.BrandRepository;
 import com.example.demo.repository.BrandSpecSettingRepository;
 import com.example.demo.repository.BrandToppingSettingRepository;
+import com.example.demo.repository.GroupOrderRepository;
 import com.example.demo.repository.MenuCategoryRepository;
+import com.example.demo.repository.OrderItemRepository;
 import com.example.demo.repository.ProductTemplateRepository;
 import com.example.demo.repository.RegionRepository;
 import com.example.demo.repository.SpecMasterRepository;
@@ -31,6 +35,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 /**
@@ -60,6 +66,8 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final MenuCategoryRepository menuCategoryRepository;
     private final ProductTemplateRepository productTemplateRepository;
     private final UserRepository userRepository;
+    private final GroupOrderRepository groupOrderRepository;
+    private final OrderItemRepository orderItemRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${app.demo-data.enabled:true}")
@@ -84,13 +92,13 @@ public class DemoDataSeeder implements ApplicationRunner {
         Brand tea = brandRepository.save(brand("春日茶事", "demo_brand"));
         MenuCategory classic = menuCategoryRepository.save(category(tea, "經典茶飲", 0));
         MenuCategory milk = menuCategoryRepository.save(category(tea, "鮮奶茶", 1));
-        productTemplateRepository.saveAll(List.of(
+        List<ProductTemplate> teaProducts = productTemplateRepository.saveAll(List.of(
                 product(tea, classic, "四季春青茶", "35", "清爽回甘的高山青茶"),
                 product(tea, classic, "文山包種", "40", "花香明顯，冷熱皆宜"),
                 product(tea, milk, "珍珠鮮奶茶", "65", "招牌珍珠搭配純鮮乳"),
                 product(tea, milk, "黑糖鮮奶", "70", "手炒黑糖，微苦不膩")
         ));
-        storeRepository.saveAll(List.of(
+        List<Store> teaStores = storeRepository.saveAll(List.of(
                 store(tea, north, "春日茶事 — 大安店", "demo_store",
                         "台北市大安區復興南路一段 100 號", "25.03360", "121.54350",
                         "02-2711-0100", "4.7", 128, "50", "3.0"),
@@ -124,6 +132,10 @@ public class DemoDataSeeder implements ApplicationRunner {
         customer.setPasswordHash(passwordEncoder.encode(DEMO_PASSWORD));
         userRepository.save(customer);
 
+        // ── 示範訂單 ──────────────────────────────────────────
+        // 沒有這一步，門市後台的訂單管理是六個空區塊，看起來像功能還沒做完
+        seedOrders(teaStores.get(0), customer, teaProducts);
+
         log.warn("""
 
                 ┌─ 已植入示範資料（密碼皆為 {}）─────────────────────
@@ -134,6 +146,110 @@ public class DemoDataSeeder implements ApplicationRunner {
                 │  正式環境請設定 DEMO_DATA_ENABLED=false
                 └───────────────────────────────────────────────────
                 """, DEMO_PASSWORD);
+    }
+
+    /**
+     * 建立一批橫跨各種狀態的示範訂單，讓門市後台的訂單管理、首頁活動單與財務報表
+     * 一開啟就有內容。
+     *
+     * ⚠️ 待處理（SUBMITTED）的 createdAt 一律用「現在」：前端對待處理單有 10 分鐘倒數，
+     * 逾時會自動送出取消請求。若把它們的時間往前塞，一開畫面就會被整批自動取消。
+     * 其餘狀態才可以回填過去的時間。
+     */
+    private void seedOrders(Store store, User customer, List<ProductTemplate> products) {
+        ProductTemplate green = products.get(0);   // 四季春青茶 35
+        ProductTemplate pouchong = products.get(1); // 文山包種 40
+        ProductTemplate pearl = products.get(2);   // 珍珠鮮奶茶 65
+        ProductTemplate brownSugar = products.get(3); // 黑糖鮮奶 70
+
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Taipei"));
+
+        // 待處理 — 自取
+        order(store, customer, "SOLO", "SUBMITTED", null, "少冰謝謝", now, now,
+                List.of(item(pearl, "微糖", "少冰", "大杯", 2),
+                        item(green, "半糖", "去冰", "中杯", 1)));
+
+        // 待處理 — 揪團外送
+        order(store, customer, "GROUP", "SUBMITTED", "台北市大安區忠孝東路四段 45 號 8 樓",
+                "麻煩放櫃檯", now, now,
+                List.of(item(brownSugar, "正常", "微冰", "大杯", 1),
+                        item(pouchong, "無糖", "熱飲", "中杯", 2),
+                        item(green, "微糖", "少冰", "中杯", 1)));
+
+        // 製作中
+        order(store, customer, "SOLO", "PREPARING", null, "", now.minusMinutes(6), now.minusMinutes(6),
+                List.of(item(pearl, "半糖", "正常冰", "大杯", 1)));
+
+        // 待取餐 — 自取
+        order(store, customer, "SOLO", "READY", null, "", now.minusMinutes(22), now.minusMinutes(22),
+                List.of(item(pouchong, "無糖", "熱飲", "大杯", 1),
+                        item(brownSugar, "正常", "少冰", "中杯", 1)));
+
+        // 配送中 — 有地址即視為外送
+        order(store, customer, "GROUP", "READY", "台北市大安區信義路三段 12 號", "",
+                now.minusMinutes(15), now.minusMinutes(15),
+                List.of(item(green, "微糖", "少冰", "大杯", 3)));
+
+        // 已完成
+        order(store, customer, "SOLO", "COMPLETED", null, "", now.minusHours(2), now.minusHours(2),
+                List.of(item(brownSugar, "半糖", "去冰", "大杯", 1)));
+        order(store, customer, "GROUP", "COMPLETED", null, "", now.minusHours(26), now.minusHours(26),
+                List.of(item(pearl, "正常", "正常冰", "大杯", 2),
+                        item(pouchong, "微糖", "少冰", "中杯", 1)));
+    }
+
+    /** 品項規格：只帶建立 OrderItem 需要的欄位，價格一律取商品當下售價作為快照 */
+    private record ItemSpec(ProductTemplate product, String sugar, String ice, String size, int qty) {}
+
+    private ItemSpec item(ProductTemplate product, String sugar, String ice, String size, int qty) {
+        return new ItemSpec(product, sugar, ice, size, qty);
+    }
+
+    private void order(Store store, User customer, String type, String status,
+                       String address, String note,
+                       LocalDateTime createdAt, LocalDateTime submittedAt,
+                       List<ItemSpec> specs) {
+        GroupOrder o = new GroupOrder();
+        o.setStore(store);
+        o.setInitiator(customer);
+        o.setType(type);
+        o.setStatus(status);
+        o.setAddress(address == null ? "" : address);
+        o.setNote(note == null ? "" : note);
+        o.setCreatedAt(createdAt);
+        o.setSubmittedAt(submittedAt);
+        if ("PREPARING".equals(status) || "READY".equals(status) || "COMPLETED".equals(status))
+            o.setPreparingAt(submittedAt.plusMinutes(2));
+        if ("READY".equals(status) || "COMPLETED".equals(status))
+            o.setReadyAt(submittedAt.plusMinutes(8));
+        if ("COMPLETED".equals(status))
+            o.setCompletedAt(submittedAt.plusMinutes(20));
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (ItemSpec s : specs) {
+            total = total.add(s.product().getBasePrice().multiply(BigDecimal.valueOf(s.qty())));
+        }
+        o.setTotalAmount(total);
+        o.setEscrowAmount("COMPLETED".equals(status) ? BigDecimal.ZERO : total);
+        GroupOrder saved = groupOrderRepository.save(o);
+
+        boolean paid = "COMPLETED".equals(status);
+        for (ItemSpec s : specs) {
+            OrderItem i = new OrderItem();
+            i.setGroupOrder(saved);
+            i.setUser(customer);
+            i.setProduct(s.product());
+            i.setQty(s.qty());
+            i.setProductNameSnapshot(s.product().getName());
+            i.setUnitPriceSnapshot(s.product().getBasePrice());
+            i.setFinalPrice(s.product().getBasePrice().multiply(BigDecimal.valueOf(s.qty())));
+            i.setSugarSnapshot(s.sugar());
+            i.setIceSnapshot(s.ice());
+            i.setSizeSnapshot(s.size());
+            i.setPaymentType("WALLET");
+            i.setPaymentStatus(paid ? "PAID" : "ESCROWED");
+            orderItemRepository.save(i);
+        }
     }
 
     /** 把平台主檔的規格與配料，全部啟用給該品牌 */

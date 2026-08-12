@@ -195,6 +195,31 @@ SUBMITTED 進入 PREPARING。
 `WalletConcurrencyTest` 會擋住這個回歸（已驗證：改回 `findById` 時兩個測試都會失敗）。
 新增任何動到 `balance` 的流程時，一律走上述兩個方法，不要自己讀寫餘額。
 
+## ⚠️ `open-in-view: false`：交易外不可碰 LAZY 關聯
+
+`application.yml` 設 `spring.jpa.open-in-view: false`，**請保持關閉**（開著會讓 session
+撐到 view 渲染完，掩蓋 N+1 並長時間佔用連線）。代價是：Service 方法回傳後 session 就關了，
+之後任何對 LAZY 關聯的存取都會拋 `LazyInitializationException` → 固定 500。
+
+已經在**五個地方**踩過同一顆雷，兩種型態：
+
+1. **Service 內組 Map 時讀 LAZY 關聯** — `PublicService.buildStoreCard`、
+   `ProductService.getProductDetail`、`StoreService.getProfile` 都會讀 `store.getBrand()`。
+   修法：方法（或整個 class）加 `@Transactional(readOnly = true)`。
+   `StoreService.getProfile` 是門市後台每一頁頁首都會打的端點，壞掉時整個後台的
+   營業狀態永遠停在「讀取中…」。
+2. **Controller 直接回傳 JPA entity** — `GET /api/stores/{storeId}/v2` 與
+   `/api/stores/brand/{brandId}` 原本回傳 `Store`，Jackson 序列化 `brand` / `region`
+   proxy 時 session 早已關閉，**必定 500**。這種加 `@Transactional` 沒用（序列化發生在交易之後），
+   要在交易內就轉成純 Map。兩支都已改走 `StoreService.toMap()`。
+
+**不要從 Controller 直接回傳 JPA entity。** 除了這個問題，entity 還會把整個物件圖攤開來，
+且欄位一旦新增就自動外流（目前靠 `passwordHash` 上的 `@JsonProperty(WRITE_ONLY)` 擋著，
+那是最後一道防線，不該是唯一一道）。
+
+這類錯誤**單元測試抓不到、要實際打端點才會現形**。改完動到序列化或關聯的程式碼後，
+跑一次涵蓋所有 GET 端點的普掃（起服務後逐一 curl，看有沒有 5xx 或 body `code=500`）比較實在。
+
 ## ⚠️ 列表端點一律要分頁
 
 `GET /api/stores/orders` 曾經一次回傳該門市的**全部歷史訂單**：壓測實測 6,666 筆、

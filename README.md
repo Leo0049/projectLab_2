@@ -15,7 +15,8 @@ mvn spring-boot:run       # 服務起在 :8082
 ```
 
 不需要任何額外設定：`application.yml` 每一項都有對應本機 Docker 的預設值，
-首次啟動會自動建表並植入**示範資料**（2 個品牌、3 間門市、6 款飲品、1 個顧客帳號）。
+首次啟動會自動建表並植入**示範資料**（2 個品牌、3 間門市、6 款飲品、1 個顧客帳號，
+以及 7 筆橫跨待處理／製作中／配送中／待取餐／已完成的訂單，讓門市後台一開就有東西可看）。
 
 開 http://localhost:8082/swagger-ui.html 看 API，或用下列帳號登入前端頁面
 （`frontend/` 為靜態頁，用 VS Code Live Server 之類的工具開啟即可）：
@@ -43,6 +44,24 @@ mvn spring-boot:run       # 服務起在 :8082
 | **商品快照** | 下單時保存當下品名與價格，日後改價不影響歷史訂單 |
 
 規模：後端 138 個檔案 / 約 14.4k 行，26 張資料表，14 個 REST controller；前端 39 個頁面、約 17.8k 行 JS（Vanilla JS + Tailwind）。
+
+---
+
+## 畫面
+
+以下都是照著「30 秒把它跑起來」啟動後的實際畫面，資料來自內建示範資料，沒有另外做假圖。
+
+| 顧客首頁 | 附近店家 | 店家與菜單 |
+|---|---|---|
+| ![顧客首頁](docs/screenshots/customer-home.png) | ![附近店家](docs/screenshots/customer-nearby.png) | ![店家與菜單](docs/screenshots/customer-store.png) |
+| 進行中訂單、活動輪播、每日轉盤入口 | 依距離排序，含評分、外送門檻與營業時間 | 店家資訊與分類菜單 |
+
+| 品牌總部 — 菜單管理 | 門市後台 — 訂單管理 |
+|---|---|
+| ![品牌菜單](docs/screenshots/brand-menu.png) | ![門市訂單](docs/screenshots/store-orders.png) |
+| 分類與飲品排序、上下架、售價維護 | 依狀態分區，接單／拒單／製作完成的完整流轉 |
+
+> 店家與飲品圖片是專案內建的 SVG 示意圖，不依賴任何外部圖床，離線也能完整展示。
 
 ---
 
@@ -82,11 +101,16 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
 | S-5 | WebSocket 為 `allowedOriginPatterns("*")` 且無任何 STOMP 攔截器 | `orderId` 是連續整數可列舉，任何人可旁觀他人訂單狀態 | CONNECT 驗 JWT、SUBSCRIBE 驗訂單關係人；origin 收斂為與 HTTP 共用的白名單 |
 | D-1 | 餘額為「讀出→相加→寫回」且無列鎖 | 20 個併發各儲值 10 元，**最終只入帳 70 元，且帳本總額 120 與餘額 70 對不起來** | 改用 `SELECT ... FOR UPDATE`；所有金流都收斂在 `updateStoreCredit()` 一個進入點 |
 
-另外修掉三個會直接影響可用性的問題：
+另外修掉幾個會直接影響可用性的問題：
 
 - **登入必定 500**：`signWith(alg, String)` 會將 secret 做 Base64 解碼，預設值解碼後只剩 416 bits，不符 HS512 要求。改用原始位元組建立金鑰，並把長度檢查移到啟動時，不足即啟動失敗。
 - **`jwt.expiration` 完全不生效**：`JwtUtils` 寫死 7 天，設定檔的 24h 從未套用。
 - **用戶端錯誤一律回 500**：路由不存在、缺參數、型別錯全部落入 catch-all；且原始例外訊息（含 DB 結構）會回傳給前端。現已分流為 404/400/405，內部細節只寫入 log。
+- **`open-in-view: false` 之下的固定 500**：關閉 OSIV 後，交易外碰到 LAZY 關聯就會拋 `LazyInitializationException`。這類錯誤在單元測試看不到、要實際打端點才會現形，前後共出現在五個地方——其中 `GET /api/stores/settings/profile` 是門市後台**每一頁的頁首**都會呼叫的，壞掉時整個後台的營業狀態永遠停在「讀取中…」。另兩個公開端點直接回傳 JPA entity，Jackson 序列化 `brand` / `region` proxy 時必定 500。修法統一為「在交易內轉成純 Map 再回傳」，並用一支涵蓋 45 個 GET 端點的普掃確認歸零。
+
+> 這輪普掃也順手抓到前端的一個對稱問題：門市訂單頁用 `''` 當「上次資料快照」的初始值，
+> 而空清單算出來的快照剛好也是 `''`，於是**零筆訂單時第一次載入會被判定成「資料沒變」而不重繪**，
+> 六個區塊永遠停在「載入中…」——剛 clone 下來、還沒有任何訂單的人看到的就是這個畫面。
 
 > 稽核與修補過程使用 Claude Code 協助進行。
 

@@ -39,7 +39,10 @@
   let currentTab = 'all';
   let allOrders  = [];
   let byStatus   = {};
-  let lastDataKey = '';
+  // ⚠️ 哨兵必須用 null，不能用 ''。buildDataKey([]) 就是 ''，
+  // 用 '' 當初始值會讓「零筆訂單」在第一次 fetch 就被判定為「資料沒變」而提前 return，
+  // 六個區塊永遠停在「載入中…」——剛 clone 下來、還沒有任何訂單時就是這個畫面。
+  let lastDataKey = null;
 
   const pageState = {};
   SECTIONS.forEach(({ key }) => { pageState[key] = 1; });
@@ -525,7 +528,7 @@
         window.StoreAPI.showToast('已拒單，訂單移至已取消', 'error');
       }
       document.querySelector('[data-order-detail-modal]')?.classList.add('hidden');
-      lastDataKey = ''; // ★ 強制清空快照，確保 fetchOrders 必定重繪
+      lastDataKey = null; // ★ 強制清空快照，確保 fetchOrders 必定重繪
       await fetchOrders();
     } catch (err) { window.StoreAPI.showToast(err.message, 'error'); }
   });
@@ -558,7 +561,7 @@
     const nowMobile = isMobile();
     if (nowMobile !== _lastMobile) {
       _lastMobile = nowMobile;
-      lastDataKey = '';
+      lastDataKey = null;
       buildSections();
       updateSections();
     }

@@ -362,8 +362,8 @@ public class StoreController {
 
     @Operation(summary = "透過品牌 ID 查詢分店", description = "取得指定品牌下所有分店。")
     @GetMapping("/brand/{brandId}")
-    public ResponseEntity<List<Store>> getStoresByBrandId(@PathVariable Long brandId) {
-        return ResponseEntity.ok(storeService.getStoresByBrandId(brandId));
+    public Result getStoresByBrandId(@PathVariable Long brandId) {
+        return Result.success(storeService.getStoreMapsByBrandId(brandId));
     }
 
     // ============================================================
@@ -384,8 +384,9 @@ public class StoreController {
 
     @Operation(summary = "取得分店詳情 (V2)", description = "舊版依 storeId 查詢分店詳情。回傳 ResponseEntity 格式。")
     @GetMapping("/{storeId}/v2")
-    public ResponseEntity<Store> getStoreByIdV2(@PathVariable Long storeId) {
-        Store store = storeService.getStoreById(storeId);
-        return store != null ? ResponseEntity.ok(store) : ResponseEntity.notFound().build();
+    public Result getStoreByIdV2Alias(@PathVariable Long storeId) {
+        // 與 GET /api/stores/{id} 同一份資料。原本直接回傳 Store entity，
+        // 序列化 LAZY 的 brand/region 時固定 500；改走同一個 toMap 路徑。
+        return Result.success(storeService.getStoreByIdV2(storeId));
     }
 }

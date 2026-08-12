@@ -55,6 +55,21 @@ public class StoreService {
     }
 
     /**
+     * 品牌底下的分店列表（對外用）。
+     *
+     * ⚠️ 不要改回直接回傳 Store entity：open-in-view=false 之下，Jackson 序列化到
+     * store.getBrand() / getRegion() 這兩個 LAZY 關聯時 session 已關閉，
+     * 會拋 LazyInitializationException 而固定 500（此端點與 /{storeId}/v2 都曾如此）。
+     * toMap() 在交易內就把需要的欄位取完，回傳純 Map，序列化階段不再碰 proxy。
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getStoreMapsByBrandId(Long brandId) {
+        return storeRepository.findByBrandId(brandId).stream()
+                .map(this::toMap)
+                .toList();
+    }
+
+    /**
      * 回傳 Store entity（原始版本）
      */
     public Store getStoreById(Long storeId) {
@@ -225,6 +240,10 @@ public class StoreService {
     }
 
     // ─── 設定 ────────────────────────────────────────────────
+    // 同 getStoreByIdV2：toMap() 會讀 store.getBrand()，沒有交易就會 LazyInitializationException。
+    // 這支被門市後台每一頁的頁首（api-store-status.js）呼叫，漏了它等於整個後台的
+    // 營業狀態永遠停在「讀取中…」、品牌 logo 也不會出現。
+    @Transactional(readOnly = true)
     public Map<String, Object> getProfile(Long storeId) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new CustomException("404", "店家不存在"));
