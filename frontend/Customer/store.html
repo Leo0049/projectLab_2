@@ -256,7 +256,7 @@
 
           <!-- 店名 + 收藏 -->
           <div class="flex items-center justify-between">
-            <h1 id="store-name" class="text-4xl font-bold">載入中...</h1>
+            <h1 id="store-name" class="text-2xl sm:text-4xl font-bold leading-tight break-words pr-2">載入中...</h1>
 
             <button id="favorite-btn"
               class="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center hover:bg-white/40 transition-all text-white border border-white/30 hidden">
@@ -334,12 +334,15 @@
     </section>
     <!-- END: StoreHero -->
     <!-- BEGIN: MenuSection -->
-    <div class="flex gap-8">
+    <!-- 手機：分類改為橫向捲動的 chip 列，商品才有完整寬度可用
+         桌機（md 以上）：維持原本的左側固定欄 -->
+    <div class="flex flex-col md:flex-row gap-4 md:gap-8">
       <!-- Sidebar Navigation -->
-      <aside class="w-48 shrink-0">
+      <aside class="w-full md:w-48 shrink-0">
         <div class="sticky-sidebar flex flex-col gap-1">
-          <h3 class="text-sm font-bold text-gray-400 mb-2 px-3">菜單分類</h3>
-          <div id="category-list" class="flex flex-col gap-1">
+          <h3 class="hidden md:block text-sm font-bold text-gray-400 mb-2 px-3">菜單分類</h3>
+          <div id="category-list"
+               class="flex flex-row md:flex-col gap-2 md:gap-1 overflow-x-auto pb-1 -mx-1 px-1 md:mx-0 md:px-0 md:overflow-visible">
             <!-- Categories will be loaded here -->
           </div>
         </div>
@@ -798,7 +801,7 @@
             // 動態注入封面圖
             const heroImg = document.getElementById('store-hero-img');
             if (heroImg) {
-              const fallback = 'https://images.unsplash.com/photo-1544145945-f904253d0c7e?w=1280&h=600&fit=crop';
+              const fallback = 'images/store-placeholder.svg';
               const rawSrc = s.coverUrl || s.imageUrl || fallback;
               heroImg.src = optimizeImageUrl(rawSrc, 1200, 600);
               heroImg.onload = () => heroImg.classList.add('img-loaded');
@@ -894,7 +897,7 @@
           // Render Categories Sidebar
           if (categoryList) {
             categoryList.innerHTML = Object.keys(groups).map((cat, index) => `
-              <a class="${index === 0 ? 'sidebar-active' : 'text-gray-600 hover:bg-gray-100'} px-3 py-3 rounded-l-lg font-medium flex justify-between items-center" href="#cat-${cat}">
+              <a class="${index === 0 ? 'sidebar-active' : 'text-gray-600 hover:bg-gray-100'} shrink-0 whitespace-nowrap px-4 py-2.5 md:px-3 md:py-3 rounded-full md:rounded-l-lg md:rounded-r-none border border-gray-200 md:border-0 font-medium flex justify-between items-center" href="#cat-${cat}">
                 ${cat}
               </a>
             `).join('');
@@ -914,7 +917,7 @@
                 ${groups[cat].map(p => {
             const pName = p.name || p.productName || '飲品';
             const pImg = p.imageUrl || p.logoUrl || '';
-            const resolvedImg = pImg ? (pImg.startsWith('http') ? pImg : 'images/' + pImg) : 'https://images.unsplash.com/photo-1544145945-f90425340c7e?w=400&h=300&fit=crop';
+            const resolvedImg = pImg ? (pImg.startsWith('http') ? pImg : 'images/' + pImg) : 'images/drink-placeholder.svg';
             const tempLabels = [];
             if (p.canBeIced) tempLabels.push(`<span class="w-6 h-6 bg-blue-500 rounded flex items-center justify-center text-white shadow-sm" title="可製冷飲"><i class="fa-solid fa-snowflake text-[11px]"></i></span>`);
             if (p.canBeHot) tempLabels.push(`<span class="w-6 h-6 bg-red-500 rounded flex items-center justify-center text-white shadow-sm" title="可製熱飲"><i class="fa-solid fa-fire text-[11px]"></i></span>`);
@@ -925,11 +928,12 @@
                     data-product='${JSON.stringify(p).replace(/'/g, "&apos;")}'
                     data-product-id="${p.id}"
                     onclick='openCustomizationModal(this)'>
-                    <div class="relative h-64 bg-slate-100 flex items-center justify-center overflow-hidden">
+                    <div class="relative h-40 sm:h-56 bg-slate-100 flex items-center justify-center overflow-hidden">
                       <img src="${optimizeImageUrl(resolvedImg, 400, 300)}" 
                         class="w-full h-full object-cover img-fade-in" 
                         alt="${pName}" loading="lazy" 
-                        onload="this.classList.add('img-loaded')">
+                        onload="this.classList.add('img-loaded')"
+                        onerror="this.onerror=null;this.src='images/drink-placeholder.svg';this.classList.add('img-loaded')">
                       ${labelsHtml}
                     </div>
                     <div class="p-4 flex-1 flex flex-col">

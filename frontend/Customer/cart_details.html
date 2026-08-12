@@ -924,7 +924,7 @@
           const name = escapeHtml(item.name || '飲品');
           const price = item.price || 0;
           const qty = item.quantity || 1;
-          const rawImg = item.imageUrl || 'https://images.unsplash.com/photo-1544145945-f904253db0ad?q=80&w=256&h=256&auto=format&fit=crop';
+          const rawImg = item.imageUrl || 'images/drink-placeholder.svg';
           const img = /^https?:\/\//.test(rawImg) ? rawImg : 'images/logo.png';
           const customizations = item.customization || [];
 

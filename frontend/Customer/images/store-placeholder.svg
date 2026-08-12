@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300" role="img" aria-label="店家預設封面">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFF3E6"/>
+      <stop offset="55%" stop-color="#FFE2C4"/>
+      <stop offset="100%" stop-color="#FFD0A6"/>
+    </linearGradient>
+    <linearGradient id="drink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C98A4B"/>
+      <stop offset="100%" stop-color="#A9662F"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="400" height="300" fill="url(#bg)"/>
+
+  <!-- 裝飾光暈 -->
+  <circle cx="330" cy="58" r="86" fill="#FFFFFF" opacity="0.35"/>
+  <circle cx="62" cy="252" r="64" fill="#FF7A1A" opacity="0.07"/>
+
+  <!-- 飲料杯 -->
+  <g transform="translate(200 152)">
+    <!-- 杯身 -->
+    <path d="M-46 -34 L46 -34 L37 62 A10 10 0 0 1 27 71 L-27 71 A10 10 0 0 1 -37 62 Z"
+          fill="#FFFFFF" opacity="0.95"/>
+    <!-- 飲料 -->
+    <path d="M-41 -6 L41 -6 L33.5 58 A7 7 0 0 1 26.5 64 L-26.5 64 A7 7 0 0 1 -33.5 58 Z"
+          fill="url(#drink)" opacity="0.9"/>
+    <!-- 珍珠 -->
+    <circle cx="-16" cy="48" r="6.5" fill="#4A2C15" opacity="0.75"/>
+    <circle cx="2"   cy="53" r="6.5" fill="#4A2C15" opacity="0.75"/>
+    <circle cx="19"  cy="46" r="6.5" fill="#4A2C15" opacity="0.75"/>
+    <!-- 杯蓋 -->
+    <rect x="-52" y="-44" width="104" height="14" rx="7" fill="#FF7A1A"/>
+    <!-- 吸管 -->
+    <rect x="10" y="-96" width="12" height="60" rx="6" fill="#FF7A1A" transform="rotate(14 16 -66)"/>
+  </g>
+</svg>

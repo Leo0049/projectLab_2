@@ -92,9 +92,11 @@ public class DemoDataSeeder implements ApplicationRunner {
         ));
         storeRepository.saveAll(List.of(
                 store(tea, north, "春日茶事 — 大安店", "demo_store",
-                        "台北市大安區復興南路一段 100 號", "25.03360", "121.54350"),
+                        "台北市大安區復興南路一段 100 號", "25.03360", "121.54350",
+                        "02-2711-0100", "4.7", 128, "50", "3.0"),
                 store(tea, north, "春日茶事 — 信義店", "demo_store2",
-                        "台北市信義區松壽路 12 號", "25.03600", "121.56780")
+                        "台北市信義區松壽路 12 號", "25.03600", "121.56780",
+                        "02-2722-0120", "4.5", 86, "60", "2.5")
         ));
 
         // ── 品牌 B ────────────────────────────────────────────
@@ -105,7 +107,8 @@ public class DemoDataSeeder implements ApplicationRunner {
                 product(fruit, juice, "西瓜汁", "60", "當季西瓜，不加水")
         ));
         storeRepository.save(store(fruit, north, "果日鮮飲 — 中山店", "demo_store3",
-                "台北市中山區南京東路二段 50 號", "25.05200", "121.53300"));
+                "台北市中山區南京東路二段 50 號", "25.05200", "121.53300",
+                "02-2531-0250", "4.8", 203, "45", "3.5"));
 
         // ── 啟用兩個品牌的規格與配料 ────────────────────────────
         // 沒有這一步，品牌後台會擋在「請先完成規格設定」，顧客端也選不了甜度/冰量/加料
@@ -192,8 +195,20 @@ public class DemoDataSeeder implements ApplicationRunner {
         return p;
     }
 
+    /** 每週營業時間，週一公休（前端 getTodayHours 讀這個 JSON） */
+    private static final String OPENING_HOURS = """
+            {"mon":{"closed":true},\
+            "tue":{"open":"10:00","close":"21:00"},\
+            "wed":{"open":"10:00","close":"21:00"},\
+            "thu":{"open":"10:00","close":"21:00"},\
+            "fri":{"open":"10:00","close":"22:00"},\
+            "sat":{"open":"11:00","close":"22:00"},\
+            "sun":{"open":"11:00","close":"20:00"}}""";
+
     private Store store(Brand brand, Region region, String storeName, String account,
-                        String address, String lat, String lng) {
+                        String address, String lat, String lng,
+                        String phone, String rating, int reviewCount,
+                        String minDeliveryAmount, String maxDeliveryKm) {
         Store s = new Store();
         s.setBrand(brand);
         s.setRegion(region);
@@ -204,6 +219,18 @@ public class DemoDataSeeder implements ApplicationRunner {
         s.setLatitude(new BigDecimal(lat));
         s.setLongitude(new BigDecimal(lng));
         s.setPasswordHash(passwordEncoder.encode(DEMO_PASSWORD));
+        // 以下欄位若留空，前端卡片會滿是「--」與「未設定」，示範時看起來像壞掉
+        s.setStorePhone(phone);
+        s.setAvgRating(new BigDecimal(rating));
+        s.setReviewCount(reviewCount);
+        s.setMinDeliveryAmount(new BigDecimal(minDeliveryAmount));
+        s.setMaxDeliveryKm(new BigDecimal(maxDeliveryKm));
+        s.setIsDeliveryAvailable(true);
+        s.setDeliveryStartTime("10:00");
+        s.setDeliveryEndTime("21:00");
+        s.setOpeningHours(OPENING_HOURS);
+        s.setIsAcceptingOrders(true);
+        s.setStatus("active");
         return s;
     }
 }

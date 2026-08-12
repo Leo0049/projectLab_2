@@ -39,14 +39,16 @@
         <!-- 收藏按鈕 -->
         <button
           onclick="event.stopPropagation(); toggleStoreFavorite(this, ${store.id})"
-          class="absolute top-4 left-4 z-20 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-all text-gray-400">
+          class="absolute top-3 left-3 z-20 w-11 h-11 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-all text-gray-400">
           <i data-lucide="heart" class="w-5 h-5"></i>
         </button>
 
-        <div class="h-48 relative overflow-hidden">
-          <img src="${store.imageUrl || store.image || store.coverUrl || 'https://images.unsplash.com/photo-1544145945-f904253d0c7e?w=400&h=300&fit=crop'}"
+        <div class="h-36 sm:h-48 relative overflow-hidden">
+          <img src="${store.imageUrl || store.image || store.coverUrl || 'images/store-placeholder.svg'}"
                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-               alt="${store.name || store.storeName || ''}">
+               loading="lazy"
+               alt="${store.name || store.storeName || '店家封面'}"
+               onerror="this.onerror=null;this.src='images/store-placeholder.svg'">
           <!-- 評分 badge -->
           <div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm flex items-center gap-1 group-hover:bg-brand-orange group-hover:text-white transition-colors">
             <i data-lucide="star" class="w-3 h-3 fill-current"></i>
@@ -60,12 +62,12 @@
           </div>` : ''}
         </div>
 
-        <div class="p-5">
+        <div class="p-4 sm:p-5">
           <div class="flex justify-between items-start mb-2 text-brand-text-dark">
             <div class="flex items-center gap-2 min-w-0">
               ${hasBrandBadge ? `
-              <div class="flex-shrink-0 rounded-full overflow-hidden border border-gray-100 shadow-sm" style="width:48px;height:48px"
-                   style="background:${brandColor(store.brandName)}">
+              <div class="flex-shrink-0 rounded-full overflow-hidden border border-gray-100 shadow-sm"
+                   style="width:48px;height:48px;background:${brandColor(store.brandName)}">
                 ${store.brandLogoUrl
                   ? `<img src="${store.brandLogoUrl}" class="w-full h-full object-cover" alt="${store.brandName || ''}"
                           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
@@ -77,7 +79,7 @@
             </div>
             <div class="flex items-center text-brand-orange">
               <i data-lucide="footprints" class="w-3.5 h-3.5"></i>
-              <span class="text-xs font-black">${store.distance ? store.distance + ' km' : '-- km'}</span>
+              <span class="text-xs font-black">${store.distance != null ? store.distance + ' km' : '-- km'}</span>
             </div>
           </div>
           ${store.minDeliveryAmount != null ? `
@@ -90,7 +92,7 @@
               <i data-lucide="clock" class="w-3 h-3 text-gray-400"></i>
               <span>${todayHours}</span>
             </div>` : '<div></div>'}
-            <button class="bg-brand-orange/10 text-brand-orange p-2 rounded-xl group-hover:bg-brand-orange group-hover:text-white transition-all">
+            <button aria-label="開始點餐" class="bg-brand-orange/10 text-brand-orange p-3 rounded-xl group-hover:bg-brand-orange group-hover:text-white transition-all">
               <i data-lucide="shopping-cart" class="w-5 h-5"></i>
             </button>
           </div>
@@ -114,7 +116,16 @@
   function renderStores(stores) {
     if (!grid) return;
     if (stores.length === 0) {
-      grid.innerHTML = '<div class="col-span-full py-10 text-center text-gray-400">沒有符合條件的店家</div>';
+      // 空狀態除了說「沒有」，也要告訴使用者下一步可以做什麼
+      grid.innerHTML = `
+        <div class="col-span-full flex flex-col items-center justify-center px-6 py-16 text-center">
+          <div class="w-16 h-16 rounded-full bg-brand-orange/10 flex items-center justify-center mb-4">
+            <i data-lucide="store" class="w-7 h-7 text-brand-orange"></i>
+          </div>
+          <p class="font-bold text-brand-text-dark mb-1">找不到符合條件的店家</p>
+          <p class="text-sm text-brand-text-gray max-w-xs">試著放寬評分條件、清除品牌篩選，或換一個位置再找找看。</p>
+        </div>`;
+      if (window.lucide) lucide.createIcons();
     } else {
       grid.innerHTML = stores.map(renderCard).join('');
     }

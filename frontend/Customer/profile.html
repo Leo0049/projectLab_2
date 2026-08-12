@@ -1216,7 +1216,7 @@
                     container.innerHTML = favorites.map(f => {
                         const s = f.store || {};
                         const name = s.storeName || s.name || '未知店家';
-                        const image = s.coverUrl || s.imageUrl || 'https://images.unsplash.com/photo-1544145945-f904253d0c7e?w=400&h=300&fit=crop';
+                        const image = s.coverUrl || s.imageUrl || 'images/store-placeholder.svg';
                         const rating = s.avgRating || null;
                         const hasBrand = !!(s.brandLogoUrl || s.brandName);
                         const initial = (s.brandName || '').charAt(0).toUpperCase() || '?';
