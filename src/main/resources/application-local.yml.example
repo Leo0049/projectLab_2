@@ -34,8 +34,7 @@ firebase:
 jwt:
   secret: LocalDevOnlySecretForJoinDrinkDoNotUseInProductionMustBeAtLeast64Chars!
 
-# ⚠️ 填入你自己的 Cloudinary 憑證。舊憑證已外洩於版本紀錄中，請先到
-#    Cloudinary 後台 Rotate 再填入，不要沿用舊的 api-secret。
+# 填入你自己的 Cloudinary 憑證；留空則停用圖片上傳，不影響其他功能。
 cloudinary:
   cloud-name: ""
   api-key: ""

@@ -269,7 +269,6 @@ SUBMITTED 進入 PREPARING。
 ## 重要注意事項
 
 - `application.yml` 已全面改為 `${ENV_VAR:預設值}`，**不要把明文密鑰寫回去**
-- 舊版設定檔曾以明文寫入 DB 密碼、JWT secret 與 Cloudinary api-secret，應視為已外洩，需 rotate
 - `serviceAccountKey.json` 與 `application-local.yml` 已在 `.gitignore`
 - DB DDL：`spring.jpa.hibernate.ddl-auto`（本機 `update`，production 需改 `validate`/`none`）
   - ⚠️ YAML 冒號後**一定要有空格**。曾寫成 `ddl-auto:validate` 導致
