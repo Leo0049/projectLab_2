@@ -102,6 +102,7 @@ docker compose up -d && mvn test
 |------|-----------|
 | `AuthorizationTest`（8） | 未認證寫商品、跨帳號讀寫個資／錢包、偽造 `authUserId` 繞過、debug 端點已移除、本人存取仍正常 |
 | `WalletConcurrencyTest`（2） | 併發儲值不短少、帳本與餘額相符、併發扣款不透支 |
+| `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 id 覆寫、可疑副檔名正規化 |
 | `DemoApplicationTests`（1） | Spring context 載入 |
 
 測試不多，但都對準真正會出事的地方（金流與授權），而且**每一支都驗證過「把修補改回舊寫法時會失敗」**——
@@ -144,6 +145,9 @@ docker compose up -d && mvn test
 | `.env.example` / `application-local.yml.example` | 範本 | ✓ |
 
 本機預設 `SMS_MODE=mock`，跳過 Firebase 手機驗證，**不需要金鑰即可註冊登入**。
+
+圖片上傳同理：有設定 Cloudinary 憑證就上傳雲端，沒有就自動存到本機 `uploads/`
+並以 `/uploads/**` 提供。**整個專案不需要任何第三方帳號即可完整展示。**
 
 **上線前務必調整：**
 

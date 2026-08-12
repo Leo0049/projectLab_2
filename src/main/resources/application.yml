@@ -71,6 +71,10 @@ sms:
 
 app:
   reset_password_url: ${RESET_PASSWORD_URL:http://localhost:5173/Resetpassword}
+  upload:
+    # 未設定 Cloudinary 憑證時，圖片改存到這個目錄，並由 WebConfig 以 /uploads/** 提供。
+    # 因此不需要任何第三方帳號也能使用頭像、品牌 logo、門市封面與優惠券圖片。
+    local-dir: ${UPLOAD_LOCAL_DIR:uploads}
   demo-data:
     # 首次啟動且資料表為空時，植入示範品牌/門市/飲品/顧客，讓專案 clone 下來就能看到畫面。
     # ⚠️ 會建立密碼已知的示範帳號，正式環境務必設為 false。

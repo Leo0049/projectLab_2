@@ -19,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
+@lombok.extern.slf4j.Slf4j
 @RestController
 @Tag(name = "品牌後台 (BRAND)", description = "品牌認證、分類管理、飲品管理、優惠券、Dashboard、財務")
 public class BrandController {
@@ -30,7 +31,7 @@ public class BrandController {
     @Autowired
     private AnalyticsService analyticsService;
     @Autowired
-    private Cloudinary cloudinary;
+    private com.example.demo.service.ImageStorageService imageStorageService;
 
     // ==================== 認證 (公開) ====================
 
@@ -85,12 +86,11 @@ public class BrandController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "folder", defaultValue = "stores") String folder) {
         try {
-            java.util.Map<?, ?> uploadResult = cloudinary.uploader().upload(
-                    file.getBytes(),
-                    ObjectUtils.asMap("folder", folder, "resource_type", "image"));
-            return Result.success(uploadResult.get("secure_url"));
+            return Result.success(imageStorageService.upload(file, folder, null));
         } catch (Exception e) {
-            return Result.error("500", "圖片上傳失敗：" + e.getMessage());
+            // 例外細節只寫進 log，不回傳給前端
+            log.error("品牌圖片上傳失敗 folder={}", folder, e);
+            return Result.error("500", "圖片上傳失敗，請稍後再試");
         }
     }
 
@@ -114,7 +114,8 @@ public class BrandController {
                     brandId, storeName, account, password, regionId, managerName, managerPhone, address,
                     coverUrl, latitude, longitude, openingHours));
         } catch (Exception e) {
-            return Result.error("500", "Create store with images failed: " + e.getMessage());
+            log.error("建立門市（含圖片）失敗 brandId={}", brandId, e);
+            return Result.error("500", "建立門市失敗，請稍後再試");
         }
     }
 
@@ -122,10 +123,7 @@ public class BrandController {
         if (file == null || file.isEmpty()) {
             return null;
         }
-        java.util.Map<?, ?> uploadResult = cloudinary.uploader().upload(
-                file.getBytes(),
-                ObjectUtils.asMap("folder", folder, "resource_type", "image"));
-        return String.valueOf(uploadResult.get("secure_url"));
+        return imageStorageService.upload(file, folder, null);
     }
 
     @Operation(summary = "Upload brand logo", description = "Upload brand logo to Cloudinary and save secure_url into brands.logo_url")
@@ -134,13 +132,11 @@ public class BrandController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "folder", defaultValue = "brands") String folder) {
         try {
-            java.util.Map<?, ?> uploadResult = cloudinary.uploader().upload(
-                    file.getBytes(),
-                    ObjectUtils.asMap("folder", folder, "resource_type", "image"));
-            String logoUrl = String.valueOf(uploadResult.get("secure_url"));
+            String logoUrl = imageStorageService.upload(file, folder, null);
             return Result.success(brandService.updateBrandLogo(brandId, logoUrl));
         } catch (Exception e) {
-            return Result.error("500", "Upload brand logo failed: " + e.getMessage());
+            log.error("品牌 logo 上傳失敗 brandId={}", brandId, e);
+            return Result.error("500", "圖片上傳失敗，請稍後再試");
         }
     }
 

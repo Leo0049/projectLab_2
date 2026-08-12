@@ -57,6 +57,10 @@ public class SecurityConfig {
                                                                 "/swagger-ui/**",
                                                                 "/swagger-ui.html",
                                                                 "/v3/api-docs/**",
+                                                                // 未設定 Cloudinary 憑證時，圖片存在本機並以此路徑提供。
+                                                                // 內容等同 Cloudinary 上的公開圖片（頭像／logo／封面），
+                                                                // 且 <img src> 不會帶 Authorization，必須可公開讀取。
+                                                                "/uploads/**",
                                                                 "/ws/**",
                                                                 "/ws-cart/**")
                                                 .permitAll()

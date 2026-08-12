@@ -17,7 +17,7 @@
 | 資料庫 | MySQL 8（本機 Docker，`docker-compose.yml`）|
 | 快取 / 鎖 | Redis 7（本機 Docker）— 揪團購物車、分散式鎖、每日轉盤狀態 |
 | 即時推播 | WebSocket/STOMP（`/ws-cart`, SockJS）|
-| 圖片上傳 | Cloudinary v1.36.0 |
+| 圖片上傳 | Cloudinary v1.36.0（無憑證時自動改存本機 `uploads/`）|
 | 圖片生成 | Java 2D (優惠券動態圖片生成) |
 | API 文件 | SpringDoc OpenAPI / Swagger UI v2.8.5 |
 | 建置工具 | Maven（**注意：repo 內沒有 `mvnw` 腳本，請用系統 `mvn`**）|
@@ -133,10 +133,12 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 |------|-----------|
 | `AuthorizationTest` | 未認證商品寫入、跨帳號讀寫個資／錢包、偽造 `authUserId` 繞過、debug 端點 |
 | `WalletConcurrencyTest` | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支 |
+| `ImageStorageServiceTest` | 無 Cloudinary 憑證時改走本機儲存、同 publicId 覆寫、可疑副檔名正規化 |
 | `DemoApplicationTests` | Spring context 能否載入 |
 
-> 這兩支測試都已驗證「把修補改回舊寫法時會失敗」——新增測試時請照做，
-> 在修補前後各跑一次，確認它真的抓得到回歸，否則只是裝飾。
+> `AuthorizationTest` 與 `WalletConcurrencyTest` 都已驗證「把修補改回舊寫法時會失敗」
+> （分別是 3 個與 2 個測試轉紅）——新增測試時請照做，在修補前後各跑一次，
+> 確認它真的抓得到回歸，否則只是裝飾。
 
 ## 資料庫（26 張表）
 
@@ -209,7 +211,8 @@ SUBMITTED 進入 PREPARING。
 2. `mvn spring-boot:run` — `application.yml` 的預設值已對應上述容器，不需額外設定
 3. 首次啟動且資料表為空時，`DemoDataSeeder` 會植入示範品牌／門市／飲品／顧客
    （帳號見 README，密碼皆為 `demo1234`）。正式環境務必 `DEMO_DATA_ENABLED=false`
-4. Cloudinary 憑證需自行填入 `.env` 或 `application-local.yml`（參考各自的 `.example`）
+4. Cloudinary 憑證為選填：填了就上傳雲端，沒填則由 `ImageStorageService` 自動改存
+   本機 `uploads/`（以 `/uploads/**` 提供），因此不需任何第三方帳號即可完整展示
 5. 本機 `sms.mode=mock`，跳過 Firebase 驗證，不需要 `serviceAccountKey.json`
 6. 啟動埠：`8082`；Swagger UI：`http://localhost:8082/swagger-ui.html`
 
@@ -231,6 +234,8 @@ SUBMITTED 進入 PREPARING。
 
 ⚠️ 曾因 WebSocket 端獨立寫成 `setAllowedOriginPatterns("*")`，
 與 HTTP 端白名單自相矛盾而完全對外放行。新增來源請只改設定檔，不要在程式碼中另寫一份。
+`WebConfig` 也曾有第三份 `addCorsMappings("/**").allowedOrigins("*")`，被 Spring Security
+的 CORS filter 遮蔽而未生效，但同樣自相矛盾，已移除。
 
 ## WebSocket / STOMP 安全
 
@@ -263,6 +268,9 @@ SUBMITTED 進入 PREPARING。
 - **帳號合併**：社群登入與傳統帳號可合併（`/api/auth/merge/*`）
 - **優惠券到期排程**：`CouponExpiryScheduler` 自動處理到期
 - **即時推播**：WebSocket/STOMP 推送訂單狀態與揪團品項異動（非 SSE，見上方說明）
+- **圖片儲存**：一律走 `ImageStorageService`，**不要直接呼叫 `cloudinary.uploader()`**。
+  有憑證上傳 Cloudinary，沒有則存本機 `uploads/` 並以 `/uploads/**` 提供，
+  讓專案不需任何第三方帳號即可完整展示
 - **GroupOrder V2**：完整揪團流程（品項 CRUD、套用優惠券、結帳、補款）
 - **常用地址管理**：使用者可儲存多筆常用地址（`user_addresses`），結帳時快速選用
 

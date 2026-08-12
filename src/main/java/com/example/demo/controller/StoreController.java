@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
+@lombok.extern.slf4j.Slf4j
 @RestController
 @RequestMapping("/api/stores")
 @Tag(name = "分店後台 (STORE)", description = "分店認證、基本資料、設定、訂單管理、庫存、Dashboard、財務")
@@ -48,7 +49,7 @@ public class StoreController {
     private SimpMessagingTemplate messagingTemplate;
 
     @Autowired
-    private com.cloudinary.Cloudinary cloudinary;
+    private com.example.demo.service.ImageStorageService imageStorageService;
 
     // ==================== 認證 (公開) ====================
 
@@ -61,16 +62,15 @@ public class StoreController {
         return Result.success(storeService.login(account, password));
     }
 
-    @Operation(summary = "上傳圖片", description = "分店專用圖片上傳（至 Cloudinary）。")
+    @Operation(summary = "上傳圖片", description = "分店專用圖片上傳。有設定 Cloudinary 憑證則上傳雲端，否則存於本機 /uploads。")
     @PostMapping("/upload-image")
     public Result uploadImage(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
         try {
-            java.util.Map<?, ?> uploadResult = cloudinary.uploader().upload(
-                    file.getBytes(),
-                    com.cloudinary.utils.ObjectUtils.asMap("folder", "stores"));
-            return Result.success(uploadResult.get("secure_url"));
+            return Result.success(imageStorageService.upload(file, "stores", null));
         } catch (Exception e) {
-            return Result.error("500", "Upload failed: " + e.getMessage());
+            // 例外細節（含函式庫原始訊息）只寫進 log，不回傳給前端
+            log.error("分店圖片上傳失敗", e);
+            return Result.error("500", "圖片上傳失敗，請稍後再試");
         }
     }
 

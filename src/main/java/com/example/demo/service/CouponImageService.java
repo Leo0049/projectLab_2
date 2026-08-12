@@ -22,7 +22,7 @@ import java.util.Map;
 public class CouponImageService {
 
     @Autowired
-    private Cloudinary cloudinary;
+    private ImageStorageService imageStorageService;
 
     @Value("${coupon.template-url}")
     private String templateUrl;
@@ -96,10 +96,7 @@ public class CouponImageService {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ImageIO.write(canvas, "png", baos);
 
-            Map<?, ?> uploadResult = cloudinary.uploader().upload(baos.toByteArray(),
-                    ObjectUtils.asMap("folder", "coupons", "resource_type", "image"));
-
-            String finalUrl = (String) uploadResult.get("secure_url");
+            String finalUrl = imageStorageService.upload(baos.toByteArray(), "coupons", null, ".png");
             log.info("優惠券合成完成：{}", finalUrl);
             return finalUrl;
 

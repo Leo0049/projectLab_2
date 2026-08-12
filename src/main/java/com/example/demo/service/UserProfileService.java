@@ -20,7 +20,7 @@ public class UserProfileService {
     @Autowired private UserRepository userRepository;
     @Autowired private StoreRepository storeRepository;
     @Autowired private TransactionRecordRepository transactionRecordRepository;
-    @Autowired private com.cloudinary.Cloudinary cloudinary;
+    @Autowired private ImageStorageService imageStorageService;
 
     // ─── 取得會員資料 ─────────────────────────────────────
     public Map<String, Object> getMe(Long userId) {
@@ -121,16 +121,8 @@ public class UserProfileService {
         if (file == null || file.isEmpty()) throw new com.example.demo.exception.CustomException("400", "請選擇圖片");
 
         
-        @SuppressWarnings("unchecked")
-        java.util.Map<String, Object> uploadResult = cloudinary.uploader().upload(
-            file.getBytes(),
-            com.cloudinary.utils.ObjectUtils.asMap(
-                "folder", "avatars",
-                "public_id", "user_" + userId,
-                "overwrite", true
-            )
-        );
-        String imageUrl = (String) uploadResult.get("secure_url");
+        // 用 public_id 綁定使用者，同一人重複上傳會覆寫舊檔（本機與 Cloudinary 行為一致）
+        String imageUrl = imageStorageService.upload(file, "avatars", "user_" + userId);
 
         com.example.demo.entity.User user = userRepository.findById(userId)
                 .orElseThrow(() -> new com.example.demo.exception.CustomException("404", "找不到用戶"));

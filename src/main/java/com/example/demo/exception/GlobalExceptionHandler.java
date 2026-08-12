@@ -9,6 +9,7 @@ import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -62,6 +63,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Result> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
         return ResponseEntity.status(400).body(Result.error("400", "參數格式錯誤：" + e.getName()));
+    }
+
+    /** multipart 缺少必要欄位（例如上傳圖片時沒帶 file/avatar）→ 400 */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<Result> handleMissingPart(MissingServletRequestPartException e) {
+        return ResponseEntity.status(400).body(Result.error("400", "缺少上傳欄位：" + e.getRequestPartName()));
     }
 
     /** request body 無法解析（JSON 格式錯誤）→ 400 */

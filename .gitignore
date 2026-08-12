@@ -22,8 +22,9 @@ src/main/resources/application-*.yml
 !src/main/resources/application-*.yml.example
 
 # --- 使用者上傳內容 (Runtime Uploads) ---
-# UploadController 會在執行期把檔案寫進這裡（目錄由 mkdirs() 自動建立），
+# 執行期寫入的圖片（未設定 Cloudinary 憑證時的本機儲存，以及 UploadController），
 # 屬於使用者內容而非原始碼，不應進版控。
+uploads/
 src/main/resources/static/uploads/
 
 # --- 測試與臨時檔案 (Temp & Test Data) ---

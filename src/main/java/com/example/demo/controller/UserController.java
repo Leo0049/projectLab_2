@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@lombok.extern.slf4j.Slf4j
 @RestController
 @Tag(name = "使用者 (CUSTOMER)", description = "使用者認證、菜單、訂單、優惠券")
 public class UserController {
@@ -178,7 +179,8 @@ public class UserController {
         } catch (CustomException e) {
             return Result.error(e.getCode(), e.getMessage());
         } catch (Exception e) {
-            return Result.error("500", "伺服器發生錯誤：" + e.getMessage());
+            log.error("重設密碼失敗", e);
+            return Result.error("500", "伺服器發生錯誤，請稍後再試");
         }
     }
 
@@ -357,7 +359,8 @@ public class UserController {
         try {
             return Result.success(userProfileService.uploadAvatar(userId, file));
         } catch (Exception e) {
-            return Result.error("500", "上傳失敗：" + e.getMessage());
+            log.error("頭像上傳失敗", e);
+            return Result.error("500", "圖片上傳失敗，請稍後再試");
         }
     }
 
