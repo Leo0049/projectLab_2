@@ -5,12 +5,23 @@ import com.example.demo.exception.CustomException;
 import com.example.demo.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+/**
+ * 公開查詢（不需登入）。
+ *
+ * ⚠️ 類別層級的 readOnly 交易不可移除：本專案 `spring.jpa.open-in-view: false`，
+ *    沒有交易時 session 會在 repository 呼叫結束就關閉，接著存取 lazy 關聯即拋
+ *    LazyInitializationException。這裡 7 個方法全都會經過 buildStoreCard 讀取
+ *    `store.getBrand().getName()`，其中走 findById 的路徑（getStoreDetail）沒有
+ *    fetch join，曾因此讓 GET /api/stores/{id} 與 /api/stores/{id}/info 固定 500。
+ */
 @Service
+@Transactional(readOnly = true)
 public class PublicService {
 
     @Autowired private StoreRepository storeRepository;

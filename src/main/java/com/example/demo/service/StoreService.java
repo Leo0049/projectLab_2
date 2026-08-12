@@ -128,6 +128,9 @@ public class StoreService {
     }
 
     // ─── 基本資料 ────────────────────────────────────────────
+    // readOnly 交易不可移除：open-in-view=false，toMap() 會讀 store.getBrand()，
+    // 沒有交易時 session 已關閉，會拋 LazyInitializationException（曾使此端點固定 500）
+    @Transactional(readOnly = true)
     public Map<String, Object> getStoreByIdV2(Long id) {
         Store store = storeRepository.findById(id)
                 .orElseThrow(() -> new CustomException("404", "店家不存在"));

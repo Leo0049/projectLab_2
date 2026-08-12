@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ import java.util.List;
  * 平台預設主檔 — 啟動時若 spec_master / topping_master 為空則自動植入。
  */
 @Component
+@Order(10) // 必須早於 DemoDataSeeder(@Order(20))：它會讀這裡植入的規格/配料主檔
 @Slf4j
 public class DataSeeder implements ApplicationRunner {
 

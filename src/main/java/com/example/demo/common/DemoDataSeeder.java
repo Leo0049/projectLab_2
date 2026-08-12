@@ -1,15 +1,23 @@
 package com.example.demo.common;
 
 import com.example.demo.entity.Brand;
+import com.example.demo.entity.BrandSpecSetting;
+import com.example.demo.entity.BrandToppingSetting;
 import com.example.demo.entity.MenuCategory;
 import com.example.demo.entity.ProductTemplate;
 import com.example.demo.entity.Region;
+import com.example.demo.entity.SpecMaster;
 import com.example.demo.entity.Store;
+import com.example.demo.entity.ToppingMaster;
 import com.example.demo.entity.User;
 import com.example.demo.repository.BrandRepository;
+import com.example.demo.repository.BrandSpecSettingRepository;
+import com.example.demo.repository.BrandToppingSettingRepository;
 import com.example.demo.repository.MenuCategoryRepository;
 import com.example.demo.repository.ProductTemplateRepository;
 import com.example.demo.repository.RegionRepository;
+import com.example.demo.repository.SpecMasterRepository;
+import com.example.demo.repository.ToppingMasterRepository;
 import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +51,10 @@ public class DemoDataSeeder implements ApplicationRunner {
     private static final String DEMO_PASSWORD = "demo1234";
 
     private final BrandRepository brandRepository;
+    private final BrandSpecSettingRepository brandSpecSettingRepository;
+    private final BrandToppingSettingRepository brandToppingSettingRepository;
+    private final SpecMasterRepository specMasterRepository;
+    private final ToppingMasterRepository toppingMasterRepository;
     private final StoreRepository storeRepository;
     private final RegionRepository regionRepository;
     private final MenuCategoryRepository menuCategoryRepository;
@@ -95,6 +107,11 @@ public class DemoDataSeeder implements ApplicationRunner {
         storeRepository.save(store(fruit, north, "果日鮮飲 — 中山店", "demo_store3",
                 "台北市中山區南京東路二段 50 號", "25.05200", "121.53300"));
 
+        // ── 啟用兩個品牌的規格與配料 ────────────────────────────
+        // 沒有這一步，品牌後台會擋在「請先完成規格設定」，顧客端也選不了甜度/冰量/加料
+        enableSpecsAndToppings(tea);
+        enableSpecsAndToppings(fruit);
+
         // ── 示範顧客 ──────────────────────────────────────────
         User customer = new User();
         customer.setName("示範顧客");
@@ -114,6 +131,28 @@ public class DemoDataSeeder implements ApplicationRunner {
                 │  正式環境請設定 DEMO_DATA_ENABLED=false
                 └───────────────────────────────────────────────────
                 """, DEMO_PASSWORD);
+    }
+
+    /** 把平台主檔的規格與配料，全部啟用給該品牌 */
+    private void enableSpecsAndToppings(Brand brand) {
+        int sort = 0;
+        for (SpecMaster master : specMasterRepository.findAll()) {
+            BrandSpecSetting s = new BrandSpecSetting();
+            s.setBrand(brand);
+            s.setMaster(master);
+            s.setSpecType(master.getType());
+            s.setIsEnabled(true);
+            s.setSortOrder(sort++);
+            brandSpecSettingRepository.save(s);
+        }
+        for (ToppingMaster master : toppingMasterRepository.findAll()) {
+            BrandToppingSetting t = new BrandToppingSetting();
+            t.setBrand(brand);
+            t.setMasterTopping(master);
+            t.setBrandPrice(master.getDefaultPrice());
+            t.setIsEnabled(true);
+            brandToppingSettingRepository.save(t);
+        }
     }
 
     private Region region(String name) {
