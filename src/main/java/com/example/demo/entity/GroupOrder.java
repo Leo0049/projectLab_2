@@ -9,7 +9,16 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 @Entity
-@Table(name = "orders")
+// 複合索引依實際查詢而定；原本只有 FK 自動建立的單欄索引。
+// 門市後台「依狀態看訂單」與顧客「訂單歷史」都是高頻查詢，資料量成長後差異明顯。
+@Table(name = "orders", indexes = {
+        // findByStoreIdAndStatus、findByStoreIdAndOptionalStatus、各式門市統計
+        @Index(name = "idx_orders_store_status", columnList = "store_id, status"),
+        // findByStoreIdAndStatusAndPeriod、findStoreDailyStats 等帶時間區間的報表
+        @Index(name = "idx_orders_store_created", columnList = "store_id, created_at"),
+        // findByInitiatorIdOrderByCreatedAtDesc：顧客訂單列表（含排序）
+        @Index(name = "idx_orders_initiator_created", columnList = "initiator_id, created_at")
+})
 @Data
 public class GroupOrder {
 

@@ -7,7 +7,11 @@ import lombok.ToString;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "order_items")
+// existsByGroupOrderIdAndUserId 是 WebSocket 訂閱授權的判斷依據（每次 SUBSCRIBE 都會查），
+// findByGroupOrderIdAndUserId 則用於揪團的個人品項；兩者都吃這個複合索引。
+@Table(name = "order_items", indexes = {
+        @Index(name = "idx_order_items_order_user", columnList = "group_order_id, user_id")
+})
 @Data
 public class OrderItem {
 

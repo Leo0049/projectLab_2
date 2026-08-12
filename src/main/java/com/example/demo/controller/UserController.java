@@ -226,7 +226,7 @@ public class UserController {
     @Operation(summary = "建立訂單", description = "使用者下單。\n\nBody:\n```json\n{\n  \"storeId\": 1,\n  \"note\": \"門口有管理員，請報到。\",\n  \"items\": [{\n    \"productId\": 1,\n    \"sugarSnapshot\": \"微糖\",\n    \"iceSnapshot\": \"少冰\",\n    \"paymentType\": \"CREDIT\",\n    \"toppingNames\": [\"珍珠\", \"椰果\"]\n  }]\n}\n```")
     @PostMapping("/api/orders/place")
     public Result placeOrder(@RequestAttribute("currentUserId") Long userId,
-            @RequestBody PlaceOrderRequest req) {
+            @Valid @RequestBody PlaceOrderRequest req) {
         return Result.success(orderService.placeOrder(userId, req));
     }
 
@@ -439,7 +439,7 @@ public class UserController {
     @Operation(summary = "另存新地址", description = "為使用者新增一筆非預設的常用地址。")
     @PostMapping("/api/users/{userId}/addresses")
     public ResponseEntity<?> saveNewAddress(@PathVariable Long userId,
-            @RequestBody SaveAddressRequest request,
+            @Valid @RequestBody SaveAddressRequest request,
             @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
         requireSelf(userId, currentUserId);
         if (userAddressRepository == null || userService == null) {
@@ -477,7 +477,7 @@ public class UserController {
     @PutMapping("/api/users/{userId}/addresses/{addressId}")
     public ResponseEntity<?> updateAddressById(@PathVariable Long userId,
             @PathVariable Long addressId,
-            @RequestBody SaveAddressRequest request,
+            @Valid @RequestBody SaveAddressRequest request,
             @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
         requireSelf(userId, currentUserId);
         if (userAddressRepository == null) return ResponseEntity.status(503).body("Service unavailable");
@@ -539,7 +539,7 @@ public class UserController {
 
     @Operation(summary = "更新個人資料", description = "更新使用者名稱。")
     @PutMapping("/api/users/{userId}/profile")
-    public ResponseEntity<?> updateProfile(@PathVariable Long userId, @RequestBody ProfileRequest request,
+    public ResponseEntity<?> updateProfile(@PathVariable Long userId, @Valid @RequestBody ProfileRequest request,
             @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
         requireSelf(userId, currentUserId);
         if (userService == null) {
@@ -557,7 +557,7 @@ public class UserController {
 
     @Operation(summary = "儲值", description = "使用者自行儲值，更新餘額並記錄交易。")
     @PostMapping("/api/users/{userId}/recharge")
-    public ResponseEntity<?> recharge(@PathVariable Long userId, @RequestBody RechargeRequest request,
+    public ResponseEntity<?> recharge(@PathVariable Long userId, @Valid @RequestBody RechargeRequest request,
             @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
         requireSelf(userId, currentUserId);
         if (transactionRecordService == null) {
@@ -588,7 +588,7 @@ public class UserController {
 
     @Operation(summary = "修改密碼", description = "使用者修改密碼。")
     @PostMapping("/api/users/{userId}/change-password")
-    public ResponseEntity<?> changePassword(@PathVariable Long userId, @RequestBody PasswordRequest request,
+    public ResponseEntity<?> changePassword(@PathVariable Long userId, @Valid @RequestBody PasswordRequest request,
             @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
         requireSelf(userId, currentUserId);
         if (userService == null) {
@@ -613,11 +613,24 @@ public class UserController {
 
     @Data
     static class SaveAddressRequest {
+        @jakarta.validation.constraints.Size(max = 50, message = "縣市不可超過 50 字")
         private String city;
+
+        @jakarta.validation.constraints.Size(max = 50, message = "區域不可超過 50 字")
         private String district;
+
+        @jakarta.validation.constraints.Size(max = 150, message = "地址不可超過 150 字")
         private String street;
+
+        @jakarta.validation.constraints.Size(max = 20, message = "標籤不可超過 20 字")
         private String label;
+
+        @jakarta.validation.constraints.DecimalMin(value = "-90.0", message = "緯度超出範圍")
+        @jakarta.validation.constraints.DecimalMax(value = "90.0", message = "緯度超出範圍")
         private BigDecimal latitude;
+
+        @jakarta.validation.constraints.DecimalMin(value = "-180.0", message = "經度超出範圍")
+        @jakarta.validation.constraints.DecimalMax(value = "180.0", message = "經度超出範圍")
         private BigDecimal longitude;
     }
 
@@ -628,17 +641,28 @@ public class UserController {
 
     @Data
     static class ProfileRequest {
+        @jakarta.validation.constraints.NotBlank(message = "暱稱不可為空")
+        @jakarta.validation.constraints.Size(max = 50, message = "暱稱不可超過 50 字")
         private String username;
     }
 
     @Data
     static class PasswordRequest {
+        @jakarta.validation.constraints.NotBlank(message = "請輸入原密碼")
         private String oldPassword;
+
+        @jakarta.validation.constraints.NotBlank(message = "請輸入新密碼")
+        @jakarta.validation.constraints.Size(min = 8, max = 64, message = "新密碼長度需介於 8~64 字元")
         private String newPassword;
     }
 
     @Data
     static class RechargeRequest {
+        // ⚠️ 這個值會直接進 updateStoreCredit：null 會 NPE 變成 500，
+        //    負數則會「儲值變扣款」。必須在入口就擋掉。
+        @jakarta.validation.constraints.NotNull(message = "儲值金額不可為空")
+        @jakarta.validation.constraints.DecimalMin(value = "0.01", message = "儲值金額必須大於 0")
+        @jakarta.validation.constraints.Digits(integer = 10, fraction = 2, message = "儲值金額格式錯誤")
         private BigDecimal amount;
     }
 

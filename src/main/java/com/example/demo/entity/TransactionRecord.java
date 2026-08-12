@@ -9,7 +9,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "transaction_records")
+// findByUserIdOrderByCreatedAtDesc：交易紀錄／對帳查詢（含排序）
+@Table(name = "transaction_records", indexes = {
+        @Index(name = "idx_tx_user_created", columnList = "user_id, created_at")
+})
 @Data
 public class TransactionRecord {
 

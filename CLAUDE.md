@@ -122,6 +122,19 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 參數，檢查就整段跳過。實測任一登入顧客即可讀寫他人個資、地址與錢包餘額。
 全專案已無 `authUserId`，新增端點請勿再引入同類寫法。
 
+## 測試
+
+`mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL）：
+
+| 測試 | 守住的東西 |
+|------|-----------|
+| `AuthorizationTest` | 未認證商品寫入、跨帳號讀寫個資／錢包、偽造 `authUserId` 繞過、debug 端點 |
+| `WalletConcurrencyTest` | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支 |
+| `DemoApplicationTests` | Spring context 能否載入 |
+
+> 這兩支測試都已驗證「把修補改回舊寫法時會失敗」——新增測試時請照做，
+> 在修補前後各跑一次，確認它真的抓得到回歸，否則只是裝飾。
+
 ## 資料庫（26 張表）
 
 重要表格：
