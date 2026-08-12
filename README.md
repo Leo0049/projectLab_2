@@ -42,7 +42,7 @@ mvn spring-boot:run       # 服務起在 :8082
 | **優惠券轉盤** | 每日抽獎，優惠券圖片由 Java 2D 動態生成後上傳 Cloudinary |
 | **商品快照** | 下單時保存當下品名與價格，日後改價不影響歷史訂單 |
 
-規模：後端 137 個檔案 / 約 14.2k 行，26 張資料表，14 個 REST controller；前端 39 個頁面、約 17.8k 行 JS（Vanilla JS + Tailwind）。
+規模：後端 138 個檔案 / 約 14.4k 行，26 張資料表，14 個 REST controller；前端 39 個頁面、約 17.8k 行 JS（Vanilla JS + Tailwind）。
 
 ---
 
