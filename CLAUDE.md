@@ -195,6 +195,18 @@ SUBMITTED 進入 PREPARING。
 `WalletConcurrencyTest` 會擋住這個回歸（已驗證：改回 `findById` 時兩個測試都會失敗）。
 新增任何動到 `balance` 的流程時，一律走上述兩個方法，不要自己讀寫餘額。
 
+## ⚠️ 列表端點一律要分頁
+
+`GET /api/stores/orders` 曾經一次回傳該門市的**全部歷史訂單**：壓測實測 6,666 筆、
+2.1 MB，50 併發下 p50 從 0.14 秒惡化到 2.7 秒、p99 超過 10 秒，比其他端點慢 50~60 倍。
+查詢本身不慢（索引有生效），慢在序列化與傳輸整份歷史。
+
+現已改為 `Pageable`：`page`（預設 0）、`size`（預設 50、上限 200 由
+`AnalyticsService.MAX_PAGE_SIZE` 把關），回傳 `{ orders, page, size, total, totalPages, hasNext }`。
+前端 `StoreAPI.getOrders()` 會解包成陣列以相容既有畫面，需要分頁資訊請用 `getOrdersPage()`。
+
+**新增任何會隨營運時間累積的列表端點（訂單、交易紀錄、評價）時，一律帶 Pageable。**
+
 ## 統一回應格式
 
 ```json

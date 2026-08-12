@@ -235,7 +235,22 @@
         getRatingStatsSnapshot:  () => _pGet(RATING_KEY),
         saveRatingStatsSnapshot: (d) => _pSet(RATING_KEY, d),
 
-        getOrders: (status) => api.get('/api/stores/orders' + (status ? `?status=${status}` : '')),
+        // 後端已改為分頁回傳 { orders, page, size, total, totalPages, hasNext }。
+        // 這裡解包成陣列，讓既有畫面（api-home / api-orders / order-all-sync）維持原本用法；
+        // 需要分頁資訊的畫面請改用 getOrdersPage()。
+        getOrders: async (status, size = 100) => {
+            const qs = new URLSearchParams({ page: 0, size });
+            if (status) qs.set('status', status);
+            const data = await api.get(`/api/stores/orders?${qs}`);
+            return Array.isArray(data) ? data : (data?.orders || []);
+        },
+
+        // 完整分頁回應，供日後做「載入更多／翻頁」使用
+        getOrdersPage: (status, page = 0, size = 50) => {
+            const qs = new URLSearchParams({ page, size });
+            if (status) qs.set('status', status);
+            return api.get(`/api/stores/orders?${qs}`);
+        },
         acceptOrder:         (orderId) => api.post(`/api/stores/dashboard/orders/${orderId}/accept`),
         rejectOrder:         (orderId) => api.post(`/api/stores/dashboard/orders/${orderId}/reject`),
         completeProduction:  (orderId) => api.post(`/api/stores/dashboard/orders/${orderId}/complete-production`),

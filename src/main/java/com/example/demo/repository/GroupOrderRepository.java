@@ -144,6 +144,25 @@ public interface GroupOrderRepository extends JpaRepository<GroupOrder, Long> {
                      @Param("storeId") Long storeId,
                      @Param("status") String status);
 
+       /**
+        * 分頁版本，供 GET /api/stores/orders 使用。
+        *
+        * ⚠️ 不分頁的版本會一次撈出該門市的全部歷史訂單。壓測實測：
+        * 6,666 筆訂單的單一回應為 2.1 MB，50 併發下 p50 從 0.14 秒惡化到 2.7 秒、
+        * p99 超過 10 秒，比其他端點慢 50~60 倍。門市營運一年後會直接不可用。
+        * 新增訂單列表相關查詢時請一律帶 Pageable。
+        */
+       @Query("""
+                     SELECT g FROM GroupOrder g
+                     WHERE g.store.id = :storeId
+                     AND (:status IS NULL OR g.status = :status)
+                     ORDER BY g.createdAt DESC
+                     """)
+       Page<GroupOrder> findByStoreIdAndOptionalStatus(
+                     @Param("storeId") Long storeId,
+                     @Param("status") String status,
+                     Pageable pageable);
+
        @Query("""
                      SELECT g FROM GroupOrder g
                      WHERE g.store.id = :storeId

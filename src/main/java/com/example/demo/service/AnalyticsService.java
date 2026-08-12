@@ -4,6 +4,8 @@ import com.example.demo.entity.*;
 import com.example.demo.exception.CustomException;
 import com.example.demo.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -279,10 +281,32 @@ public class AnalyticsService {
     // 分店 訂單管理 (遵守 6 大狀態邏輯)
     // ═══════════════════════════════════════════════
 
+    /** 單次查詢的訂單數上限，避免用戶端指定過大的 size 讓回應再度失控 */
+    private static final int MAX_PAGE_SIZE = 200;
+
+    /**
+     * 分店訂單列表（分頁）。
+     *
+     * ⚠️ 這裡必須分頁。舊版一次撈出該門市全部歷史訂單，壓測實測 6,666 筆訂單
+     *    的單一回應是 2.1 MB，50 併發下 p50 2.7 秒、p99 超過 10 秒，
+     *    比其他端點慢 50~60 倍——查詢本身不慢，慢在序列化與傳輸整份歷史。
+     */
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> getStoreOrders(Long storeId, String status) {
-        List<GroupOrder> orders = groupOrderRepository.findByStoreIdAndOptionalStatus(storeId, status);
-        return enrichOrdersWithItems(orders);
+    public Map<String, Object> getStoreOrders(Long storeId, String status, int page, int size) {
+        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        int safePage = Math.max(page, 0);
+
+        Page<GroupOrder> result = groupOrderRepository.findByStoreIdAndOptionalStatus(
+                storeId, status, PageRequest.of(safePage, safeSize));
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("orders", enrichOrdersWithItems(result.getContent()));
+        body.put("page", result.getNumber());
+        body.put("size", result.getSize());
+        body.put("total", result.getTotalElements());
+        body.put("totalPages", result.getTotalPages());
+        body.put("hasNext", result.hasNext());
+        return body;
     }
 
     @Transactional(readOnly = true)

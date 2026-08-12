@@ -135,11 +135,18 @@ public class StoreController {
 
     // ==================== 訂單管理 ====================
 
-    @Operation(summary = "訂單列表", description = "取得分店訂單列表，支援 status 篩選。\n\nQuery Param: status = OPEN / SUBMITTED / READY / COMPLETED / REJECTED / CANCELLED（不帶則查全部）")
+    @Operation(summary = "訂單列表（分頁）", description = "取得分店訂單列表，依建立時間新到舊排序。\n\n"
+            + "Query Param:\n"
+            + "- status：OPEN / SUBMITTED / PREPARING / READY / COMPLETED / REJECTED / CANCELLED（不帶則查全部）\n"
+            + "- page：頁碼，從 0 起算，預設 0\n"
+            + "- size：每頁筆數，預設 50，上限 200\n\n"
+            + "回傳：{ orders: [...], page, size, total, totalPages, hasNext }")
     @GetMapping("/orders")
     public Result getOrders(@RequestAttribute("currentUserId") Long storeId,
-            @RequestParam(required = false) String status) {
-        return Result.success(analyticsService.getStoreOrders(storeId, status));
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return Result.success(analyticsService.getStoreOrders(storeId, status, page, size));
     }
 
     @Operation(summary = "待處理訂單列表", description = "取得目前所有 status = OPEN 的待接單列表。\n\n回傳: [{ orderId, orderNo, type, totalAmount, createdAt }]")
