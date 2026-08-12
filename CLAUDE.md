@@ -164,6 +164,19 @@ SUBMITTED 進入 PREPARING。
 - `REPAYMENT`：補款（揪團補差額）
 - 支付方式：`WALLET`（餘額）或 `CASH`
 
+### ⚠️ 餘額異動必須鎖列
+
+所有金流都經由 `TransactionRecordService.updateStoreCredit()`（GroupOrderService 有 10 處
+呼叫）與 `UserProfileService.topUp()`，兩者都必須用
+`UserRepository.findByIdForUpdate()`（`SELECT ... FOR UPDATE`），**不可改回 `findById`**。
+
+餘額是「讀出 → 相加 → 寫回」，沒有列鎖時併發請求會互相覆蓋。實測 20 個併發各儲值 10 元，
+最終只入帳 70 元，且 `transaction_records` 總額（120）與 `users.balance`（70）對不起來——
+對含金流的系統代表無法對帳。
+
+`WalletConcurrencyTest` 會擋住這個回歸（已驗證：改回 `findById` 時兩個測試都會失敗）。
+新增任何動到 `balance` 的流程時，一律走上述兩個方法，不要自己讀寫餘額。
+
 ## 統一回應格式
 
 ```json
@@ -186,6 +199,10 @@ SUBMITTED 進入 PREPARING。
 
 ## CORS 白名單
 
+由 `app.cors.allowed-origins`（`application.yml`）單一來源提供，
+`SecurityConfig`（HTTP）與 `WebSocketConfig`（STOMP handshake）**共用同一份**，
+可用環境變數 `CORS_ALLOWED_ORIGINS` 覆寫：
+
 - `localhost:5173`
 - `localhost:5500`
 - `127.0.0.1:5500`
@@ -193,6 +210,23 @@ SUBMITTED 進入 PREPARING。
 - `localhost:54376`
 - `localhost:63342`
 - `localhost:8082`
+
+⚠️ 曾因 WebSocket 端獨立寫成 `setAllowedOriginPatterns("*")`，
+與 HTTP 端白名單自相矛盾而完全對外放行。新增來源請只改設定檔，不要在程式碼中另寫一份。
+
+## WebSocket / STOMP 安全
+
+`/ws-cart` 的 SockJS handshake 走 CORS 白名單；STOMP 層由
+`WebSocketConfig.configureClientInboundChannel` 攔截：
+
+- **CONNECT**：必須帶 `Authorization: Bearer <jwt>`，驗證後綁為連線的 Principal
+- **SUBSCRIBE**：`/topic/order/{id}` 僅限該訂單的**發起人或參與者**
+  （參與者以 `order_items` 判定，揪團成員才看得到自己團的狀態）；
+  `/topic/group/{token}` 的 token 本身即分享憑證，已認證即可訂閱
+
+⚠️ 先前完全沒有攔截器，且 `orderId` 是連續整數可直接列舉，任何人都能旁觀他人訂單狀態。
+前端（`group_order.html`、`order_details.html`、`order_confirm.html`）已改為在
+`stompClient.connect()` 第一個參數帶入 token，新增 STOMP 頁面時別忘了。
 
 ## 前端架構
 

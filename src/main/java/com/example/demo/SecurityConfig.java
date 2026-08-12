@@ -120,19 +120,15 @@ public class SecurityConfig {
                 return http.build();
         }
 
+        // 與 WebSocketConfig 共用同一份白名單（app.cors.allowed-origins）
+        @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins}")
+        private String[] allowedOrigins;
+
         @Bean
         public UrlBasedCorsConfigurationSource corsConfigurationSource() {
                 CorsConfiguration config = new CorsConfiguration();
                 config.setAllowCredentials(true);
-                config.setAllowedOriginPatterns(
-                                List.of(
-                                                "http://localhost:5173",
-                                                "http://127.0.0.1:5500",
-                                                "http://localhost:5500",
-                                                "http://localhost:60687", // 3/23中平
-                                                "http://localhost:54376", // 3/24中平
-                                                "http://localhost:63342", // IntelliJ 內建伺服器
-                                                "http://localhost:8082"));
+                config.setAllowedOriginPatterns(List.of(allowedOrigins));
                 config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
                 config.setAllowedHeaders(List.of("*"));
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

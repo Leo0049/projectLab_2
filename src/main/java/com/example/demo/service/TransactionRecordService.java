@@ -17,9 +17,16 @@ public class TransactionRecordService {
     private final UserRepository userRepository;
     private final TransactionRecordRepository transactionRecordRepository;
 
+    /**
+     * 異動使用者餘額並寫入帳本。所有金流（儲值、託管、扣款、退款、補款）都經由此方法。
+     *
+     * ⚠️ 這裡必須用 findByIdForUpdate 鎖列，不可改回 findById：
+     *    「讀出餘額 → 相加 → 寫回」在沒有列鎖時，併發請求會互相覆蓋，
+     *    導致金額短少且帳本與餘額對不起來（詳見 UserRepository.findByIdForUpdate 註解）。
+     */
     @Transactional
     public User updateStoreCredit(Long userId, BigDecimal amount, String type, LocalDateTime createdAt) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (amount.compareTo(BigDecimal.ZERO) < 0 && user.getBalance().add(amount).compareTo(BigDecimal.ZERO) < 0) {

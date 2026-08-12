@@ -98,7 +98,8 @@ public class UserProfileService {
     public Map<String, Object> topUp(Long userId, BigDecimal amount) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0)
             throw new CustomException("400", "儲值金額必須大於 0");
-        User user = userRepository.findById(userId)
+        // ⚠️ 必須鎖列，否則併發儲值會互相覆蓋（見 UserRepository.findByIdForUpdate）
+        User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new CustomException("404", "找不到使用者"));
         user.setBalance(user.getBalance().add(amount));
         userRepository.save(user);

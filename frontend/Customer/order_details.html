@@ -1257,7 +1257,8 @@
                 const socket = new SockJS(NavAuth.getApiUrl('/ws-cart'));
                 stompClient = Stomp.over(socket);
                 stompClient.debug = null;
-                stompClient.connect({}, () => {
+                // WebSocket 已改為需認證：CONNECT 必須帶 JWT，否則後端會拒絕連線
+                stompClient.connect({ Authorization: `Bearer ${localStorage.getItem('JOIN_TOKEN')}` }, () => {
                     stompClient.subscribe(`/topic/order/${orderId}`, (message) => {
                         const data = JSON.parse(message.body);
                         const newStatus = data.status;
