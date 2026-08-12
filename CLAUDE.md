@@ -16,7 +16,7 @@
 | 社群登入 | Firebase Admin SDK 9.2.0 (Google, Facebook, Phone) |
 | 資料庫 | MySQL 8（本機 Docker，`docker-compose.yml`）|
 | 快取 / 鎖 | Redis 7（本機 Docker）— 揪團購物車、分散式鎖、每日轉盤狀態 |
-| 即時推播 | SSE + WebSocket/STOMP（`/ws-cart`, SockJS）|
+| 即時推播 | WebSocket/STOMP（`/ws-cart`, SockJS）|
 | 圖片上傳 | Cloudinary v1.36.0 |
 | 圖片生成 | Java 2D (優惠券動態圖片生成) |
 | API 文件 | SpringDoc OpenAPI / Swagger UI v2.8.5 |
@@ -35,7 +35,7 @@ join_drink/
 │   ├── entity/              # 26 JPA entities + 6 EmbeddedId 類別
 │   ├── repository/          # 29 JPA repositories
 │   ├── dto/                 # 24 Data Transfer Objects
-│   ├── common/              # JWT, Security, Cloudinary, Firebase, DataSeeder
+│   ├── common/              # JWT, Security, Cloudinary, Firebase, DataSeeder, DemoDataSeeder
 │   ├── config/              # RedisConfig, WebSocketConfig
 │   ├── exception/           # CustomException + GlobalExceptionHandler
 │   ├── DemoApplication.java # Spring Boot 入口
@@ -78,8 +78,11 @@ join_drink/
 | `UploadController` | 本地檔案上傳 |
 | `UserFavoriteController` | 收藏店家（查詢、切換）|
 
-> **沒有 `SseController`**。SSE 端點（`SseEmitter`）直接寫在 `GroupOrderController`、
-> `StoreController`、`OrderController` 內，找即時推播相關程式碼請往這三支看。
+> ⚠️ **本專案沒有 SSE**。舊版文件曾寫「SSE 端點直接寫在 GroupOrderController /
+> StoreController / OrderController 內」，但全專案 `SseEmitter` 出現次數為 0，
+> 別再去找那段不存在的程式碼。即時推播全部由 WebSocket/STOMP 實作：
+> 推播來源是 `messagingTemplate.convertAndSend()`，目的地為
+> `/topic/order/{orderId}`（訂單狀態）與 `/topic/group/{token}`（揪團品項異動）。
 
 ## 角色與權限
 
@@ -204,9 +207,11 @@ SUBMITTED 進入 PREPARING。
 
 1. `docker compose up -d` — 啟動 MySQL 8（`localhost:3306`）與 Redis 7（`localhost:6379`）
 2. `mvn spring-boot:run` — `application.yml` 的預設值已對應上述容器，不需額外設定
-3. Cloudinary 憑證需自行填入 `.env` 或 `application-local.yml`（參考各自的 `.example`）
-4. 本機 `sms.mode=mock`，跳過 Firebase 驗證，不需要 `serviceAccountKey.json`
-5. 啟動埠：`8082`；Swagger UI：`http://localhost:8082/swagger-ui.html`
+3. 首次啟動且資料表為空時，`DemoDataSeeder` 會植入示範品牌／門市／飲品／顧客
+   （帳號見 README，密碼皆為 `demo1234`）。正式環境務必 `DEMO_DATA_ENABLED=false`
+4. Cloudinary 憑證需自行填入 `.env` 或 `application-local.yml`（參考各自的 `.example`）
+5. 本機 `sms.mode=mock`，跳過 Firebase 驗證，不需要 `serviceAccountKey.json`
+6. 啟動埠：`8082`；Swagger UI：`http://localhost:8082/swagger-ui.html`
 
 設定值一律走 `${ENV_VAR:本機預設值}`，`application.yml` 內不再有任何明文密鑰。
 
@@ -257,7 +262,7 @@ SUBMITTED 進入 PREPARING。
 - **商品快照**：訂單建立時儲存當下商品/價格快照，避免日後價格異動影響歷史訂單
 - **帳號合併**：社群登入與傳統帳號可合併（`/api/auth/merge/*`）
 - **優惠券到期排程**：`CouponExpiryScheduler` 自動處理到期
-- **SSE 即時推播**：分店接單畫面即時收到新訂單通知；揪團成員可即時看到品項更新
+- **即時推播**：WebSocket/STOMP 推送訂單狀態與揪團品項異動（非 SSE，見上方說明）
 - **GroupOrder V2**：完整揪團流程（品項 CRUD、套用優惠券、結帳、補款）
 - **常用地址管理**：使用者可儲存多筆常用地址（`user_addresses`），結帳時快速選用
 

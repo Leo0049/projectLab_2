@@ -71,6 +71,10 @@ sms:
 
 app:
   reset_password_url: ${RESET_PASSWORD_URL:http://localhost:5173/Resetpassword}
+  demo-data:
+    # 首次啟動且資料表為空時，植入示範品牌/門市/飲品/顧客，讓專案 clone 下來就能看到畫面。
+    # ⚠️ 會建立密碼已知的示範帳號，正式環境務必設為 false。
+    enabled: ${DEMO_DATA_ENABLED:true}
   cors:
     # SecurityConfig（HTTP）與 WebSocketConfig（STOMP handshake）共用這份白名單，
     # 避免兩邊各寫一份而漂移——WebSocket 曾寫成 allowedOriginPatterns("*") 完全放行。
