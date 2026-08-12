@@ -73,9 +73,11 @@ app:
   reset_password_url: ${RESET_PASSWORD_URL:http://localhost:5173/Resetpassword}
 
 jwt:
-  # 本機預設值僅供開發，正式環境務必以 JWT_SECRET 覆寫（HS512 需 ≥64 字元）
+  # 本機預設值僅供開發，正式環境務必以 JWT_SECRET 覆寫。
+  # ⚠️ HS512 需 ≥64 個字元（以 UTF-8 原始位元組計算，非 Base64 解碼後長度）；
+  #    不足時 JwtUtils 會在「啟動時」直接失敗，而不是等到登入才拋 500。
   secret: ${JWT_SECRET:LocalDevOnlySecretForJoinDrinkDoNotUseInProductionMustBeAtLeast64Chars!}
-  expiration: ${JWT_EXPIRATION:86400000}
+  expiration: ${JWT_EXPIRATION:86400000}   # 24 小時
 
 # 💡 Cloudinary 設定（無環境變數時停用上傳，不會導致啟動失敗）
 cloudinary:

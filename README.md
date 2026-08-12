@@ -103,5 +103,7 @@ mvn spring-boot:run
 ## 📚 其他文件
 
 - [API.md](./API.md) — REST API 端點文件
+- [DATABASE.md](./DATABASE.md) — 26 張表 schema 說明
 
-> `DATABASE.md`（26 張表 schema 說明）尚未建立，schema 目前以 `src/main/java/com/example/demo/entity/` 下的 JPA Entity 為準。
+> Schema 的唯一事實來源是 `src/main/java/com/example/demo/entity/` 下的 JPA Entity
+> （`ddl-auto: update` 由 Entity 自動建表），`DATABASE.md` 為對照說明文件。

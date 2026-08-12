@@ -1,13 +1,20 @@
 package com.example.demo.exception;
 
 import com.example.demo.common.Result;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.jpa.JpaSystemException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -32,20 +39,53 @@ public class GlobalExceptionHandler {
             return ResponseEntity.status(409).body(Result.error("409", "此配料名稱已重複"));
         }
 
-        String devMsg = message != null ? message : e.getClass().getSimpleName();
-        return ResponseEntity.status(500).body(Result.error("500", devMsg));
+        // 原始 DB 錯誤訊息可能含資料表/欄位結構，只寫進 log，不回傳給前端
+        log.error("資料庫操作失敗", e);
+        return ResponseEntity.status(500).body(Result.error("500", "系統錯誤，請稍後再試"));
+    }
+
+    // ── 用戶端錯誤：以往全數落入 handleGeneralException 被回成 500 ──────────
+
+    /** 路由不存在（含前端打錯 API path）→ 404，而非 500 */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Result> handleNoResourceFound(NoResourceFoundException e) {
+        return ResponseEntity.status(404).body(Result.error("404", "找不到此資源"));
+    }
+
+    /** 缺少必要 query 參數 → 400 */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Result> handleMissingParam(MissingServletRequestParameterException e) {
+        return ResponseEntity.status(400).body(Result.error("400", "缺少必要參數：" + e.getParameterName()));
+    }
+
+    /** 參數型別不符（例如 id 傳了非數字）→ 400 */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Result> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        return ResponseEntity.status(400).body(Result.error("400", "參數格式錯誤：" + e.getName()));
+    }
+
+    /** request body 無法解析（JSON 格式錯誤）→ 400 */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Result> handleUnreadableBody(HttpMessageNotReadableException e) {
+        return ResponseEntity.status(400).body(Result.error("400", "請求內容格式錯誤"));
+    }
+
+    /** HTTP method 不支援 → 405 */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Result> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        return ResponseEntity.status(405).body(Result.error("405", "不支援的請求方法"));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result> handleGeneralException(Exception e) {
-        e.printStackTrace();
-        String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-        return ResponseEntity.status(500).body(Result.error("500", msg));
+        // 例外細節可能含內部實作資訊，只寫進 log，不回傳給前端
+        log.error("未預期的系統例外", e);
+        return ResponseEntity.status(500).body(Result.error("500", "系統錯誤，請稍後再試"));
     }
 
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<Result> handleCustomException(CustomException e) {
-        System.out.println("Caught CustomException: " + e.getMessage());
+        log.warn("業務例外 code={} msg={}", e.getCode(), e.getMessage());
 
         int status;
         try {

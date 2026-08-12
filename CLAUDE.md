@@ -52,11 +52,12 @@ join_drink/
 ├── docker-compose.yml       # 本機 MySQL 8 + Redis 7
 ├── pom.xml
 ├── API.md                   # 完整 REST API 端點文件
+├── DATABASE.md              # 26 張表 schema 說明
 └── README.md                # 本機開發指南（中文）
 ```
 
-> ⚠️ `DATABASE.md` **尚未建立**（README 與舊版本文件曾引用）。目前 schema 以
-> `entity/` 下的 JPA Entity 為唯一來源。
+> ⚠️ schema 的**唯一事實來源**是 `entity/` 下的 JPA Entity（`ddl-auto: update` 自動建表）。
+> `DATABASE.md` 是對照說明文件，改 Entity 後請一併更新。
 
 ## 核心 Controllers（14 個）
 
@@ -201,6 +202,16 @@ SUBMITTED 進入 PREPARING。
 - SMS 為 mock 模式。設定鍵是頂層的 `sms.mode`，**不是** `app.sms.mode`
   （`AuthService` 讀的是 `${sms.mode:firebase}`，放錯層級會靜默 fallback 成 firebase）
 - `app.reset_password_url` 目前是死設定，程式中沒有任何地方讀取
+- `jwt.secret` **至少 64 個字元**（UTF-8 原始位元組，HS512 需 ≥512 bits）。
+  長度不足時 `JwtUtils` 的 `@PostConstruct` 會讓應用**啟動失敗**並印出明確訊息。
+  - 曾因 `signWith(alg, String)` 會先把 secret 做 Base64 **解碼**，70 字元的預設值
+    只剩 52 bytes，導致「註冊成功但一登入就 500」。現改用
+    `Keys.hmacShaKeyFor(secret.getBytes(UTF_8))`，字面長度即金鑰長度。
+  - 更換 `JWT_SECRET` 會使既有 token 全部失效，使用者需重新登入
+- Token 有效期讀 `jwt.expiration`（預設 24h）。曾因 `JwtUtils` 寫死
+  `@Value("604800000")` 而變成 7 天、設定檔完全不生效
+- `GlobalExceptionHandler` 已區分用戶端錯誤：找不到路由→404、缺參數/型別錯→400、
+  method 不支援→405；500 只回泛用訊息，**內部例外細節一律只寫進 log 不外流**
 - Redis 為真實服務（Docker），已移除 `embedded-redis`。`RedisCartService` /
   `DailySpinService` 直接依賴 `StringRedisTemplate`，Redis 沒跑會在呼叫時失敗；
   `RedisLockService` 則有本機鎖 fallback
