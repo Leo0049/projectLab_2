@@ -9,12 +9,23 @@ import com.example.demo.repository.StoreProductStatusRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 飲品查詢（純讀取）。
+ *
+ * ⚠️ 類別層級的 readOnly 交易不可移除：open-in-view=false 之下，沒有交易時
+ *    session 會在 repository 呼叫結束就關閉，之後讀取 lazy 關聯即拋
+ *    LazyInitializationException。getProductDetail() 會讀
+ *    product.getCategory().getName()，曾因此讓 GET /api/products/{id} 固定 500
+ *    （只有在商品「有分類」時才會踩到，空資料庫測不出來）。
+ */
 @Service
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class ProductService {
 
