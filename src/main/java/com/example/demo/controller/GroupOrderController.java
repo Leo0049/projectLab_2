@@ -87,26 +87,9 @@ public class GroupOrderController {
         }
     }
 
-    @GetMapping("/api/public/debug-exception")
-    public String debugActiveOrders(@RequestParam Long userId) {
-        try {
-            List<GroupOrder> activeOrders = groupOrderService.getActiveGroupOrders(userId);
-            List<GroupOrderDTO> dtos = groupOrderService.convertToDTOList(activeOrders);
-            return "SUCCESS: " + dtos.size();
-        } catch (Exception e) {
-            StringBuilder sb = new StringBuilder(e.toString() + "\n");
-            for (StackTraceElement el : e.getStackTrace()) {
-                sb.append(el.toString()).append("\n");
-            }
-            if (e.getCause() != null) {
-                sb.append("Caused by: ").append(e.getCause().toString()).append("\n");
-                for (StackTraceElement el : e.getCause().getStackTrace()) {
-                    sb.append(el.toString()).append("\n");
-                }
-            }
-            return sb.toString();
-        }
-    }
+    // ⚠️ 已移除 GET /api/public/debug-exception。
+    //    它位於 permitAll 的 /api/public/** 之下，可傳入任意 userId 查詢他人的進行中揪團，
+    //    且發生例外時會把完整 stack trace 直接回傳給呼叫端。
 
     @Operation(summary = "透過 token 取得揪團資訊", description = "取得揪團基本資訊與品項列表(視覺合併後)。")
     @GetMapping({ "/api/group-orders/join/{token}", "/api/group-orders/{token}" })

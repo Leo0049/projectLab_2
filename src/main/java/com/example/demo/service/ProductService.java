@@ -233,9 +233,8 @@ public class ProductService {
         return new com.example.demo.dto.ProductCustomizationDTO(specs, toppings, product.getBasePrice(), product.getMaxToppings());
     }
 
-    public ProductTemplate saveProduct(ProductTemplate product) {
-        return productRepository.save(product);
-    }
+    // saveProduct() 已隨 POST /api/products 一併移除（未認證寫入漏洞）。
+    // 商品建立/修改統一由 BrandService 處理，該處會驗證品牌歸屬。
 
     // ============================================================
     // methods (Map-based, from 整合ProductService.java)

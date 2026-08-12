@@ -233,22 +233,8 @@ public class AuthService {
         return userRepository.existsByPhone(phone);
     }
 
-    // ─── Debug：取得最近三方登入紀錄 ─────────────────────────
-    // ✅ 補上缺少的方法：UserController /api/auth/debug/social-logins 呼叫此方法
-    public List<Map<String, Object>> getRecentSocialLogins() {
-        return userAuthProviderRepository.findTop10ByOrderByIdDesc()
-                .stream()
-                .map(p -> {
-                    Map<String, Object> m = new HashMap<>();
-                    m.put("id", p.getId());
-                    m.put("provider", p.getProvider());
-                    m.put("providerUid", p.getProviderUid());
-                    m.put("userId", p.getUser().getId());
-                    m.put("phone", p.getUser().getPhone());
-                    return m;
-                })
-                .collect(Collectors.toList());
-    }
+    // getRecentSocialLogins() 已隨 /api/auth/debug/social-logins 一併移除：
+    // 該端點未經認證即可取得他人手機號碼與 providerUid。
 
     // ─── Firebase Token 驗證（僅驗證合法性）────────────────────
     public void verifyOnly(String idToken) throws Exception {

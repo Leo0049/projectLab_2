@@ -99,6 +99,29 @@ join_drink/
 permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店（IDOR）。
 新增分店端點時請確認它落在第 3 條規則裡。
 
+同樣的錯誤也發生過在 `/api/products/**` 與 `/api/brands/**`：整段 permitAll 使得
+`POST /api/products`（直接 `save()` 原始 entity）**未登入即可新增商品**，且 `save()`
+具 merge 語意，帶入既有 `id` 就能竄改他人商品售價。現已改為只放行 `HttpMethod.GET`
+的具體路徑，寫入端點一律落到 `authenticated()`。
+
+**新增任何 permitAll 路徑時，一律指定 `HttpMethod.GET`，不要用整段萬用字元。**
+
+### 身分一律取自 token，不可取自請求參數
+
+顧客端點的使用者身分**只能**用 `JwtAuthenticationFilter` 寫入的 request attribute：
+
+```java
+@RequestAttribute(value = "currentUserId", required = false) Long currentUserId
+```
+
+`/api/users/{userId}/**` 這類帶路徑 id 的端點，進入方法後第一件事是呼叫
+`UserController.requireSelf(userId, currentUserId)`，不符即擲出 403。
+
+⚠️ 舊版寫成 `@RequestParam(required = false) Long authUserId` 再比對
+`if (authUserId != null && ...)`，但那個值是**用戶端自己送的**——攻擊者只要不帶這個
+參數，檢查就整段跳過。實測任一登入顧客即可讀寫他人個資、地址與錢包餘額。
+全專案已無 `authUserId`，新增端點請勿再引入同類寫法。
+
 ## 資料庫（26 張表）
 
 重要表格：

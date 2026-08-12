@@ -1,6 +1,5 @@
 package com.example.demo.controller;
 
-import com.example.demo.entity.ProductTemplate;
 import com.example.demo.service.ProductService;
 
 import lombok.RequiredArgsConstructor;
@@ -28,10 +27,11 @@ public class ProductController {
         return ResponseEntity.ok(productService.getAllProductsByStoreId(storeId));
     }
 
-    @PostMapping
-    public ResponseEntity<ProductTemplate> saveProduct(@RequestBody ProductTemplate product) {
-        return ResponseEntity.ok(productService.saveProduct(product));
-    }
+    // ⚠️ 已移除 POST /api/products。
+    //    它直接接收原始 ProductTemplate 實體並 save()，而 /api/products/** 為 permitAll，
+    //    等於任何人不需登入就能新增商品；又因 save() 具 merge 語意，帶入既有 id 即可
+    //    竄改他人商品（實測可將售價改為 0.01）。品牌端建立/修改商品請改用需要 BRAND
+    //    身分的 POST /api/brand/products 與 PUT /api/brand/products/{productId}。
 
     @GetMapping("/{productId}/specs")
     public ResponseEntity<List<com.example.demo.dto.ProductSpecDTO>> getProductSpecs(@PathVariable Long productId) {

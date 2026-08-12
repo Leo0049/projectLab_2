@@ -49,8 +49,6 @@ public class SecurityConfig {
                                                                 "/api/stores/auth/**",
                                                                 "/api/menu/**",
                                                                 "/api/home/**",
-                                                                "/api/brands/**",
-                                                                "/api/products/**",
                                                                 "/api/public/**",
                                                                 "/api/location/**",
                                                                 "/api/game-wheel/brands",
@@ -64,6 +62,22 @@ public class SecurityConfig {
                                                 .permitAll()
                                                 .requestMatchers("/api/brand/**", "/api/finance/brand/**")
                                                 .hasAnyAuthority("BRAND")
+
+                                                // ── 商品/品牌公開資訊 ──────────────────────────────
+                                                // ⚠️ 同 /api/stores 的教訓：requestMatchers(String...) 不分 HTTP method。
+                                                // 舊版把 "/api/products/**" 與 "/api/brands/**" 整段 permitAll，
+                                                // 導致 POST /api/products（直接 save 原始 entity）未認證即可新增，
+                                                // 且因 save() 的 merge 語意可帶 id 竄改他人商品售價。
+                                                // 這裡只放行 GET，任何寫入端點都會落到最後的 authenticated()。
+                                                .requestMatchers(HttpMethod.GET,
+                                                                "/api/brands",
+                                                                "/api/brands/**",
+                                                                "/api/products/*",
+                                                                "/api/products/*/specs",
+                                                                "/api/products/*/customization",
+                                                                "/api/products/*/customization/v2",
+                                                                "/api/products/store/**")
+                                                .permitAll()
 
                                                 // ── 分店 API ────────────────────────────────────────
                                                 // ⚠️ 這一段的順序有意義，改動前請先讀完。

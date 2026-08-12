@@ -155,11 +155,9 @@ public class UserController {
         }
     }
 
-    @Operation(summary = "Debug：列出最近綁定的三方登入紀錄", description = "開發時可用於確認第三方登入資料是否已寫入資料庫")
-    @GetMapping("/api/auth/debug/social-logins")
-    public Result debugSocialLogins() {
-        return Result.success(authService.getRecentSocialLogins());
-    }
+    // ⚠️ 已移除 GET /api/auth/debug/social-logins。
+    //    它會列出最近的三方登入綁定紀錄（含手機號碼等個資），且因落在
+    //    /api/auth/** 的 permitAll 範圍內，未登入即可存取。
 
     @Operation(summary = "重設密碼", description = "透過 Firebase 驗證手機身份後重設密碼。\n\nBody: { idToken, phone, newPassword }")
     @PostMapping("/api/auth/reset-password-firebase")
@@ -387,13 +385,26 @@ public class UserController {
     // 使用 /api/users 路徑前綴，以避免與上方 Result-based 端點衝突
     // ============================================================
 
+    /**
+     * 確認路徑上的 userId 就是 token 所代表的使用者本人。
+     *
+     * ⚠️ 這裡的 currentUserId 只能來自 JwtAuthenticationFilter 寫入的 request attribute。
+     *    舊版是以 @RequestParam Long authUserId 接收、再寫成
+     *    {@code if (authUserId != null && !authUserId.equals(userId))}，
+     *    但那個值是「用戶端自己送的」，攻擊者只要不帶這個參數，整段檢查就被跳過，
+     *    等於任何登入者都能讀寫他人的個資、地址與錢包。新增端點時請一律沿用本方法。
+     */
+    private void requireSelf(Long pathUserId, Long currentUserId) {
+        if (currentUserId == null || !currentUserId.equals(pathUserId)) {
+            throw new CustomException("403", "無權存取其他使用者的資料");
+        }
+    }
+
     @Operation(summary = "取得使用者資料", description = "依 userId 查詢使用者公開資料。")
     @GetMapping("/api/users/{userId}")
     public ResponseEntity<?> getUser(@PathVariable Long userId,
-            @RequestParam(required = false) Long authUserId) {
-        if (authUserId != null && !authUserId.equals(userId)) {
-            return ResponseEntity.status(403).body("Access denied");
-        }
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
         if (userService == null) {
             return ResponseEntity.status(500).body("UserService not available");
         }
@@ -406,7 +417,8 @@ public class UserController {
     @Operation(summary = "取得使用者常用地址列表", description = "回傳該使用者所有儲存的常用地址。")
     @GetMapping("/api/users/{userId}/address")
     public ResponseEntity<?> getUserAddress(@PathVariable Long userId,
-            @RequestParam(required = false) Long authUserId) {
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
         if (userAddressRepository == null) {
             return ResponseEntity.ok(List.of());
         }
@@ -428,7 +440,8 @@ public class UserController {
     @PostMapping("/api/users/{userId}/addresses")
     public ResponseEntity<?> saveNewAddress(@PathVariable Long userId,
             @RequestBody SaveAddressRequest request,
-            @RequestParam(required = false) Long authUserId) {
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
         if (userAddressRepository == null || userService == null) {
             return ResponseEntity.status(503).body("Service unavailable");
         }
@@ -465,7 +478,8 @@ public class UserController {
     public ResponseEntity<?> updateAddressById(@PathVariable Long userId,
             @PathVariable Long addressId,
             @RequestBody SaveAddressRequest request,
-            @RequestParam(required = false) Long authUserId) {
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
         if (userAddressRepository == null) return ResponseEntity.status(503).body("Service unavailable");
         return userAddressRepository.findById(addressId).map(addr -> {
             if (!addr.getUser().getId().equals(userId))
@@ -491,7 +505,8 @@ public class UserController {
     @DeleteMapping("/api/users/{userId}/addresses/{addressId}")
     public ResponseEntity<?> deleteAddress(@PathVariable Long userId,
             @PathVariable Long addressId,
-            @RequestParam(required = false) Long authUserId) {
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
         if (userAddressRepository == null) {
             return ResponseEntity.status(503).body("Service unavailable");
         }
@@ -507,10 +522,8 @@ public class UserController {
     @Operation(summary = "更新頭像", description = "更新使用者頭像 URL。")
     @PutMapping("/api/users/{userId}/avatar")
     public ResponseEntity<?> updateAvatar(@PathVariable Long userId, @RequestBody AvatarRequest request,
-            @RequestParam(required = false) Long authUserId) {
-        if (authUserId != null && !authUserId.equals(userId)) {
-            return ResponseEntity.status(403).body("Access denied");
-        }
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
         if (userService == null) {
             return ResponseEntity.status(500).body("UserService not available");
         }
@@ -527,10 +540,8 @@ public class UserController {
     @Operation(summary = "更新個人資料", description = "更新使用者名稱。")
     @PutMapping("/api/users/{userId}/profile")
     public ResponseEntity<?> updateProfile(@PathVariable Long userId, @RequestBody ProfileRequest request,
-            @RequestParam(required = false) Long authUserId) {
-        if (authUserId != null && !authUserId.equals(userId)) {
-            return ResponseEntity.status(403).body("Access denied");
-        }
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
         if (userService == null) {
             return ResponseEntity.status(500).body("UserService not available");
         }
@@ -547,10 +558,8 @@ public class UserController {
     @Operation(summary = "儲值", description = "使用者自行儲值，更新餘額並記錄交易。")
     @PostMapping("/api/users/{userId}/recharge")
     public ResponseEntity<?> recharge(@PathVariable Long userId, @RequestBody RechargeRequest request,
-            @RequestParam(required = false) Long authUserId) {
-        if (authUserId != null && !authUserId.equals(userId)) {
-            return ResponseEntity.status(403).body("Access denied");
-        }
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
         if (transactionRecordService == null) {
             return ResponseEntity.status(500).body("TransactionRecordService not available");
         }
@@ -568,10 +577,8 @@ public class UserController {
     @Operation(summary = "交易紀錄", description = "取得使用者儲值/消費交易紀錄。")
     @GetMapping("/api/users/{userId}/store-credit-records")
     public ResponseEntity<?> getStoreCreditRecords(@PathVariable Long userId,
-            @RequestParam(required = false) Long authUserId) {
-        if (authUserId != null && !authUserId.equals(userId)) {
-            return ResponseEntity.status(403).body("Access denied");
-        }
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
         if (transactionRecordRepository == null) {
             return ResponseEntity.ok(List.of());
         }
@@ -582,10 +589,8 @@ public class UserController {
     @Operation(summary = "修改密碼", description = "使用者修改密碼。")
     @PostMapping("/api/users/{userId}/change-password")
     public ResponseEntity<?> changePassword(@PathVariable Long userId, @RequestBody PasswordRequest request,
-            @RequestParam(required = false) Long authUserId) {
-        if (authUserId != null && !authUserId.equals(userId)) {
-            return ResponseEntity.status(403).body("Access denied");
-        }
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
         if (userService == null) {
             return ResponseEntity.status(500).body("UserService not available");
         }
