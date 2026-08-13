@@ -438,6 +438,9 @@ public class OrderService {
         return result;
     }
 
+    // 目前靠 findVisibleOrdersForUser 的 JOIN FETCH g.store 才沒炸，但那是查詢的實作細節；
+    // 這裡同樣會讀 order.getStore()，補上交易免得日後改查詢時又踩到同一顆雷。
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<Map<String, Object>> getOrderHistory(Long userId) {
         List<GroupOrder> orders = groupOrderRepository
                 .findVisibleOrdersForUser(userId, org.springframework.data.domain.Pageable.unpaged()).getContent();
@@ -490,6 +493,10 @@ public class OrderService {
         return result;
     }
 
+    // readOnly 交易不可移除：open-in-view=false，下面會讀 order.getStore().getStoreName()
+    // 這個 LAZY 關聯，沒有交易時 session 已關閉，會拋 LazyInitializationException。
+    // 這是顧客點「檢視詳情」必打的端點，壞掉等於訂單詳情頁完全打不開。
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public Map<String, Object> getOrderDetail(Long userId, Long orderId) {
         GroupOrder order = groupOrderRepository.findById(orderId)
                 .orElseThrow(() -> new CustomException("404", "Order not found"));

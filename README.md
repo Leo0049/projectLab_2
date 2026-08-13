@@ -99,6 +99,7 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
 | S-3 | 同一成因造成一批讀取端點缺少擁有權檢查 | 可讀取他人姓名、手機號碼與餘額 | 同上 |
 | S-4 | 兩個 debug 端點位於 `permitAll` 路徑下 | 未認證即可取得他人手機號碼；另一支會回傳完整 stack trace | 移除 |
 | S-5 | WebSocket 為 `allowedOriginPatterns("*")` 且無任何 STOMP 攔截器 | `orderId` 是連續整數可列舉，任何人可旁觀他人訂單狀態 | CONNECT 驗 JWT、SUBSCRIBE 驗訂單關係人；origin 收斂為與 HTTP 共用的白名單 |
+| S-6 | `OrderController` 整支沒有任何擁有權檢查：訂單列表吃路徑上的 `userId`，狀態／取消端點則是 `if (userId != null) 檢查 else 放行` | 任一登入顧客可讀他人完整訂單歷史（金額、品項、揪團 `shareToken`）；**不帶 `userId` 參數即可把他人訂單從 READY 改成 COMPLETED**；`/api/orders/store/{id}` 還能撈出整間門市訂單，含其他顧客的外送地址 | 全部改用 filter 注入的 `currentUserId`，移除「不帶參數就跳過」的分支；門市傾印端點刪除（門市請用有分頁、有 STORE 權限的 `/api/stores/orders`） |
 | D-1 | 餘額為「讀出→相加→寫回」且無列鎖 | 20 個併發各儲值 10 元，**最終只入帳 70 元，且帳本總額 120 與餘額 70 對不起來** | 改用 `SELECT ... FOR UPDATE`；所有金流都收斂在 `updateStoreCredit()` 一個進入點 |
 
 另外修掉幾個會直接影響可用性的問題：
@@ -124,14 +125,29 @@ docker compose up -d && mvn test
 
 | 測試 | 守住的東西 |
 |------|-----------|
-| `AuthorizationTest`（8） | 未認證寫商品、跨帳號讀寫個資／錢包、偽造 `authUserId` 繞過、debug 端點已移除、本人存取仍正常 |
+| `AuthorizationTest`（13） | 未認證寫商品、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、debug 與傾印端點已移除、本人存取仍正常 |
 | `WalletConcurrencyTest`（2） | 併發儲值不短少、帳本與餘額相符、併發扣款不透支 |
 | `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 id 覆寫、可疑副檔名正規化 |
 | `DemoApplicationTests`（1） | Spring context 載入 |
 
 測試不多，但都對準真正會出事的地方（金流與授權），而且**每一支都驗證過「把修補改回舊寫法時會失敗」**——
-授權測試在還原 IDOR 邏輯時 3 個失敗，錢包測試在改回 `findById` 時 2 個失敗。
+授權測試在還原 IDOR 邏輯時 3 個失敗、還原 S-6 時 2 個失敗，錢包測試在改回 `findById` 時 2 個失敗。
 只在修補後跑一次通過的測試，證明不了它擋得住回歸。
+
+另外有一支端對端驗證腳本，直接打真實服務走完每條主要流程：
+
+```bash
+# 服務跑起來之後
+node scripts/e2e-verify.js
+```
+
+涵蓋 12 個面向、67 項斷言：三種角色認證、公開瀏覽、錢包與帳本、購物車、
+訂單全生命週期（下單→接單→製作→完成，含金流驗證）、拒單退款、揪團、轉盤、
+收藏／地址、授權防護、WebSocket 授權、三種後台端點與分頁行為。
+（WebSocket 那一節需要 `npm i ws`，沒裝會自動略過，其餘照跑。）
+
+**S-6 與另外三個固定 500 都是跑這支時發現的**——它們有個共同點：單元測試看不到，
+要真的把服務跑起來、照著使用者的路徑走一遍才會現形。
 
 ---
 

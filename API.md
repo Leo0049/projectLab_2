@@ -86,15 +86,14 @@
 ### 訂單（V2 / OrderController）
 | Method | Path | 說明 |
 |--------|------|------|
-| GET | `/api/orders/user/{userId}/cards` | 使用者訂單卡片列表（分頁）Query: `?page=&size=` |
-| GET | `/api/orders/user/{userId}/recent-cards` | 最近 10 筆訂單卡片 |
-| GET | `/api/orders/user/{userId}/active` | 使用者進行中訂單 |
-| GET | `/api/orders/store/{storeId}` | 店家訂單列表 |
-| GET | `/api/orders/{orderId}/v2` | 訂單詳情 V2（ResponseEntity 格式）Query: `?userId=` |
-| GET | `/api/orders/{orderId}/items` | 訂單品項列表 Query: `?userId=`（可選）|
+| GET | `/api/orders/user/{userId}/cards` | 使用者訂單卡片列表（分頁）Query: `?page=&size=`。`{userId}` 必須是自己，否則 403 |
+| GET | `/api/orders/user/{userId}/recent-cards` | 最近 10 筆訂單卡片。同上，僅限本人 |
+| GET | `/api/orders/user/{userId}/active` | 使用者進行中訂單。同上，僅限本人 |
+| GET | `/api/orders/{orderId}/v2` | 訂單詳情 V2（ResponseEntity 格式）。限發起人或參與者 |
+| GET | `/api/orders/{orderId}/items` | 訂單品項列表。限發起人或參與者 |
 | POST | `/api/orders/checkout` | 結帳下單 |
-| PUT | `/api/orders/{orderId}/status` | 更新訂單狀態 Query: `?status=&userId=`（userId 選填）|
-| PUT | `/api/orders/{orderId}/cancel/v2` | 取消訂單 V2（ResponseEntity 格式）Query: `?userId=`（可選）|
+| PUT | `/api/orders/{orderId}/status` | 更新訂單狀態 Query: `?status=`。僅限訂單發起人；門市請改用 `/api/stores/dashboard/orders/{id}/*` |
+| PUT | `/api/orders/{orderId}/cancel/v2` | 取消訂單 V2（ResponseEntity 格式）。僅限發起人（團員則取消自己的品項）|
 | GET | `/api/orders` | 訂單列表 Query: `?userId=` |
 
 ### 揪團（V1）

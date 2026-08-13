@@ -125,6 +125,23 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 參數，檢查就整段跳過。實測任一登入顧客即可讀寫他人個資、地址與錢包餘額。
 全專案已無 `authUserId`，新增端點請勿再引入同類寫法。
 
+同一個錯誤後來在 `OrderController` 又發現一次（S-6），而且更嚴重，兩種型態：
+
+1. **路徑參數當身分用** — `GET /api/orders/user/{userId}/cards|active|recent-cards`
+   直接拿路徑上的 `userId` 去查，完全沒有比對。實測任一登入顧客可讀他人完整訂單歷史，
+   包含金額、品項與揪團的 `shareToken`（拿到就能看／加入該團）。
+2. **`if (userId != null) 檢查 else 放行`** — `PUT /api/orders/{orderId}/status` 與
+   `/cancel/v2` 的 else 分支註解寫著「Merchant/System level update」，但門市根本走不到
+   這條路徑（`/api/orders/**` 是 CUSTOMER-only）。實測**不帶 `userId` 參數**即可把
+   他人訂單從 READY 改成 COMPLETED。
+
+`OrderController` 現有 `requireSelf()` 與 `requireOwnedOrder()` 兩個私有方法，
+新增端點請一律先呼叫其一。查詢參數的 `userId` 只為相容舊前端而保留，**一律不採信**。
+
+另外刪掉了 `GET /api/orders/store/{storeId}`：它是門市視角的列表卻掛在 CUSTOMER-only
+路徑下，門市呼叫不到，反而讓顧客能撈出整間門市的訂單 entity（含他人外送地址）。
+門市看訂單一律用 `GET /api/stores/orders`。
+
 ## 測試
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL）：

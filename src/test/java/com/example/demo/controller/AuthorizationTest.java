@@ -48,9 +48,16 @@ class AuthorizationTest {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired
+    private com.example.demo.repository.GroupOrderRepository groupOrderRepository;
+
+    @Autowired
+    private com.example.demo.repository.StoreRepository storeRepository;
+
     private Long attackerId;
     private Long victimId;
     private String attackerToken;
+    private Long victimOrderId;
 
     @BeforeEach
     void setUp() {
@@ -58,12 +65,29 @@ class AuthorizationTest {
         User victim = newCustomer("受害者");
         victimId = victim.getId();
         attackerToken = jwtUtils.generateToken(attackerId, "CUSTOMER", "0900000001");
+        victimOrderId = newVictimOrder(victim);
     }
 
     @AfterEach
     void tearDown() {
+        if (victimOrderId != null) {
+            groupOrderRepository.deleteById(victimOrderId);
+        }
         userRepository.deleteById(attackerId);
         userRepository.deleteById(victimId);
+    }
+
+    /** 建一張屬於受害者的訂單，供 S-6 的擁有權測試使用；沒有門市資料時回 null 讓測試跳過 */
+    private Long newVictimOrder(User victim) {
+        return storeRepository.findAll().stream().findFirst().map(store -> {
+            com.example.demo.entity.GroupOrder o = new com.example.demo.entity.GroupOrder();
+            o.setInitiator(victim);
+            o.setStore(store);
+            o.setType("SOLO");
+            o.setStatus("SUBMITTED");
+            o.setTotalAmount(new BigDecimal("100"));
+            return groupOrderRepository.save(o).getId();
+        }).orElse(null);
     }
 
     private User newCustomer(String name) {
@@ -172,6 +196,71 @@ class AuthorizationTest {
         mockMvc.perform(get("/api/auth/debug/social-logins"))
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/api/public/debug-exception").param("userId", String.valueOf(victimId)))
+                .andExpect(status().isNotFound());
+    }
+
+    // ── S-6：OrderController 的擁有權檢查 ─────────────────────────
+
+    @Test
+    @DisplayName("S-6：不得讀取他人的訂單列表")
+    void cannotReadAnotherUsersOrderLists() throws Exception {
+        mockMvc.perform(get("/api/orders/user/" + victimId + "/cards")
+                        .header("Authorization", bearer()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/orders/user/" + victimId + "/active")
+                        .header("Authorization", bearer()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/orders/user/" + victimId + "/recent-cards")
+                        .header("Authorization", bearer()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("S-6：GET /api/orders?userId= 不得吐出他人訂單")
+    void ordersQueryParamCannotTargetAnotherUser() throws Exception {
+        // 舊寫法直接把查詢參數當身分用；現在一律以 token 為準，
+        // 所以這裡即使指名受害者，回來的也只能是攻擊者自己的（空）清單。
+        mockMvc.perform(get("/api/orders").param("userId", String.valueOf(victimId))
+                        .header("Authorization", bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    @Test
+    @DisplayName("S-6：不帶 userId 參數不得竄改他人訂單狀態")
+    void cannotTamperAnotherUsersOrderStatus() throws Exception {
+        Long orderId = victimOrderId;
+        if (orderId == null) return; // 沒有可用的門市資料就跳過
+
+        // 舊寫法是 if (userId != null) 檢查 else 直接放行，
+        // 因此「不帶參數」正是繞過路徑，這裡必須被擋下。
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .put("/api/orders/" + orderId + "/status")
+                        .param("status", "COMPLETED")
+                        .header("Authorization", bearer()))
+                .andExpect(status().isForbidden());
+
+        String actual = groupOrderRepository.findById(orderId).orElseThrow().getStatus();
+        if (!"SUBMITTED".equals(actual)) {
+            throw new AssertionError("他人訂單狀態被竄改了：" + actual);
+        }
+    }
+
+    @Test
+    @DisplayName("S-6：不得讀取他人訂單的品項")
+    void cannotReadAnotherUsersOrderItems() throws Exception {
+        if (victimOrderId == null) return;
+        mockMvc.perform(get("/api/orders/" + victimOrderId + "/items")
+                        .header("Authorization", bearer()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("S-6：門市訂單傾印端點必須已移除")
+    void storeOrderDumpEndpointIsGone() throws Exception {
+        // GET /api/orders/store/{id} 會回傳該門市全部訂單的 entity，
+        // 內含其他顧客的外送地址與揪團 shareToken，且掛在 CUSTOMER-only 路徑下。
+        mockMvc.perform(get("/api/orders/store/1").header("Authorization", bearer()))
                 .andExpect(status().isNotFound());
     }
 

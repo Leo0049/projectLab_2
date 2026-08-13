@@ -13,6 +13,7 @@ import lombok.Data;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.example.demo.exception.CustomException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -59,8 +60,35 @@ public class OrderController {
         this.orderRatingService = orderRatingService;
     }
 
+    /**
+     * 身分一律取自 JwtAuthenticationFilter 寫入的 currentUserId，不可取自路徑或查詢參數。
+     *
+     * ⚠️ 這支 controller 原本整份沒有任何擁有權檢查：
+     *  - GET /api/orders/user/{userId}/cards|active|recent-cards 直接吃路徑上的 userId，
+     *    實測任一登入顧客即可讀取他人完整訂單歷史（金額、品項、甚至揪團的 groupToken）。
+     *  - PUT /api/orders/{orderId}/status 寫成 `if (userId != null) 檢查 else 不檢查`，
+     *    只要不帶 userId 就整段跳過，實測可把他人訂單從 READY 改成 COMPLETED。
+     * 與 UserController.requireSelf 同一套規則，新增端點請照用。
+     */
+    private void requireSelf(Long targetUserId, Long currentUserId) {
+        if (currentUserId == null || !currentUserId.equals(targetUserId))
+            throw new CustomException("403", "無權存取其他使用者的訂單");
+    }
+
+    /** 確認這張訂單的發起人就是目前登入者 */
+    private GroupOrder requireOwnedOrder(Long orderId, Long currentUserId) {
+        GroupOrder order = orderService.getOrderById(orderId);
+        if (order == null)
+            throw new CustomException("404", "訂單不存在");
+        Long initiatorId = order.getInitiator() != null ? order.getInitiator().getId() : null;
+        requireSelf(initiatorId, currentUserId);
+        return order;
+    }
+
     @GetMapping("/user/{userId}/active")
-    public ResponseEntity<List<Map<String, Object>>> getActiveOrders(@PathVariable Long userId) {
+    public ResponseEntity<List<Map<String, Object>>> getActiveOrders(@PathVariable Long userId,
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
         List<com.example.demo.entity.GroupOrder> orders = groupOrderService.getActiveGroupOrders(userId);
         List<Map<String, Object>> result = orders.stream().map(order -> {
             Map<String, Object> map = new HashMap<>();
@@ -88,7 +116,9 @@ public class OrderController {
             @PathVariable Long userId,
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "20") int size,
-            @RequestParam(required = false) String statuses) {
+            @RequestParam(required = false) String statuses,
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
 
         startTime = System.currentTimeMillis();
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
@@ -191,19 +221,28 @@ public class OrderController {
 
     @GetMapping("/user/{userId}/recent-cards")
     public ResponseEntity<?> getRecentCards(
-            @PathVariable Long userId) {
+            @PathVariable Long userId,
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
         // 快速獲取最近 10 筆，不支援分頁
-        return getUserOrderCards(userId, 0, 10, null);
+        return getUserOrderCards(userId, 0, 10, null, currentUserId);
     }
 
-    @GetMapping("/store/{storeId}")
-    public ResponseEntity<List<GroupOrder>> getStoreOrders(@PathVariable Long storeId) {
-        return ResponseEntity.ok(orderService.getOrdersByStoreId(storeId));
-    }
+    // 已移除 GET /api/orders/store/{storeId}：
+    // 它是門市視角的列表，卻掛在 /api/orders/** 這條 CUSTOMER-only 的路徑下——門市根本呼叫不到，
+    // 反而讓任一登入顧客能撈出該門市全部訂單，且直接回傳 GroupOrder entity，
+    // 內含其他顧客的外送地址與揪團 shareToken（實測 13 筆全出）。
+    // 門市要看訂單請用 GET /api/stores/orders（STORE 權限、有分頁）。
 
     @io.swagger.v3.oas.annotations.Operation(summary = "取得訂單詳情", description = "取得訂單詳情 API。回傳 ResponseEntity 格式。")
     @GetMapping("/{orderId}/v2")
-    public ResponseEntity<?> getOrderByIdV2(@PathVariable Long orderId, @RequestParam Long userId) {
+    public ResponseEntity<?> getOrderByIdV2(@PathVariable Long orderId,
+            @RequestParam(required = false) Long ignoredUserId,
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        // ignoredUserId 是用戶端自送的，只為相容既有前端呼叫而保留，實際一律以 token 為準。
+        // 下面本來就會判斷「發起人或參與者」，用 currentUserId 就能正確擋住外人。
+        if (currentUserId == null)
+            throw new CustomException("403", "請先登入");
+        final Long userId = currentUserId;
         GroupOrder order = orderService.getOrderByIdAndUserId(orderId, userId);
         if (order != null) {
             return ResponseEntity.ok(buildOrderResponse(order, userId));
@@ -294,11 +333,25 @@ public class OrderController {
 
     @GetMapping("/{orderId}/items")
     public ResponseEntity<List<Map<String, Object>>> getOrderItems(@PathVariable Long orderId,
-            @RequestParam(required = false) Long userId) {
-        
+            @RequestParam(required = false) Long ignoredUserId,
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+
+        // 身分取自 token；查詢參數的 userId 只保留相容性，不採信
+        if (currentUserId == null)
+            throw new CustomException("403", "請先登入");
+        final Long userId = currentUserId;
+
         GroupOrder order = groupOrderRepository.findById(orderId).orElse(null);
         List<OrderItem> allItems = orderItemRepository.findByGroupOrderId(orderId);
-        
+
+        // 只有發起人或該團的參與者能看品項，否則任何人都能列舉他人訂單內容
+        boolean isInitiator = order != null && order.getInitiator() != null
+                && order.getInitiator().getId().equals(userId);
+        boolean isParticipant = allItems.stream()
+                .anyMatch(i -> i.getUser() != null && i.getUser().getId().equals(userId));
+        if (order != null && !isInitiator && !isParticipant)
+            throw new CustomException("403", "無權存取此訂單");
+
         // 分離出當前用戶應該看到的品項 (如果是揪團成員則看自己，否則看全部)
         List<OrderItem> visibleItems = allItems;
         if (userId != null && order != null && "GROUP".equals(order.getType())) {
@@ -458,14 +511,14 @@ public class OrderController {
 
     @PutMapping("/{orderId}/status")
     public ResponseEntity<?> updateStatus(@PathVariable Long orderId, @RequestParam String status,
-            @RequestParam(required = false) Long userId) {
-        GroupOrder updatedOrder;
-        if (userId != null) {
-            updatedOrder = orderService.updateOrderStatusWithUserCheck(orderId, status, userId);
-        } else {
-            // Merchant/System level update
-            updatedOrder = orderService.updateOrderStatus(orderId, status);
-        }
+            @RequestParam(required = false) Long userId,
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        // ⚠️ 這裡原本是 `if (userId != null) 檢查 else 不檢查`，而 userId 是用戶端自送的選填參數，
+        // 等於「不帶參數就免檢查」——實測任一登入顧客可把他人訂單從 READY 改成 COMPLETED。
+        // 現在一律以 token 身分驗證發起人，沒有繞過分支。
+        // 門市要改狀態請走 /api/stores/dashboard/orders/{id}/accept|reject|complete-production|finalize。
+        requireOwnedOrder(orderId, currentUserId);
+        GroupOrder updatedOrder = orderService.updateOrderStatusWithUserCheck(orderId, status, currentUserId);
         // 1. Notify store if order was just paid/submitted
         if ("PAID".equalsIgnoreCase(status) || "SUBMITTED".equalsIgnoreCase(status)) {
             Map<String, Object> orderData = new HashMap<>();
@@ -494,7 +547,13 @@ public class OrderController {
     @io.swagger.v3.oas.annotations.Operation(summary = "取消訂單 (V2)", description = "舊版取消訂單 API。回傳 ResponseEntity 格式。供特定舊版前端或情境使用。")
     @PutMapping("/{orderId}/cancel/v2")
     public ResponseEntity<?> cancelOrderV2(@PathVariable Long orderId,
-            @RequestParam(required = false) Long userId) {
+            @RequestParam(required = false) Long ignoredUserId,
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        // 同 updateStatus：原本的 `if (userId != null)` 讓「不帶參數」直接跳過權限檢查，
+        // 等於任何人都能取消他人訂單並觸發退款。身分改為一律取自 token。
+        if (currentUserId == null)
+            throw new CustomException("403", "請先登入");
+        final Long userId = currentUserId;
         try {
             GroupOrder order = orderService.getOrderById(orderId);
             if (order == null)
@@ -573,8 +632,10 @@ public class OrderController {
     }
 
     @GetMapping("")
-    public ResponseEntity<?> getOrders(@RequestParam Long userId) {
-        return getUserOrderCards(userId, 0, 20, null);
+    public ResponseEntity<?> getOrders(@RequestParam(required = false) Long userId,
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        // 一律回傳「自己的」訂單；查詢參數的 userId 不採信（否則就是列舉他人訂單的入口）
+        return getUserOrderCards(currentUserId, 0, 20, null, currentUserId);
     }
 
     @Data

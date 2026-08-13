@@ -1239,6 +1239,10 @@ public class GroupOrderService {
         return result;
     }
 
+    // readOnly 交易不可移除：open-in-view=false，這裡用 findById 取單（沒有 JOIN FETCH），
+    // 之後會讀 order.getStore() 與每個品項的 item.getUser()，交易外一律 LazyInitializationException。
+    // 這支是揪團「誰點了什麼」的清單，壞掉等於揪團功能的核心頁面打不開。
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public Map<String, Object> getGroupDetail(Long groupOrderId) {
         GroupOrder order = groupOrderRepository.findById(groupOrderId)
                 .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
@@ -1280,6 +1284,9 @@ public class GroupOrderService {
         return result;
     }
 
+    // 同 getGroupDetail：會讀每個品項的 item.getUser()。
+    // 空團剛好不會走到那段，所以「沒有交易」這件事在空團上看不出來——有品項才會爆。
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public Map<String, Object> getGroupSummary(Long groupOrderId) {
         GroupOrder order = groupOrderRepository.findById(groupOrderId)
                 .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
