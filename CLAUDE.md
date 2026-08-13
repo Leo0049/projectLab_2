@@ -31,9 +31,9 @@
 join_drink/
 ├── src/main/java/com/example/demo/
 │   ├── controller/          # 14 REST controllers
-│   ├── service/             # 24 業務邏輯 services
+│   ├── service/             # 26 業務邏輯 services
 │   ├── entity/              # 26 JPA entities + 6 EmbeddedId 類別
-│   ├── repository/          # 29 JPA repositories
+│   ├── repository/          # 28 JPA repositories
 │   ├── dto/                 # 24 Data Transfer Objects
 │   ├── common/              # JWT, Security, Cloudinary, Firebase, DataSeeder, DemoDataSeeder
 │   ├── config/              # RedisConfig, WebSocketConfig
@@ -174,7 +174,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 | 測試 | 守住的東西 |
 |------|-----------|
-| `AuthorizationTest`（15） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、拿他人 userId 結帳、竄改 finalPrice、debug 與門市傾印端點已移除 |
+| `AuthorizationTest`（18） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、拿他人 userId 結帳、竄改 finalPrice、跨帳號讀寫收藏、消耗他人優惠券、debug 與門市傾印端點已移除 |
 | `ItemSpecResolverTest`（7） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）|
 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
@@ -200,7 +200,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 ```bash
 cd scripts && npm install
-node e2e-verify.js      # API 端對端，80 項斷言
+node e2e-verify.js      # API 端對端，82 項斷言
 node ui/run-all.js      # 51 頁普掃 + 點餐／轉盤／揪團三條主線（Playwright）
 ```
 

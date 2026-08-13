@@ -60,6 +60,15 @@ class AuthorizationTest {
     @Autowired
     private com.example.demo.service.PricingService pricingService;
 
+    @Autowired
+    private com.example.demo.repository.UserFavoriteRepository userFavoriteRepository;
+
+    @Autowired
+    private com.example.demo.repository.UserCouponRepository userCouponRepository;
+
+    @Autowired
+    private com.example.demo.repository.BrandRepository brandRepository;
+
     private Long attackerId;
     private Long victimId;
     private String attackerToken;
@@ -351,6 +360,74 @@ class AuthorizationTest {
                 + ",\"quantity\":" + qty + ",\"productNameSnapshot\":\"免費飲料\","
                 + "\"unitPriceSnapshot\":1,\"finalPrice\":1,"
                 + "\"sugarSnapshot\":\"半糖\",\"iceSnapshot\":\"正常冰\",\"sizeSnapshot\":\"大杯\"}]}";
+    }
+
+    // ── S-8：收藏店家 ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("S-8：不得讀取他人的收藏清單")
+    void cannotReadAnotherUsersFavorites() throws Exception {
+        mockMvc.perform(get("/api/user-favorites/user/" + victimId)
+                        .header("Authorization", bearer()))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * toggle 原本吃 body 的 userId 且完全沒有擁有權檢查——
+     * 實測攻擊者用受害者的 userId 呼叫，把對方收藏的店家直接取消掉。
+     */
+    @Test
+    @DisplayName("S-8：用他人 userId 切換收藏，不得動到對方的收藏")
+    @org.springframework.transaction.annotation.Transactional
+    void toggleFavoriteCannotTouchAnotherUser() throws Exception {
+        Long storeId = storeRepository.findAll().stream().findFirst().map(s -> s.getId()).orElse(null);
+        if (storeId == null) return;
+
+        long before = userFavoriteRepository.findByUserId(victimId).size();
+        mockMvc.perform(post("/api/user-favorites/toggle")
+                        .header("Authorization", bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":" + victimId + ",\"storeId\":" + storeId + "}"));
+        long after = userFavoriteRepository.findByUserId(victimId).size();
+        if (before != after) {
+            throw new AssertionError("他人的收藏被改動了：" + before + " → " + after);
+        }
+    }
+
+    // ── S-9：優惠券 ────────────────────────────────────────────────
+
+    /**
+     * user_coupons.id 是連續整數，而消耗優惠券的 UPDATE 原本只比對 id 與 status。
+     * 實測攻擊者把受害者的 couponId 套到自己的品項上，
+     * 受害者的券變成 used、折扣算在攻擊者頭上——等於偷券。
+     */
+    @Test
+    @DisplayName("S-9：不得消耗不屬於自己的優惠券")
+    @org.springframework.transaction.annotation.Transactional
+    void cannotConsumeAnotherUsersCoupon() {
+        var brand = brandRepository.findAll().stream().findFirst().orElse(null);
+        if (brand == null) return;
+
+        com.example.demo.entity.UserCoupon c = new com.example.demo.entity.UserCoupon();
+        c.setUser(userRepository.findById(victimId).orElseThrow());
+        c.setBrand(brand);
+        c.setCouponType("ADMIN_GIFT");
+        c.setDiscountAmount(new BigDecimal("5.00"));
+        c.setStatus("unused");
+        Long couponId = userCouponRepository.save(c).getId();
+
+        int affected = userCouponRepository.markUsedIfUnused(couponId, attackerId, java.time.LocalDateTime.now());
+        if (affected != 0) {
+            throw new AssertionError("別人的券被消耗掉了，受影響列數=" + affected);
+        }
+        String status = userCouponRepository.findById(couponId).orElseThrow().getStatus();
+        if (!"unused".equals(status)) {
+            throw new AssertionError("券的狀態被改成了：" + status);
+        }
+        // 本人用同一張券必須成功，避免修過頭
+        if (userCouponRepository.markUsedIfUnused(couponId, victimId, java.time.LocalDateTime.now()) != 1) {
+            throw new AssertionError("本人反而用不了自己的券");
+        }
     }
 
     // ── 輸入驗證 ───────────────────────────────────────────────────

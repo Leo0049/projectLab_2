@@ -324,6 +324,17 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   check('竄改 finalPrice 為 1 → 仍以資料庫售價扣款', tamper.status === 200 && charged > 1,
     `HTTP ${tamper.status}，實扣 ${charged}`);
 
+  // ── 收藏店家：三支端點原本都吃用戶端送的 userId ──
+  const favRead = await req('GET', `/api/user-favorites/user/${UID}`, { token: CT2, raw: true });
+  check('B 讀 A 的收藏清單 → 拒絕', favRead.status === 403, `HTTP ${favRead.status}`);
+
+  await req('POST', '/api/user-favorites/toggle', { token: CT, body: { userId: UID, storeId } });
+  const favBefore = ((await req('GET', `/api/user-favorites/user/${UID}`, { token: CT })) || []).length;
+  await req('POST', '/api/user-favorites/toggle', { token: CT2, body: { userId: UID, storeId }, raw: true });
+  const favAfter = ((await req('GET', `/api/user-favorites/user/${UID}`, { token: CT })) || []).length;
+  check('B 用 A 的 userId 切換收藏 → 不得動到 A 的收藏', favBefore === favAfter,
+    `${favBefore} → ${favAfter}`);
+
   const storeDump = await req('GET', '/api/orders/store/1', { token: CT2, raw: true });
   check('顧客撈門市全部訂單 → 端點已移除', storeDump.status === 404 || storeDump.status === 403,
     `HTTP ${storeDump.status}`);

@@ -62,13 +62,10 @@ public class GroupOrderController {
     public Result getActiveOrders(HttpServletRequest request,
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) Long storeId) {
-        // 優先從 Filter 取得 UserId，若無則從參數取得 (相容舊有前端呼叫方式)
+        // 身分只認 token。查詢參數的 userId 為相容舊前端而保留，不採信。
         Long finalUserId = getUserId(request);
         if (finalUserId == null)
-            finalUserId = userId;
-
-        if (finalUserId == null)
-            return Result.error("Unauthorized or missing userId");
+            return Result.error("Unauthorized");
 
         try {
             if (storeId != null) {
@@ -153,9 +150,14 @@ public class GroupOrderController {
     }
 
     @PostMapping("/api/group-orders/v2")
-    public ResponseEntity<?> createGroupOrderV2(@RequestBody CreateRequest request) {
+    public ResponseEntity<?> createGroupOrderV2(@RequestBody CreateRequest request,
+            HttpServletRequest httpRequest) {
         try {
-            GroupOrder go = groupOrderService.createGroupOrderV2(request.getHostId(), request.getStoreId());
+            // 團長就是登入者，body 的 hostId 不採信
+            Long uid = getUserId(httpRequest);
+            if (uid == null)
+                return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
+            GroupOrder go = groupOrderService.createGroupOrderV2(uid, request.getStoreId());
             return ResponseEntity.ok(groupOrderService.convertToDTO(go));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -163,9 +165,16 @@ public class GroupOrderController {
     }
 
     @DeleteMapping("/api/group-orders/token/{token}")
-    public ResponseEntity<?> deleteGroupOrder(@PathVariable String token, @RequestParam Long hostId) {
+    public ResponseEntity<?> deleteGroupOrder(@PathVariable String token,
+            @RequestParam(required = false) Long hostId, HttpServletRequest httpRequest) {
         try {
-            groupOrderService.deleteGroupOrder(token, hostId);
+            // ⚠️ hostId 原本取自查詢參數，而 Service 只是拿它去比對團長——
+            // 等於「填上真正團長的 id 就能刪掉別人的團」，且會連帶觸發整團退款。
+            // 查詢參數保留只為相容舊前端，一律不採信。
+            Long uid = getUserId(httpRequest);
+            if (uid == null)
+                return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
+            groupOrderService.deleteGroupOrder(token, uid);
             redisCartService.clearCart(token);
             if (messagingTemplate != null) {
                 messagingTemplate.convertAndSend("/topic/group/" + token,
@@ -198,9 +207,7 @@ public class GroupOrderController {
         try {
             Long finalUserId = getUserId(request);
             if (finalUserId == null)
-                finalUserId = userId;
-            if (finalUserId == null)
-                return ResponseEntity.badRequest().body(Map.of("error", "UserId is required"));
+                return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
 
             groupOrderService.removeItem(token, itemId, finalUserId);
             // 移除品項時清空快照，確保前端重新載入時計算正確杯數
@@ -222,9 +229,7 @@ public class GroupOrderController {
         try {
             Long finalUserId = getUserId(request);
             if (finalUserId == null)
-                finalUserId = userId;
-            if (finalUserId == null)
-                return ResponseEntity.badRequest().body(Map.of("error", "UserId is required"));
+                return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
 
             OrderItem updated = groupOrderService.updateItem(token, itemId, req, finalUserId);
             // 當執行數量調整（批量增減）時，清空 Redis 快照以確保回傳總數量正確
@@ -241,9 +246,15 @@ public class GroupOrderController {
 
     @PostMapping("/api/group-orders/{token}/items/{itemId}/apply-coupon")
     public ResponseEntity<?> applyCoupon(@PathVariable String token, @PathVariable Long itemId,
-            @RequestBody ApplyCouponRequest request) {
+            @RequestBody ApplyCouponRequest request, HttpServletRequest httpRequest) {
         try {
-            groupOrderService.applyCouponToItem(token, itemId, request.getUserId(), request.getCouponId());
+            // ⚠️ 這支原本完全沒看 token，userId 直接取自 request body。
+            // itemId 與 couponId 都是連續整數，實測可以把「別人的券」套到自己的品項上——
+            // 受害者的券變成 used、折扣算在攻擊者頭上。
+            Long uid = getUserId(httpRequest);
+            if (uid == null)
+                return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
+            groupOrderService.applyCouponToItem(token, itemId, uid, request.getCouponId());
             // 使用優惠券後清空快照
             redisCartService.clearCart(token);
             if (messagingTemplate != null) {
@@ -279,12 +290,11 @@ public class GroupOrderController {
     public ResponseEntity<?> checkout(@PathVariable String token, HttpServletRequest httpRequest,
             @RequestBody CheckoutRequest request) {
         try {
-            // 優先從 JWT Filter 取得認證身分，再 fallback 至 body 中的 hostId / userId
+            // ⚠️ 身分只認 token。原本寫成「取不到就改用 body 的 hostId／userId」，
+            // 那正是 S-2／S-6 的成因：只要讓前者取不到，檢查就整段被跳過。
             Long resolvedHostId = getUserId(httpRequest);
-            if (resolvedHostId == null) resolvedHostId = request.getHostId();
-            if (resolvedHostId == null) resolvedHostId = request.getUserId();
             if (resolvedHostId == null)
-                return ResponseEntity.badRequest().body(Map.of("error", "HostId is required"));
+                return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
 
             // 優先使用單一 address 欄位，若無則組合 city/district/street
             String fullAddress = request.getAddress();
@@ -329,9 +339,8 @@ public class GroupOrderController {
             HttpServletRequest httpRequest) {
         try {
             Long uid = getUserId(httpRequest);
-            if (uid == null) uid = request.getUserId();
             if (uid == null)
-                return ResponseEntity.badRequest().body(Map.of("error", "Unauthorized"));
+                return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
 
             BigDecimal totalAmount = groupOrderService.getMemberUnpaidTotalAndMarkPaid(token, uid,
                     request.getPaymentMethod(), request.getCouponId());
@@ -354,9 +363,8 @@ public class GroupOrderController {
             HttpServletRequest httpRequest) {
         try {
             Long uid = getUserId(httpRequest);
-            if (uid == null) uid = request.getUserId();
             if (uid == null)
-                return ResponseEntity.badRequest().body(Map.of("error", "Unauthorized"));
+                return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
 
             groupOrderService.repayToHost(token, uid);
             // 補款後清空快照

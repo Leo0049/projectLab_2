@@ -25,10 +25,18 @@ public interface UserCouponRepository extends JpaRepository<UserCoupon, Long> {
         * 實測兩個品項同時套同一張券，兩邊都拿到折扣。
         * 條件寫在 WHERE 裡交給資料庫判斷，才不會有中間狀態。
         */
+       /**
+        * ⚠️ 擁有者也必須寫進 WHERE。原本只比對 id 與 status，
+        * 等於「知道 couponId 就能用掉那張券」——user_coupons.id 是連續整數，
+        * 實測攻擊者把別人的 couponId 套到自己的品項上，
+        * 受害者的券變成 used、折扣算在攻擊者頭上（偷券）。
+        * 擁有權要和狀態一起交給資料庫判斷，不能分兩步。
+        */
        @Modifying(clearAutomatically = true)
        @Query("UPDATE UserCoupon uc SET uc.status = 'used', uc.usedAt = :usedAt "
-                     + "WHERE uc.id = :id AND uc.status = 'unused'")
-       int markUsedIfUnused(@Param("id") Long id, @Param("usedAt") java.time.LocalDateTime usedAt);
+                     + "WHERE uc.id = :id AND uc.user.id = :userId AND uc.status = 'unused'")
+       int markUsedIfUnused(@Param("id") Long id, @Param("userId") Long userId,
+                     @Param("usedAt") java.time.LocalDateTime usedAt);
 
 
     List<UserCoupon> findByUserId(Long userId);

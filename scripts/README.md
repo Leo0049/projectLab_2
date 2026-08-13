@@ -13,7 +13,7 @@ python3 -m http.server 5500 --directory frontend    # 另開一個終端
 cd scripts
 npm install
 
-node e2e-verify.js                  # API 端對端：12 面向 / 80 項斷言
+node e2e-verify.js                  # API 端對端：12 面向 / 82 項斷言
 npx playwright install chromium
 node ui/run-all.js                  # UI：全頁面普掃 + 點餐 / 轉盤 / 揪團
 ```

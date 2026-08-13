@@ -947,8 +947,9 @@ public class GroupOrderService {
         // 那是 read-check-write：兩個品項同時套同一張券時兩邊都會過，
         // 實測一張券折了兩個品項。改成把條件交給資料庫的 UPDATE ... WHERE status='unused'，
         // 受影響列數為 0 就代表已被用掉，直接擋下。
-        if (userCouponRepository.markUsedIfUnused(couponId, LocalDateTime.now()) == 0) {
-            throw new CustomException("409", "此優惠券已被使用");
+        // userId 一併帶進 WHERE：不是自己的券，受影響列數就是 0（見 repository 的說明）
+        if (userCouponRepository.markUsedIfUnused(couponId, userId, LocalDateTime.now()) == 0) {
+            throw new CustomException("409", "此優惠券已被使用或不屬於你");
         }
 
         // 4. 實作數量拆分 (Qty Splitting)
