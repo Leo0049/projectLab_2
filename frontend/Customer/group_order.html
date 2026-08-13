@@ -2411,9 +2411,9 @@
                 if (itemWithCoupon) {
                     if (hostSelectedCoupon && String(hostSelectedCoupon.couponId) === String(itemWithCoupon.couponId)) return;
                     try {
-                        const cRes = await fetch(NavAuth.getApiUrl(`/api/coupons/${itemWithCoupon.couponId}`));
-                        if (cRes.ok) {
-                            hostSelectedCoupon = await cRes.json();
+                        // 這支端點現在會驗擁有權，必須帶 token（原本用裸 fetch，沒有帶）
+                        hostSelectedCoupon = await NavAuth.fetchAPI(`/api/coupons/${itemWithCoupon.couponId}`);
+                        if (hostSelectedCoupon) {
                             document.getElementById('host-open-coupon-btn').classList.add('hidden');
                             const display = document.getElementById('host-selected-coupon-display');
                             display.classList.remove('hidden');

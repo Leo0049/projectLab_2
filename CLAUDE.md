@@ -200,7 +200,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 ```bash
 cd scripts && npm install
-node e2e-verify.js      # API 端對端，82 項斷言
+node e2e-verify.js      # API 端對端，85 項斷言
 node ui/run-all.js      # 51 頁普掃 + 點餐／轉盤／揪團三條主線（Playwright）
 ```
 

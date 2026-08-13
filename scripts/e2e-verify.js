@@ -335,6 +335,19 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   check('B 用 A 的 userId 切換收藏 → 不得動到 A 的收藏', favBefore === favAfter,
     `${favBefore} → ${favAfter}`);
 
+  // ── 優惠券：讀取端點原本任何人都能看 ──
+  const cpList = await req('GET', `/api/coupons/user/${UID}`, { token: CT2, raw: true });
+  check('B 讀 A 的優惠券清單 → 拒絕', cpList.status === 403, `HTTP ${cpList.status}`);
+
+  const myCoupons = D(await req('GET', '/api/coupons/my', { token: CT })) || [];
+  const someCouponId = myCoupons[0] && (myCoupons[0].userCouponId || myCoupons[0].couponId);
+  if (someCouponId) {
+    const cpOne = await req('GET', `/api/coupons/${someCouponId}`, { token: CT2, raw: true });
+    check('B 讀 A 的單張優惠券 → 拒絕', cpOne.status === 403, `HTTP ${cpOne.status}`);
+    const mine = await req('GET', `/api/coupons/${someCouponId}`, { token: CT, raw: true });
+    check('本人讀自己的優惠券 → 允許', mine.status === 200, `HTTP ${mine.status}`);
+  }
+
   const storeDump = await req('GET', '/api/orders/store/1', { token: CT2, raw: true });
   check('顧客撈門市全部訂單 → 端點已移除', storeDump.status === 404 || storeDump.status === 403,
     `HTTP ${storeDump.status}`);

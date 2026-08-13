@@ -107,7 +107,7 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
 | D-2 | 四條金流路徑都是「讀出品項 → 動錢 → 改狀態」的 read-modify-write，全部沒有列鎖 | 以 8 個併發請求實測（金額都應該只發生一次 $35）：<br>團員結帳 → 帳本 5 筆 −35（−175）而餘額只掉 35，**差 5 倍**<br>團長結帳 → 8 個全部成功，**被扣 8 次**<br>補款給團長 → **扣了 175**<br>取消退款 → escrow **退了 280** | 品項與揪團該列一律改用 `PESSIMISTIC_WRITE` 鎖定讀（`findByGroupOrderAndUserAndStatusForUpdate` / `findByShareTokenForUpdate` / `findByIdForUpdate`），結帳另加狀態守衛 |
 | S-7 | `POST /api/orders/checkout`（顧客結帳頁真正打的端點）身分與成交價**都取自 request body** | 把 `userId` 換成別人的即可**拿他人錢包付自己的訂單**（實測受害者餘額 19255 → 19220，攻擊者餘額 0 不變）；把 `finalPrice` 送成 1 則能**用 $1 買走 $35 的飲料** | 身分改用 filter 注入的 `currentUserId`（連同 `saveOrUpdateUserAddress` 一起）；金額改由 `OrderService.repriceItems()` 依資料庫重算，公式收斂到 `PricingService`（底價＋區域加價＋配料加價），快照欄位一律由伺服器決定 |
 | S-8 | `UserFavoriteController` 三支端點的 userId 分別取自路徑、查詢參數與 request body，全都沒有擁有權檢查 | 任一登入顧客可讀取他人的收藏清單、查詢他人是否收藏某店，並用他人的 `userId` 呼叫 toggle——**實測把受害者收藏的店家直接取消掉** | 三支一律改用 filter 注入的 `currentUserId`，讀取端點加 `requireSelf()` |
-| S-9 | 消耗優惠券的 `UPDATE` 只比對 `id` 與 `status`，沒有比對擁有者；`apply-coupon` 端點又完全不看 token | `user_coupons.id` 是連續整數，**實測把受害者的 couponId 套到自己的品項上：對方的券變成 `used`，折扣算在攻擊者頭上**（偷券）| 擁有者一併寫進 `WHERE`（與狀態同一個原子操作）；端點身分改取自 token |
+| S-9 | 消耗優惠券的 `UPDATE` 只比對 `id` 與 `status`，沒有比對擁有者；`apply-coupon` 端點又完全不看 token；`GET /api/coupons/user/{userId}` 與 `/{id}` 也沒有擁有權檢查 | `user_coupons.id` 是連續整數，**實測把受害者的 couponId 套到自己的品項上：對方的券變成 `used`，折扣算在攻擊者頭上**（偷券）| 擁有者一併寫進 `WHERE`（與狀態同一個原子操作）；三支端點的身分一律改取自 token，單張查詢的擁有權檢查放在 Service 的交易內 |
 | D-3 | `findByIdForUpdate` 取得了列鎖，回傳的卻是一級快取裡「上鎖之前」的 User | 呼叫端只要在扣款前讀過同一個 User（揪團結帳會先碰 `item.getUser()`），列鎖就被架空，併發時每個交易用同一個舊餘額計算，最後一個寫入獲勝 | 在持鎖狀態下以 `refresh(user, PESSIMISTIC_WRITE)` 重讀。**不能用普通 `refresh()`**：MySQL 預設 REPEATABLE READ 之下普通 SELECT 讀的是交易快照，回來還是舊值——這一版修補是被測試打回來才改對的 |
 
 另外修掉幾個會直接影響可用性的問題：
@@ -115,7 +115,7 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
 - **登入必定 500**：`signWith(alg, String)` 會將 secret 做 Base64 解碼，預設值解碼後只剩 416 bits，不符 HS512 要求。改用原始位元組建立金鑰，並把長度檢查移到啟動時，不足即啟動失敗。
 - **`jwt.expiration` 完全不生效**：`JwtUtils` 寫死 7 天，設定檔的 24h 從未套用。
 - **用戶端錯誤一律回 500**：路由不存在、缺參數、型別錯全部落入 catch-all；且原始例外訊息（含 DB 結構）會回傳給前端。現已分流為 404/400/405，內部細節只寫入 log。
-- **`open-in-view: false` 之下的固定 500**：關閉 OSIV 後，交易外碰到 LAZY 關聯就會拋 `LazyInitializationException`。這類錯誤在單元測試看不到、要實際打端點才會現形，前後共出現在五個地方——其中 `GET /api/stores/settings/profile` 是門市後台**每一頁的頁首**都會呼叫的，壞掉時整個後台的營業狀態永遠停在「讀取中…」。另兩個公開端點直接回傳 JPA entity，Jackson 序列化 `brand` / `region` proxy 時必定 500。修法統一為「在交易內轉成純 Map 再回傳」，並用一支涵蓋 45 個 GET 端點的普掃確認歸零。
+- **`open-in-view: false` 之下的固定 500**：關閉 OSIV 後，交易外碰到 LAZY 關聯就會拋 `LazyInitializationException`。這類錯誤在單元測試看不到、要實際打端點才會現形，前後共出現在十個地方——其中 `GET /api/stores/settings/profile` 是門市後台**每一頁的頁首**都會呼叫的，壞掉時整個後台的營業狀態永遠停在「讀取中…」。另兩個公開端點直接回傳 JPA entity，Jackson 序列化 `brand` / `region` proxy 時必定 500。修法統一為「在交易內轉成純 Map 再回傳」，並用一支涵蓋 45 個 GET 端點的普掃確認歸零。
 
 帳本本身也整理過。`transaction_records.type` 一度被當成顯示字串，實際存的是
 `"消費扣款\n個人訂單 #12 結帳扣款"` 這種兩行文字，前端再自己 split、用 `includes('補款')`
@@ -172,7 +172,7 @@ docker compose up -d && mvn test
 ```bash
 cd scripts && npm install          # 只裝驗證腳本的相依套件，前端本身沒有建置流程
 
-node e2e-verify.js                 # 第二層：API 端對端（12 面向 / 82 項斷言）
+node e2e-verify.js                 # 第二層：API 端對端（12 面向 / 85 項斷言）
 npx playwright install chromium
 node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 ```
@@ -180,7 +180,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
 | `mvn test`（58） | 授權、金流與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
-| `scripts/e2e-verify.js`（82） | 三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、拒單與顧客取消退款、揪團、轉盤、收藏／地址、授權防護、WebSocket 授權、後台端點與分頁 | 交易邊界、序列化、擁有權檢查 |
+| `scripts/e2e-verify.js`（85） | 三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、拒單與顧客取消退款、揪團、轉盤、收藏／地址、授權防護、WebSocket 授權、後台端點與分頁 | 交易邊界、序列化、擁有權檢查 |
 | `scripts/ui/run-all.js` | 51 頁全頁面普掃 ＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
 顧客端是主要使用路徑，普掃分成三段跑：**有資料的帳號**、**剛註冊的空狀態帳號**

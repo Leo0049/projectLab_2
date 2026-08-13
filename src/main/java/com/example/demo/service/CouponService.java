@@ -34,9 +34,25 @@ public class CouponService {
                 .toList();
     }
 
-    public java.util.Optional<com.example.demo.dto.UserCouponDTO> getCouponDTOById(Long couponId) {
+    /**
+     * 單張優惠券（含擁有權檢查）。
+     *
+     * <p>⚠️ 檢查一定要留在交易內。原本是 Controller 先自己 findById 取擁有者、
+     * 再呼叫這支轉 DTO，兩次查詢各自開關交易，convertToDTO 讀 product 時
+     * session 早就關了——open-in-view=false 之下固定 500（這顆雷的第十次）。
+     *
+     * @return 找不到時為 empty；存在但不屬於 currentUserId 時擲 403
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public java.util.Optional<com.example.demo.dto.UserCouponDTO> getCouponDTOByIdForUser(Long couponId,
+            Long currentUserId) {
         return userCouponRepository.findById(couponId)
-                .map(this::convertToDTO);
+                .map(uc -> {
+                    Long owner = uc.getUser() != null ? uc.getUser().getId() : null;
+                    if (currentUserId == null || !currentUserId.equals(owner))
+                        throw new com.example.demo.exception.CustomException("403", "無權存取其他使用者的優惠券");
+                    return convertToDTO(uc);
+                });
     }
 
     private com.example.demo.dto.UserCouponDTO convertToDTO(UserCoupon uc) {
