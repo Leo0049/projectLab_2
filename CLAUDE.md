@@ -178,12 +178,13 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | `ItemSpecResolverTest`（7） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）|
 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
+| `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要能拆回兩欄、補款靠正負號分辨收付方 |
 | `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 publicId 覆寫、可疑副檔名正規化 |
 | `WalletConcurrencyTest`（3） | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支、列鎖不被一級快取架空 |
 | `GroupCheckoutConcurrencyTest`（6） | 揪團四條金流路徑重複觸發時只能發生一次；同一張券不可用兩次 |
 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` 在 `service/order/` 底下，
+`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` 在 `service/order/`、`TxDisplayTest` 在 `service/wallet/`，
 是**不載入 Spring context** 的純邏輯測試（合計 0.05 秒）。
 新增純規則時請放在那裡，不要為了測一條規則去啟整個 context。
 
@@ -199,7 +200,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 ```bash
 cd scripts && npm install
-node e2e-verify.js      # API 端對端，73 項斷言
+node e2e-verify.js      # API 端對端，80 項斷言
 node ui/run-all.js      # 51 頁普掃 + 點餐／轉盤／揪團三條主線（Playwright）
 ```
 
@@ -242,12 +243,24 @@ SUBMITTED 進入 PREPARING。
 
 ## 錢包/支付邏輯
 
-- `TOPUP`：儲值
-- `ESCROW`：下單時凍結金額
-- `FINAL_PAY`：完成後實扣
-- `REFUND`：取消/拒絕後退款
-- `REPAYMENT`：補款（揪團補差額）
+帳本 `transaction_records` 的 `type` 只放 token，人看的字放 `description`
+（常數在 `service/wallet/TxType`）：
+
+- `TOPUP` 儲值 ／ `PAYMENT` 下單扣款 ／ `ESCROW` 團長代墊託管款
+- `REFUND` 取消或拒單退款 ／ `REPAYMENT` 團員付出 ／ `REPAYMENT_RECEIVED` 團長收取
 - 支付方式：`WALLET`（餘額）或 `CASH`
+
+⚠️ `type` 一度被當成顯示字串，實際存 `"消費扣款\n個人訂單 #12 結帳扣款"`，
+前端再自己 split、用 `includes('補款')` 猜種類。**讀取一律經 `TxDisplay.normalize()`**
+（純函式，會把舊格式拆回 type／description 並給出中文 label），不要直接信 `type` 原始值，
+也不要在前端再寫一份判斷。舊資料還在庫裡，改判斷邏輯時 `TxDisplayTest`（7 個）會擋著。
+
+⚠️ 錢包帳本 `GET /api/wallet/transactions` **必須分頁**（`UserProfileService.MAX_PAGE_SIZE = 100`）。
+原本是把整份帳本撈進記憶體再 `subList` 切頁——查十筆卻讀了全部，
+和 `/api/stores/orders` 當初那個問題一模一樣。
+
+⚠️ 扣款要**先存訂單再扣款**。原本順序相反，帳本說明寫 `"個人訂單 #" + order.getId()`
+而訂單還沒 persist，`getId()` 必為 null，正式資料庫裡 52 筆全長成「個人訂單 # 結帳扣款」。
 
 ### ⚠️ 餘額異動必須鎖列
 

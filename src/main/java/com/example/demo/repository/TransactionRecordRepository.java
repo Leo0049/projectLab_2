@@ -14,4 +14,7 @@ public interface TransactionRecordRepository extends JpaRepository<TransactionRe
     List<TransactionRecord> findByUserIdOrderByCreatedAtDesc(Long userId);
     Page<TransactionRecord> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
     List<TransactionRecord> findByUserIdAndCreatedAtAfterOrderByCreatedAtDesc(Long userId, LocalDateTime after);
+
+    Page<TransactionRecord> findByUserIdAndCreatedAtAfterOrderByCreatedAtDesc(Long userId, LocalDateTime after,
+            Pageable pageable);
 }

@@ -367,8 +367,25 @@
 | id | BIGINT PK | |
 | user_id | BIGINT FK → users | |
 | amount | DECIMAL(12,2) NOT NULL | 正值=增加，負值=扣除 |
-| type | VARCHAR | TOPUP（儲值）/ ESCROW（下單凍結）/ REFUND（退款）/ FINAL_PAY（實扣）/ REPAYMENT（補款）|
+| type | VARCHAR | 交易種類 token，見下表 |
+| description | VARCHAR(255) | 人看的說明（例：`個人訂單 #12 結帳扣款`）|
 | created_at | DATETIME | 交易時間 |
+
+種類（常數定義在 `service/wallet/TxType`）：
+
+| type | 意義 | 金額正負 |
+|------|------|---------|
+| `TOPUP` | 儲值 | + |
+| `PAYMENT` | 下單扣款（個人訂單／揪團結帳）| − |
+| `ESCROW` | 團長代墊的託管款（對應 `orders.escrow_amount`）| − |
+| `REFUND` | 取消／拒單退款 | + |
+| `REPAYMENT` | 團員補款給團長（付出方）| − |
+| `REPAYMENT_RECEIVED` | 團長收到團員補款（收取方）| + |
+
+⚠️ `type` 一度被當成顯示字串用，實際存的是 `"消費扣款\n個人訂單 #12 結帳扣款"` 這種兩行文字，
+前端再自己 split、用 `includes('補款')` 之類的比對推回種類——連「按種類統計」都得寫
+`SUBSTRING_INDEX(type,'\n',1)`。現已分成 `type`（token）與 `description`（說明）兩欄。
+資料庫裡仍有舊格式的列，讀取一律經過 `TxDisplay.normalize()` 拆回兩欄，**不要直接信任 `type` 的原始值**。
 
 ---
 

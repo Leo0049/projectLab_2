@@ -1072,40 +1072,11 @@
                     }
 
                     const html = recordList.map(r => {
-                        let fullType = r.type || '';
-                        let mainType = fullType;
-                        let subDesc = '';
-
-                        // 解析後端可能包含的 /n 描述格式
-                        if (fullType.includes('\n') || fullType.includes('/n')) {
-                            const separator = fullType.includes('\n') ? '\n' : '/n';
-                            const parts = fullType.split(separator);
-                            mainType = parts[0];
-                            subDesc = parts[1];
-                        } else if (fullType.startsWith('ESCROW')) {
-                            mainType = 'ESCROW';
-                            subDesc = fullType.substring(6);
-                        }
-
-                        let label = '其他交易';
-                        const t = mainType.toUpperCase();
-                        const isPositive = parseFloat(r.amount) >= 0;
-
-                        if (t === 'TOPUP' || t === 'RECHARGE') {
-                            label = '帳戶儲值';
-                        } else if (t === 'INCOME' || t.includes('收到') || t.includes('接收')) {
-                            label = '接收補款';
-                        } else if (t.includes('補款') || t.includes('REPAYMENT')) {
-                            label = isPositive ? '接收補款' : '主動補款';
-                        } else if (t === 'PAYMENT' || t === 'ESCROW' || t.includes('消費扣款')) {
-                            if (subDesc.includes('補款') || fullType.includes('補款')) {
-                                label = isPositive ? '接收補款' : '主動補款';
-                            } else {
-                                label = '消費扣款';
-                            }
-                        } else if (t === 'REFUND') {
-                            label = '退款';
-                        }
+                        // 種類判斷與中文標籤都由後端的 TxDisplay 決定（含舊資料的相容處理）。
+                        // 這裡原本自己 split type 字串、再用 includes('補款') 之類的比對猜種類，
+                        // 規則散在畫面上，後端一改格式整排就變成「其他交易」。
+                        const label = r.label || '其他交易';
+                        const subDesc = r.description || '';
 
                         return `
                         <div class="flex justify-between items-center p-4 bg-white dark:bg-zinc-800 rounded-xl border border-gray-100 dark:border-zinc-700">

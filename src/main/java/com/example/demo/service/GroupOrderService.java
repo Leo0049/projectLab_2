@@ -8,6 +8,7 @@ import com.example.demo.dto.OrderItemDTO;
 import com.example.demo.dto.OrderItemToppingDTO;
 import com.example.demo.entity.*;
 import com.example.demo.exception.CustomException;
+import com.example.demo.service.wallet.TxType;
 import com.example.demo.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -518,7 +519,7 @@ public class GroupOrderService {
         if ("PAID".equals(item.getPaymentStatus())) {
             BigDecimal refundAmount = item.getFinalPrice();
             transactionRecordService.updateStoreCredit(item.getUser().getId(), refundAmount,
-                    "Refund\n揪團品項退款 (商品: " + item.getProductNameSnapshot() + ")", LocalDateTime.now());
+                    TxType.REFUND, "揪團品項退款 (商品: " + item.getProductNameSnapshot() + ")", LocalDateTime.now());
         }
         if (item.getCouponId() != null) {
             restoreUserCoupon(item.getUser().getId(), item.getCouponId());
@@ -595,7 +596,7 @@ public class GroupOrderService {
 
         if ("WALLET".equals(paymentMethod)) {
             transactionRecordService.updateStoreCredit(hostId, amountToCharge.negate(),
-                    "消費扣款\n揪團結帳扣款 (已扣除團員已付部分)", LocalDateTime.now());
+                    TxType.PAYMENT, "揪團結帳扣款 (已扣除團員已付部分)", LocalDateTime.now());
         }
 
         List<OrderItem> itemsToSave = new ArrayList<>();
@@ -662,7 +663,7 @@ public class GroupOrderService {
 
         if ("WALLET".equals(paymentMethod)) {
             transactionRecordService.updateStoreCredit(userId, finalAmount.negate(),
-                    "消費扣款\n揪團個人品項結帳扣款", LocalDateTime.now());
+                    TxType.PAYMENT, "揪團個人品項結帳扣款", LocalDateTime.now());
         }
 
         BigDecimal distributedDiscount = BigDecimal.ZERO;
@@ -721,7 +722,7 @@ public class GroupOrderService {
                 BigDecimal refundAmount = item.getFinalPrice().subtract(discount).max(BigDecimal.ZERO);
                 
                 transactionRecordService.updateStoreCredit(item.getUser().getId(), refundAmount,
-                        "Refund\n揪團取消退款 (品項: " + item.getProductNameSnapshot() + ")", LocalDateTime.now());
+                        TxType.REFUND, "揪團取消退款 (品項: " + item.getProductNameSnapshot() + ")", LocalDateTime.now());
                 item.setPaymentStatus("REFUNDED");
 
                 // 還原個人優惠券
@@ -737,7 +738,7 @@ public class GroupOrderService {
                 } else {
                     BigDecimal refundAmount = item.getFinalPrice();
                     transactionRecordService.updateStoreCredit(item.getUser().getId(), refundAmount,
-                            "Refund\n訂單取消退款 (品項: " + item.getProductNameSnapshot() + ")", LocalDateTime.now());
+                            TxType.REFUND, "訂單取消退款 (品項: " + item.getProductNameSnapshot() + ")", LocalDateTime.now());
                 }
                 item.setPaymentStatus("CANCELLED");
             } else if ("ESCROWED".equalsIgnoreCase(item.getPaymentStatus())) {
@@ -754,7 +755,7 @@ public class GroupOrderService {
             Long initiatorId = go.getInitiator() != null ? go.getInitiator().getId() : null;
             if (initiatorId != null) {
                 transactionRecordService.updateStoreCredit(initiatorId, go.getEscrowAmount(),
-                        "Refund\n揪團差額扣款退還 (訂單 #" + go.getId() + ")", LocalDateTime.now());
+                        TxType.REFUND, "揪團差額扣款退還 (訂單 #" + go.getId() + ")", LocalDateTime.now());
                 go.setEscrowAmount(BigDecimal.ZERO); // 清零防止重複退
             }
         }
@@ -808,7 +809,7 @@ public class GroupOrderService {
             BigDecimal itemTotal = mItem.getFinalPrice();
             if ("PAID".equalsIgnoreCase(mItem.getPaymentStatus())) {
                 transactionRecordService.updateStoreCredit(mItem.getUser().getId(), itemTotal,
-                        "Refund\n揪團單品取消退款 (商品: " + mItem.getProductNameSnapshot() + ")", LocalDateTime.now());
+                        TxType.REFUND, "揪團單品取消退款 (商品: " + mItem.getProductNameSnapshot() + ")", LocalDateTime.now());
             } else {
                 hostRefundAmount = hostRefundAmount.add(itemTotal);
             }
@@ -822,7 +823,7 @@ public class GroupOrderService {
 
         if (hostRefundAmount.compareTo(BigDecimal.ZERO) > 0) {
             transactionRecordService.updateStoreCredit(go.getInitiator().getId(), hostRefundAmount,
-                    "Refund\n揪團團員取消品項退款代墊金", LocalDateTime.now());
+                    TxType.REFUND, "揪團團員取消品項退款代墊金", LocalDateTime.now());
             go.setTotalAmount(go.getTotalAmount().subtract(hostRefundAmount));
             // ✅ 新增：同步扣減 escrowAmount，防止後續取消再次退款
             if (go.getEscrowAmount() != null) {
@@ -893,14 +894,14 @@ public class GroupOrderService {
 
         // 從團員錢包扣款
         transactionRecordService.updateStoreCredit(userId, totalAmount.negate(),
-                "支付補款\n揪團轉付給團長 (補款)", LocalDateTime.now());
+                TxType.REPAYMENT, "揪團轉付給團長 (補款)", LocalDateTime.now());
 
         // 存入團長錢包
         String userName = userRepository.findById(userId)
                 .map(com.example.demo.entity.User::getName)
                 .orElse("未知");
         transactionRecordService.updateStoreCredit(go.getInitiator().getId(), totalAmount,
-                "收到團員補款 (團員名稱: " + userName + ", 團員ID: " + userId + ")", LocalDateTime.now());
+                TxType.REPAYMENT_RECEIVED, "收到團員補款 (團員名稱: " + userName + ", 團員ID: " + userId + ")", LocalDateTime.now());
 
         // 標記品項為已付款
         for (OrderItem item : memberItems) {

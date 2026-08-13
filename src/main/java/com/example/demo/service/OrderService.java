@@ -19,6 +19,7 @@ import com.example.demo.repository.ProductRepository;
 import com.example.demo.repository.ProductTemplateRepository;
 import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.service.wallet.TxType;
 import jakarta.transaction.Transactional;
 import com.example.demo.repository.UserCouponRepository;
 import lombok.RequiredArgsConstructor;
@@ -276,8 +277,8 @@ public class OrderService {
             order = groupOrderRepository.save(order);
 
             if ("WALLET".equals(paymentMethod)) {
-                transactionRecordService.updateStoreCredit(userId, amountToCharge.negate(), "ESCROW" +
-                        "Order #" + order.getId() + " 結帳扣款 (已扣除團員已付部分)", LocalDateTime.now());
+                transactionRecordService.updateStoreCredit(userId, amountToCharge.negate(), TxType.ESCROW,
+                        "訂單 #" + order.getId() + " 結帳扣款 (已扣除團員已付部分)", LocalDateTime.now());
             }
 
             // --- 固定規格防竄改 (Fixed Specification Anti-Tamper) ---
@@ -471,10 +472,19 @@ public class OrderService {
                 .map(OrderItem::getFinalPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // ⚠️ 先存訂單再扣款。原本順序相反，帳本的說明寫成
+        //    "個人訂單 #" + (order.getId() != null ? order.getId() : "")，
+        //    而此時訂單根本還沒 persist，getId() 必為 null——
+        //    正式資料庫裡 52 筆全都長成「個人訂單 # 結帳扣款」，對不回是哪一張單。
+        order.setTotalAmount(total);
+        if (order.getOrderNo() == null)
+            order.setOrderNo(generateOrderNo());
+        groupOrderRepository.save(order);
+
         if (creditTotal.compareTo(BigDecimal.ZERO) > 0) {
             // 使用 TransactionRecordService 進行扣款，內部會檢查餘額並儲存紀錄
             transactionRecordService.updateStoreCredit(userId, creditTotal.negate(),
-                    "消費扣款\n個人訂單 #" + (order.getId() != null ? order.getId() : "") + " 結帳扣款", LocalDateTime.now());
+                    TxType.PAYMENT, "個人訂單 #" + order.getId() + " 結帳扣款", LocalDateTime.now());
 
             // 將品項狀態改為 PAID
             for (OrderItem item : orderItems) {
@@ -483,13 +493,6 @@ public class OrderService {
                 }
             }
         }
-
-        order.setTotalAmount(total);
-        groupOrderRepository.save(order);
-        // 單號不再依賴 ID，直接使用新格式
-        if (order.getOrderNo() == null)
-            order.setOrderNo(generateOrderNo());
-        groupOrderRepository.save(order);
 
         orderItemRepository.saveAll(orderItems);
 

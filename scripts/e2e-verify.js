@@ -92,6 +92,26 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   check('餘額正確增加 1000', Math.abs(balAfter - balBefore - 1000) < 0.01,
     `${balBefore} → ${balAfter}`);
 
+  // 帳本：分頁 + 種類已正規化（含舊資料）
+  const led = D(await req('GET', '/api/wallet/transactions?page=1&size=3', { token: CT })) || {};
+  const rows = led.transactions || [];
+  check('帳本回傳分頁欄位（total/totalPages/hasNext）',
+    typeof led.total === 'number' && typeof led.totalPages === 'number' && 'hasNext' in led,
+    JSON.stringify({ total: led.total, totalPages: led.totalPages, hasNext: led.hasNext }));
+  check('size 有生效（最多 3 筆）', rows.length <= 3, `回了 ${rows.length} 筆`);
+  const bigPage = D(await req('GET', '/api/wallet/transactions?page=1&size=9999', { token: CT })) || {};
+  check('帳本 size 上限被夾到 100', (bigPage.size || 0) <= 100, `size=${bigPage.size}`);
+
+  const TYPES = ['TOPUP', 'PAYMENT', 'ESCROW', 'REFUND', 'REPAYMENT', 'REPAYMENT_RECEIVED'];
+  check('每一列的 type 都是固定 token（舊資料也要被正規化）',
+    rows.length > 0 && rows.every(r => TYPES.includes(r.type)),
+    rows.map(r => r.type).join(','));
+  check('每一列都有中文 label 可直接顯示',
+    rows.length > 0 && rows.every(r => r.label && r.label !== '其他交易' && !String(r.type).includes('\n')),
+    rows.map(r => `${r.type}=${r.label}`).join(' '));
+  check('最新一筆是剛才的儲值', rows[0] && rows[0].type === 'TOPUP' && Number(rows[0].amount) === 1000,
+    rows[0] && `${rows[0].type} ${rows[0].amount}`);
+
   // ─────────────────────────────────────────────
   section('4. 購物車');
   const addCart = await req('POST', '/api/cart/items', {
@@ -113,6 +133,14 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   check('建立個人訂單', ok(place), JSON.stringify(place).slice(0, 120));
   const orderId = D(place) && (D(place).orderId || D(place).id || D(place).groupOrderId);
   check('回傳訂單 ID', !!orderId);
+
+  // 扣款的帳本說明要對得回訂單。原本扣款發生在訂單 persist 之前，
+  // 說明固定寫成「個人訂單 # 結帳扣款」，訂單編號永遠是空的。
+  const ledAfterPlace = D(await req('GET', '/api/wallet/transactions?page=1&size=1', { token: CT })) || {};
+  const payRow = (ledAfterPlace.transactions || [])[0];
+  check('扣款紀錄的說明帶得到訂單編號',
+    !!payRow && payRow.type === 'PAYMENT' && String(payRow.description).includes(`#${orderId}`),
+    payRow && `${payRow.type} / ${payRow.description}`);
 
   const detail1 = await req('GET', `/api/orders/${orderId}`, { token: CT });
   check('查詢訂單明細', ok(detail1));

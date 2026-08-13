@@ -568,7 +568,8 @@ public class UserController {
         }
         try {
             User updatedUser = transactionRecordService.updateStoreCredit(
-                    userId, request.getAmount(), "Recharge", LocalDateTime.now());
+                    userId, request.getAmount(), com.example.demo.service.wallet.TxType.TOPUP,
+                    "帳戶儲值", LocalDateTime.now());
             return ResponseEntity.ok(new UserResponse(
                     updatedUser.getId(), updatedUser.getName(), updatedUser.getRole(),
                     updatedUser.getPicUrl(), updatedUser.getPhone(), updatedUser.getBalance()));

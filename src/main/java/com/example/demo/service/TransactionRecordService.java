@@ -29,8 +29,19 @@ public class TransactionRecordService {
      *    「讀出餘額 → 相加 → 寫回」在沒有列鎖時，併發請求會互相覆蓋，
      *    導致金額短少且帳本與餘額對不起來（詳見 UserRepository.findByIdForUpdate 註解）。
      */
+    /**
+     * 相容舊呼叫的入口：type 若還是「標題\n說明」的舊格式，這裡拆開後再寫入。
+     * 新程式請直接用五個參數的版本，把種類與說明分開送。
+     */
     @Transactional
     public User updateStoreCredit(Long userId, BigDecimal amount, String type, LocalDateTime createdAt) {
+        var e = com.example.demo.service.wallet.TxDisplay.normalize(type, null, amount);
+        return updateStoreCredit(userId, amount, e.type(), e.description(), createdAt);
+    }
+
+    @Transactional
+    public User updateStoreCredit(Long userId, BigDecimal amount, String type, String description,
+            LocalDateTime createdAt) {
         User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -58,6 +69,7 @@ public class TransactionRecordService {
         record.setUser(user);
         record.setAmount(amount);
         record.setType(type);
+        record.setDescription(description);
         record.setCreatedAt(createdAt);
         transactionRecordRepository.save(record);
 

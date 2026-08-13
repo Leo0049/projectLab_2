@@ -38,7 +38,7 @@ mvn spring-boot:run       # 服務起在 :8082
 | 模組 | 內容 |
 |------|------|
 | **揪團訂單** | 建立揪團 → 產生分享 token → 成員各自加點 → 團長統一送出、補款/退款 |
-| **錢包與帳本** | 儲值、下單託管（ESCROW）、完成實扣（FINAL_PAY）、取消退款（REFUND）、補款（REPAYMENT） |
+| **錢包與帳本** | 儲值、下單扣款、團長代墊託管、取消／拒單退款、團員補款，全部進同一份帳本 |
 | **多租戶菜單** | 品牌層級的飲品模板、甜度/冰量/杯型規格、加料設定，門市可覆蓋供應狀態 |
 | **區域定價** | 同品牌不同地區可設定各自的分類加價 |
 | **即時推播** | WebSocket/STOMP 推送訂單狀態與揪團品項異動 |
@@ -110,6 +110,15 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
 
 另外修掉幾個會直接影響可用性的問題：
 
+帳本本身也整理過。`transaction_records.type` 一度被當成顯示字串，實際存的是
+`"消費扣款\n個人訂單 #12 結帳扣款"` 這種兩行文字，前端再自己 split、用 `includes('補款')`
+之類的比對推回種類——連「按種類統計」都得寫 `SUBSTRING_INDEX(type,'\n',1)`。
+現已拆成 `type`（固定 token）與 `description`（說明）兩欄，判斷邏輯收在純函式
+`TxDisplay.normalize()`（舊資料照樣拆得回來），前端只負責畫。
+順帶修掉兩個對帳上的小洞：扣款發生在訂單 persist 之前，說明固定寫成「個人訂單 # 結帳扣款」，
+**52 筆全都對不回是哪一張單**；以及 `GET /api/wallet/transactions` 把整份帳本撈進記憶體再
+`subList` 切頁——查十筆卻讀了全部，和 `/api/stores/orders` 當初那個問題一模一樣。
+
 - **登入必定 500**：`signWith(alg, String)` 會將 secret 做 Base64 解碼，預設值解碼後只剩 416 bits，不符 HS512 要求。改用原始位元組建立金鑰，並把長度檢查移到啟動時，不足即啟動失敗。
 - **`jwt.expiration` 完全不生效**：`JwtUtils` 寫死 7 天，設定檔的 24h 從未套用。
 - **用戶端錯誤一律回 500**：路由不存在、缺參數、型別錯全部落入 catch-all；且原始例外訊息（含 DB 結構）會回傳給前端。現已分流為 404/400/405，內部細節只寫入 log。
@@ -135,13 +144,14 @@ docker compose up -d && mvn test
 | `ItemSpecResolverTest`（7） | 固定規格防竄改：商品只有唯一規格選項時不採信用戶端送來的值 |
 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、任一規格不同即分開、套券的那杯要拆出來 |
 | `CouponEligibilityTest`（6） | 優惠券適用範圍：跨品牌／跨商品要擋、已付款不可再套 |
+| `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要拆回 type／description、補款靠正負號分辨收付方 |
 | `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 id 覆寫、可疑副檔名正規化 |
 | `WalletConcurrencyTest`（3） | 併發儲值不短少、帳本與餘額相符、併發扣款不透支、列鎖不被一級快取架空 |
 | `GroupCheckoutConcurrencyTest`（6） | 揪團的四條金流路徑（團員結帳、團長結帳、補款、取消退款）重複觸發時同一筆金額只能發生一次、帳本與餘額必須相符；同一張優惠券不可被用兩次 |
 | `DemoApplicationTests`（1） | Spring context 載入 |
 
-`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` 是純邏輯測試，
-不載入 Spring context，48 個測試裡它們合計只跑 0.05 秒。
+`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，
+不載入 Spring context，55 個測試裡它們合計只跑 0.1 秒。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
 測試不多，但都對準真正會出事的地方（金流與授權），而且**每一支都驗證過「把修補改回舊寫法時會失敗」**——
@@ -160,15 +170,15 @@ docker compose up -d && mvn test
 ```bash
 cd scripts && npm install          # 只裝驗證腳本的相依套件，前端本身沒有建置流程
 
-node e2e-verify.js                 # 第二層：API 端對端（12 面向 / 73 項斷言）
+node e2e-verify.js                 # 第二層：API 端對端（12 面向 / 80 項斷言）
 npx playwright install chromium
 node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 ```
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（48） | 授權、金流與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
-| `scripts/e2e-verify.js`（73） | 三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、拒單與顧客取消退款、揪團、轉盤、收藏／地址、授權防護、WebSocket 授權、後台端點與分頁 | 交易邊界、序列化、擁有權檢查 |
+| `mvn test`（55） | 授權、金流與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `scripts/e2e-verify.js`（80） | 三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、拒單與顧客取消退款、揪團、轉盤、收藏／地址、授權防護、WebSocket 授權、後台端點與分頁 | 交易邊界、序列化、擁有權檢查 |
 | `scripts/ui/run-all.js` | 51 頁全頁面普掃 ＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
 顧客端是主要使用路徑，普掃分成三段跑：**有資料的帳號**、**剛註冊的空狀態帳號**

@@ -3,8 +3,12 @@ package com.example.demo.service;
 import com.example.demo.entity.*;
 import com.example.demo.exception.CustomException;
 import com.example.demo.repository.*;
+import com.example.demo.service.wallet.TxDisplay;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -65,32 +69,51 @@ public class UserProfileService {
     }
 
     // ─── 交易紀錄 ─────────────────────────────────────────
+    /** 一次最多回幾筆。錢包帳本會隨使用時間無限成長，和訂單列表同一個道理 */
+    public static final int MAX_PAGE_SIZE = 100;
+
+    /**
+     * 交易紀錄（分頁）。{@code page} 沿用既有前端的 1-based。
+     *
+     * <p>⚠️ 原本是 {@code findByUserIdOrderByCreatedAtDesc(userId)} 把整份帳本撈進記憶體、
+     * 再用 {@code subList} 切頁——查十筆卻讀了全部。這正是 {@code /api/stores/orders}
+     * 已經修過的那個問題（實測 6,666 筆 / 2.1 MB），錢包帳本當時漏掉了。
+     *
+     * <p>回傳的 type 一律經 {@link TxDisplay#normalize} 正規化，
+     * 舊資料（type 塞了「標題\n說明」）也會被拆回 type／description，
+     * 前端不必再自己 split 或用中文字串比對猜種類。
+     */
     public Map<String, Object> getTransactions(Long userId, Integer months, int page, int size) {
-        List<TransactionRecord> list;
-        if (months != null) {
-            LocalDateTime from = LocalDateTime.now().minusMonths(months);
-            list = transactionRecordRepository.findByUserIdAndCreatedAtAfterOrderByCreatedAtDesc(userId, from);
-        } else {
-            list = transactionRecordRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        }
-        int start = (page - 1) * size;
-        int end = Math.min(start + size, list.size());
-        List<TransactionRecord> paged = (start < list.size()) ? list.subList(start, end) : List.of();
+        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        int zeroBased = Math.max(page - 1, 0);
+        Pageable pageable = PageRequest.of(zeroBased, safeSize);
+
+        Page<TransactionRecord> result = (months != null)
+                ? transactionRecordRepository.findByUserIdAndCreatedAtAfterOrderByCreatedAtDesc(
+                        userId, LocalDateTime.now().minusMonths(months), pageable)
+                : transactionRecordRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
 
         List<Map<String, Object>> items = new ArrayList<>();
-        for (TransactionRecord t : paged) {
+        for (TransactionRecord t : result.getContent()) {
+            TxDisplay.Entry e = TxDisplay.normalize(t.getType(), t.getDescription(), t.getAmount());
             Map<String, Object> m = new HashMap<>();
             m.put("id", t.getId());
-            m.put("type", t.getType());
+            m.put("type", e.type());
+            m.put("description", e.description());
+            m.put("label", e.label());
             m.put("amount", t.getAmount());
             m.put("createdAt", t.getCreatedAt());
             items.add(m);
         }
-        Map<String, Object> result = new HashMap<>();
-        result.put("transactions", items);
-        result.put("page", page);
-        result.put("total", list.size());
-        return result;
+
+        Map<String, Object> out = new HashMap<>();
+        out.put("transactions", items);
+        out.put("page", page);
+        out.put("size", safeSize);
+        out.put("total", result.getTotalElements());
+        out.put("totalPages", result.getTotalPages());
+        out.put("hasNext", result.hasNext());
+        return out;
     }
 
     // ─── 儲值 ─────────────────────────────────────────────
