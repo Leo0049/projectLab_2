@@ -154,7 +154,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
 | `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 publicId 覆寫、可疑副檔名正規化 |
 | `WalletConcurrencyTest`（3） | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支、列鎖不被一級快取架空 |
-| `GroupCheckoutConcurrencyTest`（5） | 揪團四條金流路徑重複觸發時只能發生一次 |
+| `GroupCheckoutConcurrencyTest`（6） | 揪團四條金流路徑重複觸發時只能發生一次；同一張券不可用兩次 |
 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
 `ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` 在 `service/order/` 底下，
@@ -263,6 +263,14 @@ Hibernate 仍回傳快取中那個「上鎖之前」的實例——餘額是舊�
 | 取消退款 `handleGroupOrderCancellation` | `GroupOrderRepository.findByIdForUpdate` ＋ `findByGroupOrderIdForUpdate` | escrow 退了 280 |
 
 `GroupCheckoutConcurrencyTest`（5 個）守住這四條。
+
+### ⚠️ 優惠券的消耗要原子
+
+`applyCouponToItem` 必須用 `UserCouponRepository.markUsedIfUnused()`
+（`UPDATE ... WHERE status = 'unused'`，受影響列數 0 就代表已被用掉），
+**不可改回 `markCouponAsUsed()` 那種先 findById 檢查再 save 的寫法**——
+那是 read-check-write，實測兩個品項同時套同一張券時兩邊都會過、一張券折了兩次。
+而且要在動品項**之前**先消耗，輸的那一方才不會已經改了資料才發現券沒了。
 
 ⚠️ 擋住重複退款的是**列鎖**，不是狀態守衛。實測只拿掉取消流程的列鎖、留著
 「已取消就 return」的守衛，escrow 仍退了 140——沒有鎖時讀到的狀態本身就是舊的。

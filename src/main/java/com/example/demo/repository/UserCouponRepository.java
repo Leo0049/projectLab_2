@@ -17,6 +17,20 @@ import java.util.Optional;
 @Repository
 public interface UserCouponRepository extends JpaRepository<UserCoupon, Long> {
 
+       /**
+        * 原子地把券從 unused 標成 used，回傳受影響列數（1 = 這次成功消耗，0 = 已被別人用掉）。
+        *
+        * ⚠️ 不可改回「先 findById 檢查 status 再 save」：那是 read-check-write，
+        * 沒有原子性時併發套券會讓**同一張券被用在兩個品項上**——
+        * 實測兩個品項同時套同一張券，兩邊都拿到折扣。
+        * 條件寫在 WHERE 裡交給資料庫判斷，才不會有中間狀態。
+        */
+       @Modifying(clearAutomatically = true)
+       @Query("UPDATE UserCoupon uc SET uc.status = 'used', uc.usedAt = :usedAt "
+                     + "WHERE uc.id = :id AND uc.status = 'unused'")
+       int markUsedIfUnused(@Param("id") Long id, @Param("usedAt") java.time.LocalDateTime usedAt);
+
+
     List<UserCoupon> findByUserId(Long userId);
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"product", "product.category", "brand"})

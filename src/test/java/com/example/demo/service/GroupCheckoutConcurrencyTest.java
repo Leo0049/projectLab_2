@@ -4,12 +4,14 @@ import com.example.demo.entity.GroupOrder;
 import com.example.demo.entity.OrderItem;
 import com.example.demo.entity.ProductTemplate;
 import com.example.demo.entity.Store;
+import com.example.demo.entity.UserCoupon;
 import com.example.demo.entity.User;
 import com.example.demo.repository.GroupOrderRepository;
 import com.example.demo.repository.OrderItemRepository;
 import com.example.demo.repository.ProductTemplateRepository;
 import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.TransactionRecordRepository;
+import com.example.demo.repository.UserCouponRepository;
 import com.example.demo.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,6 +68,7 @@ class GroupCheckoutConcurrencyTest {
     @Autowired private StoreRepository storeRepository;
     @Autowired private ProductTemplateRepository productTemplateRepository;
     @Autowired private TransactionRecordRepository transactionRecordRepository;
+    @Autowired private UserCouponRepository userCouponRepository;
 
     private Long hostId;
     private Long memberId;
@@ -238,6 +241,66 @@ class GroupCheckoutConcurrencyTest {
                 "團員應只被扣一次 " + DRINK_PRICE + "，實際扣了 " + memberDelta);
         assertEquals(0, DRINK_PRICE.compareTo(hostDelta),
                 "團長應只收到一次 " + DRINK_PRICE + "，實際收到 " + hostDelta);
+    }
+
+    @Test
+    @DisplayName("同一張優惠券併發套用到兩個品項：只能被使用一次")
+    void couponCannotBeUsedTwice() throws Exception {
+        Store store = storeRepository.findAll().stream().findFirst().orElseThrow();
+        ProductTemplate product = productTemplateRepository.findAll().stream().findFirst().orElseThrow();
+        User member = userRepository.findById(memberId).orElseThrow();
+
+        // 團員再放一杯，湊成兩個可套券的品項
+        OrderItem second = new OrderItem();
+        second.setGroupOrder(groupOrderRepository.findById(groupOrderId).orElseThrow());
+        second.setUser(member);
+        second.setProduct(product);
+        second.setProductNameSnapshot(product.getName());
+        second.setUnitPriceSnapshot(DRINK_PRICE);
+        second.setFinalPrice(DRINK_PRICE);
+        second.setQty(1);
+        second.setPaymentStatus("UNPAID");
+        second.setPaymentType("WALLET");
+        orderItemRepository.save(second);
+
+        UserCoupon coupon = new UserCoupon();
+        coupon.setUser(member);
+        coupon.setBrand(store.getBrand());
+        coupon.setCouponType("ADMIN_GIFT");
+        coupon.setDiscountAmount(new BigDecimal("5.00"));
+        coupon.setStatus("unused");
+        Long couponId = userCouponRepository.save(coupon).getId();
+
+        List<OrderItem> items = orderItemRepository.findByGroupOrderId(groupOrderId);
+        assertEquals(2, items.size());
+
+        // 兩個品項同時套用同一張券
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch gate = new CountDownLatch(1);
+        List<Future<?>> futures = new ArrayList<>();
+        for (OrderItem it : items) {
+            futures.add(pool.submit(() -> {
+                gate.await();
+                try {
+                    groupOrderService.applyCouponToItem(shareToken, it.getId(), memberId, couponId);
+                } catch (Exception expected) {
+                    // 第二個應該被擋下
+                }
+                return null;
+            }));
+        }
+        gate.countDown();
+        for (Future<?> f : futures) f.get(30, TimeUnit.SECONDS);
+        pool.shutdownNow();
+
+        long discounted = orderItemRepository.findByGroupOrderId(groupOrderId).stream()
+                .filter(i -> i.getCouponId() != null && couponId.equals(i.getCouponId()))
+                .count();
+
+        userCouponRepository.deleteById(couponId);
+
+        assertEquals(1, discounted,
+                "同一張券被套用在 " + discounted + " 個品項上（一張券只能折一次）");
     }
 
     /** 讓 n 個執行緒同時開跑，回傳成功次數 */

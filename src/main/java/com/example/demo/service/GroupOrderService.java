@@ -934,6 +934,15 @@ public class GroupOrderService {
         // 適用範圍（品牌／指定商品）規則見 CouponEligibility
         CouponEligibility.check(userCoupon, go.getStore().getBrand().getId(), item.getProduct().getId());
 
+        // ⚠️ 先原子地消耗這張券，再去動品項。
+        // 原本是最後才呼叫 markCouponAsUsed（先 findById 檢查 status 再 save），
+        // 那是 read-check-write：兩個品項同時套同一張券時兩邊都會過，
+        // 實測一張券折了兩個品項。改成把條件交給資料庫的 UPDATE ... WHERE status='unused'，
+        // 受影響列數為 0 就代表已被用掉，直接擋下。
+        if (userCouponRepository.markUsedIfUnused(couponId, LocalDateTime.now()) == 0) {
+            throw new CustomException("409", "此優惠券已被使用");
+        }
+
         // 4. 實作數量拆分 (Qty Splitting)
         // 如果 Qty > 1，則拆出 1 單位來套用優惠券，其餘維持原樣
         if (item.getQty() > 1) {
@@ -970,7 +979,6 @@ public class GroupOrderService {
             couponedItem.setItemHash(newHash);
 
             OrderItem savedCouponItem = orderItemRepository.save(couponedItem);
-            markCouponAsUsed(couponId);
 
             // 複製配料 (Toppings)
             for (OrderItemTopping oit : originalToppings) {
@@ -1004,7 +1012,6 @@ public class GroupOrderService {
                     item.getIceSnapshot(), item.getSizeSnapshot(), toppingsStr, couponId));
 
             orderItemRepository.save(item);
-            markCouponAsUsed(couponId);
         }
     }
 
