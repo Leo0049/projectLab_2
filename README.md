@@ -103,6 +103,8 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
 | S-5 | WebSocket 為 `allowedOriginPatterns("*")` 且無任何 STOMP 攔截器 | `orderId` 是連續整數可列舉，任何人可旁觀他人訂單狀態 | CONNECT 驗 JWT、SUBSCRIBE 驗訂單關係人；origin 收斂為與 HTTP 共用的白名單 |
 | S-6 | `OrderController` 整支沒有任何擁有權檢查：訂單列表吃路徑上的 `userId`，狀態／取消端點則是 `if (userId != null) 檢查 else 放行` | 任一登入顧客可讀他人完整訂單歷史（金額、品項、揪團 `shareToken`）；**不帶 `userId` 參數即可把他人訂單從 READY 改成 COMPLETED**；`/api/orders/store/{id}` 還能撈出整間門市訂單，含其他顧客的外送地址 | 全部改用 filter 注入的 `currentUserId`，移除「不帶參數就跳過」的分支；門市傾印端點刪除（門市請用有分頁、有 STORE 權限的 `/api/stores/orders`） |
 | D-1 | 餘額為「讀出→相加→寫回」且無列鎖 | 20 個併發各儲值 10 元，**最終只入帳 70 元，且帳本總額 120 與餘額 70 對不起來** | 改用 `SELECT ... FOR UPDATE`；所有金流都收斂在 `updateStoreCredit()` 一個進入點 |
+| D-2 | 揪團結帳是「讀出未付款品項 → 扣款 → 標記已付」的 read-modify-write，品項沒有列鎖；團長結帳更是連狀態守衛都沒有 | 團員雙擊結帳：**8 個併發請求 5 個都成功扣款，帳本寫進 5 筆 −35（合計 −175），users.balance 卻只掉 35** —— 帳本與餘額差 5 倍。團長雙擊送出：**8 個請求全部成功，團長為同一張訂單被扣 8 次** | 品項改用 `PESSIMISTIC_WRITE` 鎖定讀；結帳先鎖住揪團該列並加上狀態守衛 |
+| D-3 | `findByIdForUpdate` 取得了列鎖，回傳的卻是一級快取裡「上鎖之前」的 User | 呼叫端只要在扣款前讀過同一個 User（揪團結帳會先碰 `item.getUser()`），列鎖就被架空，併發時每個交易用同一個舊餘額計算，最後一個寫入獲勝 | 在持鎖狀態下以 `refresh(user, PESSIMISTIC_WRITE)` 重讀。**不能用普通 `refresh()`**：MySQL 預設 REPEATABLE READ 之下普通 SELECT 讀的是交易快照，回來還是舊值——這一版修補是被測試打回來才改對的 |
 
 另外修掉幾個會直接影響可用性的問題：
 
@@ -132,15 +134,17 @@ docker compose up -d && mvn test
 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、任一規格不同即分開、套券的那杯要拆出來 |
 | `CouponEligibilityTest`（6） | 優惠券適用範圍：跨品牌／跨商品要擋、已付款不可再套 |
 | `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 id 覆寫、可疑副檔名正規化 |
-| `WalletConcurrencyTest`（2） | 併發儲值不短少、帳本與餘額相符、併發扣款不透支 |
+| `WalletConcurrencyTest`（3） | 併發儲值不短少、帳本與餘額相符、併發扣款不透支、列鎖不被一級快取架空 |
+| `GroupCheckoutConcurrencyTest`（3） | 揪團團員與團長重複送出結帳時，同一筆金額只能扣一次，且帳本與餘額必須相符 |
 | `DemoApplicationTests`（1） | Spring context 載入 |
 
-中間三支是純邏輯測試，不載入 Spring context，39 個測試裡它們合計跑 0.05 秒。
+`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` 是純邏輯測試，
+不載入 Spring context，43 個測試裡它們合計只跑 0.05 秒。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
 測試不多，但都對準真正會出事的地方（金流與授權），而且**每一支都驗證過「把修補改回舊寫法時會失敗」**——
 授權測試在還原 IDOR 邏輯時 3 個失敗、還原 S-6 時 2 個失敗，錢包測試在改回 `findById` 時 2 個失敗，
-規格測試在把防竄改改回「照單全收」時 4 個失敗。
+規格測試在把防竄改改回「照單全收」時 4 個失敗，揪團結帳測試在拿掉品項列鎖與狀態守衛時各 1 個失敗。
 只在修補後跑一次通過的測試，證明不了它擋得住回歸。
 
 ### 三層驗證，全部進 CI
@@ -157,7 +161,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（39） | 授權、金流與品項規則的回歸防線 | 邏輯錯誤、併發遺失更新、規格與折扣算錯 |
+| `mvn test`（43） | 授權、金流與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js`（67） | 三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、拒單退款、揪團、轉盤、收藏／地址、授權防護、WebSocket 授權、後台端點與分頁 | 交易邊界、序列化、擁有權檢查 |
 | `scripts/ui/run-all.js` | 30 頁全頁面普掃 ＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 

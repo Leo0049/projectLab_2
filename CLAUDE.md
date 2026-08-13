@@ -153,15 +153,18 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
 | `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 publicId 覆寫、可疑副檔名正規化 |
-| `WalletConcurrencyTest`（2） | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支 |
+| `WalletConcurrencyTest`（3） | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支、列鎖不被一級快取架空 |
+| `GroupCheckoutConcurrencyTest`（3） | 揪團團員／團長重複送出結帳時只能扣一次 |
 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-中間三支在 `service/order/` 底下，是**不載入 Spring context** 的純邏輯測試（合計 0.05 秒）。
+`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` 在 `service/order/` 底下，
+是**不載入 Spring context** 的純邏輯測試（合計 0.05 秒）。
 新增純規則時請放在那裡，不要為了測一條規則去啟整個 context。
 
 > 以上每一支都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR
 > 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，
-> `ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅。
+> `ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，
+> `GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
 > 新增測試時請照做，在修補前後各跑一次，確認它真的抓得到回歸，否則只是裝飾。
 
 ### 另外兩層驗證（都在 CI 上跑）
@@ -232,6 +235,33 @@ SUBMITTED 進入 PREPARING。
 
 `WalletConcurrencyTest` 會擋住這個回歸（已驗證：改回 `findById` 時兩個測試都會失敗）。
 新增任何動到 `balance` 的流程時，一律走上述兩個方法，不要自己讀寫餘額。
+
+### ⚠️ 列鎖會被一級快取架空，必須在持鎖狀態下重讀
+
+`updateStoreCredit` 裡 `findByIdForUpdate` 之後那行
+`entityManager.refresh(user, PESSIMISTIC_WRITE)` **不可刪**。
+
+呼叫端若在扣款前已經讀過同一個 `User`（揪團結帳會先碰 `item.getUser()`），
+該 entity 已在 persistence context 裡，此時 `findByIdForUpdate` 雖然確實取得列鎖，
+Hibernate 仍回傳快取中那個「上鎖之前」的實例——餘額是舊值，
+併發時每個交易都用同一個舊餘額計算，最後一個寫入獲勝。
+
+**不能只用 `entityManager.refresh(user)`**：MySQL 預設 REPEATABLE READ 之下，
+普通 SELECT 讀的是交易快照（快照在本交易第一次讀取時就固定），refresh 回來還是舊值；
+只有鎖定讀會看到最新已提交版本，所以必須指定 `PESSIMISTIC_WRITE`。
+（這一版修補是被 `WalletConcurrencyTest` 打回來才改對的。）
+
+### ⚠️ 「檢查狀態 → 扣款 → 改狀態」一定要先鎖列
+
+金流流程都是 read-modify-write，沒有列鎖時併發請求會重複扣款：
+
+| 流程 | 必須用的查詢 |
+|------|-------------|
+| 團員結帳 `getMemberUnpaidTotalAndMarkPaid` | `OrderItemRepository.findUnpaidByGroupOrderAndUserForUpdate`（鎖住品項） |
+| 團長結帳 `checkout` | `GroupOrderRepository.findByShareTokenForUpdate` + 狀態守衛 |
+
+實測未修補前：團員雙擊結帳，8 個併發 5 個都成功扣款，帳本 5 筆 −35 而餘額只掉 35；
+團長雙擊送出，8 個請求全部成功、被扣 8 次。`GroupCheckoutConcurrencyTest` 守住這兩條。
 
 ## ⚠️ `open-in-view: false`：交易外不可碰 LAZY 關聯
 

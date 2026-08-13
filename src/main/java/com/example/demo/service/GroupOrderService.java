@@ -539,9 +539,15 @@ public class GroupOrderService {
     @Transactional
     public Long checkout(String token, Long hostId, Long couponId, String paymentMethod,
             String address, String note) {
-        GroupOrder go = getGroupOrderByToken(token);
+        // ⚠️ 必須鎖住這一列再檢查狀態。原本兩者都沒有，團長雙擊送出就會重複結帳，
+        // 實測 8 個併發請求全部成功、團長被扣 8 次（見 GroupCheckoutConcurrencyTest）。
+        GroupOrder go = groupOrderRepository.findByShareTokenForUpdate(token)
+                .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
         if (!go.getInitiator().getId().equals(hostId)) {
             throw new RuntimeException("Only host can checkout");
+        }
+        if (!"OPEN".equalsIgnoreCase(go.getStatus()) && !"LOCKED".equalsIgnoreCase(go.getStatus())) {
+            throw new CustomException("409", "此揪團已結帳，請勿重複送出");
         }
         List<OrderItem> items = getItems(go.getId());
         if (items.isEmpty()) {
@@ -627,10 +633,11 @@ public class GroupOrderService {
             throw new RuntimeException("Group order is closed");
         }
 
-        List<OrderItem> memberItems = orderItemRepository.findByGroupOrderId(go.getId()).stream()
-                .filter(item -> item.getUser().getId().equals(userId)
-                        && "UNPAID".equalsIgnoreCase(item.getPaymentStatus()))
-                .toList();
+        // ⚠️ 必須用有列鎖的查詢，不可讀出全部再用 stream 過濾：
+        // 這裡是「讀出未付款品項 → 扣款 → 標記 PAID」的 read-modify-write，
+        // 沒有鎖時同一批品項會被併發請求重複扣款（見 GroupCheckoutConcurrencyTest）。
+        List<OrderItem> memberItems =
+                orderItemRepository.findUnpaidByGroupOrderAndUserForUpdate(go.getId(), userId);
 
         if (memberItems.isEmpty()) {
             throw new RuntimeException("No unpaid items found for user.");

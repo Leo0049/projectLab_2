@@ -4,7 +4,9 @@ import com.example.demo.entity.GroupOrder;
 import com.example.demo.entity.OrderItem;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -54,6 +56,18 @@ public interface GroupOrderRepository extends JpaRepository<GroupOrder, Long> {
 
        @EntityGraph(attributePaths = {"initiator", "store", "store.brand"})
        Optional<GroupOrder> findByShareToken(String shareToken);
+
+       /**
+        * 取單並**鎖住這一列**，供結帳這種「檢查狀態 → 扣款 → 改狀態」的流程使用。
+        *
+        * ⚠️ checkout 原本既沒有列鎖也沒有狀態守衛，團長雙擊「確認付款並送出訂單」
+        * 就會重複結帳——實測 8 個併發請求 8 個都成功，團長為同一張訂單被扣 8 次。
+        * 上鎖之後後到的交易會等前一個提交，再讀就看到 SUBMITTED 而被守衛擋下。
+        * GroupCheckoutConcurrencyTest 守住這條。
+        */
+       @Lock(LockModeType.PESSIMISTIC_WRITE)
+       @Query("SELECT g FROM GroupOrder g WHERE g.shareToken = :shareToken")
+       Optional<GroupOrder> findByShareTokenForUpdate(@Param("shareToken") String shareToken);
 
        /**
         * 取單並一併載入 store 與 initiator。

@@ -49,6 +49,9 @@ class WalletConcurrencyTest {
     @Autowired
     private TransactionRecordRepository transactionRecordRepository;
 
+    @Autowired
+    private PreloadingWalletCaller preloadingWalletCaller;
+
     private Long userId;
 
     @BeforeEach
@@ -105,6 +108,35 @@ class WalletConcurrencyTest {
         assertEquals(5, ok, "只有 5 筆扣款應該成功，其餘應因餘額不足被拒");
         assertTrue(balance.compareTo(BigDecimal.ZERO) >= 0, "餘額被扣成負數：" + balance);
         assertEquals(0, BigDecimal.ZERO.compareTo(balance), "餘額應剛好扣完為 0，實際 " + balance);
+    }
+
+    @Test
+    @DisplayName("呼叫端已先讀過 User 時，列鎖不可被一級快取架空")
+    void lockIsNotDefeatedByPersistenceContextCache() throws Exception {
+        // 真實情境：外層交易先讀了 User（例如揪團結帳會碰 item.getUser()），
+        // 之後 updateStoreCredit 的 findByIdForUpdate 會拿到快取裡「上鎖之前」的實例。
+        // 少了 entityManager.refresh，這裡每個交易都會用同一個舊餘額計算，
+        // 帳本累加正確、餘額卻只留下最後一次的結果——帳完全對不起來。
+        BigDecimal seed = STEP.multiply(BigDecimal.valueOf(THREADS));
+        transactionRecordService.updateStoreCredit(userId, seed, "TOPUP", java.time.LocalDateTime.now());
+
+        int ok = runConcurrently(THREADS, () -> {
+            preloadingWalletCaller.preloadThenCharge(userId, STEP.negate());
+            return null;
+        });
+
+        BigDecimal balance = userRepository.findById(userId).orElseThrow().getBalance();
+        BigDecimal ledger = transactionRecordRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(r -> r.getAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        assertEquals(THREADS, ok, "所有扣款都應成功（餘額足夠）");
+        assertEquals(0, balance.compareTo(ledger),
+                "帳本與餘額不一致：餘額 " + balance + "、帳本 " + ledger
+                        + "（列鎖被一級快取架空，lost update）");
+        assertEquals(0, BigDecimal.ZERO.compareTo(balance),
+                "扣完應為 0，實際 " + balance);
     }
 
     /** 讓 n 個執行緒同時開跑，回傳成功次數 */

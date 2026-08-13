@@ -4,6 +4,8 @@ import com.example.demo.entity.TransactionRecord;
 import com.example.demo.entity.User;
 import com.example.demo.repository.TransactionRecordRepository;
 import com.example.demo.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +19,9 @@ public class TransactionRecordService {
     private final UserRepository userRepository;
     private final TransactionRecordRepository transactionRecordRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     /**
      * 異動使用者餘額並寫入帳本。所有金流（儲值、託管、扣款、退款、補款）都經由此方法。
      *
@@ -28,6 +33,19 @@ public class TransactionRecordService {
     public User updateStoreCredit(Long userId, BigDecimal amount, String type, LocalDateTime createdAt) {
         User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // ⚠️ 這一行不可省略，而且**必須帶 PESSIMISTIC_WRITE**。
+        //
+        // 呼叫端若在這之前已經讀過同一個 User（例如揪團結帳會先碰 item.getUser()），
+        // 該 User 已在 persistence context 裡；此時上面那行雖然確實取得了列鎖，
+        // Hibernate 仍會回傳快取中那個「上鎖之前」的實例，餘額是舊值——
+        // 等於列鎖被一級快取架空，併發時每個交易都用同一個舊餘額計算，最後一個寫入獲勝。
+        // 實測：團員同時送出結帳，帳本寫了 5 筆 −35，users.balance 卻只掉 35。
+        //
+        // 不能只用 entityManager.refresh(user)：MySQL 預設 REPEATABLE READ 之下，
+        // 普通 SELECT 讀的是交易快照（快照在本交易第一次讀取時就固定了），refresh 回來還是舊值。
+        // 只有「鎖定讀」會讀到最新已提交版本，所以必須指定 PESSIMISTIC_WRITE。
+        entityManager.refresh(user, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
 
         if (amount.compareTo(BigDecimal.ZERO) < 0 && user.getBalance().add(amount).compareTo(BigDecimal.ZERO) < 0) {
             throw new RuntimeException("Insufficient store credit");

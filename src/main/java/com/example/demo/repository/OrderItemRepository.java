@@ -1,8 +1,10 @@
 package com.example.demo.repository;
 
 import com.example.demo.entity.OrderItem;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -24,6 +26,24 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
         List<OrderItem> findByGroupOrderIdInAndUserId(List<Long> groupOrderIds, Long userId);
 
         boolean existsByGroupOrderIdAndUserId(Long groupOrderId, Long userId);
+
+        /**
+         * 取出某位團員在這張揪團裡「尚未付款」的品項，並**鎖住這些列**。
+         *
+         * ⚠️ 不可改回先 findByGroupOrderId 再用 stream 過濾。
+         * 「讀出未付款品項 → 扣款 → 標記 PAID」是 read-modify-write，
+         * 沒有列鎖時同一批品項會被多個併發交易同時判定為未付款——
+         * 實測團員同時送出 8 個結帳請求，5 個都成功扣款，
+         * 帳本寫進 5 筆 −35 而餘額只掉 35，帳完全對不起來。
+         *
+         * 上鎖之後，後到的交易會等前一個提交，再讀就看到 PAID、拿到空清單，
+         * 於是正確地回「已無未付款品項」。GroupCheckoutConcurrencyTest 守住這條。
+         */
+        @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @Query("SELECT i FROM OrderItem i WHERE i.groupOrder.id = :groupOrderId "
+                        + "AND i.user.id = :userId AND UPPER(i.paymentStatus) = 'UNPAID'")
+        List<OrderItem> findUnpaidByGroupOrderAndUserForUpdate(@Param("groupOrderId") Long groupOrderId,
+                        @Param("userId") Long userId);
 
         java.util.Optional<OrderItem> findByGroupOrderIdAndUserIdAndItemHash(Long groupOrderId, Long userId, String itemHash);
 
