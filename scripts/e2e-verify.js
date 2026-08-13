@@ -273,6 +273,29 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   const idorItems = await req('GET', `/api/orders/${orderId}/items`, { token: CT2, raw: true });
   check('B 讀 A 的訂單品項 → 拒絕', idorItems.status === 403, `HTTP ${idorItems.status}`);
 
+  // ── POST /api/orders/checkout：身分與金額都不可由用戶端指定 ──
+  // 這支是顧客結帳頁真正打的端點。舊寫法直接用 request.userId 建單扣款，
+  // 且把 totalAmount / finalPrice 當成成交價。
+  const checkoutBody = (claimedUserId, price) => ({
+    userId: claimedUserId, storeId, totalAmount: price, paymentMethod: 'WALLET', deliveryType: 'pickup',
+    items: [{ productId, userId: claimedUserId, quantity: 1, productNameSnapshot: '免費飲料',
+              unitPriceSnapshot: price, finalPrice: price,
+              sugarSnapshot: '半糖', iceSnapshot: '正常冰', sizeSnapshot: '大杯' }],
+  });
+
+  const victimBefore = Number((D(await req('GET', '/api/wallet', { token: CT })) || {}).balance || 0);
+  await req('POST', '/api/orders/checkout', { token: CT2, body: checkoutBody(UID, 1), raw: true });
+  const victimAfter = Number((D(await req('GET', '/api/wallet', { token: CT })) || {}).balance || 0);
+  check('B 用 A 的 userId 結帳 → 不得動到 A 的錢包', victimAfter === victimBefore,
+    `${victimBefore} → ${victimAfter}`);
+
+  const tamperBefore = Number((D(await req('GET', '/api/wallet', { token: CT })) || {}).balance || 0);
+  const tamper = await req('POST', '/api/orders/checkout', { token: CT, body: checkoutBody(UID, 1), raw: true });
+  const tamperAfter = Number((D(await req('GET', '/api/wallet', { token: CT })) || {}).balance || 0);
+  const charged = tamperBefore - tamperAfter;
+  check('竄改 finalPrice 為 1 → 仍以資料庫售價扣款', tamper.status === 200 && charged > 1,
+    `HTTP ${tamper.status}，實扣 ${charged}`);
+
   const storeDump = await req('GET', '/api/orders/store/1', { token: CT2, raw: true });
   check('顧客撈門市全部訂單 → 端點已移除', storeDump.status === 404 || storeDump.status === 403,
     `HTTP ${storeDump.status}`);

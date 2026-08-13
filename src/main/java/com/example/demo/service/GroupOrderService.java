@@ -707,6 +707,13 @@ public class GroupOrderService {
 
         // 1. 各品項退款、狀態鎖定與優惠券還原
         for (OrderItem item : items) {
+            // ⚠️ 舊版 /api/orders/checkout 只在用戶端有送 item.userId 時才綁使用者，
+            // 沒送就留下 user_id = NULL 的品項。那種品項沒有對象可退款，
+            // 直接改狀態帶過——原本會在這裡 NPE，讓門市後台按「拒單」固定 500。
+            if (item.getUser() == null) {
+                item.setPaymentStatus("CANCELLED");
+                continue;
+            }
             // 只有 PAID 且未退款的品項才處理
             if ("PAID".equalsIgnoreCase(item.getPaymentStatus())) {
                 BigDecimal discount = item.getDiscountAmountSnapshot() != null
@@ -788,7 +795,7 @@ public class GroupOrderService {
                 .orElseThrow(() -> new RuntimeException("Group order not found"));
 
         List<OrderItem> memberItems = orderItemRepository.findByGroupOrderId(go.getId()).stream()
-                .filter(i -> i.getUser().getId().equals(userId))
+                .filter(i -> i.getUser() != null && i.getUser().getId().equals(userId))
                 .toList();
 
         if (memberItems.isEmpty()) {

@@ -142,13 +142,39 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 路徑下，門市呼叫不到，反而讓顧客能撈出整間門市的訂單 entity（含他人外送地址）。
 門市看訂單一律用 `GET /api/stores/orders`。
 
+同一個錯誤在 `POST /api/orders/checkout`（顧客結帳頁真正打的端點）又出現一次，而且是
+**兩個問題疊在一起**：
+
+1. **身分取自 request body** — `orderService.createOrder(request.getUserId(), ...)`。
+   實測攻擊者（餘額 0）把 `userId` 換成別人的，訂單建立成功且**受害者餘額 19255 → 19220**，
+   攻擊者一毛沒付。順帶一提 `saveOrUpdateUserAddress` 也吃同一個值，可以把地址寫進他人帳號。
+2. **成交價取自 request body** — `totalAmount` 與 `item.finalPrice` 直接拿去扣款。
+   實測帶 `finalPrice: 1`，**$35 的飲料只扣了 $1**。
+
+現在身分一律 `currentUserId`，金額一律由 `OrderService.repriceItems()` 依資料庫重算。
+`AuthorizationTest` 的 S-7 兩支守住這兩條（已驗證：改回舊寫法時兩支都轉紅）。
+
+### ⚠️ 售價只能由伺服器算，公式在 `PricingService`
+
+成交價 = `basePrice` ＋ 區域加價（`brand_region_category_pricing`）＋ 配料加價。
+這條公式原本只寫在 `CartService.addItem` 裡，結帳端點完全沒有重算，才會出現上面的 $1 事件。
+
+**任何會產生金額的地方都必須呼叫 `PricingService`，不要在 Service 內再寫一份**——
+少算區域加價會讓區域定價失效，少算配料加價就是直接漏收錢。
+`unitPriceSnapshot` / `finalPrice` / `productNameSnapshot` 這些「快照」欄位的值
+一律由伺服器在成交當下決定，用戶端送什麼都會被覆蓋掉。
+
+⚠️ 訂單編號 `generateOrderNo()` 的隨機碼原本只有 4 個十六進位字元＝65,536 種，
+同一天累積 300 張單時撞號機率已接近 50%（`orders.order_no` 有唯一索引，撞到就是 500）。
+已改為 10 個字元，不要改回去。
+
 ## 測試
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL）：
 
 | 測試 | 守住的東西 |
 |------|-----------|
-| `AuthorizationTest`（13） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、debug 與門市傾印端點已移除 |
+| `AuthorizationTest`（15） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、拿他人 userId 結帳、竄改 finalPrice、debug 與門市傾印端點已移除 |
 | `ItemSpecResolverTest`（7） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）|
 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
@@ -173,7 +199,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 ```bash
 cd scripts && npm install
-node e2e-verify.js      # API 端對端，71 項斷言
+node e2e-verify.js      # API 端對端，73 項斷言
 node ui/run-all.js      # 51 頁普掃 + 點餐／轉盤／揪團三條主線（Playwright）
 ```
 

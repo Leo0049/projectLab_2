@@ -418,7 +418,15 @@ public class OrderController {
     }
 
     @PostMapping("/checkout")
-    public ResponseEntity<?> checkout(@RequestBody CheckoutRequest request) {
+    public ResponseEntity<?> checkout(@RequestBody CheckoutRequest request,
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        // ⚠️ 身分只能取自 token。原本是直接用 request.getUserId() 去建單並扣款，
+        // 實測任一登入顧客把 userId 換成別人的，就能拿他人錢包付自己的訂單
+        // （受害者餘額 19255 → 19220，攻擊者餘額不變）。
+        // request.getUserId() 與 item.userId 為相容舊前端保留，一律不採信。
+        if (currentUserId == null)
+            throw new CustomException("403", "請先登入");
+        final Long userId = currentUserId;
         try {
             String deliveryAddress = null;
             if ("delivery".equals(request.getDeliveryType())) {
@@ -444,12 +452,13 @@ public class OrderController {
                 item.setSizeSnapshot(dto.getSizeSnapshot());
                 item.setPaymentStatus(dto.getPaymentStatus());
 
-                // 設定關聯 User (如果需要)
-                if (dto.getUserId() != null) {
-                    com.example.demo.entity.User u = new com.example.demo.entity.User();
-                    u.setId(dto.getUserId());
-                    item.setUser(u);
-                }
+                // 品項的擁有者一律綁 token 的使用者，不看 dto.getUserId()
+                com.example.demo.entity.User u = new com.example.demo.entity.User();
+                u.setId(userId);
+                item.setUser(u);
+
+                // 數量帶進 entity；售價由 OrderService 依 qty 重算，這裡送什麼價都不算數
+                item.setQty(dto.getQuantity() != null && dto.getQuantity() > 0 ? dto.getQuantity() : 1);
 
                 // 處理加料 (這部分需要 Service 支援，或在 Controller 處理)
                 if (dto.getToppingNames() != null) {
@@ -469,7 +478,7 @@ public class OrderController {
             }).collect(java.util.stream.Collectors.toList());
 
             Long orderId = orderService.createOrder(
-                    request.getUserId(),
+                    userId,
                     request.getStoreId(),
                     request.getTotalAmount(),
                     request.getCouponId(),
@@ -480,7 +489,7 @@ public class OrderController {
 
             // Handle Save Address
             if (Boolean.TRUE.equals(request.getSaveAddress()) && "delivery".equals(request.getDeliveryType())) {
-                saveOrUpdateUserAddress(request);
+                saveOrUpdateUserAddress(userId, request);
             }
 
             Map<String, Object> response = new HashMap<>();
@@ -596,11 +605,12 @@ public class OrderController {
         }
     }
 
-    private void saveOrUpdateUserAddress(CheckoutRequest request) {
+    /** userId 來自 token，不是 request.getUserId()——否則可以把地址寫進別人的帳號 */
+    private void saveOrUpdateUserAddress(Long userId, CheckoutRequest request) {
         if (userAddressRepository == null)
             return;
 
-        List<UserAddress> addresses = userAddressRepository.findByUserId(request.getUserId());
+        List<UserAddress> addresses = userAddressRepository.findByUserId(userId);
         UserAddress tempTarget = addresses.stream()
                 .filter(a -> Boolean.TRUE.equals(a.getIsDefault()))
                 .findFirst()
@@ -609,7 +619,7 @@ public class OrderController {
         if (tempTarget == null) {
             tempTarget = new UserAddress();
             User user = new User();
-            user.setId(request.getUserId());
+            user.setId(userId);
             tempTarget.setUser(user);
             tempTarget.setLabel("預設地址");
         }

@@ -54,6 +54,7 @@ public class OrderService {
     private final RedisLockService redisLockService;
     private final ProductTemplateRepository productTemplateRepository;
     private final com.example.demo.repository.ProductSpecRelationRepository productSpecRelationRepository;
+    private final PricingService pricingService;
 
     @Autowired(required = false)
     private OrderRatingRepository orderRatingRepository;
@@ -207,6 +208,10 @@ public class OrderService {
             throw new RuntimeException("系統繁忙中，請稍後再試");
         }
         try {
+            // ⚠️ 金額一律由伺服器重算，傳進來的 totalAmount 與 item.finalPrice 都不採信。
+            // 原本是直接拿用戶端送的值去扣款——實測帶 finalPrice: 1 就能用 $1 買走 $35 的飲料。
+            totalAmount = repriceItems(storeId, items);
+
             BigDecimal discountAmount = BigDecimal.ZERO;
             if (couponId != null) {
                 // couponId = user_coupons.id
@@ -316,14 +321,72 @@ public class OrderService {
     // Merged to ensure full compatibility
     // ============================================================
 
+    /**
+     * 訂單編號：{@code ORD} + MMdd + 隨機碼。{@code orders.order_no} 有唯一索引，
+     * 撞號的那一筆會直接 insert 失敗 → 顧客看到 500。
+     *
+     * <p>⚠️ 隨機碼原本只有 4 個十六進位字元＝65,536 種。同一天累積 300 張單時，
+     * 生日問題下撞號機率已經接近 50%（1 − e^(−300²/(2×65536)) ≈ 0.50），
+     * 測試跑一輪就重現了 {@code Duplicate entry 'ORD0813ABCE'}。
+     * 改成 10 個字元＝1.1×10¹² 種，即使一天一萬張單也只有約 0.005%。
+     */
     public static String generateOrderNo() {
         String datePart = java.time.format.DateTimeFormatter.ofPattern("MMdd")
                 .format(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Taipei")));
-        String randomPart = UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
+        String randomPart = UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase();
         return "ORD" + datePart + randomPart;
     }
 
     @Transactional
+    /**
+     * 依資料庫的真實售價重算每個品項，回傳訂單總額。
+     *
+     * <p>用戶端送來的 {@code unitPriceSnapshot}／{@code finalPrice}／{@code productNameSnapshot}
+     * 一律覆蓋掉——這些欄位是「快照」，值必須由伺服器在成交當下決定，不是讓瀏覽器指定的。
+     * 售價公式共用 {@link PricingService}，含區域加價與配料加價。
+     */
+    private BigDecimal repriceItems(Long storeId, List<OrderItem> items) {
+        if (items == null || items.isEmpty())
+            throw new CustomException("400", "Order items cannot be empty");
+
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new CustomException("404", "Store not found"));
+
+        List<Long> productIds = items.stream()
+                .map(i -> i.getProduct() != null ? i.getProduct().getId() : null)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        Map<Long, ProductTemplate> productMap = productTemplateRepository.findAllById(productIds).stream()
+                .collect(Collectors.toMap(ProductTemplate::getId, p -> p));
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (OrderItem item : items) {
+            Long productId = item.getProduct() != null ? item.getProduct().getId() : null;
+            ProductTemplate product = productId != null ? productMap.get(productId) : null;
+            if (product == null)
+                throw new CustomException("404", "Product not found: " + productId);
+
+            List<String> toppingNames = item.getToppings() == null ? List.of()
+                    : item.getToppings().stream()
+                            .map(t -> t.getId() != null ? t.getId().getToppingNameSnapshot() : null)
+                            .filter(java.util.Objects::nonNull)
+                            .toList();
+
+            int qty = Math.max(1, item.getQty());
+            BigDecimal unitPrice = pricingService.itemPrice(store, product, toppingNames);
+
+            item.setProduct(product);
+            item.setProductNameSnapshot(product.getName());
+            item.setUnitPriceSnapshot(unitPrice);
+            item.setQty(qty);
+            item.setFinalPrice(unitPrice.multiply(BigDecimal.valueOf(qty)));
+            item.setDiscountAmountSnapshot(null);   // 折扣只能由套券流程寫入
+
+            total = total.add(item.getFinalPrice());
+        }
+        return total;
+    }
+
     public Map<String, Object> placeOrder(Long userId, PlaceOrderRequest req) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException("404", "User not found"));

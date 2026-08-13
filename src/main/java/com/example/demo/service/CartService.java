@@ -22,11 +22,9 @@ public class CartService {
     @Autowired
     private ProductTemplateRepository productTemplateRepository;
     @Autowired
-    private BrandToppingSettingRepository brandToppingSettingRepository;
-    @Autowired
-    private BrandRegionCategoryPricingRepository brandRegionCategoryPricingRepository;
-    @Autowired
     private OrderItemRepository orderItemRepository;
+    @Autowired
+    private PricingService pricingService;
 
     /**
      * 產生品項雜湊值 (MD5)
@@ -168,18 +166,10 @@ public class CartService {
         List<String> toppingNames = (List<String>) req.getOrDefault("toppingNames", new ArrayList<>());
         item.setToppingNames(String.join(",", toppingNames));
 
-        BigDecimal toppingExtra = calculateToppingExtra(product.getBrand().getId(), toppingNames);
+        // 售價一律走 PricingService，購物車與結帳共用同一條公式
+        BigDecimal toppingExtra = pricingService.toppingExtra(product.getBrand().getId(), toppingNames);
         item.setToppingExtra(toppingExtra);
-        // 套用區域加價
-        BigDecimal regionOffset = BigDecimal.ZERO;
-        if (store.getRegion() != null && product.getCategory() != null) {
-            regionOffset = brandRegionCategoryPricingRepository
-                    .findByBrandIdAndRegionIdAndCategoryId(store.getBrand().getId(), store.getRegion().getId(),
-                            product.getCategory().getId())
-                    .map(BrandRegionCategoryPricing::getPriceOffset)
-                    .orElse(BigDecimal.ZERO);
-        }
-        BigDecimal unitPrice = product.getBasePrice().add(regionOffset);
+        BigDecimal unitPrice = pricingService.unitPrice(store, product);
         item.setUnitPrice(unitPrice);
         item.setFinalPrice(unitPrice.add(toppingExtra));
 
@@ -214,7 +204,7 @@ public class CartService {
             @SuppressWarnings("unchecked")
             List<String> toppingNames = (List<String>) req.get("toppingNames");
             item.setToppingNames(String.join(",", toppingNames));
-            BigDecimal extra = calculateToppingExtra(item.getProduct().getBrand().getId(), toppingNames);
+            BigDecimal extra = pricingService.toppingExtra(item.getProduct().getBrand().getId(), toppingNames);
             item.setToppingExtra(extra);
             item.setFinalPrice(item.getUnitPrice().add(extra));
         }
@@ -265,27 +255,6 @@ public class CartService {
     }
 
     // ─── private helpers ──────────────────────────────────────
-    private BigDecimal calculateToppingExtra(Long brandId, List<String> names) {
-        if (names == null || names.isEmpty())
-            return BigDecimal.ZERO;
-        List<com.example.demo.entity.BrandToppingSetting> settings = brandToppingSettingRepository
-                .findByBrandId(brandId);
-        BigDecimal total = BigDecimal.ZERO;
-        for (String name : names) {
-            for (var s : settings) {
-                String displayName = s.getCustomName() != null ? s.getCustomName()
-                        : s.getMasterTopping().getName();
-                if (displayName.equals(name)) {
-                    BigDecimal price = s.getBrandPrice() != null ? s.getBrandPrice()
-                            : s.getMasterTopping().getDefaultPrice();
-                    total = total.add(price != null ? price : BigDecimal.ZERO);
-                    break;
-                }
-            }
-        }
-        return total;
-    }
-
     private Map<String, Object> toMap(CartItem item) {
         Map<String, Object> m = new HashMap<>();
         m.put("cartItemId", item.getId());

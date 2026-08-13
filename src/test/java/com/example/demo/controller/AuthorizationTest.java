@@ -54,6 +54,12 @@ class AuthorizationTest {
     @Autowired
     private com.example.demo.repository.StoreRepository storeRepository;
 
+    @Autowired
+    private com.example.demo.repository.ProductTemplateRepository productTemplateRepository;
+
+    @Autowired
+    private com.example.demo.service.PricingService pricingService;
+
     private Long attackerId;
     private Long victimId;
     private String attackerToken;
@@ -262,6 +268,89 @@ class AuthorizationTest {
         // 內含其他顧客的外送地址與揪團 shareToken，且掛在 CUSTOMER-only 路徑下。
         mockMvc.perform(get("/api/orders/store/1").header("Authorization", bearer()))
                 .andExpect(status().isNotFound());
+    }
+
+    // ── S-7：POST /api/orders/checkout ─────────────────────────────
+
+    /**
+     * 舊寫法是 {@code orderService.createOrder(request.getUserId(), ...)}——
+     * 建單與扣款都用用戶端送來的 userId。實測攻擊者（餘額 0）把 userId 換成受害者，
+     * 訂單建立成功且受害者餘額 19255 → 19220，攻擊者一毛沒付。
+     */
+    @Test
+    @DisplayName("S-7：不得用他人 userId 結帳（拿別人的錢包付自己的訂單）")
+    @org.springframework.transaction.annotation.Transactional
+    void cannotCheckoutOnBehalfOfAnotherUser() throws Exception {
+        var fixture = checkoutFixture();
+        if (fixture == null) return;
+
+        User victim = userRepository.findById(victimId).orElseThrow();
+        victim.setBalance(new BigDecimal("1000"));
+        userRepository.save(victim);
+
+        mockMvc.perform(post("/api/orders/checkout")
+                        .header("Authorization", bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(checkoutBody(victimId, fixture.storeId(), fixture.productId(), 1)));
+
+        BigDecimal after = userRepository.findById(victimId).orElseThrow().getBalance();
+        if (after.compareTo(new BigDecimal("1000")) != 0) {
+            throw new AssertionError("他人錢包被拿去付款了：1000 → " + after);
+        }
+    }
+
+    /**
+     * 舊寫法把 {@code totalAmount} 與 {@code item.finalPrice} 直接當成成交價。
+     * 實測帶 {@code finalPrice: 1}，$35 的飲料只被扣了 $1。
+     */
+    @Test
+    @DisplayName("S-7：成交價一律以資料庫售價為準，不採信用戶端送的金額")
+    @org.springframework.transaction.annotation.Transactional
+    void checkoutPriceIsRecomputedServerSide() throws Exception {
+        var fixture = checkoutFixture();
+        if (fixture == null) return;
+
+        User attacker = userRepository.findById(attackerId).orElseThrow();
+        attacker.setBalance(new BigDecimal("1000"));
+        userRepository.save(attacker);
+
+        mockMvc.perform(post("/api/orders/checkout")
+                        .header("Authorization", bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(checkoutBody(attackerId, fixture.storeId(), fixture.productId(), 1)))
+                .andExpect(status().isOk());
+
+        BigDecimal after = userRepository.findById(attackerId).orElseThrow().getBalance();
+        BigDecimal charged = new BigDecimal("1000").subtract(after);
+        if (charged.compareTo(fixture.expectedPrice()) != 0) {
+            throw new AssertionError("實扣金額不等於資料庫售價：應扣 " + fixture.expectedPrice()
+                    + "，實扣 " + charged + "（用戶端只送了 1）");
+        }
+    }
+
+    private record CheckoutFixture(Long storeId, Long productId, BigDecimal expectedPrice) {}
+
+    /** 取一組真的存在的門市＋該品牌的飲品；沒有種子資料就回 null 讓測試跳過 */
+    private CheckoutFixture checkoutFixture() {
+        return storeRepository.findAll().stream().findFirst().flatMap(store ->
+                productTemplateRepository.findAll().stream()
+                        .filter(p -> p.getBrand() != null && store.getBrand() != null
+                                && p.getBrand().getId().equals(store.getBrand().getId()))
+                        .filter(p -> p.getBasePrice() != null && p.getBasePrice().compareTo(BigDecimal.ZERO) > 0)
+                        .findFirst()
+                        .map(p -> new CheckoutFixture(store.getId(), p.getId(),
+                                pricingService.itemPrice(store, p, java.util.List.of()))))
+                .orElse(null);
+    }
+
+    /** 刻意把金額欄位全部送成 1，驗證伺服器不採信 */
+    private String checkoutBody(Long claimedUserId, Long storeId, Long productId, int qty) {
+        return "{\"userId\":" + claimedUserId + ",\"storeId\":" + storeId
+                + ",\"totalAmount\":1,\"paymentMethod\":\"WALLET\",\"deliveryType\":\"pickup\","
+                + "\"items\":[{\"productId\":" + productId + ",\"userId\":" + claimedUserId
+                + ",\"quantity\":" + qty + ",\"productNameSnapshot\":\"免費飲料\","
+                + "\"unitPriceSnapshot\":1,\"finalPrice\":1,"
+                + "\"sugarSnapshot\":\"半糖\",\"iceSnapshot\":\"正常冰\",\"sizeSnapshot\":\"大杯\"}]}";
     }
 
     // ── 輸入驗證 ───────────────────────────────────────────────────
