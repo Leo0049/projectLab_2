@@ -173,8 +173,8 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 ```bash
 cd scripts && npm install
-node e2e-verify.js      # API 端對端，67 項斷言
-node ui/run-all.js      # 30 頁普掃 + 點餐／轉盤／揪團三條主線（Playwright）
+node e2e-verify.js      # API 端對端，71 項斷言
+node ui/run-all.js      # 51 頁普掃 + 點餐／轉盤／揪團三條主線（Playwright）
 ```
 
 `.github/workflows/ci.yml` 會依序跑完這三層。**改完動到序列化、交易邊界或前端流程的

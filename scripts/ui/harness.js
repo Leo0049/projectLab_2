@@ -128,9 +128,15 @@ function customerStorage(u) {
   };
 }
 
-/** 只把「專案自身」的錯誤留下：外部 CDN 在離線或受限網路下失敗不算 */
+/**
+ * 只把「專案自身」的錯誤留下：外部 CDN 在離線或受限網路下失敗不算。
+ *
+ * 「Firebase 載入失敗」也在忽略之列——auth 頁會依序試三個 CDN，
+ * 全部失敗時自己印這行然後放行（社群登入按鈕另有 window.firebase 的守衛，
+ * 帳密登入不受影響）。那是設計好的降級路徑，不是缺陷。
+ */
 function projectErrors(errors) {
-  const ignore = /cdnjs\.cloudflare|cdn\.jsdelivr|fonts\.googleapis|fonts\.gstatic|unpkg\.com|cdn\.tailwindcss|ERR_FAILED|Failed to load resource|net::ERR_/;
+  const ignore = /cdnjs\.cloudflare|cdn\.jsdelivr|fonts\.googleapis|fonts\.gstatic|unpkg\.com|cdn\.tailwindcss|ERR_FAILED|Failed to load resource|net::ERR_|Firebase (CDN|載入失敗)/;
   return [...new Set(errors)].filter(e => !ignore.test(e));
 }
 

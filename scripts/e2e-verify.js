@@ -141,19 +141,41 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   check('訂單評分', ok(rate));
 
   // ─────────────────────────────────────────────
-  section('6. 拒單退款');
+  section('6. 拒單與取消退款');
+  // 退款要比對「回到下單前的數字」。原本寫成 balAfter >= balBefore，
+  // 實測把退款整段拿掉時這條仍然會過——因為沒退款時餘額本來就沒變、剛好滿足 >=。
+  const balBeforePlace2 = Number((D(await req('GET', '/api/wallet', { token: CT })) || {}).balance || 0);
   const place2 = await req('POST', '/api/orders/place', {
     token: CT, body: { storeId, items: [{ productId, sugarSnapshot: '無糖', iceSnapshot: '去冰', paymentType: 'WALLET' }] },
   });
   const oid2 = D(place2) && (D(place2).orderId || D(place2).id);
   await req('POST', `/api/group-orders/${oid2}/submit`, { token: CT, body: {} });
-  const balBeforeReject = Number((D(await req('GET', '/api/wallet', { token: CT })) || {}).balance || 0);
   const rej = await req('POST', `/api/stores/dashboard/orders/${oid2}/reject`, { token: STT });
   const s5 = D(await req('GET', `/api/orders/${oid2}`, { token: CT }));
   check('門市拒單 → REJECTED', ok(rej) && ['REJECTED', 'CANCELLED'].includes(s5 && s5.status),
     `狀態=${s5 && s5.status}`);
   const balAfterReject = Number((D(await req('GET', '/api/wallet', { token: CT })) || {}).balance || 0);
-  check('拒單後款項退回', balAfterReject >= balBeforeReject, `${balBeforeReject} → ${balAfterReject}`);
+  check('拒單後款項原數退回', balAfterReject === balBeforePlace2, `${balBeforePlace2} → ${balAfterReject}`);
+
+  // 顧客自己取消是另一條路徑（cancelOrderV2 → handleGroupOrderCancellation），
+  // 與門市拒單走的不是同一段程式，退款要分開驗。
+  const balBeforePlace3 = Number((D(await req('GET', '/api/wallet', { token: CT })) || {}).balance || 0);
+  const place3 = await req('POST', '/api/orders/place', {
+    token: CT, body: { storeId, items: [{ productId, sugarSnapshot: '半糖', iceSnapshot: '正常冰', paymentType: 'WALLET' }] },
+  });
+  const oid3 = D(place3) && (D(place3).orderId || D(place3).id);
+  await req('POST', `/api/group-orders/${oid3}/submit`, { token: CT, body: {} });
+  const balEscrowed = Number((D(await req('GET', '/api/wallet', { token: CT })) || {}).balance || 0);
+  check('下單後 escrow 先凍結餘額', balEscrowed < balBeforePlace3, `${balBeforePlace3} → ${balEscrowed}`);
+  // 這支端點回的是原始 Map（沒有 code 欄位），要看 HTTP 狀態碼
+  const cancel = await req('PUT', `/api/orders/${oid3}/cancel/v2`, { token: CT, raw: true });
+  check('顧客取消自己的訂單', cancel.status === 200, `HTTP ${cancel.status} ${cancel.text.slice(0, 80)}`);
+  const s6 = D(await req('GET', `/api/orders/${oid3}`, { token: CT }));
+  check('取消後狀態為 CANCELLED', s6 && s6.status === 'CANCELLED', `狀態=${s6 && s6.status}`);
+  const balAfterCancel = Number((D(await req('GET', '/api/wallet', { token: CT })) || {}).balance || 0);
+  // 用「等於取消前」而不是「大於等於」：少退、重複退、沒退都會被抓到
+  check('取消後 escrow 原數退回', balAfterCancel === balBeforePlace3,
+    `${balBeforePlace3} → ${balEscrowed} → ${balAfterCancel}`);
 
   // ─────────────────────────────────────────────
   section('7. 揪團流程');
