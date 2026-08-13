@@ -24,6 +24,15 @@
     }
   </style>
   <style data-purpose="layout-helpers">
+    /* 輪播圖橫幅（BN-*.jpg）長寬比約 3:1。
+       高度一旦寫死，bg-cover 就會把左右裁掉——實測手機裁掉 59~61%、桌機 7~12%，
+       標語整句被切。改由長寬比決定高度，圖就能完整顯示。
+       這條刻意寫在 CSS 而不是用 Tailwind 的 aspect-[3/1]：該工具類是動態注入的，
+       CDN 版 Tailwind 不一定會替它產生規則（實測就沒有，高度直接塌成 0）。 */
+    .slide-bg {
+      aspect-ratio: 3 / 1;
+    }
+
     .card-shadow {
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     }
@@ -198,9 +207,11 @@
       <div
         class="hidden w-[85%] opacity-40 opacity-100 scale-[0.95] scale-100 bg-white/60 w-2 hover:bg-white/80 bg-white w-6 bg-transparent">
       </div>
-      <div id="carousel-area" class="relative w-full h-[250px] md:h-[400px] group overflow-hidden cursor-pointer">
+      <!-- 高度不寫死：BN-*.jpg 是約 3:1 的橫幅，固定高度會讓 bg-cover 把左右裁掉
+           （實測手機裁掉 59~61%、桌機 7~12%）。改由 .slide-bg 的 aspect-[3/1] 決定高度。 -->
+      <div id="carousel-area" class="relative w-full group overflow-hidden cursor-pointer">
         <!-- 圖片軌道 (透過 JS 注入內容) -->
-        <div id="carousel-track" class="flex h-full w-full transition-transform duration-500 ease-out"></div>
+        <div id="carousel-track" class="flex w-full transition-transform duration-500 ease-out"></div>
 
         <!-- 左導覽按鈕 (電腦版懸浮顯示) -->
         <button id="prev-btn"
@@ -1551,8 +1562,8 @@
       function initCarousel() {
         // 渲染圖片
         track.innerHTML = slides.map((slide, index) => `
-        <div class="w-[85%] flex-shrink-0 h-full px-1 md:px-2 slide-item" data-index="${index}">
-          <div class="slide-bg w-full h-full bg-center bg-cover bg-no-repeat rounded-xl shadow-sm transition-all duration-500 ease-out"
+        <div class="w-[85%] flex-shrink-0 px-1 md:px-2 slide-item" data-index="${index}">
+          <div class="slide-bg w-full bg-center bg-cover bg-no-repeat rounded-xl shadow-sm transition-all duration-500 ease-out"
                style="background-image: url('${slide}')"
                role="img" aria-label="Slide ${index + 1}">
           </div>
