@@ -149,6 +149,20 @@ node scripts/e2e-verify.js
 **S-6 與另外三個固定 500 都是跑這支時發現的**——它們有個共同點：單元測試看不到，
 要真的把服務跑起來、照著使用者的路徑走一遍才會現形。
 
+再往下一層，用 Playwright 實際操作前端（點按鈕、選規格、兩個瀏覽器分飾團長與團員）
+跑通三條主線後，又抓到六個只有真的點下去才會出現的問題：
+
+| 問題 | 症狀 |
+|------|------|
+| `OrderService.getOrderByIdAndUserId` 用 `findById` 取單 | 下單成功後跳到訂單完成頁，**該頁固定 500** |
+| `GroupOrderService` 把 entity 回給 Controller 才轉 DTO | 揪團的訂單完成頁固定 500 |
+| `cart.js` 在 `nav-auth.js` 之前就發第一次同步 | API 位址組錯，打到靜態伺服器（404），購物車要等 3 秒輪詢才補正 |
+| `checkout.html` 兩處寫成相對路徑 `fetch('/api/...')` | 結帳頁的姓名／電話與門市設定**永遠讀不到** |
+| `lastLocalManualActionTime` 從未宣告 | 結帳頁每次背景同步都丟 ReferenceError，處理器中斷 |
+| QR Code 元件載入失敗會讓整個 try 中斷 | 揪團**其實已建立成功**，畫面卻顯示「建立揪團失敗」 |
+
+順手把首頁三張輪播橫幅重新壓縮（同解析度、mozjpeg q82）：**2,237 KB → 334 KB，減少 85%**。
+
 ---
 
 ## 效能

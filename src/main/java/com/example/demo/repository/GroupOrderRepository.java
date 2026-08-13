@@ -55,6 +55,17 @@ public interface GroupOrderRepository extends JpaRepository<GroupOrder, Long> {
        @EntityGraph(attributePaths = {"initiator", "store", "store.brand"})
        Optional<GroupOrder> findByShareToken(String shareToken);
 
+       /**
+        * 取單並一併載入 store 與 initiator。
+        *
+        * ⚠️ 用途是給「交易外還要讀這兩個關聯」的呼叫端（例如 OrderController.buildOrderResponse
+        * 會讀 store.getStoreName()／initiator.getName()）。open-in-view=false 之下，
+        * 單純的 findById 回來的是 proxy，交易一結束再讀就是 LazyInitializationException，
+        * 實測讓「下單完成頁」GET /api/orders/{id}/v2 固定 500。
+        */
+       @EntityGraph(attributePaths = {"store", "initiator"})
+       Optional<GroupOrder> findWithStoreAndInitiatorById(Long id);
+
         // 查詢特定類別的訂單 (如 SOLO)
        Optional<GroupOrder> findByInitiatorIdAndStoreIdAndTypeAndStatusIn(Long initiatorId, Long storeId,
                      String type, List<String> statuses);

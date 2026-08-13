@@ -1056,7 +1056,16 @@
         linkInput.value = shareLink;
 
         qrcodeContainer.innerHTML = '';
-        new QRCode(qrcodeContainer, { text: shareLink, width: 180, height: 180 });
+        // QRCode 是外部 CDN 載入的，載不到時不能讓整個流程當掉：
+        // 這段在 handleStartGroup 的 try 裡面，一 throw 就會跳出「建立揪團失敗」，
+        // 但揪團其實已經在後端建好了——使用者被告知失敗、實際成功，最糟的一種錯誤訊息。
+        // 沒有 QR 也不影響分享，連結本身就夠用。
+        if (typeof QRCode !== 'undefined') {
+          new QRCode(qrcodeContainer, { text: shareLink, width: 180, height: 180 });
+        } else {
+          qrcodeContainer.innerHTML =
+            '<p class="text-xs text-gray-400 text-center px-4 py-8">QR Code 元件載入失敗，請直接複製上方連結分享</p>';
+        }
 
         copyBtn.onclick = () => {
           linkInput.select();

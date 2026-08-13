@@ -230,9 +230,22 @@ SUBMITTED 進入 PREPARING。
    proxy 時 session 早已關閉，**必定 500**。這種加 `@Transactional` 沒用（序列化發生在交易之後），
    要在交易內就轉成純 Map。兩支都已改走 `StoreService.toMap()`。
 
+3. **Controller 拿 entity 出來自己組 Map** — `OrderController.buildOrderResponse` 讀
+   `order.getStore().getStoreName()`，而 Controller 不在交易內。這種要嘛讓查詢
+   `@EntityGraph` 把關聯一起載入（`findWithStoreAndInitiatorById`），要嘛整段移進 Service。
+4. **Service 回傳 entity、Controller 才轉 DTO** — `getGroupOrderByOrderId` 回
+   `Optional<GroupOrder>`，Controller 拿到後才呼叫 `convertToDTO`，此時交易早就結束。
+   已改成 `getGroupOrderDTOByOrderId`，轉換留在交易內。
+
 **不要從 Controller 直接回傳 JPA entity。** 除了這個問題，entity 還會把整個物件圖攤開來，
 且欄位一旦新增就自動外流（目前靠 `passwordHash` 上的 `@JsonProperty(WRITE_ONLY)` 擋著，
 那是最後一道防線，不該是唯一一道）。
+
+**同理，也不要把 entity 當成 Service 的回傳值再到外面轉換**——轉換寫在哪裡，
+就決定了它有沒有交易可用。
+
+> 這顆雷至今踩過九次，其中「下單完成頁」與「揪團成員清單」兩處是實際點過畫面才發現的：
+> 端點單獨 curl 會過（資料剛好沒有那個關聯），要照使用者的路徑走完整流程才會現形。
 
 這類錯誤**單元測試抓不到、要實際打端點才會現形**。改完動到序列化或關聯的程式碼後，
 跑一次涵蓋所有 GET 端點的普掃（起服務後逐一 curl，看有沒有 5xx 或 body `code=500`）比較實在。

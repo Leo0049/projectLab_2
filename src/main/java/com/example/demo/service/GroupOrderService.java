@@ -853,6 +853,19 @@ public class GroupOrderService {
     }
 
     /**
+     * 依訂單 ID 取揪團 DTO（訂單完成頁會打）。
+     *
+     * ⚠️ 轉 DTO 一定要留在這個交易裡。原本是 Controller 拿 Optional&lt;GroupOrder&gt; 出去、
+     * 在交易外才呼叫 convertToDTO，而 convertToDTO 會讀 initiator／store，
+     * open-in-view=false 之下必定 LazyInitializationException——實測下單後的
+     * 訂單完成頁固定看到 500。
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public Optional<GroupOrderDTO> getGroupOrderDTOByOrderId(Long realOrderId) {
+        return groupOrderRepository.findById(realOrderId).map(this::convertToDTO);
+    }
+
+    /**
      * 團員補款給團長。
      *
      * 修正說明：原本要求狀態為 CLOSED（系統從未設定此狀態），

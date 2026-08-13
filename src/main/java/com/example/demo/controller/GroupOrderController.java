@@ -316,8 +316,9 @@ public class GroupOrderController {
     @Operation(summary = "依據訂單 ID 取得揪團詳情", description = "供訂單確認頁面使用。")
     @GetMapping("/api/group-orders/by-order/{orderId}")
     public Result getGroupByOrderId(@PathVariable Long orderId) {
-        return groupOrderService.getGroupOrderByOrderId(orderId)
-                .map(go -> Result.success(groupOrderService.convertToDTO(go)))
+        // 轉 DTO 必須在 service 的交易內完成，不可把 entity 帶出來再轉（見 service 內說明）
+        return groupOrderService.getGroupOrderDTOByOrderId(orderId)
+                .map(Result::success)
                 .orElse(Result.error("找不到對應的揪團資訊"));
     }
 

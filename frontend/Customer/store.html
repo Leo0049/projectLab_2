@@ -522,8 +522,9 @@
   </div>
 
   <!-- Common Utilities -->
-  <script src="js/cart.js"></script>
+  <!-- nav-auth.js 要在 cart.js 之前：cart.js 的 requestApi 依賴 NavAuth.getApiUrl 組 API 位址 -->
   <script src="js/nav-auth.js"></script>
+  <script src="js/cart.js"></script>
   <!-- Store Specific Logic -->
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
@@ -986,7 +987,9 @@
 
         const imgUrl = (product.imageUrl || product.logoUrl) ?
           ((product.imageUrl || product.logoUrl).startsWith('http') ? (product.imageUrl || product.logoUrl) : '/images/' + (product.imageUrl || product.logoUrl)) :
-          'https://via.placeholder.com/400x300?text=' + product.name;
+          // 用專案內建的 SVG，不要外連圖床：離線或圖床擋掉時客製化視窗會開天窗，
+          // 其餘頁面的 Unsplash 連結先前已一併換成本地 SVG，這支是漏網的。
+          'images/drink-placeholder.svg';
         
         const optimizedModalImg = optimizeImageUrl(imgUrl, 600, 400);
         if (modalImg) {

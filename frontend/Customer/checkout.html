@@ -743,6 +743,14 @@
     </div>
 
     <script>
+        // 「同步鎖」的時間戳：手動改動購物車後 2 秒內，忽略背景同步推來的狀態，
+        // 免得伺服器的舊資料把剛改好的內容蓋掉。
+        // ⚠️ 一定要在這裡宣告並給初始值。原本只有幾處賦值、沒有宣告，
+        // 而 cartUpdated 事件的讀取會先發生（使用者還沒手動改過任何品項時），
+        // 造成 ReferenceError: lastLocalManualActionTime is not defined，
+        // 整個事件處理器中斷、購物車不會重繪。
+        let lastLocalManualActionTime = 0;
+
         // Update saveEditBtn after DOM loads
         document.addEventListener('DOMContentLoaded', () => {
             const saveEditBtn = document.getElementById('save-edit-btn');
@@ -867,8 +875,9 @@
 
     <!-- Core Scripts -->
     <script src="js/cartHash.js"></script>
-    <script src="js/cart.js"></script>
+    <!-- nav-auth.js 要在 cart.js 之前：cart.js 的 requestApi 依賴 NavAuth.getApiUrl 組 API 位址 -->
     <script src="js/nav-auth.js"></script>
+    <script src="js/cart.js"></script>
     <script>
         // Global Variables
         let currentDeliveryMethod = 'delivery';
@@ -1683,8 +1692,12 @@
             try {
                 const userId = localStorage.getItem('JOIN_USER_ID');
                 if (userId) {
-                    fetch(`/api/users/${userId}/profile`)
-                        .then(r => r.ok ? r.json() : null)
+                    // ⚠️ 兩個地方原本都寫錯：
+                    //  1. 用相對路徑 fetch('/api/...')，會打到靜態伺服器而不是 API
+                    //     （實測 404 http://127.0.0.1:5500/api/users/1/profile），姓名電話永遠讀不到。
+                    //  2. 端點也錯：GET 是 /api/users/{id}，/profile 只有 PUT。
+                    // NavAuth.fetchAPI 會一併處理 API base 與 Authorization header。
+                    NavAuth.fetchAPI(`/api/users/${userId}`)
                         .then(data => {
                             const user = data?.data || data || {};
                             const nicknameEl = document.getElementById('checkout-nickname');
@@ -1705,9 +1718,11 @@
 
             const storeIdForFetch = new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('storeId') || (initialCart.items[0]?.storeId);
             if (storeIdForFetch) {
-                fetch(`/api/stores/${storeIdForFetch}`)
-                    .then(r => r.ok ? r.json() : null)
-                    .then(store => {
+                // 同上：這裡原本也是相對路徑，門市設定永遠讀不到，
+                // currentStoreConfig 一直是 null，外送可用性只能用預設值判斷。
+                NavAuth.fetchAPI(`/api/stores/${storeIdForFetch}`)
+                    .then(resp => {
+                        const store = resp?.data || resp;
                         if (store) {
                             currentStoreConfig = store;
                             const nameEl = document.getElementById('checkout-store-name');

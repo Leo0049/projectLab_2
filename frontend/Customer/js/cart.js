@@ -536,9 +536,11 @@
             if (isLoggedIn()) {
                 const sid = toNumber(storeId, 0);
                 const url = sid ? `/api/cart?storeId=${sid}` : '/api/cart';
+                // 清空後不必再 syncFromServer：本地已經清乾淨，再拉一次只是多一趟請求，
+                // 而且下單成功後畫面會立刻跳到訂單完成頁，這趟請求必定被中斷，
+                // 於是每次下單都在 console 留下一則 "Failed to fetch" 的假錯誤。
                 void requestApi(url, { method: 'DELETE' })
-                    .then(() => syncFromServer({ silent: true }))
-                    .catch((error) => console.error('clearCart sync error:', error));
+                    .catch((error) => console.debug('clearCart: 伺服器端清空未完成（多半是跳頁中斷）', error));
             }
         },
 
@@ -623,5 +625,15 @@
         }
     });
 
-    Cart.startRealtimeSync();
+    // ⚠️ 不要改回在載入當下就直接呼叫 startRealtimeSync()。
+    // requestApi() 需要 nav-auth.js 提供的 NavAuth.getApiUrl 才能組出正確的 API 位址；
+    // store.html / checkout.html 是先載 cart.js 再載 nav-auth.js，立即同步會因為 NavAuth
+    // 還不存在而退回相對路徑，變成打靜態伺服器（實測 404 http://127.0.0.1:5500/api/cart），
+    // 第一次同步必定失敗、購物車要等 3 秒後的輪詢才會補正。
+    // 延到 DOMContentLoaded，此時文件內的同步 script 都已執行完畢，與載入順序無關。
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => Cart.startRealtimeSync());
+    } else {
+        Cart.startRealtimeSync();
+    }
 })();

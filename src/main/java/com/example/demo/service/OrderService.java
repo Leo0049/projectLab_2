@@ -75,12 +75,14 @@ public class OrderService {
         return groupOrderRepository.findVisibleOrdersForUserByStatuses(userId, statuses, pageable);
     }
 
+    // 這兩支的回傳值會被 Controller 在交易外拿去讀 store／initiator，
+    // 所以一律走有 @EntityGraph 的查詢把關聯一起載入（見 repository 內的說明）。
     public GroupOrder getOrderById(Long orderId) {
-        return groupOrderRepository.findById(orderId).orElse(null);
+        return groupOrderRepository.findWithStoreAndInitiatorById(orderId).orElse(null);
     }
 
     public GroupOrder getOrderByIdAndUserId(Long orderId, Long userId) {
-        return groupOrderRepository.findById(orderId)
+        return groupOrderRepository.findWithStoreAndInitiatorById(orderId)
                 .filter(o -> o.getInitiator() != null && o.getInitiator().getId().equals(userId))
                 .orElse(null);
     }
