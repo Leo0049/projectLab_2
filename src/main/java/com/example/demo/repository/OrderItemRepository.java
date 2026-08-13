@@ -41,9 +41,14 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
          */
         @Lock(LockModeType.PESSIMISTIC_WRITE)
         @Query("SELECT i FROM OrderItem i WHERE i.groupOrder.id = :groupOrderId "
-                        + "AND i.user.id = :userId AND UPPER(i.paymentStatus) = 'UNPAID'")
-        List<OrderItem> findUnpaidByGroupOrderAndUserForUpdate(@Param("groupOrderId") Long groupOrderId,
-                        @Param("userId") Long userId);
+                        + "AND i.user.id = :userId AND UPPER(i.paymentStatus) IN :statuses")
+        List<OrderItem> findByGroupOrderAndUserAndStatusForUpdate(@Param("groupOrderId") Long groupOrderId,
+                        @Param("userId") Long userId, @Param("statuses") List<String> statuses);
+
+        /** 取出整張揪團的品項並鎖住，供取消退款這種會逐項退錢的流程使用 */
+        @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @Query("SELECT i FROM OrderItem i WHERE i.groupOrder.id = :groupOrderId")
+        List<OrderItem> findByGroupOrderIdForUpdate(@Param("groupOrderId") Long groupOrderId);
 
         java.util.Optional<OrderItem> findByGroupOrderIdAndUserIdAndItemHash(Long groupOrderId, Long userId, String itemHash);
 

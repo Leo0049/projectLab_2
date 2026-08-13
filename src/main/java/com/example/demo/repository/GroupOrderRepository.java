@@ -69,6 +69,11 @@ public interface GroupOrderRepository extends JpaRepository<GroupOrder, Long> {
        @Query("SELECT g FROM GroupOrder g WHERE g.shareToken = :shareToken")
        Optional<GroupOrder> findByShareTokenForUpdate(@Param("shareToken") String shareToken);
 
+       /** 同上，依 id 取單並鎖列（取消退款流程用） */
+       @Lock(LockModeType.PESSIMISTIC_WRITE)
+       @Query("SELECT g FROM GroupOrder g WHERE g.id = :id")
+       Optional<GroupOrder> findByIdForUpdate(@Param("id") Long id);
+
        /**
         * 取單並一併載入 store 與 initiator。
         *

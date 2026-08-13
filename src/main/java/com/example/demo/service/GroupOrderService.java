@@ -636,8 +636,8 @@ public class GroupOrderService {
         // ⚠️ 必須用有列鎖的查詢，不可讀出全部再用 stream 過濾：
         // 這裡是「讀出未付款品項 → 扣款 → 標記 PAID」的 read-modify-write，
         // 沒有鎖時同一批品項會被併發請求重複扣款（見 GroupCheckoutConcurrencyTest）。
-        List<OrderItem> memberItems =
-                orderItemRepository.findUnpaidByGroupOrderAndUserForUpdate(go.getId(), userId);
+        List<OrderItem> memberItems = orderItemRepository
+                .findByGroupOrderAndUserAndStatusForUpdate(go.getId(), userId, List.of("UNPAID"));
 
         if (memberItems.isEmpty()) {
             throw new RuntimeException("No unpaid items found for user.");
@@ -691,11 +691,19 @@ public class GroupOrderService {
 
     @Transactional
     public boolean handleGroupOrderCancellation(Long realOrderId) {
-        Optional<GroupOrder> goOpt = groupOrderRepository.findById(realOrderId);
+        // ⚠️ 先鎖住這一列再判斷狀態。原本兩者都沒有，重複觸發取消會重複退款——
+        // 實測 8 個併發取消，團長的 escrow 退了 280（應該只退 35）。
+        Optional<GroupOrder> goOpt = groupOrderRepository.findByIdForUpdate(realOrderId);
         if (goOpt.isEmpty())
             return false;
         GroupOrder go = goOpt.get();
-        List<OrderItem> items = orderItemRepository.findByGroupOrderId(go.getId());
+        // 這道守衛是第二層保險：真正擋住重複退款的是上面的列鎖
+        // （實測只拿掉列鎖、留著這道守衛，escrow 仍會退 140 而不是 35——
+        //  因為沒有鎖時讀到的狀態本身就是舊的）。留著是為了讓意圖明確。
+        if ("CANCELLED".equalsIgnoreCase(go.getStatus()) || "REJECTED".equalsIgnoreCase(go.getStatus())) {
+            return false;
+        }
+        List<OrderItem> items = orderItemRepository.findByGroupOrderIdForUpdate(go.getId());
 
         // 1. 各品項退款、狀態鎖定與優惠券還原
         for (OrderItem item : items) {
@@ -859,10 +867,11 @@ public class GroupOrderService {
                     "補款僅限訂單已送出後進行（目前狀態：" + go.getStatus() + "）");
         }
 
-        List<OrderItem> memberItems = orderItemRepository.findByGroupOrderId(go.getId()).stream()
-                .filter(item -> item.getUser().getId().equals(userId)
-                        && ("UNPAID".equalsIgnoreCase(item.getPaymentStatus()) || "ESCROWED".equalsIgnoreCase(item.getPaymentStatus())))
-                .toList();
+        // ⚠️ 必須用鎖定讀，理由同團員結帳：這裡也是「讀出未付款品項 → 扣款 → 標記 PAID」，
+        // 沒有鎖時併發補款會把團員扣好幾次、團長也收好幾次
+        // （實測 8 個併發補款扣了 175，應該只扣 35）。
+        List<OrderItem> memberItems = orderItemRepository
+                .findByGroupOrderAndUserAndStatusForUpdate(go.getId(), userId, List.of("UNPAID", "ESCROWED"));
 
         if (memberItems.isEmpty()) {
             throw new RuntimeException("No unpaid items found for this user.");

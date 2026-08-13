@@ -181,6 +181,65 @@ class GroupCheckoutConcurrencyTest {
                 "結帳後狀態應為 SUBMITTED");
     }
 
+    @Test
+    @DisplayName("重複取消揪團：退款只能發生一次")
+    void concurrentCancellationRefundsOnce() throws Exception {
+        // 情境：團員已付款、團長已結帳（escrow 有金額），此時重複觸發取消
+        OrderItem item = orderItemRepository.findByGroupOrderId(groupOrderId).get(0);
+        item.setPaymentStatus("PAID");
+        orderItemRepository.save(item);
+
+        GroupOrder go = groupOrderRepository.findById(groupOrderId).orElseThrow();
+        go.setStatus("SUBMITTED");
+        go.setSubmittedAt(LocalDateTime.now());
+        go.setEscrowAmount(DRINK_PRICE);
+        groupOrderRepository.save(go);
+
+        BigDecimal memberBefore = userRepository.findById(memberId).orElseThrow().getBalance();
+        BigDecimal hostBefore = userRepository.findById(hostId).orElseThrow().getBalance();
+
+        runConcurrently(THREADS, () -> groupOrderService.handleGroupOrderCancellation(groupOrderId));
+
+        BigDecimal memberRefund = userRepository.findById(memberId).orElseThrow()
+                .getBalance().subtract(memberBefore);
+        BigDecimal hostRefund = userRepository.findById(hostId).orElseThrow()
+                .getBalance().subtract(hostBefore);
+
+        assertEquals(0, DRINK_PRICE.compareTo(memberRefund),
+                "團員的品項退款應只發生一次 " + DRINK_PRICE + "，實際退了 " + memberRefund);
+        assertEquals(0, DRINK_PRICE.compareTo(hostRefund),
+                "團長的 escrow 退款應只發生一次 " + DRINK_PRICE + "，實際退了 " + hostRefund);
+        assertEquals("CANCELLED",
+                groupOrderRepository.findById(groupOrderId).orElseThrow().getStatus());
+    }
+
+    @Test
+    @DisplayName("重複補款給團長：團員只能被扣一次，團長也只能收到一次")
+    void concurrentRepayChargesOnce() throws Exception {
+        // 補款只在訂單送出後可用
+        GroupOrder go = groupOrderRepository.findById(groupOrderId).orElseThrow();
+        go.setStatus("SUBMITTED");
+        groupOrderRepository.save(go);
+
+        BigDecimal memberBefore = userRepository.findById(memberId).orElseThrow().getBalance();
+        BigDecimal hostBefore = userRepository.findById(hostId).orElseThrow().getBalance();
+
+        runConcurrently(THREADS, () -> {
+            groupOrderService.repayToHost(shareToken, memberId);
+            return null;
+        });
+
+        BigDecimal memberDelta = memberBefore.subtract(
+                userRepository.findById(memberId).orElseThrow().getBalance());
+        BigDecimal hostDelta = userRepository.findById(hostId).orElseThrow()
+                .getBalance().subtract(hostBefore);
+
+        assertEquals(0, DRINK_PRICE.compareTo(memberDelta),
+                "團員應只被扣一次 " + DRINK_PRICE + "，實際扣了 " + memberDelta);
+        assertEquals(0, DRINK_PRICE.compareTo(hostDelta),
+                "團長應只收到一次 " + DRINK_PRICE + "，實際收到 " + hostDelta);
+    }
+
     /** 讓 n 個執行緒同時開跑，回傳成功次數 */
     private int runConcurrently(int n, Callable<?> action) throws Exception {
         ExecutorService pool = Executors.newFixedThreadPool(n);
