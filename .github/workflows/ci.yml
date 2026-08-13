@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'main-*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: 測試與端對端驗證
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # 與 docker-compose.yml 對齊：MySQL 8 + Redis 7，資料庫名 joindrink
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: joindrink
+          MYSQL_USER: joindrink
+          MYSQL_PASSWORD: joindrink
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s --health-timeout=3s --health-retries=5
+
+    env:
+      # JWT 密鑰至少 64 字元（HS512），不足會在啟動時直接失敗
+      JWT_SECRET: ci-only-secret-key-not-used-anywhere-else-0123456789-abcdefghijklmnop
+      # 其餘連線參數沿用 application.yml 的預設值（DB_NAME/DB_USERNAME/DB_PASSWORD 皆為 joindrink），
+      # 上面的 services 已照 docker-compose.yml 建好同名資料庫與帳號
+      DB_HOST: 127.0.0.1
+      REDIS_HOST: 127.0.0.1
+      API_BASE: http://127.0.0.1:8082
+      FE_BASE: http://127.0.0.1:5500
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 設定 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      # ── 第一層：單元／整合測試（授權與金流的回歸防線）──
+      - name: mvn test
+        run: mvn -B test
+
+      - name: 打包
+        run: mvn -B package -DskipTests
+
+      # ── 起服務 ──
+      - name: 啟動後端
+        run: |
+          nohup java -jar target/*.jar > app.log 2>&1 &
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$API_BASE/api/stores/nearby?lat=25&lng=121" || true)
+            [ "$code" = "200" ] && { echo "後端就緒（$((i*2))s）"; exit 0; }
+            sleep 2
+          done
+          echo "後端啟動逾時，log："; tail -50 app.log; exit 1
+
+      - name: 啟動靜態前端
+        run: |
+          nohup python3 -m http.server 5500 --bind 127.0.0.1 --directory frontend > /tmp/fe.log 2>&1 &
+          for i in $(seq 1 20); do
+            curl -sf "$FE_BASE/Customer/index.html" >/dev/null && { echo "前端就緒"; exit 0; }
+            sleep 1
+          done
+          echo "前端啟動逾時"; exit 1
+
+      # ── 第二層：API 端對端（12 個面向、67 項斷言）──
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安裝驗證腳本的相依套件
+        working-directory: scripts
+        run: npm install --no-audit --no-fund
+
+      - name: API 端對端驗證
+        working-directory: scripts
+        run: node e2e-verify.js
+
+      # ── 第三層：實際操作 UI 的流程驗證 ──
+      - name: 安裝 Chromium
+        working-directory: scripts
+        run: npx playwright install --with-deps chromium
+
+      - name: UI 流程驗證（全頁面普掃 + 點餐 + 轉盤 + 揪團）
+        working-directory: scripts
+        run: node ui/run-all.js
+
+      # 失敗時把截圖與後端 log 帶出來，才有辦法判讀
+      - name: 上傳失敗時的截圖與日誌
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts
+          path: |
+            target/e2e-shots/
+            app.log
+          retention-days: 7
+          if-no-files-found: ignore

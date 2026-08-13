@@ -1,0 +1,15 @@
+{
+  "name": "joindrink-verification",
+  "version": "1.0.0",
+  "private": true,
+  "description": "JoinDrink 的端對端與 UI 流程驗證腳本（不是應用程式的一部分，前端本身沒有建置流程）",
+  "scripts": {
+    "verify:api": "node e2e-verify.js",
+    "verify:ui": "node ui/run-all.js",
+    "verify": "npm run verify:api && npm run verify:ui"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0",
+    "ws": "^8.18.0"
+  }
+}

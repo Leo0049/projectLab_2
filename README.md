@@ -5,6 +5,8 @@
 
 **Spring Boot 3.4.3 / Java 17 · MySQL 8 · Redis 7 · WebSocket(STOMP) · JWT**
 
+[![CI](https://github.com/Leo0049/projectLab_2/actions/workflows/ci.yml/badge.svg)](https://github.com/Leo0049/projectLab_2/actions/workflows/ci.yml)
+
 ---
 
 ## 30 秒把它跑起來
@@ -134,23 +136,31 @@ docker compose up -d && mvn test
 授權測試在還原 IDOR 邏輯時 3 個失敗、還原 S-6 時 2 個失敗，錢包測試在改回 `findById` 時 2 個失敗。
 只在修補後跑一次通過的測試，證明不了它擋得住回歸。
 
-另外有一支端對端驗證腳本，直接打真實服務走完每條主要流程：
+### 三層驗證，全部進 CI
+
+單元測試守不住「服務真的跑起來之後才會現形」的問題，所以另外疊了兩層：
 
 ```bash
-# 服務跑起來之後
-node scripts/e2e-verify.js
+cd scripts && npm install          # 只裝驗證腳本的相依套件，前端本身沒有建置流程
+
+node e2e-verify.js                 # 第二層：API 端對端（12 面向 / 67 項斷言）
+npx playwright install chromium
+node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 ```
 
-涵蓋 12 個面向、67 項斷言：三種角色認證、公開瀏覽、錢包與帳本、購物車、
-訂單全生命週期（下單→接單→製作→完成，含金流驗證）、拒單退款、揪團、轉盤、
-收藏／地址、授權防護、WebSocket 授權、三種後台端點與分頁行為。
-（WebSocket 那一節需要 `npm i ws`，沒裝會自動略過，其餘照跑。）
+| 層 | 內容 | 抓得到什麼 |
+|----|------|-----------|
+| `mvn test`（20） | 授權與金流的回歸防線 | 邏輯錯誤、併發遺失更新 |
+| `scripts/e2e-verify.js`（67） | 三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、拒單退款、揪團、轉盤、收藏／地址、授權防護、WebSocket 授權、後台端點與分頁 | 交易邊界、序列化、擁有權檢查 |
+| `scripts/ui/run-all.js` | 30 頁全頁面普掃 ＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
-**S-6 與另外三個固定 500 都是跑這支時發現的**——它們有個共同點：單元測試看不到，
-要真的把服務跑起來、照著使用者的路徑走一遍才會現形。
+三層都在 [GitHub Actions](.github/workflows/ci.yml) 上跑：CI 起 MySQL 8 + Redis 7，
+`mvn test` → 打包 → 起服務 → 跑第二三層；失敗時會把當下的截圖與後端 log 收成 artifact。
 
-再往下一層，用 Playwright 實際操作前端（點按鈕、選規格、兩個瀏覽器分飾團長與團員）
-跑通三條主線後，又抓到六個只有真的點下去才會出現的問題：
+### 這兩層實際抓到什麼
+
+**S-6 與四個固定 500** 是第二層抓到的。**另外六個**是第三層抓到的——
+它們的共同點是：端點單獨 curl 會過，要照使用者的路徑走完整流程才會現形。
 
 | 問題 | 症狀 |
 |------|------|
@@ -160,6 +170,9 @@ node scripts/e2e-verify.js
 | `checkout.html` 兩處寫成相對路徑 `fetch('/api/...')` | 結帳頁的姓名／電話與門市設定**永遠讀不到** |
 | `lastLocalManualActionTime` 從未宣告 | 結帳頁每次背景同步都丟 ReferenceError，處理器中斷 |
 | QR Code 元件載入失敗會讓整個 try 中斷 | 揪團**其實已建立成功**，畫面卻顯示「建立揪團失敗」 |
+
+全頁面普掃（30 頁）另外抓到三個：訂單卡片指向不存在的 `/api/stores/{id}/image`、
+兩支腳本搶同一張 canvas 導致財務趨勢圖畫不出來、18 個後台頁面的頭像外連臨時網址。
 
 順手把首頁三張輪播橫幅重新壓縮（同解析度、mozjpeg q82）：**2,237 KB → 334 KB，減少 85%**。
 
@@ -216,7 +229,9 @@ node scripts/e2e-verify.js
 
 刻意未處理，列在這裡是因為知道它們存在、也知道代價：
 
-- `GroupOrderService` 1384 行、`BrandService` 1165 行，單一方法最長 147 行——難以單元測試，是補測試的實務障礙
+- `GroupOrderService` 1384 行、`BrandService` 1165 行，單一方法最長 147 行——難以單元測試。
+  目前的權宜之計是用端對端與 UI 流程驗證從外面把行為框住（見「測試」），
+  但 Service 層本身的單元測試仍然近乎空白，要補測試得先拆這兩個類別
 - 40 處以 `Map<String, Object>` 作為 API 回傳型別，失去編譯期型別檢查，Swagger 也無法描述結構
 - V1／V2 端點並存，同一資源有多套格式
 - 輸入驗證目前只覆蓋金流與訂單路徑，其餘 DTO 尚未補齊

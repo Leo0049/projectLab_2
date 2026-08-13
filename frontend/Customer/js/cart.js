@@ -291,8 +291,14 @@
             const carts = buildCartsFromApiData(cartData);
             return saveAllCarts(carts, { emit: true });
         } catch (error) {
-            console.error('syncFromServer failed:', error);
-            if (!silent) throw error;
+            // silent 是背景輪詢用的（每 3 秒一次）。使用者換頁時，正在飛的那個請求
+            // 一定會被中斷成 "Failed to fetch"——那是正常現象，不該以 error 等級寫進 console，
+            // 否則真正的錯誤會被這些雜訊淹掉。非 silent（使用者主動觸發）才視為錯誤。
+            if (!silent) {
+                console.error('syncFromServer failed:', error);
+                throw error;
+            }
+            console.debug('syncFromServer: 背景同步未完成（多半是換頁中斷）', error);
             return getAllCarts();
         }
     }
