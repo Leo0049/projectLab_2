@@ -1,6 +1,9 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.GroupOrderDTO;
+import com.example.demo.service.order.CouponEligibility;
+import com.example.demo.service.order.ItemHash;
+import com.example.demo.service.order.ItemSpecResolver;
 import com.example.demo.dto.OrderItemDTO;
 import com.example.demo.dto.OrderItemToppingDTO;
 import com.example.demo.entity.*;
@@ -330,32 +333,15 @@ public class GroupOrderService {
         item.setUnitPriceSnapshot(new BigDecimal(req.getOrDefault("unitPrice", pt.getBasePrice()).toString()));
         item.setFinalPrice(new BigDecimal(req.getOrDefault("finalPrice", item.getUnitPriceSnapshot()).toString()));
         item.setQty(Integer.parseInt(req.getOrDefault("qty", "1").toString()));
-        // --- 固定規格防竄改 (Fixed Specification Anti-Tamper) ---
-        List<ProductSpecRelation> relations = productSpecRelationRepository.findByIdProductId(pt.getId());
-        Map<String, List<ProductSpecRelation>> specsByType = relations.stream()
-                .filter(r -> r.getBrandSpec() != null && r.getBrandSpec().getSpecType() != null)
-                .collect(Collectors.groupingBy(r -> r.getBrandSpec().getSpecType().toUpperCase()));
-
-        String sugar = (String) req.getOrDefault("sugarSnapshot", "");
-        List<ProductSpecRelation> sugarOpts = specsByType.get("SWEETNESS");
-        if (sugarOpts != null && sugarOpts.size() == 1) {
-            sugar = sugarOpts.get(0).getBrandSpec().getCustomName();
-        }
-        item.setSugarSnapshot(sugar);
-
-        String ice = (String) req.getOrDefault("iceSnapshot", "");
-        List<ProductSpecRelation> iceOpts = specsByType.get("ICE");
-        if (iceOpts != null && iceOpts.size() == 1) {
-            ice = iceOpts.get(0).getBrandSpec().getCustomName();
-        }
-        item.setIceSnapshot(ice);
-
-        String size = (String) req.getOrDefault("sizeSnapshot", "");
-        List<ProductSpecRelation> sizeOpts = specsByType.get("SIZE");
-        if (sizeOpts != null && sizeOpts.size() == 1) {
-            size = sizeOpts.get(0).getBrandSpec().getCustomName();
-        }
-        item.setSizeSnapshot(size);
+        // --- 固定規格防竄改：規則見 ItemSpecResolver ---
+        ItemSpecResolver specs = ItemSpecResolver.of(
+                productSpecRelationRepository.findByIdProductId(pt.getId()));
+        item.setSugarSnapshot(specs.resolveOrEmpty(
+                ItemSpecResolver.SWEETNESS, (String) req.getOrDefault("sugarSnapshot", "")));
+        item.setIceSnapshot(specs.resolveOrEmpty(
+                ItemSpecResolver.ICE, (String) req.getOrDefault("iceSnapshot", "")));
+        item.setSizeSnapshot(specs.resolveOrEmpty(
+                ItemSpecResolver.SIZE, (String) req.getOrDefault("sizeSnapshot", "")));
         item.setPaymentStatus("UNPAID"); // 預設未付款
         item.setPaymentType("WALLET");
 
@@ -437,41 +423,18 @@ public class GroupOrderService {
             }
             item.setQty(newQty);
         }
-        // --- 固定規格防竄改 (Fixed Specification Anti-Tamper) ---
-        List<ProductSpecRelation> relations = productSpecRelationRepository.findByIdProductId(item.getProduct().getId());
-        Map<String, List<ProductSpecRelation>> specsByType = relations.stream()
-                .filter(r -> r.getBrandSpec() != null && r.getBrandSpec().getSpecType() != null)
-                .collect(Collectors.groupingBy(r -> r.getBrandSpec().getSpecType().toUpperCase()));
-
+        // --- 固定規格防竄改：規則見 ItemSpecResolver ---
+        // 與 addItem 的差別只在「沒帶這個欄位就不動」，規則本身共用同一份
+        ItemSpecResolver specs = ItemSpecResolver.of(
+                productSpecRelationRepository.findByIdProductId(item.getProduct().getId()));
         if (req.containsKey("sugarSnapshot")) {
-            String incomingSugar = (String) req.get("sugarSnapshot");
-            List<ProductSpecRelation> sugarOpts = specsByType.get("SWEETNESS");
-            if (sugarOpts != null && sugarOpts.size() == 1) {
-                // 固定甜度，強制覆蓋為該唯一選項
-                item.setSugarSnapshot(sugarOpts.get(0).getBrandSpec().getCustomName());
-            } else {
-                item.setSugarSnapshot(incomingSugar);
-            }
+            item.setSugarSnapshot(specs.resolve(ItemSpecResolver.SWEETNESS, (String) req.get("sugarSnapshot")));
         }
         if (req.containsKey("iceSnapshot")) {
-            String incomingIce = (String) req.get("iceSnapshot");
-            List<ProductSpecRelation> iceOpts = specsByType.get("ICE");
-            if (iceOpts != null && iceOpts.size() == 1) {
-                // 固定冰量，強制覆蓋
-                item.setIceSnapshot(iceOpts.get(0).getBrandSpec().getCustomName());
-            } else {
-                item.setIceSnapshot(incomingIce);
-            }
+            item.setIceSnapshot(specs.resolve(ItemSpecResolver.ICE, (String) req.get("iceSnapshot")));
         }
         if (req.containsKey("sizeSnapshot")) {
-            String incomingSize = (String) req.get("sizeSnapshot");
-            List<ProductSpecRelation> sizeOpts = specsByType.get("SIZE");
-            if (sizeOpts != null && sizeOpts.size() == 1) {
-                // 固定杯型，強制覆蓋
-                item.setSizeSnapshot(sizeOpts.get(0).getBrandSpec().getCustomName());
-            } else {
-                item.setSizeSnapshot(incomingSize);
-            }
+            item.setSizeSnapshot(specs.resolve(ItemSpecResolver.SIZE, (String) req.get("sizeSnapshot")));
         }
         if (req.containsKey("unitPriceSnapshot")) {
             item.setUnitPriceSnapshot(new BigDecimal(req.get("unitPriceSnapshot").toString()));
@@ -933,9 +896,7 @@ public class GroupOrderService {
         if (!item.getUser().getId().equals(userId)) {
             throw new RuntimeException("Permission denied: You can only apply coupons to your own items");
         }
-        if ("PAID".equalsIgnoreCase(item.getPaymentStatus())) {
-            throw new RuntimeException("Item is already paid. Coupons must be applied before payment.");
-        }
+        CouponEligibility.requireUnpaid(item.getPaymentStatus());
 
         // 1. 還原舊優惠券 (若原本有套用)
         if (item.getCouponId() != null) {
@@ -954,14 +915,8 @@ public class GroupOrderService {
         UserCoupon userCoupon = userCouponRepository.findById(couponId)
                 .orElseThrow(() -> new RuntimeException("Coupon not found"));
 
-        // 品牌校驗
-        if (userCoupon.getBrand() != null && !userCoupon.getBrand().getId().equals(go.getStore().getBrand().getId())) {
-            throw new RuntimeException("該優惠券不適用於此品牌");
-        }
-        // 品項校驗 (若是特定商品券)
-        if (userCoupon.getProduct() != null && !userCoupon.getProduct().getId().equals(item.getProduct().getId())) {
-            throw new RuntimeException("該優惠券不適用於此商品");
-        }
+        // 適用範圍（品牌／指定商品）規則見 CouponEligibility
+        CouponEligibility.check(userCoupon, go.getStore().getBrand().getId(), item.getProduct().getId());
 
         // 4. 實作數量拆分 (Qty Splitting)
         // 如果 Qty > 1，則拆出 1 單位來套用優惠券，其餘維持原樣
@@ -1039,18 +994,7 @@ public class GroupOrderService {
 
     private String generateItemHash(Long productId, String sugar, String ice, String size, String toppings,
             Long couponId) {
-        String base = productId + "|" + sugar + "|" + ice + "|" + size + "|" + toppings + "|"
-                + (couponId != null ? couponId : "none");
-        try {
-            java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
-            byte[] hash = md.digest(base.getBytes());
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash)
-                sb.append(String.format("%02x", b));
-            return sb.toString();
-        } catch (Exception e) {
-            return String.valueOf(base.hashCode());
-        }
+        return ItemHash.of(productId, sugar, ice, size, toppings, couponId);
     }
 
     // ─── Coupon helpers ────────────────────────────────────────

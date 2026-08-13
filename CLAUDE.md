@@ -148,14 +148,35 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 | 測試 | 守住的東西 |
 |------|-----------|
-| `AuthorizationTest` | 未認證商品寫入、跨帳號讀寫個資／錢包、偽造 `authUserId` 繞過、debug 端點 |
-| `WalletConcurrencyTest` | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支 |
-| `ImageStorageServiceTest` | 無 Cloudinary 憑證時改走本機儲存、同 publicId 覆寫、可疑副檔名正規化 |
-| `DemoApplicationTests` | Spring context 能否載入 |
+| `AuthorizationTest`（13） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、debug 與門市傾印端點已移除 |
+| `ItemSpecResolverTest`（7） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）|
+| `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
+| `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
+| `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 publicId 覆寫、可疑副檔名正規化 |
+| `WalletConcurrencyTest`（2） | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支 |
+| `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-> `AuthorizationTest` 與 `WalletConcurrencyTest` 都已驗證「把修補改回舊寫法時會失敗」
-> （分別是 3 個與 2 個測試轉紅）——新增測試時請照做，在修補前後各跑一次，
-> 確認它真的抓得到回歸，否則只是裝飾。
+中間三支在 `service/order/` 底下，是**不載入 Spring context** 的純邏輯測試（合計 0.05 秒）。
+新增純規則時請放在那裡，不要為了測一條規則去啟整個 context。
+
+> 以上每一支都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR
+> 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，
+> `ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅。
+> 新增測試時請照做，在修補前後各跑一次，確認它真的抓得到回歸，否則只是裝飾。
+
+### 另外兩層驗證（都在 CI 上跑）
+
+`mvn test` 抓不到「服務跑起來才會現形」的問題，所以還有：
+
+```bash
+cd scripts && npm install
+node e2e-verify.js      # API 端對端，67 項斷言
+node ui/run-all.js      # 30 頁普掃 + 點餐／轉盤／揪團三條主線（Playwright）
+```
+
+`.github/workflows/ci.yml` 會依序跑完這三層。**改完動到序列化、交易邊界或前端流程的
+程式碼後，請至少跑一次第二三層**——九次 `LazyInitializationException` 裡有兩次
+（下單完成頁、揪團成員清單）是單獨 curl 端點會過、實際走流程才炸的。
 
 ## 資料庫（26 張表）
 
@@ -249,6 +270,24 @@ SUBMITTED 進入 PREPARING。
 
 這類錯誤**單元測試抓不到、要實際打端點才會現形**。改完動到序列化或關聯的程式碼後，
 跑一次涵蓋所有 GET 端點的普掃（起服務後逐一 curl，看有沒有 5xx 或 body `code=500`）比較實在。
+
+## 品項規則抽在 `service/order/`，不要抄回 Service 裡
+
+`GroupOrderService` 太大，三條與金額／防竄改有關的規則已抽成純函式，
+新增或修改品項邏輯時請直接用這三個，不要在 Service 內再寫一份：
+
+| 類別 | 規則 |
+|------|------|
+| `ItemSpecResolver` | 商品的某個規格類型只有唯一選項時（例如熱飲只賣熱的），**一律採用該選項，不採信用戶端送來的值**。這是防竄改規則，不是顯示邏輯 |
+| `ItemHash` | 決定「什麼算同一杯」。配料**必須先排序**再串接，否則同樣的兩杯會算出不同 hash 而不會合併顯示 |
+| `CouponEligibility` | 券的品牌／指定商品適用範圍；已付款的品項不可再套券 |
+
+⚠️ `ItemSpecResolver` 那段原本在 `addItem` 與 `updateItem` 各寫一次，兩邊行為
+只差在「沒帶欄位時要不要動」。抽出來之後 `addItem` 用 `resolveOrEmpty`（欄位不可為 null）、
+`updateItem` 用 `resolve`（沒帶就不呼叫），規則本身共用同一份。
+
+這三支都有純邏輯測試（`src/test/java/com/example/demo/service/order/`，19 個、跑 0.05 秒），
+改規則時測試會跟著紅——已驗證把防竄改改回「照單全收」時 4 個測試失敗。
 
 ## ⚠️ 列表端點一律要分頁
 
