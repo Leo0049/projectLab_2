@@ -336,8 +336,11 @@
                     card.setAttribute('onclick', `goToOrderDetails('${order.orderId}', '${sName}', ${total}, '${st}', '${order.type||''}', '${order.deliveryType||''}', '${iSum}')`);
                 }
 
-                const storeImg = order.storeImageUrl || `/api/stores/${order.storeId}/image`;
+                // 後端沒有 /api/stores/{id}/image 這個端點（而且相對路徑還會打到靜態伺服器），
+                // 原本靠 <img onerror> 兜底才沒露餡，但每張訂單卡都會先送出一個必定 404 的請求。
+                // 沒有店家圖片時直接用內建的 SVG。
                 const fallbackImg = 'images/store-placeholder.svg';
+                const storeImg = order.storeImageUrl || fallbackImg;
 
                 card.innerHTML = `
                     <div class="relative h-56 bg-slate-100 overflow-hidden">

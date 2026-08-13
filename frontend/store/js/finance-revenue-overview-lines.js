@@ -124,7 +124,11 @@
         // 如果 labels 沒傳進來（代表是從勾選觸發），則沿用舊的
         const chartLabels = labels || (trendChart ? trendChart.data.labels : []);
 
+        // 同 api-finance.js：兩支腳本共用這張 canvas，只銷毀自己那份會踩到
+        // "Canvas is already in use"。連同登錄表上的一併銷毀。
         if (trendChart) trendChart.destroy();
+        const bound = (window.Chart && Chart.getChart) ? Chart.getChart(canvas) : null;
+        if (bound) bound.destroy();
 
         const activeSeries = allSeries.filter(s => selectedCategories.includes(s.name));
 

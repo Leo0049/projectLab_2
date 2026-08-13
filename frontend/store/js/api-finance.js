@@ -83,7 +83,13 @@
         const canvas = document.getElementById('financeTrendChart');
         if (!canvas) return;
         const ctx    = canvas.getContext('2d');
+        // ⚠️ 這張 canvas 有兩支腳本會畫（本檔與 finance-revenue-overview-lines.js），
+        // 各自記在自己的 trendChart 變數裡，所以只 destroy 自己的那個不夠——
+        // 後跑的那支會拿到 "Canvas is already in use" 而整個中斷，趨勢圖畫不出來。
+        // 用 Chart 的登錄表把「這張 canvas 上目前的圖」找出來銷毀，誰後跑誰接手。
         if (trendChart) trendChart.destroy();
+        const bound = (window.Chart && Chart.getChart) ? Chart.getChart(canvas) : null;
+        if (bound) bound.destroy();
         const datasets = trendData.series.map((s, i) => {
             const color = RAINBOW_COLORS[i % RAINBOW_COLORS.length];
             return {
