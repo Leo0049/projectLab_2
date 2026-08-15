@@ -476,6 +476,17 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 沒收進來的（刻意）：內文字型（載不到只是退回系統字型，Noto Sans TC 光 subset 就 315 個檔）、
 地圖圖磚、Nominatim 地址搜尋、Firebase 社群登入——後三者本質上是線上服務。
 
+## ⚠️ 時區只在 `config/TimeZoneConfig` 設定一次
+
+`TimeZone.setDefault(Asia/Taipei)` 必須放在 `@PostConstruct`，**不可搬回 `main()`**——
+測試不會呼叫 `main()`（`@SpringBootTest` 直接建 context），時區就會和正式啟動不一致。
+
+在 UTC 的機器上（CI 就是）會疊出兩次 ＋8：`DemoDataSeeder` 明確用
+`ZoneId.of("Asia/Taipei")` 一次，`spring.jpa.properties.hibernate.jdbc.time_zone`
+寫入時再換算一次，示範資料的 `created_at` 因此落在 16 小時後的未來，
+永遠排在錢包帳本最上面。本機時區剛好是 Asia/Taipei 時兩次換算會互相抵銷，
+所以這個問題**只有 CI 抓得到**，要重現得把 MySQL 換成 UTC 容器。
+
 ## 重要注意事項
 
 - `application.yml` 已全面改為 `${ENV_VAR:預設值}`，**不要把明文密鑰寫回去**

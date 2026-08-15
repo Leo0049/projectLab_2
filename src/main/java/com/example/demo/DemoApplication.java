@@ -3,7 +3,6 @@ package com.example.demo;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import java.util.TimeZone;
 
 @SpringBootApplication(exclude = {
         org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration.class
@@ -12,7 +11,9 @@ import java.util.TimeZone;
 public class DemoApplication {
 
     public static void main(String[] args) {
-        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Taipei"));
+        // 時區統一在 config/TimeZoneConfig 用 @PostConstruct 設定。
+        // 放在這裡的話測試不會經過（@SpringBootTest 不呼叫 main），
+        // 時區就會和正式啟動不一致——詳見該類別的說明。
         SpringApplication.run(DemoApplication.class, args);
     }
 

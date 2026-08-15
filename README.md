@@ -162,6 +162,16 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
 另外補了 `scripts/demo-reset.sh`（13 秒清空重植），因為待處理訂單的 10 分鐘倒數與
 每日轉盤的一天一次限制，都會讓「講完架構才開始 demo」的那一份資料失效。
 
+最後一個是 CI 抓到、本機永遠看不到的：**示範資料的時間戳落在 16 小時後的未來**。
+`TimeZone.setDefault(Asia/Taipei)` 原本寫在 `DemoApplication.main()` 裡，而
+**測試不會呼叫 `main()`**（`@SpringBootTest` 直接建 context），所以測試環境的 JVM
+時區仍是主機時區。在 UTC 的機器上（GitHub Actions 就是）於是疊了兩次 ＋8：
+`DemoDataSeeder` 明確用 `ZoneId.of("Asia/Taipei")` 一次，`hibernate.jdbc.time_zone`
+寫入時再換算一次。結果那些列永遠排在錢包帳本最上面，比之後真正發生的交易還「新」。
+本機因為主機時區剛好是 Asia/Taipei，兩次換算互相抵銷，完全看不出來——
+是把 MySQL 換成 UTC 容器、照 CI 的順序（先 `mvn test` 再起服務）跑才重現的。
+時區設定已移到 `@PostConstruct`，任何啟動方式都會套用。
+
 > 這輪普掃也順手抓到前端的一個對稱問題：門市訂單頁用 `''` 當「上次資料快照」的初始值，
 > 而空清單算出來的快照剛好也是 `''`，於是**零筆訂單時第一次載入會被判定成「資料沒變」而不重繪**，
 > 六個區塊永遠停在「載入中…」——剛 clone 下來、還沒有任何訂單的人看到的就是這個畫面。
