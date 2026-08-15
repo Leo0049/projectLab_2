@@ -180,6 +180,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要能拆回兩欄、補款靠正負號分辨收付方 |
 | `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 publicId 覆寫、可疑副檔名正規化 |
+| `RatingConcurrencyTest`（2） | 併發評分不得死鎖、門市則數與平均分數要對得起來 |
 | `WalletConcurrencyTest`（3） | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支、列鎖不被一級快取架空 |
 | `GroupCheckoutConcurrencyTest`（6） | 揪團四條金流路徑重複觸發時只能發生一次；同一張券不可用兩次 |
 | `DemoApplicationTests`（1） | Spring context 能否載入 |
@@ -302,6 +303,20 @@ Hibernate 仍回傳快取中那個「上鎖之前」的實例——餘額是舊�
 | 取消退款 `handleGroupOrderCancellation` | `GroupOrderRepository.findByIdForUpdate` ＋ `findByGroupOrderIdForUpdate` | escrow 退了 280 |
 
 `GroupCheckoutConcurrencyTest`（5 個）守住這四條。
+
+### ⚠️ 評分彙總：先鎖門市列，且彙總要用單一 SQL
+
+`stores.avg_rating` / `review_count` 是反正規化欄位。寫評分的順序**必須**是
+「先 `StoreRepository.findByIdForUpdate` 取排他鎖 → 再 insert `order_ratings`」。
+
+反過來的話：insert 會因為外鍵在 `stores` 那列加共享鎖，隨後的 update 要升級成排他鎖，
+兩個併發交易互相等待——實測 12 個併發評分只有 2 筆成功，10 筆死鎖。
+
+彙總本身也**不可以**在 Java 端 `countByStoreId` 之後 `setReviewCount` 再 save：
+REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛提交的評分，
+每個交易都用自己的舊數字覆蓋回去（實測 12 筆評分只算出 4 筆）。
+改用 `StoreRepository.refreshRatingAggregate` 的單一 `UPDATE ... (SELECT COUNT/AVG ...)`，
+子查詢讀的是最新已提交版本。`RatingConcurrencyTest`（2）守住這兩條。
 
 ### ⚠️ 優惠券的消耗要原子
 

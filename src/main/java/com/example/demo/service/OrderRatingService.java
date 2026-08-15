@@ -70,6 +70,13 @@ public class OrderRatingService {
             throw new CustomException("403", "Only participating members can rate this order");
         }
 
+        // ⚠️ 先取門市那一列的寫鎖，再寫評分。
+        // 反過來的話：insert order_ratings 會因為外鍵在 stores 那列加共享鎖，
+        // 隨後 refreshStoreAggregate 的 update 要升級成排他鎖，兩個併發交易互相等待
+        // ——實測 12 個併發評分只有 2 筆成功，其餘 10 筆全部死鎖失敗。
+        storeRepository.findByIdForUpdate(order.getStore().getId())
+                .orElseThrow(() -> new CustomException("404", "Store not found"));
+
         OrderRating rating = orderRatingRepository.findByOrderIdAndUserId(orderId, userId)
                 .orElseGet(OrderRating::new);
 
@@ -92,19 +99,18 @@ public class OrderRatingService {
                 .collect(Collectors.toMap(r -> r.getOrder().getId(), OrderRating::getRating));
     }
 
+    /**
+     * 重算門市的 avg_rating / review_count。
+     *
+     * <p>算式交給資料庫用一句 UPDATE 完成，理由見
+     * {@link com.example.demo.repository.StoreRepository#refreshRatingAggregate}：
+     * 在 Java 端 COUNT 再寫回是 read-modify-write，併發時會互相覆蓋。
+     */
     @Transactional
     public void refreshStoreAggregate(Long storeId) {
-        Store store = storeRepository.findById(storeId)
-                .orElseThrow(() -> new CustomException("404", "Store not found"));
-
-        long reviewCount = orderRatingRepository.countByStoreId(storeId);
-        Double avg = orderRatingRepository.findAverageRatingByStoreId(storeId);
-
-        store.setReviewCount(Math.toIntExact(reviewCount));
-        store.setAvgRating(reviewCount == 0 || avg == null
-                ? BigDecimal.ZERO
-                : BigDecimal.valueOf(avg).setScale(1, RoundingMode.HALF_UP));
-        storeRepository.save(store);
+        if (storeRepository.refreshRatingAggregate(storeId) == 0) {
+            throw new CustomException("404", "Store not found");
+        }
     }
 
     private Map<String, Object> buildRatingPayload(GroupOrder order, boolean participated, Integer myRating) {
