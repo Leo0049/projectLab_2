@@ -101,8 +101,12 @@ jobs:
         working-directory: scripts
         run: npx playwright install --with-deps chromium
 
-      - name: UI 流程驗證（全頁面普掃 + 點餐 + 轉盤 + 揪團）
+      # E2E_OFFLINE=1：把所有連外請求擋掉。第三方函式庫都收在 frontend/vendor/，
+      # 所以斷網狀態下畫面必須完全正常。有人重新引入 CDN 的話，這一步就會紅。
+      - name: UI 流程驗證（斷網模式：全頁面普掃 + 點餐 + 轉盤 + 揪團）
         working-directory: scripts
+        env:
+          E2E_OFFLINE: '1'
         run: node ui/run-all.js
 
       # 失敗時把截圖與後端 log 帶出來，才有辦法判讀

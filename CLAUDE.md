@@ -462,6 +462,20 @@ Hibernate 仍回傳快取中那個「上鎖之前」的實例——餘額是舊�
 - **GroupOrder V2**：完整揪團流程（品項 CRUD、套用優惠券、結帳、補款）
 - **常用地址管理**：使用者可儲存多筆常用地址（`user_addresses`），結帳時快速選用
 
+## ⚠️ 前端資源一律放 `frontend/vendor/`，不要再引入 CDN
+
+Tailwind、Leaflet、Lucide、Chart.js、SockJS/STOMP、QRCode、Font Awesome、Bootstrap Icons、
+Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` 可重新抓取）。
+
+原因：這些原本全從 CDN 載，網路不通時會出現 `L is not defined` / `tailwind is not defined`，
+地圖、結帳、揪團、個人資料四頁直接壞掉，Tailwind 掛掉更是整頁沒樣式。
+
+`scripts/ui/harness.js` 的 `E2E_OFFLINE=1` 會擋掉所有連外請求，**CI 固定開著**。
+新增 `<script src="https://...">` 會讓普掃在斷網下轉紅。
+
+沒收進來的（刻意）：內文字型（載不到只是退回系統字型，Noto Sans TC 光 subset 就 315 個檔）、
+地圖圖磚、Nominatim 地址搜尋、Firebase 社群登入——後三者本質上是線上服務。
+
 ## 重要注意事項
 
 - `application.yml` 已全面改為 `${ENV_VAR:預設值}`，**不要把明文密鑰寫回去**

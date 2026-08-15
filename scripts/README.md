@@ -15,7 +15,7 @@ npm install
 
 node e2e-verify.js                  # API 端對端：12 面向 / 85 項斷言
 npx playwright install chromium
-node ui/run-all.js                  # UI：全頁面普掃 + 點餐 / 轉盤 / 揪團
+E2E_OFFLINE=1 node ui/run-all.js    # UI：全頁面普掃 + 點餐 / 轉盤 / 揪團（斷網模式，CI 用這個）
 ```
 
 單獨跑某一支：
@@ -28,6 +28,13 @@ node ui/flow-wheel.js       # 轉盤：抽獎 → 優惠券入帳 → 當日不�
 node ui/flow-group.js       # 揪團：建立 → 團員加點 → 團員付款 → 團長送出
 ```
 
+## 其他腳本
+
+```bash
+./scripts/demo-reset.sh      # 演示前重置示範資料（清空重植，約 13 秒）
+./scripts/vendor-assets.sh   # 重新抓取 frontend/vendor/ 的第三方函式庫
+```
+
 ## 環境變數
 
 | 變數 | 用途 |
@@ -37,7 +44,7 @@ node ui/flow-group.js       # 揪團：建立 → 團員加點 → 團員付款 
 | `HEADED=1` | 開有頭瀏覽器，肉眼看流程跑 |
 | `E2E_SHOT_DIR` | 截圖輸出位置，預設 `target/e2e-shots/` |
 | `CHROME_PATH` | 自備 Chromium 執行檔（不設就用 Playwright 內建） |
-| `E2E_CDN_DIR` | 離線環境專用：把外部 CDN 換成這個資料夾裡的檔案 |
+| `E2E_OFFLINE=1` | 斷網模式：擋掉所有連外請求，驗證前端不靠 CDN 也能跑（CI 固定開啟）|
 
 ## 為什麼要有這兩層
 

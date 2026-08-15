@@ -5,7 +5,7 @@
  *   API_BASE      後端位址（預設 http://127.0.0.1:8082）
  *   FE_BASE       靜態前端位址（預設 http://127.0.0.1:5500）
  *   HEADED=1      有頭模式，方便本機肉眼看流程
- *   E2E_CDN_DIR   離線環境用：放 CDN 檔的資料夾，有設定才會攔截外部請求
+ *   E2E_OFFLINE=1 斷網模式：擋掉所有連外請求，驗證專案不靠 CDN 也能跑
  *   CHROME_PATH   自備 Chromium 執行檔路徑（沒設就用 Playwright 內建的）
  */
 const { chromium } = require('playwright');
@@ -16,18 +16,11 @@ const API = process.env.API_BASE || 'http://127.0.0.1:8082';
 const FE = process.env.FE_BASE || 'http://127.0.0.1:5500';
 const SHOT_DIR = process.env.E2E_SHOT_DIR || path.join(__dirname, '..', '..', 'target', 'e2e-shots');
 
-// 只有在離線環境（有提供 E2E_CDN_DIR）才需要把 CDN 換成本機檔案。
-// 一般有網路的機器（含 GitHub Actions）直接讓它連出去即可。
-const CDN_DIR = process.env.E2E_CDN_DIR || '';
-const CDN_MAP = [
-  ['cdn.tailwindcss.com', 'tailwind.js', 'application/javascript'],
-  ['leaflet@1.9.4/dist/leaflet.js', 'leaflet.js', 'application/javascript'],
-  ['leaflet@1.9.4/dist/leaflet.css', 'leaflet.css', 'text/css'],
-  ['unpkg.com/lucide', 'lucide.js', 'application/javascript'],
-  ['chart.js', 'chart.js', 'application/javascript'],
-  ['sockjs', 'sockjs.js', 'application/javascript'],
-  ['stomp', 'stomp.js', 'application/javascript'],
-];
+// 斷網模式：把所有連外請求擋掉，只留本機的前端與 API。
+// 第三方函式庫都已經收進 frontend/vendor/，所以這個模式下畫面必須完全正常——
+// 一旦有人重新引入 CDN，普掃就會出現 `X is not defined` 而失敗。
+// CI 固定開著（見 .github/workflows/ci.yml），這條保證才不會悄悄失效。
+const OFFLINE = process.env.E2E_OFFLINE === '1';
 
 async function api(path, { method = 'GET', token, body } = {}) {
   const headers = { 'Content-Type': 'application/json' };
@@ -74,13 +67,9 @@ async function newSession(browser, storage, { viewport = { width: 390, height: 8
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, locale: 'zh-TW' });
   const errors = [];
 
-  if (CDN_DIR) {
+  if (OFFLINE) {
     await ctx.route('**/*', route => {
       const u = route.request().url();
-      if (u.includes('fonts.googleapis.com')) return route.fulfill({ status: 200, contentType: 'text/css', body: '' });
-      const hit = CDN_MAP.find(([m]) => u.includes(m));
-      if (hit && fs.existsSync(path.join(CDN_DIR, hit[1])))
-        return route.fulfill({ status: 200, contentType: hit[2], body: fs.readFileSync(path.join(CDN_DIR, hit[1])) });
       if (/^https?:\/\/(?!127\.0\.0\.1|localhost)/.test(u)) return route.abort();
       return route.continue();
     });

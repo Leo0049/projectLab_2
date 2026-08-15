@@ -36,6 +36,10 @@ mvn spring-boot:run       # 服務起在 :8082
 服務開著講了十幾分鐘架構之後才打開後台，接單／拒單那段就沒東西可以示範了；
 每日轉盤則是**一個帳號一天只能抽一次**，彩排抽過，正式演示就只會看到「你今日已參加過」。
 
+演示不需要網路：Tailwind、Leaflet、Lucide、Chart.js、SockJS/STOMP、QRCode 與三套圖示字型
+都收在 `frontend/vendor/`（3.3 MB，用 `./scripts/vendor-assets.sh` 可重新抓取）。
+仍需連外的只剩地圖圖磚、地址搜尋與社群登入這三個本質上是線上服務的東西。
+
 ⚠️ 前端請用**靜態伺服器**開啟，不要直接雙擊 HTML 檔（`file://` 的 Origin 是 `null`，會被 CORS 擋掉）。
 VS Code Live Server 的預設埠是 5500，但 5500 被占用時它會**靜默改用 5501**；
 白名單已一併涵蓋 5501/5502/3000/8080，其他埠請用 `CORS_ALLOWED_ORIGINS` 覆寫。
@@ -72,7 +76,8 @@ VS Code Live Server 的預設埠是 5500，但 5500 被占用時它會**靜默�
 | ![品牌菜單](docs/screenshots/brand-menu.png) | ![門市訂單](docs/screenshots/store-orders.png) |
 | 分類與飲品排序、上下架、售價維護 | 依狀態分區，接單／拒單／製作完成的完整流轉 |
 
-> 店家與飲品圖片是專案內建的 SVG 示意圖，不依賴任何外部圖床，離線也能完整展示。
+> 店家與飲品圖片是專案內建的 SVG 示意圖，第三方函式庫也全部收在 `frontend/vendor/`，
+> **整個前端在斷網狀態下畫面完全正常**（CI 固定用斷網模式跑普掃與三條主線）。
 
 ---
 
@@ -148,6 +153,11 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
   白名單已補上常見開發埠。
 - **「今天已經抽過」回 500**：那是正常的使用者情境，不是系統錯誤。演示時第二次點轉盤，
   devtools 會出現一個紅色的 500。已改為 409。
+
+- **整個前端靠 CDN**：Tailwind、Leaflet、Lucide、SockJS 等全部從 CDN 載入，會議室網路擋掉或不穩時，
+  地圖／結帳／揪團／個人資料四頁直接壞掉（`L is not defined`、`SockJS is not defined`…），
+  Tailwind 掛掉更是整頁沒有樣式。現已全部收進 `frontend/vendor/`，並把 **斷網模式加進 CI**——
+  實測擋掉所有連外請求後，51 頁普掃 0 問題、三條主線全過。
 
 另外補了 `scripts/demo-reset.sh`（13 秒清空重植），因為待處理訂單的 10 分鐘倒數與
 每日轉盤的一天一次限制，都會讓「講完架構才開始 demo」的那一份資料失效。
