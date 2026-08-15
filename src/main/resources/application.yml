@@ -82,7 +82,12 @@ app:
   cors:
     # SecurityConfig（HTTP）與 WebSocketConfig（STOMP handshake）共用這份白名單，
     # 避免兩邊各寫一份而漂移——WebSocket 曾寫成 allowedOriginPatterns("*") 完全放行。
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5500,http://localhost:5500,http://localhost:60687,http://localhost:54376,http://localhost:63342,http://localhost:8082}
+    #
+    # ⚠️ 這裡多列了 5501/5502/3000/8080：VS Code Live Server 的預設埠是 5500，
+    # 但 5500 被占用時它會靜默改用 5501，此時整個前端會因為 CORS 而全部 403——
+    # 實測 5501 / 3000 / 8080 與 file://（Origin: null）的 preflight 都被擋下。
+    # 直接用瀏覽器開檔案（file://）本來就不支援，請用靜態伺服器。
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:5501,http://localhost:5501,http://127.0.0.1:5502,http://localhost:5502,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080,http://localhost:60687,http://localhost:54376,http://localhost:63342,http://localhost:8082,http://127.0.0.1:8082}
 
 jwt:
   # 本機預設值僅供開發，正式環境務必以 JWT_SECRET 覆寫。

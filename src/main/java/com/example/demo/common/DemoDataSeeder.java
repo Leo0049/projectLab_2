@@ -69,6 +69,7 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final GroupOrderRepository groupOrderRepository;
     private final OrderItemRepository orderItemRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.example.demo.service.TransactionRecordService transactionRecordService;
 
     @Value("${app.demo-data.enabled:true}")
     private boolean enabled;
@@ -128,9 +129,17 @@ public class DemoDataSeeder implements ApplicationRunner {
         customer.setName("示範顧客");
         customer.setPhone("0912000000");
         customer.setRole("CUSTOMER");
-        customer.setBalance(new BigDecimal("500.00"));
+        customer.setBalance(BigDecimal.ZERO);
         customer.setPasswordHash(passwordEncoder.encode(DEMO_PASSWORD));
         userRepository.save(customer);
+
+        // ⚠️ 餘額要用帳本灌，不能直接 setBalance。
+        // 原本是直接給 500，示範訂單又各自帶著 escrow_amount 卻沒有對應的扣款紀錄——
+        // 那些訂單一旦被取消／拒單（待處理訂單超過 10 分鐘會自動取消），
+        // handleGroupOrderCancellation 就會把「從來沒扣過的錢」退還，
+        // 實測餘額憑空從 500 跳到 850，而帳本總額是 −175，對不起來。
+        transactionRecordService.updateStoreCredit(customer.getId(), new BigDecimal("2000.00"),
+                com.example.demo.service.wallet.TxType.TOPUP, "示範資料：初始儲值", LocalDateTime.now());
 
         // ── 示範訂單 ──────────────────────────────────────────
         // 沒有這一步，門市後台的訂單管理是六個空區塊，看起來像功能還沒做完
@@ -232,6 +241,13 @@ public class DemoDataSeeder implements ApplicationRunner {
         o.setTotalAmount(total);
         o.setEscrowAmount("COMPLETED".equals(status) ? BigDecimal.ZERO : total);
         GroupOrder saved = groupOrderRepository.save(o);
+
+        // 示範訂單也要真的從錢包扣款並寫帳本，餘額與帳本才對得起來；
+        // 之後這張單被取消或拒單時，退回的才是真的付過的錢。
+        transactionRecordService.updateStoreCredit(customer.getId(), total.negate(),
+                "COMPLETED".equals(status) ? com.example.demo.service.wallet.TxType.PAYMENT
+                        : com.example.demo.service.wallet.TxType.ESCROW,
+                "示範訂單 #" + saved.getId() + " 結帳扣款", createdAt);
 
         boolean paid = "COMPLETED".equals(status);
         for (ItemSpec s : specs) {

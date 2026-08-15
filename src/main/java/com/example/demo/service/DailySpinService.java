@@ -79,12 +79,12 @@ public class DailySpinService {
             }
 
             if (!redisCheckPassed) {
-                throw new RuntimeException("你今日已參加過轉盤遊戲");
+                throw new com.example.demo.exception.CustomException("409", "你今日已參加過轉盤遊戲");
             }
 
             // 3. 資料庫層級二次檢查（防止 Redis 重啟導致狀態遺失，或 Redis 故障）
             if (userCouponRepository.existsByUserIdAndObtainedDateAndCouponType(userId, LocalDate.now(), "WHEEL_GAME")) {
-                throw new RuntimeException("資料庫顯示你今日已參加過轉盤遊戲");
+                throw new com.example.demo.exception.CustomException("409", "你今日已參加過轉盤遊戲");
             }
 
             List<ProductTemplate> allProducts = productRepository.findByBrandId(brandId);

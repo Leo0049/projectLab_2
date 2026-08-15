@@ -134,12 +134,12 @@ public class CouponService {
             String dailyKey = "spin:done:" + userId + ":" + LocalDate.now();
             long ttl = 86400; // 為簡單起見使用 24 小時，或計算到午夜
             if (!redisLockService.acquireLock(dailyKey, ttl)) {
-                throw new RuntimeException("你今日已參加過轉盤遊戲");
+                throw new com.example.demo.exception.CustomException("409", "你今日已參加過轉盤遊戲");
             }
 
             // 3. 每日限制檢查 (DB)
             if (userCouponRepository.existsByUserIdAndObtainedDateAndCouponType(userId, LocalDate.now(), "WHEEL_GAME")) {
-                throw new RuntimeException("資料庫顯示你今日已參加過轉盤遊戲");
+                throw new com.example.demo.exception.CustomException("409", "你今日已參加過轉盤遊戲");
             }
 
             List<ProductTemplate> products = productRepository.findByStoreId(storeId);

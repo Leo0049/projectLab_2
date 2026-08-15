@@ -44,6 +44,11 @@ public class DailySpinController {
             @RequestBody SpinRequest request) {
         try {
             return com.example.demo.common.Result.success(dailySpinService.spin(userId, request.getBrandId()));
+        } catch (com.example.demo.exception.CustomException e) {
+            // 「今天已經抽過」是正常的使用者情境，不是系統錯誤。
+            // 原本整段 catch RuntimeException 再回 Result.error()（固定 code=500），
+            // 演示時第二次點轉盤，devtools 會看到一個紅色的 500。
+            return com.example.demo.common.Result.error(e.getCode(), e.getMsg());
         } catch (RuntimeException e) {
             return com.example.demo.common.Result.error(e.getMessage());
         }
