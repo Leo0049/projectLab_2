@@ -44,6 +44,9 @@ mvn spring-boot:run       # 服務起在 :8082
 VS Code Live Server 的預設埠是 5500，但 5500 被占用時它會**靜默改用 5501**；
 白名單已一併涵蓋 5501/5502/3000/8080，其他埠請用 `CORS_ALLOWED_ORIGINS` 覆寫。
 
+> 社群登入與真實手機驗證屬線上服務：需自行在 `frontend/Customer/js/firebase-config.js`
+> 填入專案設定後才會生效（未填時 console 會有明確提示）；本機演示走 `SMS_MODE=mock`，不受影響。
+
 ---
 
 ## 功能範圍
@@ -58,7 +61,7 @@ VS Code Live Server 的預設埠是 5500，但 5500 被占用時它會**靜默�
 | **優惠券轉盤** | 每日抽獎，優惠券圖片由 Java 2D 動態生成後上傳 Cloudinary |
 | **商品快照** | 下單時保存當下品名與價格，日後改價不影響歷史訂單 |
 
-規模：後端 144 個檔案 / 約 15.2k 行，26 張資料表，14 個 REST controller；前端 39 個頁面、約 17.8k 行 JS（Vanilla JS + Tailwind）。
+規模：後端 145 個檔案 / 約 15.6k 行，26 張資料表，14 個 REST controller；前端 39 個頁面、約 17.8k 行 JS（Vanilla JS + Tailwind）。
 
 ---
 
@@ -184,6 +187,26 @@ REPEATABLE READ 下讀的是本交易快照，12 筆評分只算出 4 筆。兩�
 
 > 稽核與修補過程使用 Claude Code 協助進行。
 
+### 第二輪強化（2026-08）：把同一套標準套進揪團金流與其餘入口
+
+第一輪收尾後，以相同手法（重現 → 修補 → 回歸）處理後續發現：
+
+| # | 問題 | 實測影響 | 修補 |
+|---|------|---------|------|
+| H-1 | 揪團加點／改品項採信用戶端 `unitPrice`／`finalPrice`／`toppingPrices`（S-7 只修了個人下單） | `finalPrice: 1` 加點，member-checkout 就只扣 $1 | 金額一律經 `PricingService` 重算；配料由 `toppingIds` 對品牌設定反查，自創名稱／價格直接 400 |
+| M-2 | 同一端點的 `userId` 取自 body；商品未驗所屬品牌 | 把品項掛到他人身上（被代墊或嫁禍）；跨品牌夾帶商品 | 身分認 JWT；商品必須屬於揪團門市的品牌 |
+| H-2 | 揪團結帳／團員結帳對整單券只 `findById` 就打折（D-4、S-9 未涵蓋的路徑） | 列舉 couponId 盜用他人未用券折抵自己的結帳 | 先驗適用範圍，再以 `markUsedIfUnused(id, userId)` 原子消耗（WHERE 帶擁有者＋狀態） |
+| H-3 | status 端點取不到身分就退回 query 參數 `hostId`（S-2/S-6 同型殘留） | 帶真團長 id 即可變更他人揪團狀態 | 身分只認 JWT；`status` 白名單限 OPEN／LOCKED |
+| H-4 | `updateItem` 的 `idList` 直接 `deleteAllById` | 知道 itemId 即可刪任何人的品項，繞過 PAID 保護與退款邏輯 | 僅允許刪同揪團、本人、未付款的合併副本；副本有券先還原 |
+| M-1 | 上傳端點不驗內容與副檔名 | HTML/SVG 落地 `/uploads/**` 形成儲存型 XSS | 副檔名白名單＋magic bytes 驗證＋5MB 上限；儲存統一走 ImageStorageService |
+| M-3 | 分散式鎖值固定寫 `"locked"`，release 無條件 DEL | 鎖逾時易主後被誤刪，第三者可重入 | token 配對，release 以 Lua 比對才刪（原子） |
+| M-4 | 取消揪團以 submittedAt ±5 秒反查要還原的整單券 | 併發或同時段多筆交易時可能還原錯張、或漏還 | 結帳記錄 `checkout_coupon_id`，據此精準還原；時間戳法僅供舊資料回退 |
+| M-5 | 建立揪團是 check-then-insert | 同一人併發請求可開出多個活躍揪團 | token 鎖序列化建立動作 |
+
+另修正 `removeItem` 的退款漏扣券折扣快照（原本會連折扣一起退回），
+並把觸及檔案的 `System.out.println`／`printStackTrace` 收斂到 slf4j。
+以上行為由新增的 `GroupOrderSecurityTest`（5 例）釘死，詳見測試章節。
+
 ---
 
 ## 測試
@@ -203,10 +226,13 @@ docker compose up -d && mvn test
 | `RatingConcurrencyTest`（2） | 併發評分不得死鎖（12 筆必須全部寫入），且門市的則數／平均分數要與實際評分對得起來 |
 | `WalletConcurrencyTest`（3） | 併發儲值不短少、帳本與餘額相符、併發扣款不透支、列鎖不被一級快取架空 |
 | `GroupCheckoutConcurrencyTest`（6） | 揪團的四條金流路徑（團員結帳、團長結帳、補款、取消退款）重複觸發時同一筆金額只能發生一次、帳本與餘額必須相符；同一張優惠券不可被用兩次 |
+| `GroupOrderSecurityTest`（5） | 揪團安全回歸：偽造價格與他人 `userId` 不被採信、盜用他人優惠券必須被拒且券保持 unused、偽造 `hostId` 不得改他人揪團狀態、狀態白名單、團長本人仍可正常截單／重開 |
+| `RedisCartServiceTest`（2） | Redis 快照只存純量欄位，不得序列化 lazy 關聯（曾致快照靜默失敗）；product 為 null 時不可拋 NPE |
+| `JwtUtilsProdGuardTest`（4） | prod profile 使用空白或內建預設 `JWT_SECRET` 時拒絕啟動；dev profile 不受影響 |
 | `DemoApplicationTests`（1） | Spring context 載入 |
 
 `ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，
-不載入 Spring context，60 個測試裡它們合計只跑 0.1 秒。
+不載入 Spring context，71 個測試裡它們合計只跑 0.1 秒。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
 測試不多，但都對準真正會出事的地方（金流與授權），而且**每一支都驗證過「把修補改回舊寫法時會失敗」**——
@@ -218,22 +244,24 @@ docker compose up -d && mvn test
 > 因為沒有鎖時讀到的狀態本身就是舊的。守衛留著是為了讓意圖明確，但它不是那道防線。
 只在修補後跑一次通過的測試，證明不了它擋得住回歸。
 
-### 三層驗證，全部進 CI
+### 四層驗證，全部進 CI
 
-單元測試守不住「服務真的跑起來之後才會現形」的問題，所以另外疊了兩層：
+單元測試守不住「服務真的跑起來之後才會現形」的問題，所以另外疊了兩層；
+最上面再加一道 Secret 掃描，金鑰一進版控就直接讓 CI 變紅：
 
 ```bash
 cd scripts && npm install          # 只裝驗證腳本的相依套件，前端本身沒有建置流程
 
-node e2e-verify.js                 # 第二層：API 端對端（12 面向 / 85 項斷言）
+node e2e-verify.js                 # 第二層：API 端對端（12 面向 / 77 項檢查）
 npx playwright install chromium
 node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 ```
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（60） | 授權、金流與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
-| `scripts/e2e-verify.js`（85） | 三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、拒單與顧客取消退款、揪團、轉盤、收藏／地址、授權防護、WebSocket 授權、後台端點與分頁 | 交易邊界、序列化、擁有權檢查 |
+| `gitleaks`（第 0 層） | Secret 掃描 | 金鑰／憑證進版控即失敗 |
+| `mvn test`（71） | 授權、金流與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `scripts/e2e-verify.js`（77） | 三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、拒單與顧客取消退款、揪團、轉盤、收藏／地址、授權防護、WebSocket 授權、後台端點與分頁 | 交易邊界、序列化、擁有權檢查 |
 | `scripts/ui/run-all.js` | 51 頁全頁面普掃 ＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
 顧客端是主要使用路徑，普掃分成三段跑：**有資料的帳號**、**剛註冊的空狀態帳號**
@@ -338,7 +366,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 刻意未處理，列在這裡是因為知道它們存在、也知道代價：
 
-- `GroupOrderService` 仍有約 1,300 行、`BrandService` 1,165 行，最長的方法 135 行。
+- `GroupOrderService` 仍有約 1,500 行、`BrandService` 1,165 行，最長的方法 135 行。
   已先抽出三條規則並補上單元測試（見「拆出可測試的規則」），但金流方法
   （`checkout`、`handleGroupOrderCancellation`、`repayToHost`）還沒動，
   那幾條仍然只能靠端對端與 UI 流程從外面框住行為
@@ -357,6 +385,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 | `.env` / `application-local.yml` | 本機憑證 | ✗（已 gitignore） |
 | `src/main/resources/serviceAccountKey.json` | Firebase 金鑰 | ✗（已 gitignore） |
 | `.env.example` / `application-local.yml.example` | 範本 | ✓ |
+| `.env.prod.example` / `application-prod.yml.example` | 正式環境 profile 範本 | ✓ |
 
 本機預設 `SMS_MODE=mock`，跳過 Firebase 手機驗證，**不需要金鑰即可註冊登入**。
 
@@ -372,16 +401,6 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ---
 
-## 其他文件
-
-- [API.md](./API.md) — REST API 端點文件
-- [DATABASE.md](./DATABASE.md) — 26 張表 schema 說明
-- [CLAUDE.md](./CLAUDE.md) — 開發約定與踩過的坑（授權規則、餘額鎖列、STOMP 授權等）
-
-> Schema 的唯一事實來源是 `src/main/java/com/example/demo/entity/` 下的 JPA Entity。
-
----
-
 ## 部署到正式環境
 
 1. `cp .env.prod.example .env.prod` 並逐項填入（JWT_SECRET 未換會**拒絕啟動**）。
@@ -389,3 +408,15 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 3. 以 `SPRING_PROFILES_ACTIVE=prod` 啟動：`docker compose up -d && SPRING_PROFILES_ACTIVE=prod mvn spring-boot:run`
 4. 啟動自我檢查：prod profile 下若 JWT_SECRET 是開發預設值，應用會直接丟 `IllegalStateException` 並退出——這是刻意設計。
 5. 詳細的安全配置說明見 `docs/SECURITY-FRONTEND.md`。
+
+---
+
+---
+
+## 其他文件
+
+- [API.md](./API.md) — REST API 端點文件
+- [DATABASE.md](./DATABASE.md) — 26 張表 schema 說明
+- [CLAUDE.md](./CLAUDE.md) — 開發約定與踩過的坑（授權規則、餘額鎖列、STOMP 授權等）
+
+> Schema 的唯一事實來源是 `src/main/java/com/example/demo/entity/` 下的 JPA Entity。
