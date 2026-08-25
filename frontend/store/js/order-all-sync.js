@@ -7,6 +7,12 @@
 (() => {
   if (!document.querySelector('[data-order-tabs]')) return;
 
+  /* ── XSS 防護：HTML 跳逸（IIFE 內部作用域，不與全域撞名）── */
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+
+
   /* ── 常數 ─────────────────────────────────────────── */
   const PENDING_MS = 10 * 60 * 1000;
   const PAGE_SIZE  = 30;

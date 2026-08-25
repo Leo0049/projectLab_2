@@ -875,6 +875,12 @@
 
     <!-- Scripts -->
     <script>
+        /* ── XSS 防護：HTML 跳逸 ── */
+        /* 本頁主腳本不包 IIFE，用 var + window 守衛避免與外部 js 的 const 宣告撞名 */
+        var esc = window.esc || (window.esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
+          { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+        )));
+
         // 自動攔截並在所有 fetch 請求帶入 JWT Token，解決純 fetch 的 403 Forbidden 錯誤
         const originalFetch = window.fetch;
         window.fetch = async function (url, options = {}) {

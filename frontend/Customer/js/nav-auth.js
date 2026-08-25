@@ -3,6 +3,12 @@
  * Handles authentication, API calls, and shared UI elements.
  */
 
+/* ── XSS 防護：HTML 跳逸（文字節點與雙引號屬性值皆適用）── */
+/* 本檔不包 IIFE，用 var + window 守衛避免與其他腳本的 const 宣告撞名 */
+var esc = window.esc || (window.esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+)));
+
 if (!window.API_BASE_URL) {
     window.API_BASE_URL = (() => {
     if (window.JOIN_API_BASE && typeof window.JOIN_API_BASE === 'string') {
