@@ -1,0 +1,8 @@
+# 歷史殘留：這把 Firebase Web API key 已於稽核後確認撤銷（
+# Identity Toolkit ×2 / Maps Static 三端點均回 API_KEY_INVALID）。
+# 僅為讓 gitleaks 掃描全歷史時不被旧 commit 卡住；新外洩仍會被拔。
+876780368d42de3d564efdf9b1c959fef1782b00:frontend/Customer/auth/login.html:gcp-api-key:122
+876780368d42de3d564efdf9b1c959fef1782b00:frontend/Customer/auth/register.html:gcp-api-key:136
+876780368d42de3d564efdf9b1c959fef1782b00:frontend/Customer/auth/verify-phone.html:gcp-api-key:91
+876780368d42de3d564efdf9b1c959fef1782b00:frontend/Customer/auth/forgot-password.html:gcp-api-key:57
+876780368d42de3d564efdf9b1c959fef1782b00:frontend/Customer/auth/js/verify-phone.js:gcp-api-key:160
