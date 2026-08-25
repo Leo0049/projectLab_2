@@ -1525,7 +1525,7 @@
                                         <div class="flex items-center justify-between mb-3 w-full">
                                             <div class="flex items-center gap-2">
                                                 ${group.isHost ? '<span class="bg-primary text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">團長</span>' : ''}
-                                                <span class="font-bold text-sm text-slate-700">${group.userName}${group.isHost ? ' (發起人)' : ''}</span>
+                                                <span class="font-bold text-sm text-slate-700">${esc(group.userName)}${group.isHost ? ' (發起人)' : ''}</span>
                                             </div>
                                             ${allPaid
                                         ? '<span class="text-[10px] px-2 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 whitespace-nowrap font-bold shadow-sm">已付款</span>'
@@ -1572,11 +1572,11 @@
                                     html += `
                                         <div class="flex items-start gap-4 bg-white p-4 rounded-xl relative group/item border border-gray-100 shadow-sm hover:border-primary/40 transition-colors">
                                             <div class="w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-gray-50 border border-gray-100">
-                                                <img src="${imgUrl}" alt="${item.productName || '飲品'}" class="w-full h-full object-cover">
+                                                <img src="${esc(imgUrl)}" alt="${esc(item.productName || '飲品')}" class="w-full h-full object-cover">
                                             </div>
                                             <div class="flex-1 min-w-0">
                                                 <div class="flex items-center gap-2 mb-0.5 flex-wrap">
-                                                    <p class="font-bold text-slate-800 text-base truncate">${item.productName || item.productNameSnapshot}</p>
+                                                    <p class="font-bold text-slate-800 text-base truncate">${esc(item.productName || item.productNameSnapshot)}</p>
                                                 </div>
                                                 ${specTags}
                                                 <div class="flex items-center gap-2">
@@ -1611,7 +1611,7 @@
                                                     <button onclick="openEditModal('${item.representativeId}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-all" title="修改冰塊甜度">
                                                         <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
                                                     </button>
-                                                    <button onclick="openItemCouponModal('${item.representativeId}', '${item.productName}')" class="p-1.5 text-orange-500 hover:bg-orange-50 rounded-md transition-all" title="使用優惠券">
+                                                    <button data-item-id="${esc(item.representativeId)}" data-item-name="${esc(item.productName)}" onclick="openItemCouponModal(this.dataset.itemId, this.dataset.itemName)" class="p-1.5 text-orange-500 hover:bg-orange-50 rounded-md transition-all" title="使用優惠券">
                                                         <i data-lucide="ticket" class="w-3.5 h-3.5"></i>
                                                     </button>
                                                     <button onclick="removeItem('${item.representativeId}')" class="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-all" title="刪除整項">
