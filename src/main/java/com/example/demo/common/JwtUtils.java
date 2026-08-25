@@ -3,11 +3,14 @@ package com.example.demo.common;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Date;
 
 @Component
@@ -18,6 +21,12 @@ public class JwtUtils {
 
     @Value("${jwt.secret}")
     private String secret;
+
+    /** application.yml 內建的開發預設金鑰前綴；prod profile 下出現即拒絕啟動 */
+    static final String DEV_DEFAULT_SECRET_PREFIX = "LocalDevOnlySecretForJoinDrink";
+
+    @Autowired(required = false)
+    private Environment environment;
 
     // ⚠️ 過去這裡寫死 @Value("604800000")（7天），導致 application.yml 的
     //    jwt.expiration 完全不生效。改為讀設定值，預設 24 小時。
@@ -33,6 +42,12 @@ public class JwtUtils {
      */
     @PostConstruct
     void initSigningKey() {
+        // ⚠️ 生產防呆：prod profile 下若金鑰仍是內建開發預設值或空白，
+        // 直接讓啟動失敗——偽造 token 的代價遠比啟動失敗高。
+        boolean productionProfile = environment != null
+                && Arrays.asList(environment.getActiveProfiles()).contains("prod");
+        assertProductionSecret(productionProfile, secret);
+
         byte[] keyBytes = secret == null ? new byte[0] : secret.getBytes(StandardCharsets.UTF_8);
         if (keyBytes.length < MIN_SECRET_BYTES) {
             throw new IllegalStateException(
@@ -41,6 +56,23 @@ public class JwtUtils {
                             + "請設定環境變數 JWT_SECRET 為更長的隨機字串。");
         }
         this.signingKey = Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    /**
+     * ⚠️ 生產防呆：prod profile 下若金鑰仍是內建開發預設值或空白，
+     * 直接讓啟動失敗。package-private static 以利單元測試。
+     */
+    static void assertProductionSecret(boolean productionProfile, String secret) {
+        if (!productionProfile) {
+            return;
+        }
+        if (secret == null || secret.isBlank()
+                || secret.startsWith(DEV_DEFAULT_SECRET_PREFIX)) {
+            throw new IllegalStateException(
+                    "偵測到 prod profile 使用空白或內建預設的 JWT_SECRET。"
+                            + "正式環境必須以環境變數 JWT_SECRET 注入至少 64 字元的隨機金鑰"
+                            + "（例：openssl rand -base64 72）。");
+        }
     }
 
     public String generateToken(Long userId, String role, String phoneNumber) {
