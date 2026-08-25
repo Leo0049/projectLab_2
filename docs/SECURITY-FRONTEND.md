@@ -1,5 +1,27 @@
 # 前端安全：現況與 CSP 路線圖
 
+## Secret 防護現況（2026-08-26）
+
+- **歷史事件**：auth/ 下五個檔案曾硬編碼真實 Firebase Web API key（`project-b5e05`），
+  自 initial commit 起公開於 GitHub。已實測 Identity Toolkit ×2 / Maps Static 三端點均回
+  `API_KEY_INVALID`，確認金鑰已撤銷；程式碼亦已移除硬編碼，統一由
+  `frontend/Customer/js/firebase-config.js`（placeholder）提供設定。
+- **CI 掃描**：`.github/workflows/ci.yml` 第 0 層為 gitleaks（`gitleaks-action@v2`，
+  `fetch-depth: 0`）。新外洩會直接讓 CI 變紅。
+- **歷史殘留豁免**：`.gitleaksignore` 僅豁免上述「已撤銷」金鑰在舊 commit 的 5 筆 finding
+  （fingerprints 由全歷史掃描產生）。除此之外的任何 finding 都代表新的外洩。
+- **倉庫擁有者待辦（手動開關，無法用 CI 代辦）**：
+  GitHub repo → Settings → Code security and analysis →
+  1. Secret scanning → **Enable**
+  2. Push protection → **Enable**（有人要 push 金鑰時當場擋下）
+- **未來放新 Firebase key 的規則**：
+  1. 只填在 `firebase-config.js`（單一事實來源），不得複製到其他檔案
+  2. Google Cloud Console：API restrictions 限縮至 Identity Toolkit API；
+     Website restrictions 限定授權網域
+  3. Firebase Console → Authentication → Settings → Authorized domains 白名單
+  4. 啟用 Firebase App Check（reCAPTCHA v3 / Play Integrity）
+  5. 服務帳戶 JSON 只走 `FIREBASE_CONFIG_PATH=file:` 指向掛載的 secret，永不入版控
+
 ## 現況（2026-08-25 審查後）
 
 - 使用者可控資料的渲染點已導入 `esc()` HTML 跳逸：

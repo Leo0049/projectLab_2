@@ -86,3 +86,6 @@ Desktop.ini
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# --- SDD 執行紀錄（brief/review/ledger 等工作產物）---
+.superpowers/

@@ -48,6 +48,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # gitleaks 需完整歷史才能比對 .gitleaksignore baseline
+
+      # ── 第 0 層：Secret 掃描（防止金鑰進版控）─────────────────
+      # .gitleaksignore 豁免的僅限「已撤銷」的歷史殘留（見該檔說明）；
+      # 新外洩仍會直接讓 CI 變紅。
+      - name: Secret 掃描（gitleaks）
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 設定 JDK 17
         uses: actions/setup-java@v4
