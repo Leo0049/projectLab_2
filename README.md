@@ -379,3 +379,13 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 - [CLAUDE.md](./CLAUDE.md) — 開發約定與踩過的坑（授權規則、餘額鎖列、STOMP 授權等）
 
 > Schema 的唯一事實來源是 `src/main/java/com/example/demo/entity/` 下的 JPA Entity。
+
+---
+
+## 部署到正式環境
+
+1. `cp .env.prod.example .env.prod` 並逐項填入（JWT_SECRET 未換會**拒絕啟動**）。
+2. `cp src/main/resources/application-prod.yml.example src/main/resources/application-prod.yml`
+3. 以 `SPRING_PROFILES_ACTIVE=prod` 啟動：`docker compose up -d && SPRING_PROFILES_ACTIVE=prod mvn spring-boot:run`
+4. 啟動自我檢查：prod profile 下若 JWT_SECRET 是開發預設值，應用會直接丟 `IllegalStateException` 並退出——這是刻意設計。
+5. 詳細的安全配置說明見 `docs/SECURITY-FRONTEND.md`。
