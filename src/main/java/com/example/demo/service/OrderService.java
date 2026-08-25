@@ -205,7 +205,9 @@ public class OrderService {
             List<OrderItem> items, String paymentMethod, String deliveryAddress, String note,
             BigDecimal alreadyPaidAmount) {
         String lockKey = "lock:checkout:" + userId;
-        if (!redisLockService.acquireLock(lockKey, 30)) {
+        // ⚠️ M-3 修復：acquireLock 回傳 token，release 需帶回同一 token 才不會誤刪他人的鎖
+        String lockToken = redisLockService.acquireLock(lockKey, 30);
+        if (lockToken == null) {
             throw new RuntimeException("系統繁忙中，請稍後再試");
         }
         try {
@@ -313,7 +315,7 @@ public class OrderService {
 
             return order.getId();
         } finally {
-            redisLockService.releaseLock(lockKey);
+            redisLockService.releaseLock(lockKey, lockToken);
         }
     }
 

@@ -37,6 +37,11 @@ public class GroupOrderService {
     private final StoreRepository storeRepository;
     private final ProductTemplateRepository productTemplateRepository;
     private final CartItemRepository cartItemRepository;
+    // ⚠️ H-1/H-2 修復引入：優惠券適用性驗證、以及唯一的品項計價來源
+    private final CouponService couponService;
+    private final PricingService pricingService;
+    // ⚠️ M-5 修復引入：建立揪團的 check-then-insert 序列化鎖
+    private final RedisLockService redisLockService;
 
     private static final List<String> PAYMENT_STATUS_PRIORITY =
             List.of("UNPAID", "ESCROWED", "WAITING_SUBMIT", "PAID", "REFUNDED", "CANCELLED");
@@ -46,27 +51,39 @@ public class GroupOrderService {
     // ============================================================
 
     public GroupOrder createGroupOrderV2(Long hostId, Long storeId) {
-        Optional<GroupOrder> existing = groupOrderRepository.findByInitiatorIdAndStoreIdAndStatusIn(hostId, storeId,
-                List.of("OPEN", "LOCKED"));
-        if (existing.isPresent()) {
-            throw new RuntimeException("You already have an active group order for this store");
+        // ⚠️ M-5 修復：下面的「查活躍揪團 → 建立新團」是 check-then-insert，
+        //    沒有鎖時同一人併發請求會開出多個活躍揪團。
+        //    以 token 鎖序列化同一使用者對同一門市的建立動作（雙擊／重試也安全）。
+        String lockKey = "lock:group-create:" + hostId + ":" + storeId;
+        String lockToken = redisLockService.acquireLock(lockKey, 10);
+        if (lockToken == null) {
+            throw new CustomException("409", "系統繁忙中，請稍後再試");
         }
-        GroupOrder go = new GroupOrder();
-        User host = userRepository.findById(hostId)
-                .orElseThrow(() -> new CustomException("404", "找不到使用者"));
-        go.setInitiator(host);
+        try {
+            Optional<GroupOrder> existing = groupOrderRepository.findByInitiatorIdAndStoreIdAndStatusIn(hostId, storeId,
+                    List.of("OPEN", "LOCKED"));
+            if (existing.isPresent()) {
+                throw new RuntimeException("You already have an active group order for this store");
+            }
+            GroupOrder go = new GroupOrder();
+            User host = userRepository.findById(hostId)
+                    .orElseThrow(() -> new CustomException("404", "找不到使用者"));
+            go.setInitiator(host);
 
-        Store store = storeRepository.findById(storeId)
-                .orElseThrow(() -> new CustomException("404", "找不到店家"));
-        go.setStore(store);
+            Store store = storeRepository.findById(storeId)
+                    .orElseThrow(() -> new CustomException("404", "找不到店家"));
+            go.setStore(store);
 
-        go.setShareToken(UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
-        go.setStatus("OPEN");
-        go.setType("GROUP");
-        go.setOrderNo(OrderService.generateOrderNo());
-        go.setAddress("");
-        go.setNote("");
-        return groupOrderRepository.save(go);
+            go.setShareToken(UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
+            go.setStatus("OPEN");
+            go.setType("GROUP");
+            go.setOrderNo(OrderService.generateOrderNo());
+            go.setAddress("");
+            go.setNote("");
+            return groupOrderRepository.save(go);
+        } finally {
+            redisLockService.releaseLock(lockKey, lockToken);
+        }
     }
 
     public GroupOrder getGroupOrderByToken(String token) {
@@ -303,20 +320,37 @@ public class GroupOrderService {
         return orderItemToppingRepository.findByOrderItemId(orderItemId);
     }
 
+    /**
+     * ⚠️ H-1／M-2 修復：
+     * <ul>
+     *   <li>userId 一律取自 JWT（由 controller 傳入），body 的 userId 不採信——
+     *       舊版可把品項掛到他人身上，讓受害者被代墊或被嫁禍。</li>
+     *   <li>商品必須屬於揪團門市的品牌。</li>
+     *   <li>金額（unitPrice/finalPrice/toppingPrices）一律經 {@link #repriceItem} 由
+     *       PricingService 重算，body 內任何金額欄位都不採信
+     *       （與 OrderService.repriceItems 同一標準）。</li>
+     * </ul>
+     */
     @Transactional
-    public OrderItem addItem(String token, Map<String, Object> req) {
+    public OrderItem addItem(String token, Map<String, Object> req, Long userId) {
         GroupOrder go = getGroupOrderByToken(token);
         if (!"OPEN".equalsIgnoreCase(go.getStatus())) {
             throw new RuntimeException(
                     "Group order is " + go.getStatus().toLowerCase() + " and cannot accept more items");
         }
-
-        Long userId = Long.parseLong(req.get("userId").toString());
+        if (userId == null) {
+            throw new CustomException("401", "請先登入");
+        }
         User user = userRepository.findById(userId).orElseThrow(() -> new CustomException("404", "找不到用戶"));
 
         Long productId = Long.parseLong(req.get("productId").toString());
         ProductTemplate pt = productTemplateRepository.findById(productId)
                 .orElseThrow(() -> new CustomException("404", "找不到商品 " + productId));
+        // ⚠️ M-2：商品必須屬於這個揪團門市的品牌，否則可跨品牌夾帶任意商品
+        if (pt.getBrand() == null || go.getStore().getBrand() == null
+                || !pt.getBrand().getId().equals(go.getStore().getBrand().getId())) {
+            throw new CustomException("400", "此商品不屬於該門市的品牌");
+        }
 
         // --- Topping Count Validation ---
         @SuppressWarnings("unchecked")
@@ -331,9 +365,10 @@ public class GroupOrderService {
         item.setUser(user);
         item.setProduct(pt);
         item.setProductNameSnapshot(pt.getName());
-        item.setUnitPriceSnapshot(new BigDecimal(req.getOrDefault("unitPrice", pt.getBasePrice()).toString()));
-        item.setFinalPrice(new BigDecimal(req.getOrDefault("finalPrice", item.getUnitPriceSnapshot()).toString()));
-        item.setQty(Integer.parseInt(req.getOrDefault("qty", "1").toString()));
+        // ⚠️ H-1：金額不採信 client，先以底價佔位，儲存前統一 repriceItem 重算
+        item.setUnitPriceSnapshot(pt.getBasePrice() != null ? pt.getBasePrice() : BigDecimal.ZERO);
+        item.setFinalPrice(BigDecimal.ZERO);
+        item.setQty(parseQty(req));
         // --- 固定規格防竄改：規則見 ItemSpecResolver ---
         ItemSpecResolver specs = ItemSpecResolver.of(
                 productSpecRelationRepository.findByIdProductId(pt.getId()));
@@ -349,48 +384,94 @@ public class GroupOrderService {
         // Save first to get an ID for toppings
         item = orderItemRepository.save(item);
 
-        // --- Handle Toppings ---
-        if (!toppingIds.isEmpty()) {
-            @SuppressWarnings("unchecked")
-            List<String> toppingNames = (List<String>) req.getOrDefault("toppingNames", new ArrayList<>());
-            @SuppressWarnings("unchecked")
-            List<Number> toppingPrices = (List<Number>) req.getOrDefault("toppingPrices", new ArrayList<>());
+        // --- 配料：名稱由 toppingIds 對品牌設定反查，價格一律由伺服器定價 ---
+        applyToppingsFromIds(item, pt, toppingIds);
 
-            if (item.getToppings() == null) {
-                item.setToppings(new ArrayList<>());
-            }
-
-            for (int i = 0; i < toppingIds.size(); i++) {
-                OrderItemTopping t = new OrderItemTopping();
-                OrderItemToppingId id = new OrderItemToppingId();
-                id.setOrderItemId(item.getId());
-
-                String tName = (i < toppingNames.size()) ? toppingNames.get(i) : "配料#" + toppingIds.get(i);
-                id.setToppingNameSnapshot(tName);
-                t.setId(id);
-                t.setOrderItem(item);
-
-                BigDecimal tPrice = BigDecimal.ZERO;
-                if (i < toppingPrices.size()) {
-                    tPrice = new BigDecimal(toppingPrices.get(i).toString());
-                }
-                t.setToppingPriceSnapshot(tPrice);
-                item.getToppings().add(t);
-            }
-        }
-
-        // --- Recalculate Hash ---
-        String toppingsStr = "";
-        if (item.getToppings() != null && !item.getToppings().isEmpty()) {
-            toppingsStr = item.getToppings().stream()
-                    .map(t -> t.getId().getToppingNameSnapshot())
-                    .sorted()
-                    .collect(Collectors.joining(","));
-        }
-        item.setItemHash(generateItemHash(item.getProduct().getId(), item.getSugarSnapshot(),
-                item.getIceSnapshot(), item.getSizeSnapshot(), toppingsStr, item.getCouponId()));
+        // --- 金額與 Hash：全部伺服器端重算 ---
+        repriceItem(go, item);
+        item.setItemHash(generateItemHash(pt.getId(), item.getSugarSnapshot(),
+                item.getIceSnapshot(), item.getSizeSnapshot(), toppingsKey(item), item.getCouponId()));
 
         return orderItemRepository.save(item);
+    }
+
+    /** 數量解析：非數字或小於 1 一律視為 1 */
+    private static int parseQty(Map<String, Object> req) {
+        try {
+            return Math.max(1, Integer.parseInt(req.getOrDefault("qty", "1").toString()));
+        } catch (NumberFormatException e) {
+            return 1;
+        }
+    }
+
+    /** 品項配料的顯示名稱清單（排序後），供定價與 hash 使用 */
+    private List<String> toppingNamesOf(OrderItem item) {
+        if (item.getToppings() == null || item.getToppings().isEmpty()) {
+            return List.of();
+        }
+        return item.getToppings().stream()
+                .map(t -> t.getId().getToppingNameSnapshot())
+                .sorted()
+                .toList();
+    }
+
+    private String toppingsKey(OrderItem item) {
+        return String.join(",", toppingNamesOf(item));
+    }
+
+    /**
+     * 依 toppingIds 對品牌的配料設定反查名稱與價格。
+     *
+     * <p>⚠️ 名稱與價格都不吃 client：id 必須能對到該品牌的配料設定
+     * （{@code BrandToppingSetting.id} 或其 {@code masterTopping.id}，相容兩種前端慣例），
+     * 對不到直接 400——避免「自創配料名稱、0 元加料」的繞過。
+     */
+    private void applyToppingsFromIds(OrderItem item, ProductTemplate pt, List<Number> toppingIds) {
+        if (toppingIds == null || toppingIds.isEmpty()) {
+            return;
+        }
+        Long brandId = pt.getBrand() != null ? pt.getBrand().getId() : null;
+        List<BrandToppingSetting> settings = brandId == null ? List.of()
+                : brandToppingSettingRepository.findByBrandId(brandId);
+        if (item.getToppings() == null) {
+            item.setToppings(new ArrayList<>());
+        }
+        for (Number tid : toppingIds) {
+            long id = tid.longValue();
+            BrandToppingSetting match = settings.stream()
+                    .filter(s -> (s.getMasterTopping() != null && s.getMasterTopping().getId() == id)
+                            || s.getId() == id)
+                    .findFirst()
+                    .orElse(null);
+            if (match == null) {
+                throw new CustomException("400", "含有此門市不供應的配料：" + id);
+            }
+            String displayName = match.getCustomName() != null ? match.getCustomName()
+                    : match.getMasterTopping().getName();
+            BigDecimal price = match.getBrandPrice() != null ? match.getBrandPrice()
+                    : (match.getMasterTopping().getDefaultPrice() != null
+                            ? match.getMasterTopping().getDefaultPrice() : BigDecimal.ZERO);
+
+            OrderItemTopping t = new OrderItemTopping();
+            OrderItemToppingId oid = new OrderItemToppingId();
+            oid.setOrderItemId(item.getId());
+            oid.setToppingNameSnapshot(displayName);
+            t.setId(oid);
+            t.setOrderItem(item);
+            t.setToppingPriceSnapshot(price);
+            item.getToppings().add(t);
+        }
+    }
+
+    /**
+     * ⚠️ H-1 核心：品項金額的唯一重算入口。
+     * 單價 = {@link PricingService#itemPrice}（底價＋區域加價＋配料加價），
+     * 總價 = 單價 × qty。呼叫端送來的 unitPrice/finalPrice 一律覆寫。
+     */
+    private void repriceItem(GroupOrder go, OrderItem item) {
+        BigDecimal unit = pricingService.itemPrice(go.getStore(), item.getProduct(), toppingNamesOf(item));
+        item.setUnitPriceSnapshot(unit);
+        item.setFinalPrice(unit.multiply(BigDecimal.valueOf(Math.max(1, item.getQty()))));
     }
 
     @Transactional
@@ -408,21 +489,10 @@ public class GroupOrderService {
         }
 
         // --- Update Snapshots ---
+        // ⚠️ H-1 修復：qty 只改數量，金額最後統一 repriceItem 重算；
+        //    body 的 finalPrice／unitPriceSnapshot 一律不採信（舊版可任意改價）。
         if (req.containsKey("qty")) {
-            int newQty = Integer.parseInt(req.get("qty").toString());
-            // 當數量更新時，若請求中未包含新的總價，用「含配料的實際單杯價」重算
-            // 必須在 setQty 之前讀取舊的 qty，否則會用新 qty 來除
-            if (!req.containsKey("finalPrice") && item.getFinalPrice() != null && item.getQty() > 0) {
-                // 實際單杯價 = 當前 finalPrice ÷ 當前 qty（已含配料加價）
-                BigDecimal actualUnitPrice = item.getFinalPrice()
-                        .divide(new BigDecimal(item.getQty()), 4, java.math.RoundingMode.HALF_UP);
-                item.setFinalPrice(actualUnitPrice.multiply(new BigDecimal(newQty))
-                        .setScale(2, java.math.RoundingMode.HALF_UP));
-            } else if (!req.containsKey("finalPrice") && item.getUnitPriceSnapshot() != null) {
-                // Fallback：若 finalPrice 為 null，才改用 unitPriceSnapshot
-                item.setFinalPrice(item.getUnitPriceSnapshot().multiply(new BigDecimal(newQty)));
-            }
-            item.setQty(newQty);
+            item.setQty(parseQty(req));
         }
         // --- 固定規格防竄改：規則見 ItemSpecResolver ---
         // 與 addItem 的差別只在「沒帶這個欄位就不動」，規則本身共用同一份
@@ -437,29 +507,42 @@ public class GroupOrderService {
         if (req.containsKey("sizeSnapshot")) {
             item.setSizeSnapshot(specs.resolve(ItemSpecResolver.SIZE, (String) req.get("sizeSnapshot")));
         }
-        if (req.containsKey("unitPriceSnapshot")) {
-            item.setUnitPriceSnapshot(new BigDecimal(req.get("unitPriceSnapshot").toString()));
-        }
-        if (req.containsKey("finalPrice")) {
-            item.setFinalPrice(new BigDecimal(req.get("finalPrice").toString()));
-        }
+        // ⚠️ H-1 修復：移除「接受 client 傳入 unitPriceSnapshot／finalPrice」的分支——
+        // 舊版等於任何人都能把自己品項改成任意價格。
 
         // --- Process idList to clean up grouped duplicates ---
+        // ⚠️ H-4 修復：idList 是 client 可控的，舊版直接 deleteAllById 等於
+        //    「知道 itemId 就能刪任何人的品項」，且繞過 PAID 不可刪與退款邏輯。
+        //    現在只允許刪「同一揪團、本人、未付款」的合併副本，其餘一律略過；
+        //    若副本上有券，先還原再刪。
         if (req.containsKey("idList")) {
             @SuppressWarnings("unchecked")
             List<Number> idList = (List<Number>) req.get("idList");
             if (idList != null && idList.size() > 1) {
-                List<Long> idsToDelete = idList.stream()
+                List<Long> requestedIds = idList.stream()
                         .map(Number::longValue)
                         .filter(id -> !id.equals(item.getId()))
                         .collect(Collectors.toList());
-                if (!idsToDelete.isEmpty()) {
-                    orderItemRepository.deleteAllById(idsToDelete);
+                if (!requestedIds.isEmpty()) {
+                    List<OrderItem> deletable = orderItemRepository.findAllById(requestedIds).stream()
+                            .filter(d -> d.getGroupOrder() != null && go.getId().equals(d.getGroupOrder().getId()))
+                            .filter(d -> d.getUser() != null && d.getUser().getId().equals(userId))
+                            .filter(d -> !"PAID".equalsIgnoreCase(d.getPaymentStatus()))
+                            .toList();
+                    for (OrderItem d : deletable) {
+                        if (d.getCouponId() != null) {
+                            restoreUserCoupon(d.getUser().getId(), d.getCouponId());
+                        }
+                    }
+                    if (!deletable.isEmpty()) {
+                        orderItemRepository.deleteAll(deletable);
+                    }
                 }
             }
         }
 
         // --- Handle Toppings ---
+        // ⚠️ H-1 修復：名稱／價格改由 toppingIds 對品牌設定反查，不吃 client 清單
         if (req.containsKey("toppingIds")) {
             // 1. 清除舊配料 (透過 Hibernate orphanRemoval)
             if (item.getToppings() != null) {
@@ -468,40 +551,16 @@ public class GroupOrderService {
                 item.setToppings(new ArrayList<>());
             }
 
-            // 2. 新增新配料
+            // 2. 反查品牌設定後新增
             @SuppressWarnings("unchecked")
             List<Number> toppingIds = (List<Number>) req.get("toppingIds");
-            @SuppressWarnings("unchecked")
-            List<String> toppingNames = (List<String>) req.getOrDefault("toppingNames", new ArrayList<>());
-            @SuppressWarnings("unchecked")
-            List<Number> toppingPrices = (List<Number>) req.getOrDefault("toppingPrices", new ArrayList<>());
-
-            for (int i = 0; i < toppingIds.size(); i++) {
-                OrderItemTopping t = new OrderItemTopping();
-                OrderItemToppingId id = new OrderItemToppingId();
-                id.setOrderItemId(item.getId());
-
-                String tName = (i < toppingNames.size()) ? toppingNames.get(i) : "配料#" + toppingIds.get(i);
-                id.setToppingNameSnapshot(tName);
-                t.setId(id);
-                t.setOrderItem(item);
-
-                BigDecimal tPrice = BigDecimal.ZERO;
-                if (i < toppingPrices.size()) {
-                    tPrice = new BigDecimal(toppingPrices.get(i).toString());
-                }
-                t.setToppingPriceSnapshot(tPrice);
-                item.getToppings().add(t);
-            }
+            applyToppingsFromIds(item, item.getProduct(), toppingIds);
         }
 
-        // --- Recalculate Hash ---
-        String toppingsStr = item.getToppings().stream()
-                .map(t -> t.getId().getToppingNameSnapshot())
-                .sorted()
-                .collect(Collectors.joining(","));
+        // --- 金額與 Hash：伺服器端重算 ---
+        repriceItem(go, item);
         item.setItemHash(generateItemHash(item.getProduct().getId(), item.getSugarSnapshot(),
-                item.getIceSnapshot(), item.getSizeSnapshot(), toppingsStr, item.getCouponId()));
+                item.getIceSnapshot(), item.getSizeSnapshot(), toppingsKey(item), item.getCouponId()));
 
         return orderItemRepository.save(item);
     }
@@ -517,7 +576,10 @@ public class GroupOrderService {
             throw new RuntimeException("Permission denied");
         }
         if ("PAID".equals(item.getPaymentStatus())) {
-            BigDecimal refundAmount = item.getFinalPrice();
+            // ⚠️ 修復：券折扣不可退——團員實付是 finalPrice − 折扣快照，全額退會多退折扣額
+            BigDecimal discount = item.getDiscountAmountSnapshot() != null
+                    ? item.getDiscountAmountSnapshot() : BigDecimal.ZERO;
+            BigDecimal refundAmount = item.getFinalPrice().subtract(discount).max(BigDecimal.ZERO);
             transactionRecordService.updateStoreCredit(item.getUser().getId(), refundAmount,
                     TxType.REFUND, "揪團品項退款 (商品: " + item.getProductNameSnapshot() + ")", LocalDateTime.now());
         }
@@ -531,9 +593,16 @@ public class GroupOrderService {
     public GroupOrder setStatus(String token, String status, Long hostId) {
         GroupOrder go = getGroupOrderByToken(token);
         if (!go.getInitiator().getId().equals(hostId)) {
-            throw new RuntimeException("Only host can change status");
+            // ⚠️ H-3 修復：訊息改為 403 語意；呼叫端身分已由 JWT 保證，
+            //    不再存在「帶上真團長 id 就能通過」的路徑
+            throw new CustomException("403", "只有團長可以變更揪團狀態");
         }
-        go.setStatus(status);
+        // ⚠️ H-3 修復：status 白名單。截單／重開只有這兩種是合法入口；
+        //    SUBMITTED 走 submitGroupOrder、CANCELLED 走 cancelGroupOrder。
+        if (status == null || !Set.of("OPEN", "LOCKED").contains(status.toUpperCase())) {
+            throw new CustomException("400", "不支援的狀態：" + status);
+        }
+        go.setStatus(status.toUpperCase());
         return groupOrderRepository.save(go);
     }
 
@@ -559,12 +628,30 @@ public class GroupOrderService {
                 .map(OrderItem::getFinalPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // ⚠️ H-2 修復：整單券必須驗「未逾期＋適用此店/品」，並用資料庫原子 UPDATE
+        //    消耗（WHERE id + owner + status='unused'）。舊版 findById 就打折，
+        //    couponId 又是連續整數——實測可列舉盜用「他人」的未用券折抵自己的結帳。
+        //    規則來源與 applyCouponToItem 的 CouponEligibility／markUsedIfUnused 同一套。
         BigDecimal discountAmount = BigDecimal.ZERO;
         if (couponId != null) {
+            List<Long> couponProductIds = items.stream()
+                    .map(i -> i.getProduct() != null ? i.getProduct().getId() : null)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+            if (!couponService.isValidForStore(couponId, go.getStore().getId(), couponProductIds)) {
+                throw new CustomException("400", "無效的優惠券，或該優惠券不適用於此店家與飲品");
+            }
             UserCoupon userCoupon = userCouponRepository.findById(couponId)
                     .orElseThrow(() -> new RuntimeException("Coupon not found"));
-            discountAmount = userCoupon.getDiscountAmount();
-            markCouponAsUsed(couponId);
+            // 先取折扣值：markUsedIfUnused(@Modifying clearAutomatically) 會清空一級快取
+            discountAmount = userCoupon.getDiscountAmount() != null ? userCoupon.getDiscountAmount()
+                    : BigDecimal.ZERO;
+            if (userCouponRepository.markUsedIfUnused(couponId, hostId, LocalDateTime.now()) == 0) {
+                throw new CustomException("409", "此優惠券已被使用或不屬於你");
+            }
+            // ⚠️ M-4 修復：把整單券記在訂單上，取消／拒單時才能精準還原
+            //    （見 handleGroupOrderCancellation；舊版靠 ±5 秒時間戳反查）
+            go.setCheckoutCouponId(couponId);
         }
 
         BigDecimal totalItemDiscount = items.stream()
@@ -651,12 +738,24 @@ public class GroupOrderService {
                         .max(BigDecimal.ZERO))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // ⚠️ H-2 修復：同團長結帳——券必須驗適用性並原子消耗，且擁有者必須是
+        //    「正在付款的這位團員」（userId 來自 JWT），不得盜用他人券。
         BigDecimal discountAmount = BigDecimal.ZERO;
         if (couponId != null) {
+            List<Long> couponProductIds = memberItems.stream()
+                    .map(i -> i.getProduct() != null ? i.getProduct().getId() : null)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+            if (!couponService.isValidForStore(couponId, go.getStore().getId(), couponProductIds)) {
+                throw new CustomException("400", "無效的優惠券，或該優惠券不適用於此店家與飲品");
+            }
             UserCoupon userCoupon = userCouponRepository.findById(couponId)
                     .orElseThrow(() -> new RuntimeException("Coupon not found"));
-            discountAmount = userCoupon.getDiscountAmount();
-            markCouponAsUsed(couponId);
+            discountAmount = userCoupon.getDiscountAmount() != null ? userCoupon.getDiscountAmount()
+                    : BigDecimal.ZERO;
+            if (userCouponRepository.markUsedIfUnused(couponId, userId, LocalDateTime.now()) == 0) {
+                throw new CustomException("409", "此優惠券已被使用或不屬於你");
+            }
         }
 
         BigDecimal finalAmount = totalAmount.subtract(discountAmount).max(BigDecimal.ZERO);
@@ -760,27 +859,48 @@ public class GroupOrderService {
             }
         }
 
-        // 步驟 3：還原揪團整單優惠券（Timestamp 反查法，不需 Schema 異動）
-        if (go.getSubmittedAt() != null && go.getInitiator() != null) {
+        // 步驟 3：還原揪團整單優惠券
+        if (go.getInitiator() != null) {
             // 收集所有品項層級已使用的 couponId，排除在外
             java.util.Set<Long> itemCouponIds = items.stream()
                     .map(OrderItem::getCouponId)
                     .filter(java.util.Objects::nonNull)
                     .collect(java.util.stream.Collectors.toSet());
 
-            // 查詢結帳時間前後 5 秒內被標記 used 的非品項券
-            LocalDateTime from = go.getSubmittedAt().minusSeconds(5);
-            LocalDateTime to = go.getSubmittedAt().plusSeconds(5);
-
             // excludedIds 不可為空集合，以 -1L 代替
             java.util.Collection<Long> excludedIds = itemCouponIds.isEmpty() ? List.of(-1L) : itemCouponIds;
-            List<UserCoupon> candidates = userCouponRepository.findCheckoutLevelCoupon(go.getInitiator().getId(), from, to,
-                    excludedIds);
 
-            for (UserCoupon uc : candidates) {
-                uc.setStatus("unused");
-                uc.setUsedAt(null);
-                userCouponRepository.save(uc);
+            // ⚠️ M-4 修復：優先使用結帳時記錄在訂單上的券 ID 精準還原。
+            //    舊版只用「submittedAt ±5 秒」反查，同時段多筆交易時可能還原到別張券；
+            //    舊資料（checkoutCouponId 為 null）才回退到原本的時間戳猜測。
+            boolean checkoutCouponRestored = false;
+            Long recordedCouponId = go.getCheckoutCouponId();
+            if (recordedCouponId != null && !excludedIds.contains(recordedCouponId)) {
+                userCouponRepository.findById(recordedCouponId)
+                        .filter(uc -> uc.getUser() != null && go.getInitiator().getId().equals(uc.getUser().getId()))
+                        .filter(uc -> "used".equals(uc.getStatus()))
+                        .ifPresent(uc -> {
+                            uc.setStatus("unused");
+                            uc.setUsedAt(null);
+                            userCouponRepository.save(uc);
+                        });
+                // 已有精準記錄就不再走時間戳猜測（找不到／已還原過都視為處理完成）
+                checkoutCouponRestored = true;
+            }
+
+            if (!checkoutCouponRestored && go.getSubmittedAt() != null) {
+                // 查詢結帳時間前後 5 秒內被標記 used 的非品項券（舊資料回退路徑）
+                LocalDateTime from = go.getSubmittedAt().minusSeconds(5);
+                LocalDateTime to = go.getSubmittedAt().plusSeconds(5);
+
+                List<UserCoupon> candidates = userCouponRepository.findCheckoutLevelCoupon(go.getInitiator().getId(), from, to,
+                        excludedIds);
+
+                for (UserCoupon uc : candidates) {
+                    uc.setStatus("unused");
+                    uc.setUsedAt(null);
+                    userCouponRepository.save(uc);
+                }
             }
         }
 

@@ -125,15 +125,17 @@ public class CouponService {
     @Transactional
     public Long playRoulette(Long userId, Long storeId) {
         // 1. Redis 鎖防止同時併發
+        // ⚠️ M-3 修復：acquire/release 改為 token 配對，避免逾時後誤刪他人的鎖
         String lockKey = "lock:spin:" + userId;
-        if (!redisLockService.acquireLock(lockKey, 10)) {
+        String lockToken = redisLockService.acquireLock(lockKey, 10);
+        if (lockToken == null) {
             throw new RuntimeException("系統繁忙中，請稍後再試");
         }
         try {
             // 2. 每日限制檢查 (Redis)
             String dailyKey = "spin:done:" + userId + ":" + LocalDate.now();
             long ttl = 86400; // 為簡單起見使用 24 小時，或計算到午夜
-            if (!redisLockService.acquireLock(dailyKey, ttl)) {
+            if (redisLockService.acquireLock(dailyKey, ttl) == null) {
                 throw new com.example.demo.exception.CustomException("409", "你今日已參加過轉盤遊戲");
             }
 
@@ -167,7 +169,7 @@ public class CouponService {
             uc = userCouponRepository.save(uc);
             return uc.getId();
         } finally {
-            redisLockService.releaseLock(lockKey);
+            redisLockService.releaseLock(lockKey, lockToken);
         }
     }
 

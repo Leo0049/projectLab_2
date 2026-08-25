@@ -79,7 +79,7 @@ public class GroupOrderController {
                 return Result.success(dtos);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("取得進行中揪團失敗", e);
             throw e;
         }
     }
@@ -187,9 +187,15 @@ public class GroupOrderController {
     }
 
     @PostMapping("/api/group-orders/{token}/items")
-    public ResponseEntity<?> addItem(@PathVariable String token, @RequestBody Map<String, Object> item) {
+    public ResponseEntity<?> addItem(@PathVariable String token, @RequestBody Map<String, Object> item,
+            HttpServletRequest request) {
         try {
-            OrderItem savedItem = groupOrderService.addItem(token, item);
+            // ⚠️ M-2 修復：userId 只認 JWT。舊版直接取 body 的 userId，
+            //    可把品項掛到他人身上（讓受害者被代墊或被嫁禍）。
+            Long uid = getUserId(request);
+            if (uid == null)
+                return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
+            OrderItem savedItem = groupOrderService.addItem(token, item, uid);
             redisCartService.saveItem(token, savedItem);
             if (messagingTemplate != null) {
                 messagingTemplate.convertAndSend("/topic/group/" + token,
@@ -269,12 +275,13 @@ public class GroupOrderController {
 
     @PutMapping("/api/group-orders/{token}/status")
     public ResponseEntity<?> setStatus(@PathVariable String token, @RequestParam String status,
-            HttpServletRequest request, @RequestParam(required = false) Long hostId) {
+            HttpServletRequest request) {
+        // ⚠️ H-3 修復：移除「取不到登入身分就退回 query 參數 hostId」的 fallback——
+        //    那等於帶上真團長的 id 就能改別人的揪團狀態（S-2/S-6 同型漏洞殘留）。
+        //    身分只認 JWT；status 白名單見 Service。前端多送的 hostId 參數會被 Spring 忽略。
         Long finalHostId = getUserId(request);
         if (finalHostId == null)
-            finalHostId = hostId;
-        if (finalHostId == null)
-            return ResponseEntity.badRequest().body(Map.of("error", "HostId is required"));
+            return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
 
         GroupOrder updatedOrder = groupOrderService.setStatus(token, status, finalHostId);
         // 狀態變更時（如截單）清空快照
