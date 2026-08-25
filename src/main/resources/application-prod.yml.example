@@ -1,0 +1,24 @@
+# ─────────────────────────────────────────────────────────────
+# 正式環境 profile 範本。
+# 用法：複製為 src/main/resources/application-prod.yml（已被 .gitignore 排除），
+#       並以 SPRING_PROFILES_ACTIVE=prod 啟動。
+#
+# ⚠️ 此檔只放「非敏感」的正式值；所有密鑰一律走環境變數。
+# ⚠️ OS 環境變數優先序高於本檔——請勿同時在環境設 JPA_SHOW_SQL=true。
+# ─────────────────────────────────────────────────────────────
+spring:
+  jpa:
+    show-sql: false           # 正式環境不在 stdout 刷 SQL
+    hibernate:
+      ddl-auto: validate      # schema 異動走人工 migration，啟動只驗證
+    open-in-view: false
+
+logging:
+  level:
+    root: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.data.redis: WARN
+
+app:
+  demo-data:
+    enabled: false            # 雙保險：即使忘了設 DEMO_DATA_ENABLED 也不植入示範帳號
