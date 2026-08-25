@@ -56,16 +56,16 @@
   /* ── 工具函式 ─────────────────────────────────────── */
   const buildDataKey = (orders) => orders.map(o => `${o.orderId||o.id}:${o.status||o.uiStatus}`).join('|');
   const fmtItem = (i) => {
-    const name  = i.productNameSnapshot || '飲品';
-    const tps   = Array.isArray(i.toppings) ? i.toppings.map(t => `加${t}`).join(',') : '';
+    const name  = esc(i.productNameSnapshot || '飲品');
+    const tps   = Array.isArray(i.toppings) ? i.toppings.map(t => `加${esc(t)}`).join(',') : '';
     const size  = i.sizeSnapshot  || i.size  || '';
     const sugar = i.sugarSnapshot || i.sugar || '';
     const ice   = i.iceSnapshot   || i.ice   || '';
     const specs = [size, sugar, ice, tps].filter(Boolean).join('|');
-    const specsPart = specs ? ` <span style="color:#64748b;font-weight:500">(${specs})</span>` : '';
-    const note  = i.note ? ` <span style="color:#ec5b13;font-weight:800">${i.note}</span>` : '';
-    const user  = i.userName ? ` <span style="color:#0f172a;font-weight:700">【${i.userName}】</span>` : '';
-    return `<span style="font-weight:600;color:#64748b">【${i.qty||1}杯】${name}</span>${specsPart}${note}${user}`;
+    const specsPart = specs ? ` <span style="color:#64748b;font-weight:500">(${esc(specs)})</span>` : '';
+    const note  = i.note ? ` <span style="color:#ec5b13;font-weight:800">${esc(i.note)}</span>` : '';
+    const user  = i.userName ? ` <span style="color:#0f172a;font-weight:700">【${esc(i.userName)}】</span>` : '';
+    return `<span style="font-weight:600;color:#64748b">【${Number(i.qty)||1}杯】${name}</span>${specsPart}${note}${user}`;
   };
 
   const fmtItems = (items) => {
@@ -275,11 +275,11 @@
         + (o.uiStatus === 'pending' ? `<br><span style="font-size:.75rem;font-weight:900;color:#ef4444" data-countdown-deadline="${o.deadlineTs}">--:--</span>` : '');
 
     const tds = [
-      `#${o.orderNo||o.id}`,
+      `#${esc(o.orderNo||o.id)}`,
       badge,
-      o.formattedItems,
-      o.customerName,
-      o.customerPhone,
+      o.formattedItems,          /* 已由 fmtItem 內部跳逸 */
+      esc(o.customerName || ''),
+      esc(o.customerPhone || ''),
       o.amountLabel,
       statusHtml,
       `<div style="display:inline-flex;gap:.3rem;align-items:center">${viewBtn}${actionBtns}</div>`,
