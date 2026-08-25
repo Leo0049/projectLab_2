@@ -439,20 +439,20 @@ const NavAuth = {
                             const { city, district, street } = parseTaiwanAddress(fullAddr);
                             const display = fullAddr;
                             const badgeHtml = label
-                                ? `<span class="inline-block text-xs font-bold bg-orange-100 text-brand-orange px-2 py-0.5 rounded-full mr-2">${label}</span>`
+                                ? `<span class="inline-block text-xs font-bold bg-orange-100 text-brand-orange px-2 py-0.5 rounded-full mr-2">${esc(label)}</span>`
                                 : '';
                             const defaultBadge = addr.isDefault
                                 ? `<span class="inline-block text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full ml-1">預設</span>`
                                 : '';
                             return `<button type="button"
                                 class="w-full text-left px-4 py-3 rounded-xl bg-gray-50 hover:bg-orange-50 hover:border-brand-orange border border-transparent transition-colors text-sm flex items-center gap-1 flex-wrap"
-                                data-city="${city}"
-                                data-district="${district}"
-                                data-street="${street}"
-                                data-lat="${addr.latitude || ''}"
-                                data-lng="${addr.longitude || ''}"
+                                data-city="${esc(city)}"
+                                data-district="${esc(district)}"
+                                data-street="${esc(street)}"
+                                data-lat="${esc(addr.latitude || '')}"
+                                data-lng="${esc(addr.longitude || '')}"
                                 onclick="window._selectCommonAddress(this)">
-                                ${badgeHtml}<span class="text-brand-dark">${display}</span>${defaultBadge}
+                                ${badgeHtml}<span class="text-brand-dark">${esc(display)}</span>${defaultBadge}
                             </button>`;
                         }).join('');
                     }
@@ -669,7 +669,7 @@ const NavAuth = {
                             <div class="flex items-center justify-between mb-2 pb-1 border-b border-gray-50">
                                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
                                     <i data-lucide="store" class="w-3 h-3"></i>
-                                    ${cart.storeName || '店家'} 
+                                    ${esc(cart.storeName || '店家')} 
                                     ${isCurrent ? '<span class="text-brand-orange ml-1">(當前)</span>' : ''}
                                 </span>
                                 <span class="text-[10px] font-bold text-slate-400">$${cartSubtotal}</span>
@@ -678,10 +678,10 @@ const NavAuth = {
                                 ${cart.items.map((item, index) => `
                                     <div class="flex items-center gap-3">
                                         <div class="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-50">
-                                            <img src="${item.imageUrl || 'images/logo.png'}" class="w-full h-full object-cover" onerror="this.src='images/logo.png'">
+                                            <img src="${esc(item.imageUrl || 'images/logo.png')}" class="w-full h-full object-cover" onerror="this.src='images/logo.png'">
                                         </div>
                                         <div class="flex-grow min-w-0">
-                                            <h4 class="text-xs font-bold text-gray-800 truncate">${item.productName}</h4>
+                                            <h4 class="text-xs font-bold text-gray-800 truncate">${esc(item.productName)}</h4>
                                             <p class="text-[10px] text-gray-400">數量: ${item.quantity}</p>
                                         </div>
                                         <div class="text-right">
@@ -749,7 +749,12 @@ const NavAuth = {
         const icons  = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
         const toast = document.createElement('div');
         toast.style.cssText = `pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:16px;background:${colors[type]||colors.info};color:#fff;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.18);transition:opacity .3s,transform .3s;max-width:320px;`;
-        toast.innerHTML = `<span>${icons[type]||icons.info}</span><span>${message}</span>`;
+        const iconSpan = document.createElement('span');
+        iconSpan.textContent = icons[type] || icons.info;
+        const msgSpan = document.createElement('span');
+        msgSpan.textContent = message;   // ← 使用者可控內容走 textContent，永不解析 HTML
+        toast.appendChild(iconSpan);
+        toast.appendChild(msgSpan);
         container.appendChild(toast);
         setTimeout(() => { toast.style.opacity='0'; toast.style.transform='translateY(-10px)'; setTimeout(()=>toast.remove(),350); }, 3000);
     }
