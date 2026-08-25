@@ -155,15 +155,13 @@ async function ensureFirebase() {
 	if (!loaded || !window.firebase) throw new Error('Firebase SDK 載入失敗');
 
 	// 初始化（若 HTML 已初始化過則跳過）
+	// ⚠️ 安全政策（2026-08 稽核後）：設定單一事實來源是 ../js/firebase-config.js，
+	// 不再提供硬編碼 fallback——舊金鑰會因外洩到公開 repo（已撤銷）。
 	if (firebase.apps.length === 0) {
-		const cfg = window.JOIN_FIREBASE_CONFIG || {
-			apiKey:            'AIzaSyCFQlAen8XIY0VTxzl0usNvz-FxO-gsRZM',
-			authDomain:        'project-b5e05.firebaseapp.com',
-			projectId:         'project-b5e05',
-			storageBucket:     'project-b5e05.firebasestorage.app',
-			messagingSenderId: '302990497638',
-			appId:             '1:302990497638:web:4ad06a28fce00b5e5d5aa7'
-		};
+		const cfg = window.JOIN_FIREBASE_CONFIG;
+		if (!cfg || String(cfg.apiKey || '').startsWith('REPLACE_ME')) {
+			throw new Error('Firebase 尚未設定：請編輯 frontend/Customer/js/firebase-config.js 填入專案設定');
+		}
 		firebase.initializeApp(cfg);
 	}
 }
