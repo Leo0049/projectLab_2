@@ -59,8 +59,10 @@ public class DailySpinService {
     @Transactional
     public SpinResult spin(Long userId, Long brandId) {
         // 1. 使用 Redis 鎖防止同一用戶同時多次併發請求
+        // ⚠️ M-3 修復：acquire/release 改為 token 配對，避免逾時後誤刪他人的鎖
         String lockKey = "lock:spin:" + userId;
-        if (!redisLockService.acquireLock(lockKey, 10)) {
+        String lockToken = redisLockService.acquireLock(lockKey, 10);
+        if (lockToken == null) {
             throw new RuntimeException("系統繁忙中，請稍後再試");
         }
         try {
@@ -70,12 +72,13 @@ public class DailySpinService {
             
             boolean redisCheckPassed = true;
             try {
-                if (!redisLockService.acquireLock(dailyKey, ttl)) {
-                    redisCheckPassed = false;
-                }
+                // ⚠️ M-3 修復：acquire 故障時回傳 null（內部已 log），不再靠例外分支
+                String dailyToken = redisLockService.acquireLock(dailyKey, ttl);
+                redisCheckPassed = dailyToken != null;
             } catch (Exception e) {
                 log.warn("Redis unavailable for spin dailyKey lock, will rely on DB: {}", e.getMessage());
                 // If Redis fails, we continue and let DB layer handle duplicate check
+                redisCheckPassed = false;
             }
 
             if (!redisCheckPassed) {
@@ -134,7 +137,7 @@ public class DailySpinService {
             return new SpinResult(winningCategory.getName(), winningProduct.getName(), winningProduct.getId(),
                     "SPIN-" + uc.getId(), winningProduct.getCouponImageUrl());
         } finally {
-            redisLockService.releaseLock(lockKey);
+            redisLockService.releaseLock(lockKey, lockToken);
         }
     }
 

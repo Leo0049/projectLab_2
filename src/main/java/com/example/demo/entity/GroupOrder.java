@@ -65,6 +65,15 @@ public class GroupOrder {
     @Column(name = "escrow_amount", precision = 12, scale = 2, nullable = false)
     private BigDecimal escrowAmount = BigDecimal.ZERO;
 
+    /**
+     * 結帳時使用的整單優惠券（user_coupons.id）。
+     * ⚠️ M-4 修復：取消／拒單時據此精準還原，不再靠「submittedAt ±5 秒」反查——
+     * 舊版啟發式在併發或同時段多筆交易下可能還原錯張、或漏還。
+     * 舊資料（欄位為 null）才回退到原本的時間戳猜測。
+     */
+    @Column(name = "checkout_coupon_id")
+    private Long checkoutCouponId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now(ZoneId.of("Asia/Taipei"));
 

@@ -11,9 +11,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.util.Collections;
 
+@Slf4j
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -51,10 +54,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     // 順便存入 request，讓 Controller 還是可以用 @RequestAttribute("currentUserId")
                     request.setAttribute("currentUserId", userId);
-                    System.out.println("✅ Filter 解析成功 - UID: " + userId + ", Role: " + role);
+                    log.debug("JWT 解析成功 - UID: {}, Role: {}", userId, role);
                 }
             } catch (Exception e) {
-                System.out.println("❌ Filter 解析失敗: " + e.getMessage());
+                log.warn("JWT 解析失敗: {}", e.getMessage());
                 // 這裡不拋異常，讓後面的 SecurityConfig 決定是否攔截
             }
         }
