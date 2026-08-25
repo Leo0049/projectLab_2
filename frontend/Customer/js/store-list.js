@@ -37,8 +37,8 @@
         onclick="location.href='store.html?id=${store.id}'"
         class="bg-white rounded-[24px] overflow-hidden card-shadow group cursor-pointer hover:-translate-y-1 transition-all duration-300 relative"
         data-store-id="${store.id}"
-        data-store-name="${(store.name || store.storeName || '').toLowerCase().replace(/"/g, '')}"
-        data-brand-name="${(store.brandName || '').toLowerCase().replace(/"/g, '')}"
+        data-store-name="${esc(store.name || store.storeName || '').toLowerCase()}"
+        data-brand-name="${esc(store.brandName || '').toLowerCase()}"
         data-rating="${store.rating || 0}">
 
         <!-- 收藏按鈕 -->
@@ -49,10 +49,10 @@
         </button>
 
         <div class="h-36 sm:h-48 relative overflow-hidden">
-          <img src="${store.imageUrl || store.image || store.coverUrl || 'images/store-placeholder.svg'}"
+          <img src="${esc(store.imageUrl || store.image || store.coverUrl || 'images/store-placeholder.svg')}"
                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                loading="lazy"
-               alt="${store.name || store.storeName || '店家封面'}"
+               alt="${esc(store.name || store.storeName || '店家封面')}"
                onerror="this.onerror=null;this.src='images/store-placeholder.svg'">
           <!-- 評分 badge -->
           <div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm flex items-center gap-1 group-hover:bg-brand-orange group-hover:text-white transition-colors">
@@ -74,13 +74,13 @@
               <div class="flex-shrink-0 rounded-full overflow-hidden border border-gray-100 shadow-sm"
                    style="width:48px;height:48px;background:${brandColor(store.brandName)}">
                 ${store.brandLogoUrl
-                  ? `<img src="${store.brandLogoUrl}" class="w-full h-full object-cover" alt="${store.brandName || ''}"
+                  ? `<img src="${esc(store.brandLogoUrl)}" class="w-full h-full object-cover" alt="${esc(store.brandName || '')}"
                           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
                   : ''}
                 <span class="w-full h-full flex items-center justify-center text-white font-bold text-sm"
                       style="${store.brandLogoUrl ? 'display:none' : ''}">${brandInitial}</span>
               </div>` : ''}
-              <h3 class="font-extrabold text-lg truncate">${store.name || store.storeName || ''}</h3>
+              <h3 class="font-extrabold text-lg truncate">${esc(store.name || store.storeName || '')}</h3>
             </div>
             <div class="flex items-center text-brand-orange">
               <i data-lucide="footprints" class="w-3.5 h-3.5"></i>
@@ -213,10 +213,10 @@
         // 顯示 logo + 名稱
         li.innerHTML = brand.logoUrl
           ? `<span style="display:flex;align-items:center;gap:8px;">
-               <img src="${brand.logoUrl}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none'">
-               ${brand.brandName}
+               <img src="${esc(brand.logoUrl)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none'">
+               ${esc(brand.brandName)}
              </span>`
-          : brand.brandName;
+          : esc(brand.brandName);
         li.addEventListener('click', () => {
           input.value = brand.brandName;
           selectedBrandId = brand.brandId;
