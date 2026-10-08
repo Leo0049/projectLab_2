@@ -18,6 +18,7 @@ import com.example.demo.repository.OrderItemToppingRepository;
 import com.example.demo.repository.ProductRepository;
 import com.example.demo.repository.ProductTemplateRepository;
 import com.example.demo.repository.StoreRepository;
+import com.example.demo.repository.StoreProductStatusRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.wallet.TxType;
 import jakarta.transaction.Transactional;
@@ -35,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -43,10 +45,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class OrderService {
 
+    private record PendingToppingSnapshots(OrderItem item, List<PricingService.ToppingPrice> toppings) { }
+
     private final GroupOrderRepository groupOrderRepository;
     private final OrderItemRepository orderItemRepository;
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
+    private final StoreProductStatusRepository storeProductStatusRepository;
     private final ProductRepository productRepository;
     private final TransactionRecordService transactionRecordService;
     private final CouponService couponService;
@@ -354,6 +359,13 @@ public class OrderService {
 
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new CustomException("404", "Store not found"));
+        if (!"active".equalsIgnoreCase(store.getStatus())) {
+            throw new CustomException("400", "Store is not accepting new orders");
+        }
+        if (store.getBrand() == null) {
+            throw new CustomException("400", "Store is not associated with a brand");
+        }
+        Set<Long> unavailableProductIds = getUnavailableProductIds(storeId);
 
         List<Long> productIds = items.stream()
                 .map(i -> i.getProduct() != null ? i.getProduct().getId() : null)
@@ -368,6 +380,7 @@ public class OrderService {
             ProductTemplate product = productId != null ? productMap.get(productId) : null;
             if (product == null)
                 throw new CustomException("404", "Product not found: " + productId);
+            validateProductForStore(store, product, unavailableProductIds);
 
             List<String> toppingNames = item.getToppings() == null ? List.of()
                     : item.getToppings().stream()
@@ -375,8 +388,9 @@ public class OrderService {
                             .filter(java.util.Objects::nonNull)
                             .toList();
 
-            int qty = Math.max(1, item.getQty());
-            BigDecimal unitPrice = pricingService.itemPrice(store, product, toppingNames);
+            int qty = QuantityLimits.validate(item.getQty());
+            String size = pricingService.resolveSizeName(product, item.getSizeSnapshot());
+            BigDecimal unitPrice = pricingService.itemPrice(store, product, size, toppingNames);
 
             item.setProduct(product);
             item.setProductNameSnapshot(product.getName());
@@ -390,6 +404,24 @@ public class OrderService {
         return total;
     }
 
+    private Set<Long> getUnavailableProductIds(Long storeId) {
+        return storeProductStatusRepository.findByStoreId(storeId).stream()
+                .filter(status -> Boolean.FALSE.equals(status.getIsEnabled()))
+                .map(status -> status.getId().getProductId())
+                .collect(Collectors.toSet());
+    }
+
+    private void validateProductForStore(Store store, ProductTemplate product, Set<Long> unavailableProductIds) {
+        if (store.getBrand() == null || product.getBrand() == null
+                || !store.getBrand().getId().equals(product.getBrand().getId())) {
+            throw new CustomException("400", "Product is not offered by this store");
+        }
+        if (!Boolean.TRUE.equals(product.getIsEnabled()) || unavailableProductIds.contains(product.getId())) {
+            throw new CustomException("400", "Product is not currently available at this store");
+        }
+    }
+
+    @Transactional
     public Map<String, Object> placeOrder(Long userId, PlaceOrderRequest req) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException("404", "User not found"));
@@ -398,6 +430,9 @@ public class OrderService {
 
         if (!"active".equals(store.getStatus())) {
             throw new CustomException("400", "Store is not accepting new orders");
+        }
+        if (store.getBrand() == null) {
+            throw new CustomException("400", "Store is not associated with a brand");
         }
         if (req.getItems() == null || req.getItems().isEmpty()) {
             throw new CustomException("400", "Order items cannot be empty");
@@ -414,26 +449,37 @@ public class OrderService {
 
         BigDecimal total = BigDecimal.ZERO;
         List<OrderItem> orderItems = new ArrayList<>();
+        List<PendingToppingSnapshots> pendingToppings = new ArrayList<>();
 
         // 1. Bulk fetch all ProductTemplates to avoid N+1
         List<Long> productIds = req.getItems().stream().map(OrderItemRequest::getProductId).toList();
         Map<Long, ProductTemplate> productMap = productTemplateRepository.findAllById(productIds).stream()
                 .collect(Collectors.toMap(ProductTemplate::getId, p -> p));
+        Set<Long> unavailableProductIds = getUnavailableProductIds(store.getId());
 
         for (OrderItemRequest itemReq : req.getItems()) {
             ProductTemplate product = productMap.get(itemReq.getProductId());
             if (product == null) {
                 throw new CustomException("404", "Product not found: " + itemReq.getProductId());
             }
+            validateProductForStore(store, product, unavailableProductIds);
 
-            BigDecimal finalPrice = product.getBasePrice() != null ? product.getBasePrice() : BigDecimal.ZERO;
+            String size = pricingService.resolveSizeName(product, itemReq.getSizeSnapshot());
+            List<String> toppingNames = itemReq.getToppingNames() != null ? itemReq.getToppingNames() : List.of();
+            List<PricingService.ToppingPrice> resolvedToppings = pricingService.resolveToppings(product,
+                    toppingNames);
+            BigDecimal unitPrice = pricingService.unitPrice(store, product, size);
+            BigDecimal toppingExtra = resolvedToppings.stream().map(PricingService.ToppingPrice::price)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal finalPrice = unitPrice.add(toppingExtra);
 
             OrderItem item = new OrderItem();
             item.setGroupOrder(order);
             item.setUser(user);
             item.setProduct(product);
             item.setProductNameSnapshot(product.getName());
-            item.setUnitPriceSnapshot(product.getBasePrice());
+            item.setSizeSnapshot(size);
+            item.setUnitPriceSnapshot(finalPrice);
             // --- 固定規格防竄改 (Fixed Specification Anti-Tamper) ---
             List<com.example.demo.entity.ProductSpecRelation> relations = productSpecRelationRepository.findByIdProductId(product.getId());
             Map<String, List<com.example.demo.entity.ProductSpecRelation>> specsByType = relations.stream()
@@ -454,19 +500,20 @@ public class OrderService {
             }
             item.setIceSnapshot(ice);
 
-            String size = itemReq.getSizeSnapshot() != null ? itemReq.getSizeSnapshot() : "大杯";
-            List<com.example.demo.entity.ProductSpecRelation> sizeOpts = specsByType.get("SIZE");
-            if (sizeOpts != null && sizeOpts.size() == 1) {
-                size = sizeOpts.get(0).getBrandSpec().getCustomName();
-            }
             item.setSizeSnapshot(size);
 
             item.setFinalPrice(finalPrice);
-            item.setPaymentType(itemReq.getPaymentType() != null ? itemReq.getPaymentType() : "WALLET");
+            String paymentType = itemReq.getPaymentType() == null ? "WALLET"
+                    : itemReq.getPaymentType().trim().toUpperCase(java.util.Locale.ROOT);
+            if (!("WALLET".equals(paymentType) || "CASH".equals(paymentType))) {
+                throw new CustomException("400", "此下單 API 目前只支援錢包或現金付款");
+            }
+            item.setPaymentType(paymentType);
             item.setPaymentStatus("WALLET".equals(item.getPaymentType()) ? "WAITING_SUBMIT" : "UNPAID");
 
             total = total.add(finalPrice);
             orderItems.add(item);
+            pendingToppings.add(new PendingToppingSnapshots(item, resolvedToppings));
         }
 
         BigDecimal creditTotal = orderItems.stream()
@@ -497,6 +544,20 @@ public class OrderService {
         }
 
         orderItemRepository.saveAll(orderItems);
+        List<OrderItemTopping> toppingRows = new ArrayList<>();
+        for (PendingToppingSnapshots pending : pendingToppings) {
+            for (PricingService.ToppingPrice topping : pending.toppings()) {
+                OrderItemTopping row = new OrderItemTopping();
+                com.example.demo.entity.OrderItemToppingId id = new com.example.demo.entity.OrderItemToppingId();
+                id.setOrderItemId(pending.item().getId());
+                id.setToppingNameSnapshot(topping.name());
+                row.setId(id);
+                row.setOrderItem(pending.item());
+                row.setToppingPriceSnapshot(topping.price());
+                toppingRows.add(row);
+            }
+        }
+        if (!toppingRows.isEmpty()) orderItemToppingRepository.saveAll(toppingRows);
 
         log.info("user {} placed order {}", userId, order.getOrderNo());
 

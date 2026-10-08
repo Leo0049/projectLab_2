@@ -22,3 +22,6 @@ logging:
 app:
   demo-data:
     enabled: false            # 雙保險：即使忘了設 DEMO_DATA_ENABLED 也不植入示範帳號
+  wallet:
+    mock-top-up:
+      enabled: false           # 正式環境不可用未付款請求增加錢包餘額

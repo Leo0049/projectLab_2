@@ -115,9 +115,7 @@ public class CartService {
     public Map<String, Object> getCart(Long userId) {
         List<CartItem> items = cartItemRepository.findByUserId(userId);
         List<Map<String, Object>> itemList = items.stream().map(this::toMap).toList();
-        BigDecimal total = items.stream()
-                .map(CartItem::getFinalPrice)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = totalCartAmount(items);
         
         Map<String, Object> result = new HashMap<>();
         result.put("items", itemList);
@@ -151,6 +149,10 @@ public class CartService {
         Store store = storeRepository.findById(storeId).orElseThrow(() -> new CustomException("404", "找不到店家"));
         ProductTemplate product = productTemplateRepository.findById(productId)
                 .orElseThrow(() -> new CustomException("404", "找不到商品"));
+        if (store.getBrand() == null || product.getBrand() == null
+                || !store.getBrand().getId().equals(product.getBrand().getId())) {
+            throw new CustomException("400", "商品不屬於此分店品牌");
+        }
 
         CartItem item = new CartItem();
         item.setUser(user);
@@ -158,8 +160,8 @@ public class CartService {
         item.setProduct(product);
         item.setSugarSnapshot((String) req.getOrDefault("sugar", ""));
         item.setIceSnapshot((String) req.getOrDefault("ice", ""));
-        item.setSizeSnapshot((String) req.getOrDefault("size", "M"));
-        item.setQuantity(Integer.parseInt(req.getOrDefault("qty", req.getOrDefault("quantity", "1")).toString()));
+        item.setSizeSnapshot(pricingService.resolveSizeName(product, (String) req.getOrDefault("size", "M")));
+        item.setQuantity(QuantityLimits.parse(req.getOrDefault("qty", req.getOrDefault("quantity", "1"))));
 
         // 計算配料加價
         @SuppressWarnings("unchecked")
@@ -167,9 +169,9 @@ public class CartService {
         item.setToppingNames(String.join(",", toppingNames));
 
         // 售價一律走 PricingService，購物車與結帳共用同一條公式
-        BigDecimal toppingExtra = pricingService.toppingExtra(product.getBrand().getId(), toppingNames);
+        BigDecimal toppingExtra = pricingService.toppingExtra(product, toppingNames);
         item.setToppingExtra(toppingExtra);
-        BigDecimal unitPrice = pricingService.unitPrice(store, product);
+        BigDecimal unitPrice = pricingService.unitPrice(store, product, item.getSizeSnapshot());
         item.setUnitPrice(unitPrice);
         item.setFinalPrice(unitPrice.add(toppingExtra));
 
@@ -196,18 +198,25 @@ public class CartService {
         if (req.containsKey("size"))
             item.setSizeSnapshot((String) req.get("size"));
         if (req.containsKey("qty"))
-            item.setQuantity(Integer.parseInt(req.get("qty").toString()));
+            item.setQuantity(QuantityLimits.parse(req.get("qty")));
         if (req.containsKey("quantity"))
-            item.setQuantity(Integer.parseInt(req.get("quantity").toString()));
+            item.setQuantity(QuantityLimits.parse(req.get("quantity")));
 
         if (req.containsKey("toppingNames")) {
             @SuppressWarnings("unchecked")
             List<String> toppingNames = (List<String>) req.get("toppingNames");
             item.setToppingNames(String.join(",", toppingNames));
-            BigDecimal extra = pricingService.toppingExtra(item.getProduct().getBrand().getId(), toppingNames);
-            item.setToppingExtra(extra);
-            item.setFinalPrice(item.getUnitPrice().add(extra));
         }
+
+        List<String> toppingNames = item.getToppingNames() == null || item.getToppingNames().isBlank()
+                ? List.of()
+                : Arrays.stream(item.getToppingNames().split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+        item.setSizeSnapshot(pricingService.resolveSizeName(item.getProduct(), item.getSizeSnapshot()));
+        BigDecimal unitPrice = pricingService.unitPrice(item.getStore(), item.getProduct(), item.getSizeSnapshot());
+        BigDecimal toppingExtra = pricingService.toppingExtra(item.getProduct(), toppingNames);
+        item.setUnitPrice(unitPrice);
+        item.setToppingExtra(toppingExtra);
+        item.setFinalPrice(unitPrice.add(toppingExtra));
 
         cartItemRepository.save(item);
         return toMap(item);
@@ -247,7 +256,7 @@ public class CartService {
     @Transactional
     public Map<String, Object> getCartSummary(Long userId) {
         List<CartItem> items = cartItemRepository.findByUserId(userId);
-        BigDecimal total = items.stream().map(CartItem::getFinalPrice).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = totalCartAmount(items);
         Map<String, Object> result = new HashMap<>();
         result.put("itemCount", items.size());
         result.put("totalAmount", total);
@@ -281,5 +290,15 @@ public class CartService {
             }
         }
         return m;
+    }
+
+    private BigDecimal totalCartAmount(List<CartItem> items) {
+        return items.stream()
+                .map(item -> {
+                    BigDecimal unitPrice = item.getFinalPrice() != null ? item.getFinalPrice() : BigDecimal.ZERO;
+                    int quantity = QuantityLimits.validate(item.getQuantity() != null ? item.getQuantity() : 1);
+                    return unitPrice.multiply(BigDecimal.valueOf(quantity));
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }

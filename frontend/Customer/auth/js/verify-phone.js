@@ -2,7 +2,8 @@
 // ✅ 完全自給自足：自己負責載入並初始化 Firebase，不依賴 HTML 頁面的初始化順序
 // type=signup  → Firebase OTP → idToken → /api/auth/register
 // type=reset   → Firebase OTP → idToken → localStorage → reset-password.html
-// type=merge   → Firebase OTP → idToken → /api/auth/merge/bind-social
+// type=merge   → Firebase OTP → verified phone token → password reset
+// type=merge-bind-social → Firebase OTP → set password and link the pending social account
 
 // ─── 模擬模式開關 ─────────────────────────────────────────────────────────────
 // ✅ 設為 true 時：不發真實簡訊，輸入任意 6 位數字即可通過驗證
@@ -357,29 +358,67 @@ async function handleVerified(idToken) {
 		return;
 	}
 
-	// ── merge：帳號整合 ───────────────────────────────────────────────────────
+	// ── merge：已存在的社群帳號，使用手機 OTP 設定傳統密碼 ─────────────────────
 	if (type === 'merge') {
 		const mergeData = JSON.parse(localStorage.getItem('JOIN_MERGE') || '{}');
-		if (!mergeData?.providerUid || !mergeData?.provider) {
-			setStatus('整合資料遺失，請重新嘗試社群登入', true);
+		if (mergeData?.action !== 'MERGE_SET_PASSWORD' || !phoneFromQuery) {
+			setStatus('帳號整合資料遺失，請重新登入', true);
+			return;
+		}
+		localStorage.setItem('JOIN_RESET_TOKEN', JSON.stringify({ idToken, phone: phoneFromQuery }));
+		localStorage.removeItem('JOIN_MERGE');
+		setStatus('手機驗證完成，前往設定密碼…');
+		setTimeout(() => {
+			location.href = `reset-password.html?phone=${encodeURIComponent(phoneFromQuery)}`;
+		}, 500);
+		return;
+	}
+
+	// ── merge-bind-social：手機 OTP、設定密碼並綁定剛驗證的社群帳號 ───────────
+	if (type === 'merge-bind-social') {
+		const mergeData = JSON.parse(localStorage.getItem('JOIN_MERGE') || '{}');
+		const pending = JSON.parse(localStorage.getItem('JOIN_SOCIAL_PENDING') || '{}');
+		if (mergeData?.action !== 'MERGE_SET_PASSWORD_AND_BIND_SOCIAL'
+				|| !pending?.idToken || !pending?.providerUid || !pending?.provider || !phoneFromQuery) {
+			setStatus('帳號整合資料遺失，請重新登入', true);
+			return;
+		}
+		localStorage.setItem('JOIN_RESET_TOKEN', JSON.stringify({ idToken, phone: phoneFromQuery }));
+		setStatus('手機驗證完成，前往設定密碼…');
+		setTimeout(() => {
+			location.href = `reset-password.html?phone=${encodeURIComponent(phoneFromQuery)}`;
+		}, 500);
+		return;
+	}
+
+	// ── bind-social：手機 OTP 與社群 token 雙重驗證後綁定 ───────────────────────
+	if (type === 'bind-social') {
+		const pending = JSON.parse(localStorage.getItem('JOIN_SOCIAL_PENDING') || '{}');
+		if (!pending?.idToken || !pending?.providerUid || !pending?.provider || !phoneFromQuery) {
+			setStatus('第三方登入資料遺失，請重新登入', true);
 			return;
 		}
 		try {
-			const data = await postJson('/api/auth/merge/bind-social', {
-				idToken, phone: phoneFromQuery,
-				providerUid: mergeData.providerUid,
-				provider:    mergeData.provider
+			const data = await postJson('/api/auth/merge/bind-social-phone', {
+				phoneIdToken: idToken,
+				phone: phoneFromQuery,
+				idToken: pending.idToken,
+				providerUid: pending.providerUid,
+				provider: pending.provider
 			});
 			if (data?.code === '200') {
 				if (data?.data?.token) localStorage.setItem('JOIN_TOKEN', data.data.token);
+				localStorage.setItem('JOIN_USER_NAME', data.data?.name || '');
+				localStorage.setItem('JOIN_USER_ID', String(data.data?.userId || ''));
+				localStorage.removeItem('JOIN_SOCIAL_PENDING');
 				localStorage.removeItem('JOIN_MERGE');
-				alert('整合成功，請重新登入');
-				location.href = 'login.html';
+				setStatus('帳號整合成功，正在前往首頁…');
+				setTimeout(() => { location.href = '../index.html'; }, 500);
 				return;
 			}
-			setStatus(data?.msg || '整合失敗', true);
+			setStatus(data?.msg || '帳號整合失敗', true);
 		} catch (err) {
-			setStatus(err.message || '整合失敗', true);
+			setStatus(err.message || '帳號整合失敗', true);
 		}
 		return;
 	}

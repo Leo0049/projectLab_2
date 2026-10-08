@@ -703,6 +703,12 @@
       const modalImg = document.getElementById('modal-product-image');
       const qtyDisplay = document.getElementById('modal-qty-display');
 
+      function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[character]);
+      }
+
       async function loadStoreData() {
         try {
           // Fetch Store Info (with caching)
@@ -893,13 +899,14 @@
             if (!acc[cat]) acc[cat] = [];
             acc[cat].push(p);
             return acc;
-          }, {});
+          }, Object.create(null));
+          const categoryEntries = Object.entries(groups);
 
           // Render Categories Sidebar
           if (categoryList) {
-            categoryList.innerHTML = Object.keys(groups).map((cat, index) => `
-              <a class="${index === 0 ? 'sidebar-active' : 'text-gray-600 hover:bg-gray-100'} shrink-0 whitespace-nowrap px-4 py-2.5 md:px-3 md:py-3 rounded-full md:rounded-l-lg md:rounded-r-none border border-gray-200 md:border-0 font-medium flex justify-between items-center" href="#cat-${cat}">
-                ${cat}
+            categoryList.innerHTML = categoryEntries.map(([cat], index) => `
+              <a class="${index === 0 ? 'sidebar-active' : 'text-gray-600 hover:bg-gray-100'} shrink-0 whitespace-nowrap px-4 py-2.5 md:px-3 md:py-3 rounded-full md:rounded-l-lg md:rounded-r-none border border-gray-200 md:border-0 font-medium flex justify-between items-center" href="#menu-category-${index}">
+                ${escapeHtml(cat)}
               </a>
             `).join('');
           }
@@ -908,15 +915,16 @@
           products.forEach(p => productRegistry.set(String(p.id), p));
 
           // Render Menu Sections
-          menuContainer.innerHTML = Object.keys(groups).map(cat => `
-            <section class="mb-12" id="cat-${cat}">
+          menuContainer.innerHTML = categoryEntries.map(([cat, categoryProducts], index) => `
+            <section class="mb-12" id="menu-category-${index}">
               <div class="flex items-center gap-2 mb-6">
                 <div class="w-1.5 h-6 bg-orange-600 rounded-full"></div>
-                <h2 class="text-2xl font-bold text-gray-800">${cat}</h2>
+                <h2 class="text-2xl font-bold text-gray-800">${escapeHtml(cat)}</h2>
               </div>
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                ${groups[cat].map(p => {
-            const pName = p.name || p.productName || '飲品';
+                ${categoryProducts.map(p => {
+            const pName = escapeHtml(p.name || p.productName || '飲品');
+            const description = escapeHtml(p.description || '');
             const pImg = p.imageUrl || p.logoUrl || '';
             const resolvedImg = pImg ? (pImg.startsWith('http') ? pImg : 'images/' + pImg) : 'images/drink-placeholder.svg';
             const tempLabels = [];
@@ -926,11 +934,11 @@
 
             return `
                   <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col cursor-pointer"
-                    data-product='${JSON.stringify(p).replace(/'/g, "&apos;")}'
-                    data-product-id="${p.id}"
+                    data-product='${escapeHtml(JSON.stringify(p))}'
+                    data-product-id="${Number(p.id)}"
                     onclick='openCustomizationModal(this)'>
                     <div class="relative h-40 sm:h-56 bg-slate-100 flex items-center justify-center overflow-hidden">
-                      <img src="${optimizeImageUrl(resolvedImg, 400, 300)}" 
+                      <img src="${escapeHtml(optimizeImageUrl(resolvedImg, 400, 300))}"
                         class="w-full h-full object-cover img-fade-in" 
                         alt="${pName}" loading="lazy" 
                         onload="this.classList.add('img-loaded')"
@@ -939,9 +947,9 @@
                     </div>
                     <div class="p-4 flex-1 flex flex-col">
                       <h4 class="font-bold text-lg text-gray-800 mb-1">${pName}</h4>
-                      <p class="text-xs text-gray-400 mb-4 h-8 overflow-hidden">${p.description || ''}</p>
+                      <p class="text-xs text-gray-400 mb-4 h-8 overflow-hidden">${description}</p>
                       <div class="mt-auto flex justify-between items-center">
-                        <span class="text-xl font-bold text-orange-600">$${p.basePrice || p.price}</span>
+                        <span class="text-xl font-bold text-orange-600">$${escapeHtml(p.basePrice || p.price || 0)}</span>
                         <button class="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center font-bold text-xl hover:bg-orange-600 active:scale-95 transition-all">+</button>
                       </div>
                     </div>
@@ -1053,7 +1061,9 @@
             }));
 
             // Save maxToppings for this session
-            currentProduct.maxToppings = resultData.maxToppings != null ? resultData.maxToppings : 3;
+            const requestedMaxToppings = Number(resultData.maxToppings);
+            currentProduct.maxToppings = Number.isInteger(requestedMaxToppings) && requestedMaxToppings >= 0
+              ? requestedMaxToppings : 3;
 
             // Map and normalize options
             const mapOpt = s => ({
@@ -1074,7 +1084,7 @@
               if (finalSize.length === 1) {
                 // Fixed: hide the entire size section, store "固定" as snapshot
                 if (sizeSection) sizeSection.classList.add('hidden');
-                sizeGroup.innerHTML = `<button class="hidden active-btn" data-extra-price="${finalSize[0].price}" data-spec-id="${finalSize[0].id}">固定</button>`;
+                sizeGroup.innerHTML = `<button class="hidden active-btn" data-extra-price="${escapeHtml(finalSize[0].price)}" data-spec-id="${escapeHtml(finalSize[0].id)}">固定</button>`;
               } else if (finalSize.length === 0) {
                 // No size options: hide the entire size section, use "固定" as snapshot instead of "標準杯"
                 if (sizeSection) sizeSection.classList.add('hidden');
@@ -1084,9 +1094,9 @@
                 sizeGroup.innerHTML = finalSize.map((s, idx) => `
                   <button
                     class="flex items-center justify-center py-3 px-4 rounded-lg border-2 ${idx === 0 ? 'border-[#ec5b13] bg-[#ec5b13]/5 text-[#ec5b13] font-semibold active-btn' : 'border-slate-200 text-slate-600 font-medium'} hover:border-[#ec5b13]/50 transition-colors"
-                    data-extra-price="${s.price}" data-spec-id="${s.id}"
+                    data-extra-price="${escapeHtml(s.price)}" data-spec-id="${escapeHtml(s.id)}"
                     onclick="selectCustomOption(this)">
-                    ${s.name} ${s.price > 0 ? '(+$' + s.price + ')' : ''}
+                    ${escapeHtml(s.name)} ${s.price > 0 ? '(+$' + escapeHtml(s.price) + ')' : ''}
                   </button>
                 `).join('');
               }
@@ -1098,12 +1108,12 @@
               iceGroup.setAttribute('data-custom-group', 'Ice');
               if (finalIce.length === 1) {
                 // Fixed: show "固定" label, store actual value via data-actual-value
-                iceGroup.innerHTML = `<button class="py-2 text-sm rounded-lg border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn cursor-default" data-spec-id="${finalIce[0].id}" data-actual-value="${finalIce[0].name}">固定</button>`;
+                iceGroup.innerHTML = `<button class="py-2 text-sm rounded-lg border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn cursor-default" data-spec-id="${escapeHtml(finalIce[0].id)}" data-actual-value="${escapeHtml(finalIce[0].name)}">固定</button>`;
               } else {
                 iceGroup.innerHTML = finalIce.length > 0 ? finalIce.map((s, idx) => `
                   <button class="py-2 text-sm rounded-lg border ${idx === 0 ? 'border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn' : 'border-slate-200 text-slate-600'} "
-                     data-spec-id="${s.id}"
-                     onclick="selectCustomOption(this)">${s.name}</button>
+                     data-spec-id="${escapeHtml(s.id)}"
+                     onclick="selectCustomOption(this)">${escapeHtml(s.name)}</button>
                 `).join('') : '<button class="py-2 text-sm rounded-lg border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn" onclick="selectCustomOption(this)" data-spec-id="0">正常冰</button>';
               }
             }
@@ -1114,12 +1124,12 @@
               sweetGroup.setAttribute('data-custom-group', 'Sweetness');
               if (finalSweet.length === 1) {
                 // Fixed: show "固定" label, store actual value via data-actual-value
-                sweetGroup.innerHTML = `<button class="py-2 text-sm rounded-lg border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn cursor-default" data-spec-id="${finalSweet[0].id}" data-actual-value="${finalSweet[0].name}">固定</button>`;
+                sweetGroup.innerHTML = `<button class="py-2 text-sm rounded-lg border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn cursor-default" data-spec-id="${escapeHtml(finalSweet[0].id)}" data-actual-value="${escapeHtml(finalSweet[0].name)}">固定</button>`;
               } else {
                 sweetGroup.innerHTML = finalSweet.length > 0 ? finalSweet.map((s, idx) => `
                   <button class="py-2 text-sm rounded-lg border ${idx === 0 ? 'border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn' : 'border-slate-200 text-slate-600'} "
-                     data-spec-id="${s.id}"
-                     onclick="selectCustomOption(this)">${s.name}</button>
+                     data-spec-id="${escapeHtml(s.id)}"
+                     onclick="selectCustomOption(this)">${escapeHtml(s.name)}</button>
                 `).join('') : '<button class="py-2 text-sm rounded-lg border-2 border-[#ec5b13] bg-[#ec5b13] text-white font-semibold active-btn" onclick="selectCustomOption(this)" data-spec-id="0">正常甜</button>';
               }
             }
@@ -1130,15 +1140,15 @@
               const maxT = currentProduct.maxToppings;
               const toppingHeader = toppingGroup.previousElementSibling;
               if (toppingHeader && toppingHeader.tagName === 'H3') {
-                toppingHeader.innerHTML = `加料 <span class="text-[11px] font-normal text-slate-400 ml-1">(最多可選 ${maxT} 種)</span>`;
+                toppingHeader.innerHTML = `加料 <span class="text-[11px] font-normal text-slate-400 ml-1">(最多可選 ${escapeHtml(maxT)} 種)</span>`;
               }
               toppingGroup.setAttribute('data-custom-group', 'Topping');
               toppingGroup.innerHTML = toppings.length > 0 ? toppings.map(t => `
                 <button class="py-2 text-sm rounded-lg border border-slate-200 text-slate-600 flex justify-between px-3 items-center group transition-colors"
-                  data-price="${t.price}" data-id="${t.toppingId}"
+                  data-price="${escapeHtml(t.price)}" data-id="${escapeHtml(t.toppingId)}"
                   onclick="toggleTopping(this)">
-                  <span>${t.name}</span>
-                  <span class="text-[10px] text-gray-400">$${t.price > 0 ? '+' + t.price : '免額外支付'}</span>
+                  <span>${escapeHtml(t.name)}</span>
+                  <span class="text-[10px] text-gray-400">$${t.price > 0 ? '+' + escapeHtml(t.price) : '免額外支付'}</span>
                 </button>
               `).join('') : '<p class="text-xs text-slate-400 col-span-2 text-center py-2">無加料選項</p>';
             }

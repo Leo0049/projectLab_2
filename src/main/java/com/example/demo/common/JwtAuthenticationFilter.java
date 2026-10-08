@@ -10,6 +10,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import com.example.demo.repository.UserRepository;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,6 +23,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Autowired
     private JwtUtils jwtUtils;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -42,8 +46,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Long userId = jwtUtils.getUserIdFromToken(token);
                 String role = jwtUtils.getRoleFromToken(token);
+                boolean activeCustomer = userId != null && (!"CUSTOMER".equalsIgnoreCase(role)
+                        || userRepository.findById(userId)
+                                .map(user -> !Boolean.TRUE.equals(user.getIsDeleted()))
+                                .orElse(false));
 
-                if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                if (userId != null && activeCustomer
+                        && SecurityContextHolder.getContext().getAuthentication() == null) {
                     // 💡 核心：建立 Spring Security 認可的身分物件
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                             userId, null, Collections.singletonList(new SimpleGrantedAuthority(role))
@@ -55,6 +64,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // 順便存入 request，讓 Controller 還是可以用 @RequestAttribute("currentUserId")
                     request.setAttribute("currentUserId", userId);
                     log.debug("JWT 解析成功 - UID: {}, Role: {}", userId, role);
+                } else if (userId != null && !activeCustomer) {
+                    log.debug("已停用會員的 JWT 不予授權 - UID: {}", userId);
                 }
             } catch (Exception e) {
                 log.warn("JWT 解析失敗: {}", e.getMessage());

@@ -43,9 +43,6 @@ public class SecurityConfig {
                                                                 "/Customer/**",
                                                                 "/Store/**",
                                                                 "/auth/**",
-                                                                "/api/auth/**",
-                                                                "/api/auth/merge/**",
-                                                                "/api/brand-auth/**",
                                                                 "/api/stores/auth/**",
                                                                 "/api/menu/**",
                                                                 "/api/home/**",
@@ -64,6 +61,26 @@ public class SecurityConfig {
                                                                 "/ws/**",
                                                                 "/ws-cart/**")
                                                 .permitAll()
+                                                .requestMatchers(HttpMethod.POST,
+                                                                "/api/auth/register",
+                                                                "/api/auth/login",
+                                                                "/api/auth/social-login",
+                                                                "/api/auth/corporate-login",
+                                                                "/api/auth/firebase-verify",
+                                                                "/api/auth/reset-password-firebase",
+                                                                "/api/auth/merge/set-password",
+                                                                "/api/auth/merge/complete",
+                                                                "/api/auth/merge/bind-social-phone",
+                                                                "/api/brand-auth/register",
+                                                                "/api/brand-auth/login")
+                                                .permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/auth/check-phone").permitAll()
+                                                .requestMatchers("/api/auth/update", "/api/auth/merge/bind-social")
+                                                .hasAuthority("CUSTOMER")
+                                                .requestMatchers(
+                                                                "/api/brand-auth/create-store",
+                                                                "/api/brand-auth/create-store-with-images")
+                                                .hasAuthority("BRAND")
                                                 .requestMatchers("/api/brand/**", "/api/finance/brand/**")
                                                 .hasAnyAuthority("BRAND")
 

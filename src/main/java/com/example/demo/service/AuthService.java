@@ -41,15 +41,7 @@ public class AuthService {
     // ✅ 補上缺少的方法：UserController /api/auth/register 呼叫此方法，原本不存在會編譯失敗
     @Transactional
     public void customerRegister(ClassicAuthRequest req) throws Exception {
-        // 1. 驗證 Firebase Phone Token（mock 模式直接跳過，不打 Firebase）
-        if (!"mock".equalsIgnoreCase(smsMode) && !"MOCK_TOKEN".equals(req.getIdToken())) {
-            FirebaseToken decoded = FirebaseAuth.getInstance().verifyIdToken(req.getIdToken());
-            String firebasePhone = decoded.getClaims().getOrDefault("phone_number", "").toString();
-            String normalizedPhone = normalizePhone(req.getPhone());
-            if (!firebasePhone.endsWith(normalizedPhone.substring(1))) {
-                throw new CustomException("400", "手機驗證失敗");
-            }
-        }
+        verifyFirebasePhone(req.getIdToken(), req.getPhone());
         // 2. 檢查是否重複
         if (userRepository.existsByPhone(req.getPhone())) {
             throw new CustomException("409", "手機號碼已被註冊");
@@ -128,13 +120,14 @@ public class AuthService {
 
     // ─── 三方登入 ────────────────────────────────────────────
     public Result socialLogin(SocialAuthRequest req) throws Exception {
-        String providerName = (req.getProvider() != null) ? req.getProvider().toUpperCase() : "GOOGLE";
+        String providerName = normalizeProvider(req.getProvider());
         String uid = resolveUid(req.getIdToken(), req.getPhone(), providerName);
 
         Optional<UserAuthProvider> existingProvider = userAuthProviderRepository.findByProviderAndProviderUid(providerName, uid);
 
         if (existingProvider.isPresent()) {
             User user = existingProvider.get().getUser();
+            ensureActiveUser(user);
             if (req.getName() != null && !req.getName().isBlank() && !req.getName().equals(user.getName())) {
                 user.setName(req.getName());
                 userRepository.save(user);
@@ -163,8 +156,9 @@ public class AuthService {
     // ─── 帳號整合：三方帳號設定密碼 ──────────────────────────
     @Transactional
     public Result mergeSetPassword(String idToken, String phone, String newPassword) throws Exception {
-        FirebaseAuth.getInstance().verifyIdToken(idToken);
+        verifyFirebasePhone(idToken, phone);
         User user = userRepository.findByPhone(phone).orElseThrow(() -> new CustomException("404", "帳號不存在"));
+        ensureActiveUser(user);
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
@@ -173,24 +167,50 @@ public class AuthService {
         return Result.success(generateLoginResponse(user));
     }
 
-    // ─── 帳號整合：傳統帳號綁定三方 ──────────────────────────
-    // ✅ 修正：原本呼叫 verifyFirebasePhone 驗證 phone_number claim
-    //    但前端傳入的是 Google/Facebook OAuth token，不含 phone_number claim，一定失敗
-    //    改為只驗證 token 合法性即可，不強制比對手機號碼
+    // ─── 帳號整合：由已登入的傳統帳號綁定三方 ─────────────────
     @Transactional
-    public Result mergeBindSocial(String idToken, String phone, String providerUid, String provider) throws Exception {
-        // 只驗證 token 是否合法，不要求有 phone_number claim（Google/Facebook token 沒有此 claim）
-        FirebaseAuth.getInstance().verifyIdToken(idToken);
+    public Result mergeBindSocial(Long userId, String idToken, String providerUid, String provider) throws Exception {
+        User user = userRepository.findById(userId).orElseThrow(() -> new CustomException("404", "找不到此帳號"));
+        ensureActiveUser(user);
+        return bindVerifiedSocialProvider(user, idToken, providerUid, provider);
+    }
 
+    /** 以已驗證的手機 OTP 與社群 Firebase token 完成沒有密碼帳號的整合。 */
+    @Transactional
+    public Result mergeBindSocialByPhone(String phoneIdToken, String phone, String socialIdToken,
+            String providerUid, String provider) throws Exception {
+        verifyFirebasePhone(phoneIdToken, phone);
         User user = userRepository.findByPhone(phone).orElseThrow(() -> new CustomException("404", "找不到此帳號"));
+        ensureActiveUser(user);
+        return bindVerifiedSocialProvider(user, socialIdToken, providerUid, provider);
+    }
 
-        String providerName = provider != null ? provider.toUpperCase() : "GOOGLE";
+    private Result bindVerifiedSocialProvider(User user, String idToken, String providerUid, String provider)
+            throws Exception {
+        String providerName = normalizeProvider(provider);
+        FirebaseToken decoded = verifyFirebaseSocialToken(idToken, providerName);
+        String tokenUid = decoded == null ? mockProviderUid(providerName, user.getPhone()) : decoded.getUid();
+        if (providerUid == null || !providerUid.equals(tokenUid)) {
+            throw new CustomException("401", "第三方帳號驗證失敗");
+        }
         if (userAuthProviderRepository.findByProviderAndProviderUid(providerName, providerUid).isPresent()) {
             throw new CustomException("409", "此三方帳號已綁定過");
         }
-
         bindSocialProvider(user, providerName, providerUid);
-        log.info("帳號整合成功（傳統帳號綁定三方）：{} -> {}", phone, providerName);
+        log.info("帳號整合成功：userId={} provider={}", user.getId(), providerName);
+        return Result.success(generateLoginResponse(user));
+    }
+
+    /** Atomically set a password and attach the social identity after proving phone ownership. */
+    @Transactional
+    public Result mergeSetPasswordAndBindSocial(String phoneIdToken, String phone, String newPassword,
+            String socialIdToken, String providerUid, String provider) throws Exception {
+        verifyFirebasePhone(phoneIdToken, phone);
+        User user = userRepository.findByPhone(phone).orElseThrow(() -> new CustomException("404", "帳號不存在"));
+        ensureActiveUser(user);
+        bindVerifiedSocialProvider(user, socialIdToken, providerUid, provider);
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
         return Result.success(generateLoginResponse(user));
     }
 
@@ -201,6 +221,7 @@ public class AuthService {
         verifyFirebasePhone(idToken, phoneNumber);
         User user = userRepository.findByPhone(phoneNumber)
                 .orElseThrow(() -> new CustomException("404", "帳號不存在"));
+        ensureActiveUser(user);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         log.info("密碼重設成功：{}", phoneNumber);
@@ -238,9 +259,7 @@ public class AuthService {
 
     // ─── Firebase Token 驗證（僅驗證合法性）────────────────────
     public void verifyOnly(String idToken) throws Exception {
-        // mock 模式或 MOCK_TOKEN 直接跳過
-        if ("mock".equalsIgnoreCase(smsMode) || "MOCK_TOKEN".equals(idToken)) return;
-        FirebaseAuth.getInstance().verifyIdToken(idToken);
+        verifyFirebaseToken(idToken);
     }
 
     // ─── 工具方法 ────────────────────────────────────────────
@@ -252,27 +271,70 @@ public class AuthService {
         userAuthProviderRepository.save(p);
     }
 
-    // 驗證 Firebase Phone Auth token 的手機號碼（只用於 resetPasswordWithFirebase）
+    // 驗證 Firebase Phone Auth token 的手機號碼；本機 mock token 僅在 sms.mode=mock 可用。
     private String verifyFirebasePhone(String idToken, String phoneNumber) throws Exception {
-        // mock 模式或 MOCK_TOKEN 直接跳過 Firebase 驗證
-        if ("mock".equalsIgnoreCase(smsMode) || "MOCK_TOKEN".equals(idToken)) return phoneNumber;
-        FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
-        String verifiedPhone = (String) decodedToken.getClaims().get("phone_number");
-        if (verifiedPhone == null || !verifiedPhone.contains(phoneNumber.substring(1))) {
+        FirebaseToken decodedToken = verifyFirebaseToken(idToken);
+        if (decodedToken == null) return phoneNumber;
+        String verifiedPhone = Objects.toString(decodedToken.getClaims().get("phone_number"), null);
+        if (verifiedPhone == null || !normalizePhone(verifiedPhone).equals(normalizePhone(phoneNumber))) {
             throw new CustomException("401", "驗證的手機號碼與輸入不符");
         }
         return verifiedPhone;
     }
 
     private String resolveUid(String idToken, String phone, String provider) throws Exception {
-        if ("MOCK_TOKEN".equals(idToken)) return "MOCK_UID_" + provider + "_" + phone;
-        return FirebaseAuth.getInstance().verifyIdToken(idToken).getUid();
+        FirebaseToken decoded = verifyFirebaseSocialToken(idToken, provider);
+        return decoded == null ? mockProviderUid(provider, phone) : decoded.getUid();
+    }
+
+    private FirebaseToken verifyFirebaseSocialToken(String idToken, String provider) throws Exception {
+        FirebaseToken decoded = verifyFirebaseToken(idToken);
+        if (decoded == null) return null;
+
+        Object firebaseClaim = decoded.getClaims().get("firebase");
+        if (!(firebaseClaim instanceof Map<?, ?> firebaseInfo)) {
+            throw new CustomException("401", "第三方帳號驗證失敗");
+        }
+        String signInProvider = Objects.toString(firebaseInfo.get("sign_in_provider"), "");
+        String expectedProvider = "GOOGLE".equals(provider) ? "google.com" : "facebook.com";
+        if (!expectedProvider.equals(signInProvider)) {
+            throw new CustomException("401", "第三方登入方式與驗證帳號不符");
+        }
+        return decoded;
+    }
+
+    private FirebaseToken verifyFirebaseToken(String idToken) throws Exception {
+        if ("mock".equalsIgnoreCase(smsMode) && "MOCK_TOKEN".equals(idToken)) return null;
+        if (idToken == null || idToken.isBlank() || "MOCK_TOKEN".equals(idToken)) {
+            throw new CustomException("401", "Firebase 驗證失敗");
+        }
+        return FirebaseAuth.getInstance().verifyIdToken(idToken);
+    }
+
+    private String normalizeProvider(String provider) {
+        String value = provider == null || provider.isBlank() ? "GOOGLE" : provider.toUpperCase(Locale.ROOT);
+        if (!List.of("GOOGLE", "FACEBOOK").contains(value)) {
+            throw new CustomException("400", "不支援的第三方登入方式");
+        }
+        return value;
+    }
+
+    private String mockProviderUid(String provider, String phone) {
+        return "MOCK_UID_" + provider + "_" + phone;
+    }
+
+    private void ensureActiveUser(User user) {
+        if (user == null || Boolean.TRUE.equals(user.getIsDeleted())) {
+            throw new CustomException("403", "帳號已停用");
+        }
     }
 
     private String normalizePhone(String phone) {
         if (phone == null) return "";
-        // 09xxxxxxxx -> +8869xxxxxxxx（Firebase 格式）
-        return phone.startsWith("0") ? "+886" + phone.substring(1) : phone;
+        String normalized = phone.replaceAll("[\\s()-]", "");
+        if (normalized.startsWith("+")) return normalized;
+        if (normalized.startsWith("886")) return "+" + normalized;
+        return normalized.startsWith("0") ? "+886" + normalized.substring(1) : normalized;
     }
 
     private Map<String, Object> generateLoginResponse(User user) {

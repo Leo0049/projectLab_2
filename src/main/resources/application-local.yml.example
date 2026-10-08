@@ -42,3 +42,9 @@ cloudinary:
 
 coupon:
   template-url: ""
+
+# 僅本機演示用的模擬儲值；正式環境不可開啟。
+app:
+  wallet:
+    mock-top-up:
+      enabled: true

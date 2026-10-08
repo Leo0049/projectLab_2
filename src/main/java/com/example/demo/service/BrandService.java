@@ -333,9 +333,11 @@ public class BrandService {
         if (req.getCategoryId() != null) {
             MenuCategory cat = menuCategoryRepository.findById(req.getCategoryId())
                     .orElseThrow(() -> new CustomException("404", "分類不存在"));
+            requireBrandCategory(brandId, cat);
             p.setCategory(cat);
             categoryId = cat.getId();
         }
+        validateProductReferences(brandId, req.getBrandSpecIds(), req.getSpecPrices(), req.getBrandToppingIds());
         p.setSortOrder(nextProductSortOrder(brandId, categoryId));
         p.setName(req.getName());
         p.setBasePrice(deriveBasePrice(req.getBasePrice(), req.getSpecPrices()));
@@ -378,6 +380,7 @@ public class BrandService {
         if (req.getCategoryId() != null) {
             MenuCategory cat = menuCategoryRepository.findById(req.getCategoryId())
                     .orElseThrow(() -> new CustomException("404", "分類不存在"));
+            requireBrandCategory(brandId, cat);
             p.setCategory(cat);
             Long nextCategoryId = cat.getId();
             if (!Objects.equals(originalCategoryId, nextCategoryId))
@@ -392,6 +395,7 @@ public class BrandService {
             p.setMaxToppings(req.getMaxToppings());
         if (req.getLogoUrl() != null)
             p.setLogoUrl(req.getLogoUrl().isEmpty() ? null : req.getLogoUrl());
+        validateProductReferences(brandId, req.getBrandSpecIds(), req.getSpecPrices(), req.getBrandToppingIds());
         final ProductTemplate savedP = productTemplateRepository.save(p);
 
         // 更新規格關聯（ICE/SWEETNESS/SIZE）+ SIZE 定價
@@ -454,6 +458,9 @@ public class BrandService {
 
     /** 計算 base_price：有 specPrices 時取最低價，否則用傳入的 basePrice */
     private BigDecimal deriveBasePrice(BigDecimal provided, List<SpecPriceEntry> specPrices) {
+        if (provided != null && provided.compareTo(BigDecimal.ZERO) < 0) {
+            throw new CustomException("400", "商品價格不可為負數");
+        }
         if (specPrices != null && !specPrices.isEmpty()) {
             return specPrices.stream()
                     .map(SpecPriceEntry::getPrice)
@@ -492,6 +499,56 @@ public class BrandService {
         for (Long toppingId : toppingIds) {
             productToppingRuleRepository.insertRule(productId, toppingId);
         }
+    }
+
+    private void requireBrandCategory(Long brandId, MenuCategory category) {
+        if (category.getBrand() == null || !brandId.equals(category.getBrand().getId())) {
+            throw new CustomException("400", "分類不屬於此品牌");
+        }
+    }
+
+    private void validateProductReferences(Long brandId, List<Long> specIds, List<SpecPriceEntry> specPrices,
+            List<Long> toppingIds) {
+        Map<Long, BrandSpecSetting> brandSpecs = brandSpecSettingRepository
+                .findByBrandIdOrderBySortOrderAscIdAsc(brandId).stream()
+                .collect(Collectors.toMap(BrandSpecSetting::getId, setting -> setting));
+        if (specIds != null) {
+            for (Long specId : specIds) {
+                BrandSpecSetting setting = brandSpecs.get(specId);
+                String type = effectiveSpecType(setting);
+                if (setting == null || !("ICE".equals(type) || "SWEETNESS".equals(type))) {
+                    throw new CustomException("400", "規格不屬於此品牌或規格類型不適用");
+                }
+            }
+        }
+        if (specPrices != null) {
+            for (SpecPriceEntry entry : specPrices) {
+                if (entry == null || entry.getBrandSpecId() == null) {
+                    throw new CustomException("400", "容量規格資料不完整");
+                }
+                BrandSpecSetting setting = brandSpecs.get(entry.getBrandSpecId());
+                if (setting == null || !"SIZE".equals(effectiveSpecType(setting))) {
+                    throw new CustomException("400", "容量規格不屬於此品牌");
+                }
+                if (entry.getPrice() != null && entry.getPrice().compareTo(BigDecimal.ZERO) < 0) {
+                    throw new CustomException("400", "商品價格不可為負數");
+                }
+            }
+        }
+        if (toppingIds != null) {
+            Set<Long> brandToppingIds = brandToppingSettingRepository.findByBrandId(brandId).stream()
+                    .map(BrandToppingSetting::getId).collect(Collectors.toSet());
+            if (toppingIds.stream().anyMatch(id -> !brandToppingIds.contains(id))) {
+                throw new CustomException("400", "配料不屬於此品牌");
+            }
+        }
+    }
+
+    private String effectiveSpecType(BrandSpecSetting setting) {
+        if (setting == null) return "";
+        if (setting.getSpecType() != null) return setting.getSpecType().toUpperCase(Locale.ROOT);
+        return setting.getMaster() != null && setting.getMaster().getType() != null
+                ? setting.getMaster().getType().toUpperCase(Locale.ROOT) : "";
     }
 
     /** 將 SIZE ProductSpecRelation 列表轉為回應格式 */

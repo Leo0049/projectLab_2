@@ -33,7 +33,7 @@ public class GroupOrderService {
     private final com.example.demo.repository.ProductRepository productRepository;
     private final OrderItemToppingRepository orderItemToppingRepository;
     private final com.example.demo.repository.ProductSpecRelationRepository productSpecRelationRepository;
-    private final com.example.demo.repository.BrandToppingSettingRepository brandToppingSettingRepository;
+    private final StoreProductStatusRepository storeProductStatusRepository;
     private final StoreRepository storeRepository;
     private final ProductTemplateRepository productTemplateRepository;
     private final CartItemRepository cartItemRepository;
@@ -72,6 +72,7 @@ public class GroupOrderService {
 
             Store store = storeRepository.findById(storeId)
                     .orElseThrow(() -> new CustomException("404", "找不到店家"));
+            validateActiveStore(store);
             go.setStore(store);
 
             go.setShareToken(UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
@@ -346,19 +347,11 @@ public class GroupOrderService {
         Long productId = Long.parseLong(req.get("productId").toString());
         ProductTemplate pt = productTemplateRepository.findById(productId)
                 .orElseThrow(() -> new CustomException("404", "找不到商品 " + productId));
-        // ⚠️ M-2：商品必須屬於這個揪團門市的品牌，否則可跨品牌夾帶任意商品
-        if (pt.getBrand() == null || go.getStore().getBrand() == null
-                || !pt.getBrand().getId().equals(go.getStore().getBrand().getId())) {
-            throw new CustomException("400", "此商品不屬於該門市的品牌");
-        }
+        validateStoreProduct(go.getStore(), pt, getUnavailableProductIds(go.getStore()));
 
-        // --- Topping Count Validation ---
         @SuppressWarnings("unchecked")
         List<Number> toppingIds = (List<Number>) req.getOrDefault("toppingIds", new ArrayList<>());
-        int max = pt.getMaxToppings() != null ? pt.getMaxToppings() : 3;
-        if (toppingIds.size() > max) {
-            throw new RuntimeException("該商品最多只能選擇 " + max + " 種配料");
-        }
+        List<PricingService.ToppingPrice> resolvedToppings = pricingService.resolveToppingsByIds(pt, toppingIds);
 
         OrderItem item = new OrderItem();
         item.setGroupOrder(go);
@@ -385,7 +378,7 @@ public class GroupOrderService {
         item = orderItemRepository.save(item);
 
         // --- 配料：名稱由 toppingIds 對品牌設定反查，價格一律由伺服器定價 ---
-        applyToppingsFromIds(item, pt, toppingIds);
+        applyToppings(item, resolvedToppings);
 
         // --- 金額與 Hash：全部伺服器端重算 ---
         repriceItem(go, item);
@@ -397,11 +390,7 @@ public class GroupOrderService {
 
     /** 數量解析：非數字或小於 1 一律視為 1 */
     private static int parseQty(Map<String, Object> req) {
-        try {
-            return Math.max(1, Integer.parseInt(req.getOrDefault("qty", "1").toString()));
-        } catch (NumberFormatException e) {
-            return 1;
-        }
+        return QuantityLimits.parse(req.getOrDefault("qty", "1"));
     }
 
     /** 品項配料的顯示名稱清單（排序後），供定價與 hash 使用 */
@@ -419,46 +408,20 @@ public class GroupOrderService {
         return String.join(",", toppingNamesOf(item));
     }
 
-    /**
-     * 依 toppingIds 對品牌的配料設定反查名稱與價格。
-     *
-     * <p>⚠️ 名稱與價格都不吃 client：id 必須能對到該品牌的配料設定
-     * （{@code BrandToppingSetting.id} 或其 {@code masterTopping.id}，相容兩種前端慣例），
-     * 對不到直接 400——避免「自創配料名稱、0 元加料」的繞過。
-     */
-    private void applyToppingsFromIds(OrderItem item, ProductTemplate pt, List<Number> toppingIds) {
-        if (toppingIds == null || toppingIds.isEmpty()) {
-            return;
-        }
-        Long brandId = pt.getBrand() != null ? pt.getBrand().getId() : null;
-        List<BrandToppingSetting> settings = brandId == null ? List.of()
-                : brandToppingSettingRepository.findByBrandId(brandId);
+    /** Persist the server-resolved product toppings and their configured prices. */
+    private void applyToppings(OrderItem item, List<PricingService.ToppingPrice> toppings) {
+        if (toppings == null || toppings.isEmpty()) return;
         if (item.getToppings() == null) {
             item.setToppings(new ArrayList<>());
         }
-        for (Number tid : toppingIds) {
-            long id = tid.longValue();
-            BrandToppingSetting match = settings.stream()
-                    .filter(s -> (s.getMasterTopping() != null && s.getMasterTopping().getId() == id)
-                            || s.getId() == id)
-                    .findFirst()
-                    .orElse(null);
-            if (match == null) {
-                throw new CustomException("400", "含有此門市不供應的配料：" + id);
-            }
-            String displayName = match.getCustomName() != null ? match.getCustomName()
-                    : match.getMasterTopping().getName();
-            BigDecimal price = match.getBrandPrice() != null ? match.getBrandPrice()
-                    : (match.getMasterTopping().getDefaultPrice() != null
-                            ? match.getMasterTopping().getDefaultPrice() : BigDecimal.ZERO);
-
+        for (PricingService.ToppingPrice topping : toppings) {
             OrderItemTopping t = new OrderItemTopping();
             OrderItemToppingId oid = new OrderItemToppingId();
             oid.setOrderItemId(item.getId());
-            oid.setToppingNameSnapshot(displayName);
+            oid.setToppingNameSnapshot(topping.name());
             t.setId(oid);
             t.setOrderItem(item);
-            t.setToppingPriceSnapshot(price);
+            t.setToppingPriceSnapshot(topping.price());
             item.getToppings().add(t);
         }
     }
@@ -469,9 +432,43 @@ public class GroupOrderService {
      * 總價 = 單價 × qty。呼叫端送來的 unitPrice/finalPrice 一律覆寫。
      */
     private void repriceItem(GroupOrder go, OrderItem item) {
-        BigDecimal unit = pricingService.itemPrice(go.getStore(), item.getProduct(), toppingNamesOf(item));
+        item.setQty(QuantityLimits.validate(item.getQty()));
+        item.setSizeSnapshot(pricingService.resolveSizeName(item.getProduct(), item.getSizeSnapshot()));
+        BigDecimal unit = pricingService.itemPrice(go.getStore(), item.getProduct(), item.getSizeSnapshot(),
+                toppingNamesOf(item));
         item.setUnitPriceSnapshot(unit);
-        item.setFinalPrice(unit.multiply(BigDecimal.valueOf(Math.max(1, item.getQty()))));
+        item.setFinalPrice(unit.multiply(BigDecimal.valueOf(item.getQty())));
+    }
+
+    private Set<Long> getUnavailableProductIds(Store store) {
+        if (store == null || store.getId() == null) {
+            throw new CustomException("400", "揪團沒有有效的分店");
+        }
+        validateActiveStore(store);
+        return storeProductStatusRepository.findByStoreId(store.getId()).stream()
+                .filter(status -> Boolean.FALSE.equals(status.getIsEnabled()))
+                .map(status -> status.getId().getProductId())
+                .collect(Collectors.toSet());
+    }
+
+    private void validateActiveStore(Store store) {
+        if (store == null || !"active".equalsIgnoreCase(store.getStatus())) {
+            throw new CustomException("400", "分店目前不接受新訂單");
+        }
+        if (store.getBrand() == null || store.getBrand().getId() == null) {
+            throw new CustomException("400", "分店未關聯有效品牌");
+        }
+    }
+
+    private void validateStoreProduct(Store store, ProductTemplate product, Set<Long> unavailableProductIds) {
+        validateActiveStore(store);
+        if (product == null || product.getBrand() == null || product.getBrand().getId() == null
+                || !store.getBrand().getId().equals(product.getBrand().getId())) {
+            throw new CustomException("400", "商品不屬於該分店品牌");
+        }
+        if (!Boolean.TRUE.equals(product.getIsEnabled()) || unavailableProductIds.contains(product.getId())) {
+            throw new CustomException("400", "此商品目前未在該分店供應");
+        }
     }
 
     @Transactional
@@ -554,7 +551,7 @@ public class GroupOrderService {
             // 2. 反查品牌設定後新增
             @SuppressWarnings("unchecked")
             List<Number> toppingIds = (List<Number>) req.get("toppingIds");
-            applyToppingsFromIds(item, item.getProduct(), toppingIds);
+            applyToppings(item, pricingService.resolveToppingsByIds(item.getProduct(), toppingIds));
         }
 
         // --- 金額與 Hash：伺服器端重算 ---
@@ -623,6 +620,14 @@ public class GroupOrderService {
         if (items.isEmpty()) {
             throw new RuntimeException("Cart is empty");
         }
+
+        // Recompute from the catalogue at checkout so legacy or stale rows cannot alter the total.
+        Set<Long> unavailableProductIds = getUnavailableProductIds(go.getStore());
+        items.forEach(item -> {
+            validateStoreProduct(go.getStore(), item.getProduct(), unavailableProductIds);
+            repriceItem(go, item);
+        });
+        orderItemRepository.saveAll(items);
 
         BigDecimal fullGrossTotal = items.stream()
                 .map(OrderItem::getFinalPrice)
@@ -967,8 +972,10 @@ public class GroupOrderService {
      * 訂單完成頁固定看到 500。
      */
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public Optional<GroupOrderDTO> getGroupOrderDTOByOrderId(Long realOrderId) {
-        return groupOrderRepository.findById(realOrderId).map(this::convertToDTO);
+    public Optional<GroupOrderDTO> getGroupOrderDTOByOrderId(Long realOrderId, Long userId) {
+        return groupOrderRepository.findById(realOrderId)
+                .filter(order -> isInitiator(order, userId))
+                .map(this::convertToDTO);
     }
 
     /**
@@ -1182,6 +1189,7 @@ public class GroupOrderService {
         Long storeId = Long.parseLong(req.get("storeId").toString());
         com.example.demo.entity.Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new CustomException("404", "找不到店家"));
+        Set<Long> unavailableProductIds = getUnavailableProductIds(store);
         String type = (String) req.getOrDefault("type", "GROUP");
 
         GroupOrder order = new GroupOrder();
@@ -1206,13 +1214,15 @@ public class GroupOrderService {
         if (soloOpt.isPresent()) {
             GroupOrder soloOrder = soloOpt.get();
             itemsToMigrate = orderItemRepository.findByGroupOrderId(soloOrder.getId());
-            
+
             // 先儲存新訂單以取得 ID
             groupOrderRepository.save(order);
-            
+
             for (OrderItem item : itemsToMigrate) {
+                validateStoreProduct(store, item.getProduct(), unavailableProductIds);
                 item.setGroupOrder(order); // 將品項重新指向新揪團
                 item.setPaymentStatus("UNPAID"); // 確保轉移後為未付款狀態
+                repriceItem(order, item);
                 if (item.getFinalPrice() != null) {
                     migratedTotal = migratedTotal.add(item.getFinalPrice());
                 }
@@ -1230,65 +1240,54 @@ public class GroupOrderService {
             if (order.getId() == null) groupOrderRepository.save(order);
             
             for (CartItem ci : cartItems) {
+                int quantity = QuantityLimits.validate(ci.getQuantity() != null ? ci.getQuantity() : 1);
+                ProductTemplate product = ci.getProduct();
+                validateStoreProduct(store, product, unavailableProductIds);
+                String size = pricingService.resolveSizeName(product, ci.getSizeSnapshot());
+                List<String> toppingNames = ci.getToppingNames() == null || ci.getToppingNames().isBlank()
+                        ? List.of()
+                        : Arrays.stream(ci.getToppingNames().split(",")).map(String::trim)
+                                .filter(name -> !name.isEmpty()).toList();
+                List<PricingService.ToppingPrice> resolvedToppings = pricingService.resolveToppings(product,
+                        toppingNames);
+                BigDecimal unitPrice = pricingService.unitPrice(store, product, size);
+                BigDecimal toppingExtra = resolvedToppings.stream().map(PricingService.ToppingPrice::price)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
                 OrderItem oi = new OrderItem();
                 oi.setGroupOrder(order);
                 oi.setUser(user);
-                oi.setProduct(ci.getProduct());
-                oi.setProductNameSnapshot(ci.getProduct().getName());
-                oi.setUnitPriceSnapshot(ci.getUnitPrice());
-                BigDecimal cartFinalPrice = ci.getFinalPrice();
-                if (cartFinalPrice != null) {
-                    oi.setFinalPrice(cartFinalPrice.multiply(new BigDecimal(ci.getQuantity())));
-                } else {
-                    oi.setFinalPrice(BigDecimal.ZERO);
-                }
-                oi.setQty(ci.getQuantity());
+                oi.setProduct(product);
+                oi.setProductNameSnapshot(product.getName());
+                oi.setUnitPriceSnapshot(unitPrice.add(toppingExtra));
+                oi.setFinalPrice(unitPrice.add(toppingExtra).multiply(BigDecimal.valueOf(quantity)));
+                oi.setQty(quantity);
                 oi.setSugarSnapshot(ci.getSugarSnapshot());
                 oi.setIceSnapshot(ci.getIceSnapshot());
-                oi.setSizeSnapshot(ci.getSizeSnapshot());
+                oi.setSizeSnapshot(size);
                 oi.setPaymentStatus("UNPAID");
                 oi.setPaymentType("WALLET"); // 建立揪團時預設錢包支付，結帳時可再覆寫
-                
-                // 處理配料 (CartItem CSV -> OrderItemTopping List)
-                List<OrderItemTopping> toppings = new ArrayList<>();
-                if (ci.getToppingNames() != null && !ci.getToppingNames().isBlank()) {
-                    String[] tNames = ci.getToppingNames().split(",");
-                    Long brandId = ci.getProduct().getBrand().getId();
-                    // 預先取得該品牌所有配料設定，用於價格對應
-                    List<BrandToppingSetting> settings = brandToppingSettingRepository.findByBrandId(brandId);
 
-                    for (String tName : tNames) {
-                        String name = tName.trim();
-                        OrderItemTopping oit = new OrderItemTopping();
-                        OrderItemToppingId id = new OrderItemToppingId();
-                        id.setToppingNameSnapshot(name);
-                        oit.setId(id);
-                        oit.setOrderItem(oi);
-
-                        // 查找配料單價，若找不到則預設 0
-                        BigDecimal tPrice = settings.stream()
-                                .filter(s -> name.equals(s.getCustomName()) || (s.getMasterTopping() != null && name.equals(s.getMasterTopping().getName())))
-                                .map(s -> s.getBrandPrice() != null ? s.getBrandPrice() : (s.getMasterTopping() != null ? s.getMasterTopping().getDefaultPrice() : BigDecimal.ZERO))
-                                .findFirst()
-                                .orElse(BigDecimal.ZERO);
-                        
-                        oit.setToppingPriceSnapshot(tPrice);
-                        toppings.add(oit);
-                    }
-                }
-                oi.setToppings(toppings);
-                
                 // 計算 Hash (與 GroupOrderService 其他部分一致)
-                String toppingsKey = toppings.stream()
-                        .map(t -> t.getId().getToppingNameSnapshot())
-                        .sorted()
-                        .collect(java.util.stream.Collectors.joining(","));
-                oi.setItemHash(generateItemHash(ci.getProduct().getId(), ci.getSugarSnapshot(), 
-                        ci.getIceSnapshot(), ci.getSizeSnapshot(), toppingsKey, null));
-                
-                orderItemRepository.save(oi);
-                if (oi.getFinalPrice() != null) {
-                    migratedTotal = migratedTotal.add(oi.getFinalPrice());
+                String toppingsKey = resolvedToppings.stream().map(PricingService.ToppingPrice::name)
+                        .sorted().collect(java.util.stream.Collectors.joining(","));
+                oi.setItemHash(generateItemHash(product.getId(), ci.getSugarSnapshot(),
+                        ci.getIceSnapshot(), size, toppingsKey, null));
+
+                OrderItem savedOi = orderItemRepository.save(oi);
+                List<OrderItemTopping> toppingRows = resolvedToppings.stream().map(topping -> {
+                    OrderItemTopping row = new OrderItemTopping();
+                    OrderItemToppingId id = new OrderItemToppingId();
+                    id.setOrderItemId(savedOi.getId());
+                    id.setToppingNameSnapshot(topping.name());
+                    row.setId(id);
+                    row.setOrderItem(savedOi);
+                    row.setToppingPriceSnapshot(topping.price());
+                    return row;
+                }).toList();
+                orderItemToppingRepository.saveAll(toppingRows);
+                if (savedOi.getFinalPrice() != null) {
+                    migratedTotal = migratedTotal.add(savedOi.getFinalPrice());
                 }
                 migratedItemsCount++;
             }
@@ -1333,6 +1332,10 @@ public class GroupOrderService {
     public Map<String, Object> joinGroup(Long userId, Long groupOrderId, Map<String, Object> req) {
         GroupOrder order = groupOrderRepository.findById(groupOrderId)
                 .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
+        Object requestedToken = req != null ? req.get("shareToken") : null;
+        if (!(requestedToken instanceof String token) || !token.equals(order.getShareToken())) {
+            throw new CustomException("403", "邀請憑證無效");
+        }
         if (!"OPEN".equals(order.getStatus()))
             throw new CustomException("409", "此揪團已結束，無法加入");
 
@@ -1352,9 +1355,10 @@ public class GroupOrderService {
     // 之後會讀 order.getStore() 與每個品項的 item.getUser()，交易外一律 LazyInitializationException。
     // 這支是揪團「誰點了什麼」的清單，壞掉等於揪團功能的核心頁面打不開。
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public Map<String, Object> getGroupDetail(Long groupOrderId) {
+    public Map<String, Object> getGroupDetail(Long userId, Long groupOrderId) {
         GroupOrder order = groupOrderRepository.findById(groupOrderId)
                 .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
+        requireGroupParticipant(order, userId);
         List<OrderItem> allItems = orderItemRepository.findByGroupOrderId(groupOrderId);
 
         Map<Long, Map<String, Object>> memberMap = new LinkedHashMap<>();
@@ -1396,9 +1400,10 @@ public class GroupOrderService {
     // 同 getGroupDetail：會讀每個品項的 item.getUser()。
     // 空團剛好不會走到那段，所以「沒有交易」這件事在空團上看不出來——有品項才會爆。
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public Map<String, Object> getGroupSummary(Long groupOrderId) {
+    public Map<String, Object> getGroupSummary(Long userId, Long groupOrderId) {
         GroupOrder order = groupOrderRepository.findById(groupOrderId)
                 .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
+        requireGroupParticipant(order, userId);
         List<OrderItem> items = orderItemRepository.findByGroupOrderId(groupOrderId);
         BigDecimal paid = items.stream()
                 .filter(i -> "PAID".equals(i.getPaymentStatus()))
@@ -1415,9 +1420,10 @@ public class GroupOrderService {
         return result;
     }
 
-    public Map<String, Object> getShareInfo(Long groupOrderId) {
+    public Map<String, Object> getShareInfo(Long userId, Long groupOrderId) {
         GroupOrder order = groupOrderRepository.findById(groupOrderId)
                 .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
+        if (!isInitiator(order, userId)) throw new CustomException("403", "只有團長可以取得分享連結");
         String joinUrl = BASE_URL + order.getShareToken();
         Map<String, Object> result = new HashMap<>();
         result.put("groupOrderId", groupOrderId);
@@ -1428,6 +1434,18 @@ public class GroupOrderService {
         return result;
     }
 
+    private void requireGroupParticipant(GroupOrder order, Long userId) {
+        if (isInitiator(order, userId)) return;
+        if (userId == null || !orderItemRepository.existsByGroupOrderIdAndUserId(order.getId(), userId)) {
+            throw new CustomException("403", "無權限查看此揪團");
+        }
+    }
+
+    private boolean isInitiator(GroupOrder order, Long userId) {
+        return userId != null && order.getInitiator() != null
+                && userId.equals(order.getInitiator().getId());
+    }
+
     @Transactional
     public Map<String, Object> submitGroupOrder(Long userId, Long groupOrderId, Map<String, Object> req) {
         GroupOrder order = groupOrderRepository.findById(groupOrderId)
@@ -1436,6 +1454,11 @@ public class GroupOrderService {
             throw new CustomException("403", "只有團長可以送單");
         if (!"OPEN".equals(order.getStatus()))
             throw new CustomException("409", "訂單狀態不允許送單");
+
+        Set<Long> unavailableProductIds = getUnavailableProductIds(order.getStore());
+        for (OrderItem item : orderItemRepository.findByGroupOrderId(groupOrderId)) {
+            validateStoreProduct(order.getStore(), item.getProduct(), unavailableProductIds);
+        }
 
         if (req != null && req.containsKey("note")) {
             String noteVal = (String) req.get("note");
@@ -1470,25 +1493,53 @@ public class GroupOrderService {
     private void addItemsToOrder(Long userId, GroupOrder order, List<Map<String, Object>> items) {
         User user = userRepository.findById(userId).orElseThrow(() -> new CustomException("404", "找不到用戶"));
         BigDecimal orderTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+        Set<Long> unavailableProductIds = getUnavailableProductIds(order.getStore());
         for (Map<String, Object> req : items) {
             Long productId = Long.parseLong(req.get("productId").toString());
             ProductTemplate product = productTemplateRepository.findById(productId)
                     .orElseThrow(() -> new CustomException("404", "找不到商品 " + productId));
+            validateStoreProduct(order.getStore(), product, unavailableProductIds);
+
+            int qty = QuantityLimits.parse(req.getOrDefault("qty", "1"));
+            String size = pricingService.resolveSizeName(product, (String) req.get("size"));
+            List<String> toppingNames = new ArrayList<>();
+            Object requestedToppings = req.get("toppingNames");
+            if (requestedToppings instanceof List<?> values) {
+                for (Object value : values) toppingNames.add(String.valueOf(value));
+            } else if (requestedToppings != null) {
+                throw new CustomException("400", "配料格式錯誤");
+            }
+            List<PricingService.ToppingPrice> toppingPrices = pricingService.resolveToppings(product, toppingNames);
+            BigDecimal unitPrice = pricingService.unitPrice(order.getStore(), product, size);
+            BigDecimal toppingExtra = toppingPrices.stream().map(PricingService.ToppingPrice::price)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
             OrderItem item = new OrderItem();
             item.setGroupOrder(order);
             item.setUser(user);
             item.setProduct(product);
             item.setSugarSnapshot((String) req.getOrDefault("sugar", ""));
             item.setIceSnapshot((String) req.getOrDefault("ice", ""));
-
-            int qty = Integer.parseInt(req.getOrDefault("qty", "1").toString());
+            item.setSizeSnapshot(size);
             item.setQty(qty);
             item.setPaymentStatus("UNPAID");
             item.setPaymentType((String) req.getOrDefault("paymentType", "WALLET"));
             item.setProductNameSnapshot(product.getName());
-            item.setUnitPriceSnapshot(product.getBasePrice());
-            item.setFinalPrice(product.getBasePrice().multiply(new BigDecimal(qty)));
-            orderItemRepository.save(item);
+            item.setUnitPriceSnapshot(unitPrice.add(toppingExtra));
+            item.setFinalPrice(unitPrice.add(toppingExtra).multiply(BigDecimal.valueOf(qty)));
+            OrderItem savedItem = orderItemRepository.save(item);
+
+            List<OrderItemTopping> toppingRows = toppingPrices.stream().map(topping -> {
+                OrderItemTopping row = new OrderItemTopping();
+                OrderItemToppingId id = new OrderItemToppingId();
+                id.setOrderItemId(savedItem.getId());
+                id.setToppingNameSnapshot(topping.name());
+                row.setId(id);
+                row.setOrderItem(savedItem);
+                row.setToppingPriceSnapshot(topping.price());
+                return row;
+            }).toList();
+            orderItemToppingRepository.saveAll(toppingRows);
             orderTotal = orderTotal.add(item.getFinalPrice());
         }
         order.setTotalAmount(orderTotal);

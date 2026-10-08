@@ -95,15 +95,29 @@ public class ImageStorageService {
     }
 
     private String uploadToLocal(byte[] data, String folder, String publicId, String filename) throws IOException {
+        if (folder == null || !folder.matches("[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*")) {
+            throw new IOException("Upload folder contains invalid path segments");
+        }
         String ext = extensionOf(filename);
         String name = (notBlank(publicId) ? publicId : UUID.randomUUID().toString()) + ext;
+        if (!name.matches("[A-Za-z0-9._-]+")) {
+            throw new IOException("Upload file name contains invalid characters");
+        }
 
-        Path dir = Paths.get(localDir, folder);
+        Path root = Paths.get(localDir).toAbsolutePath().normalize();
+        Path dir = root.resolve(folder).normalize();
+        if (!dir.startsWith(root)) {
+            throw new IOException("Upload folder escapes the configured upload directory");
+        }
         Files.createDirectories(dir);
-        Path target = dir.resolve(name);
+        Path target = dir.resolve(name).normalize();
+        if (!target.startsWith(dir) || !target.startsWith(root)) {
+            throw new IOException("Upload file escapes the configured upload directory");
+        }
         Files.write(target, data);
 
-        return "/uploads/" + folder + "/" + name;
+        String relativePath = root.relativize(target).toString().replace('\\', '/');
+        return "/uploads/" + relativePath;
     }
 
     private String extensionOf(String filename) {

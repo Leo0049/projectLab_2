@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.service.DailySpinService;
+import com.example.demo.service.PublicService;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.springframework.http.ResponseEntity;
@@ -15,11 +16,11 @@ import java.util.Map;
 public class DailySpinController {
 
     private final DailySpinService dailySpinService;
-    private final com.example.demo.repository.BrandRepository brandRepository;
+    private final PublicService publicService;
 
     @GetMapping("/game-wheel/brands")
     public com.example.demo.common.Result getBrands() {
-        return com.example.demo.common.Result.success(brandRepository.findAll());
+        return com.example.demo.common.Result.success(publicService.getBrands());
     }
 
     @GetMapping("/game-wheel/menu/{brandId}")

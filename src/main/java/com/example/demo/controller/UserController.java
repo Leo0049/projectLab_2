@@ -25,7 +25,6 @@ import com.example.demo.service.MenuService;
 import com.example.demo.service.OrderService;
 import com.example.demo.service.OrderRatingService;
 import com.example.demo.service.StoreService;
-import com.example.demo.service.TransactionRecordService;
 import com.example.demo.service.UserCouponService;
 import com.example.demo.service.UserProfileService;
 import com.example.demo.service.UserService;
@@ -72,9 +71,6 @@ public class UserController {
 
     @Autowired(required = false)
     private UserService userService;
-
-    @Autowired(required = false)
-    private TransactionRecordService transactionRecordService;
 
     @Autowired(required = false)
     private TransactionRecordRepository transactionRecordRepository;
@@ -174,6 +170,8 @@ public class UserController {
                 return Result.error("400", "手機號碼不可為空");
             if (newPassword == null || newPassword.isBlank())
                 return Result.error("400", "新密碼不可為空");
+            if (newPassword.length() < 8 || newPassword.length() > 16)
+                return Result.error("400", "密碼請設定 8～16 位英數組合");
             authService.resetPasswordWithFirebase(idToken, phoneNumber, newPassword);
             return Result.success("密碼修改成功！請使用新密碼登入。");
         } catch (CustomException e) {
@@ -192,19 +190,54 @@ public class UserController {
         String newPassword = body.get("newPassword");
         if (idToken == null || phone == null || newPassword == null)
             return Result.error("400", "參數不完整");
+        if (newPassword.length() < 8 || newPassword.length() > 16)
+            return Result.error("400", "密碼請設定 8～16 位英數組合");
         return authService.mergeSetPassword(idToken, phone, newPassword);
     }
 
-    @Operation(summary = "帳號整合：綁定三方", description = "情境：三方登入收到 203（此手機已是傳統帳號）。\n\n流程：簡訊驗證 → 呼叫此 API 綁定三方 → 回傳 JWT\n\nBody: { idToken, phone, providerUid, provider }")
-    @PostMapping("/api/auth/merge/bind-social")
-    public Result mergeBindSocial(@RequestBody Map<String, String> body) throws Exception {
-        String idToken = body.get("idToken");
+    @Operation(summary = "帳號整合：設定密碼並綁定三方", description = "以手機 OTP 驗證會員身分，同時設定密碼及綁定已驗證的社群帳號。")
+    @PostMapping("/api/auth/merge/complete")
+    public Result completeAccountMerge(@RequestBody Map<String, String> body) throws Exception {
+        String phoneIdToken = body.get("phoneIdToken");
         String phone = body.get("phone");
+        String newPassword = body.get("newPassword");
+        String socialIdToken = body.get("socialIdToken");
         String providerUid = body.get("providerUid");
         String provider = body.get("provider");
-        if (idToken == null || phone == null || providerUid == null)
+        if (phoneIdToken == null || phone == null || newPassword == null || socialIdToken == null
+                || providerUid == null) {
             return Result.error("400", "參數不完整");
-        return authService.mergeBindSocial(idToken, phone, providerUid, provider);
+        }
+        if (newPassword.length() < 8 || newPassword.length() > 16) {
+            return Result.error("400", "密碼請設定 8～16 位英數組合");
+        }
+        return authService.mergeSetPasswordAndBindSocial(phoneIdToken, phone, newPassword, socialIdToken,
+                providerUid, provider);
+    }
+
+    @Operation(summary = "帳號整合：綁定三方", description = "需先以既有會員密碼登入，並提供與 providerUid 相符的 Firebase 社群登入 token。Body: { idToken, providerUid, provider }")
+    @PostMapping("/api/auth/merge/bind-social")
+    public Result mergeBindSocial(@RequestAttribute("currentUserId") Long userId,
+            @RequestBody Map<String, String> body) throws Exception {
+        String idToken = body.get("idToken");
+        String providerUid = body.get("providerUid");
+        String provider = body.get("provider");
+        if (idToken == null || providerUid == null)
+            return Result.error("400", "參數不完整");
+        return authService.mergeBindSocial(userId, idToken, providerUid, provider);
+    }
+
+    @Operation(summary = "帳號整合：以手機驗證綁定三方", description = "需同時提供 Firebase 手機驗證 token 與社群登入 token。Body: { phoneIdToken, phone, idToken, providerUid, provider }")
+    @PostMapping("/api/auth/merge/bind-social-phone")
+    public Result mergeBindSocialByPhone(@RequestBody Map<String, String> body) throws Exception {
+        String phoneIdToken = body.get("phoneIdToken");
+        String phone = body.get("phone");
+        String socialIdToken = body.get("idToken");
+        String providerUid = body.get("providerUid");
+        String provider = body.get("provider");
+        if (phoneIdToken == null || phone == null || socialIdToken == null || providerUid == null)
+            return Result.error("400", "參數不完整");
+        return authService.mergeBindSocialByPhone(phoneIdToken, phone, socialIdToken, providerUid, provider);
     }
 
     @Operation(summary = "更新個人資料", description = "修改使用者暱稱 / 頭像 / 手機，欄位皆為選填。\n\nBody: { name?, picUrl?, phone? }")
@@ -225,7 +258,7 @@ public class UserController {
 
     // ==================== 訂單 ====================
 
-    @Operation(summary = "建立訂單", description = "使用者下單。\n\nBody:\n```json\n{\n  \"storeId\": 1,\n  \"note\": \"門口有管理員，請報到。\",\n  \"items\": [{\n    \"productId\": 1,\n    \"sugarSnapshot\": \"微糖\",\n    \"iceSnapshot\": \"少冰\",\n    \"paymentType\": \"CREDIT\",\n    \"toppingNames\": [\"珍珠\", \"椰果\"]\n  }]\n}\n```")
+    @Operation(summary = "建立訂單", description = "使用者下單；此 API 支援 WALLET 或 CASH，信用卡付款請使用已整合的付款流程。\n\nBody:\n```json\n{\n  \"storeId\": 1,\n  \"note\": \"門口有管理員，請報到。\",\n  \"items\": [{\n    \"productId\": 1,\n    \"sugarSnapshot\": \"微糖\",\n    \"iceSnapshot\": \"少冰\",\n    \"paymentType\": \"WALLET\",\n    \"toppingNames\": [\"珍珠\", \"椰果\"]\n  }]\n}\n```")
     @PostMapping("/api/orders/place")
     public Result placeOrder(@RequestAttribute("currentUserId") Long userId,
             @Valid @RequestBody PlaceOrderRequest req) {
@@ -563,13 +596,8 @@ public class UserController {
     public ResponseEntity<?> recharge(@PathVariable Long userId, @Valid @RequestBody RechargeRequest request,
             @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
         requireSelf(userId, currentUserId);
-        if (transactionRecordService == null) {
-            return ResponseEntity.status(500).body("TransactionRecordService not available");
-        }
         try {
-            User updatedUser = transactionRecordService.updateStoreCredit(
-                    userId, request.getAmount(), com.example.demo.service.wallet.TxType.TOPUP,
-                    "帳戶儲值", LocalDateTime.now());
+            User updatedUser = userProfileService.topUpUser(userId, request.getAmount());
             return ResponseEntity.ok(new UserResponse(
                     updatedUser.getId(), updatedUser.getName(), updatedUser.getRole(),
                     updatedUser.getPicUrl(), updatedUser.getPhone(), updatedUser.getBalance()));

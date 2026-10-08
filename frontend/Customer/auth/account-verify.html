@@ -80,10 +80,12 @@
       return location.origin;
     })();
 
-    function postJson(path, payload) {
+    function postJson(path, payload, accessToken) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
       return fetch(`${API_BASE}${path}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload)
       }).then(async (res) => {
         const raw = await res.text();
@@ -161,6 +163,14 @@
           // Step 1：用手機 + 密碼驗證此帳號確實屬於使用者
           const loginResult = await postJson('/api/auth/login', { phone, password });
 
+          if (loginResult?.code === '202') {
+            pending.provider = pending.provider || provider;
+            localStorage.setItem('JOIN_SOCIAL_PENDING', JSON.stringify(pending));
+            localStorage.setItem('JOIN_MERGE', JSON.stringify({ phone, action: 'MERGE_SET_PASSWORD_AND_BIND_SOCIAL' }));
+            location.href = `verify-phone.html?type=merge-bind-social&phone=${encodeURIComponent(phone)}`;
+            return;
+          }
+
           // ✅ 密碼錯誤：inline 顯示，不跳 alert
           if (loginResult?.code === '401' || loginResult?.code !== '200') {
             showError(loginResult?.msg || '密碼錯誤，請再試一次');
@@ -170,10 +180,9 @@
           // Step 2：密碼正確 → 執行第三方綁定，確保資料落庫
           const bindResult = await postJson('/api/auth/merge/bind-social', {
             idToken:     pending.idToken,
-            phone,
             providerUid: pending.providerUid,
             provider:    pending.provider || provider
-          });
+          }, loginResult?.data?.token);
 
           if (bindResult?.code === '200') {
             const token = bindResult?.data?.token;

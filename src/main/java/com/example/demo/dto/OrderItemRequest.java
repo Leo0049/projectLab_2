@@ -13,6 +13,6 @@ public class OrderItemRequest {
     private String sugarSnapshot;   // 甜度
     private String iceSnapshot;     // 冰塊
     private String sizeSnapshot;    // 尺寸 (M/L)
-    private String paymentType;     // CREDIT / CASH
+    private String paymentType;     // WALLET / CASH；此舊 API 不支援信用卡線上付款
     private List<String> toppingNames; // 配料名稱清單
 }

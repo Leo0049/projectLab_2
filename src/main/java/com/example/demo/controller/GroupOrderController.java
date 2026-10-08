@@ -99,7 +99,7 @@ public class GroupOrderController {
         }
     }
 
-    @Operation(summary = "加入揪團並新增品項", description = "Body:\n```json\n{\n  \"items\": [\n    { \"productId\": 1, \"sugar\": \"微糖\", \"ice\": \"少冰\", \"paymentType\": \"WALLET\" }\n  ]\n}\n```")
+    @Operation(summary = "加入揪團並新增品項", description = "需提供對應揪團的 shareToken。Body: { shareToken, items }")
     @PostMapping("/api/group-orders/{groupOrderId}/join")
     public Result joinGroup(HttpServletRequest request,
             @PathVariable Long groupOrderId,
@@ -112,20 +112,26 @@ public class GroupOrderController {
 
     @Operation(summary = "取得揪團成員與品項列表", description = "顯示所有團員的點餐內容與付款狀態。")
     @GetMapping("/api/group-orders/{groupOrderId}/members")
-    public Result getGroupDetail(@PathVariable Long groupOrderId) {
-        return Result.success(groupOrderService.getGroupDetail(groupOrderId));
+    public Result getGroupDetail(HttpServletRequest request, @PathVariable Long groupOrderId) {
+        Long userId = getUserId(request);
+        if (userId == null) return Result.error("Unauthorized");
+        return Result.success(groupOrderService.getGroupDetail(userId, groupOrderId));
     }
 
     @Operation(summary = "揪團付款統計", description = "取得已付款/未付款金額統計，用於結帳頁顯示。")
     @GetMapping("/api/group-orders/{groupOrderId}/summary")
-    public Result getGroupSummary(@PathVariable Long groupOrderId) {
-        return Result.success(groupOrderService.getGroupSummary(groupOrderId));
+    public Result getGroupSummary(HttpServletRequest request, @PathVariable Long groupOrderId) {
+        Long userId = getUserId(request);
+        if (userId == null) return Result.error("Unauthorized");
+        return Result.success(groupOrderService.getGroupSummary(userId, groupOrderId));
     }
 
     @Operation(summary = "取得揪團分享資訊", description = "取得分享連結與 QR Code URL，供分享至 LINE、Messenger 等。")
     @GetMapping("/api/group-orders/{groupOrderId}/share")
-    public Result getShareInfo(@PathVariable Long groupOrderId) {
-        return Result.success(groupOrderService.getShareInfo(groupOrderId));
+    public Result getShareInfo(HttpServletRequest request, @PathVariable Long groupOrderId) {
+        Long userId = getUserId(request);
+        if (userId == null) return Result.error("Unauthorized");
+        return Result.success(groupOrderService.getShareInfo(userId, groupOrderId));
     }
 
     @Operation(summary = "團長送單", description = "團長確認送出訂單至店家。訂單狀態從 OPEN → SUBMITTED。")
@@ -332,9 +338,11 @@ public class GroupOrderController {
 
     @Operation(summary = "依據訂單 ID 取得揪團詳情", description = "供訂單確認頁面使用。")
     @GetMapping("/api/group-orders/by-order/{orderId}")
-    public Result getGroupByOrderId(@PathVariable Long orderId) {
+    public Result getGroupByOrderId(HttpServletRequest request, @PathVariable Long orderId) {
+        Long userId = getUserId(request);
+        if (userId == null) return Result.error("Unauthorized");
         // 轉 DTO 必須在 service 的交易內完成，不可把 entity 帶出來再轉（見 service 內說明）
-        return groupOrderService.getGroupOrderDTOByOrderId(orderId)
+        return groupOrderService.getGroupOrderDTOByOrderId(orderId, userId)
                 .map(Result::success)
                 .orElse(Result.error("找不到對應的揪團資訊"));
     }

@@ -6,6 +6,8 @@ import com.example.demo.repository.*;
 import com.example.demo.service.wallet.TxDisplay;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
 
 @Service
 public class UserProfileService {
@@ -25,6 +28,10 @@ public class UserProfileService {
     @Autowired private StoreRepository storeRepository;
     @Autowired private TransactionRecordRepository transactionRecordRepository;
     @Autowired private ImageStorageService imageStorageService;
+    @Autowired private Environment environment;
+
+    @Value("${app.wallet.mock-top-up.enabled:false}")
+    private boolean mockTopUpEnabled;
 
     // ─── 取得會員資料 ─────────────────────────────────────
     public Map<String, Object> getMe(Long userId) {
@@ -119,6 +126,19 @@ public class UserProfileService {
     // ─── 儲值 ─────────────────────────────────────────────
     @Transactional
     public Map<String, Object> topUp(Long userId, BigDecimal amount) {
+        User user = topUpUser(userId, amount);
+        Map<String, Object> result = new HashMap<>();
+        result.put("newBalance", user.getBalance());
+        return result;
+    }
+
+    @Transactional
+    public User topUpUser(Long userId, BigDecimal amount) {
+        boolean productionProfile = Arrays.stream(environment.getActiveProfiles())
+                .anyMatch("prod"::equalsIgnoreCase);
+        if (productionProfile || !mockTopUpEnabled) {
+            throw new CustomException("403", "目前未開放模擬儲值");
+        }
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0)
             throw new CustomException("400", "儲值金額必須大於 0");
         // ⚠️ 必須鎖列，否則併發儲值會互相覆蓋（見 UserRepository.findByIdForUpdate）
@@ -132,11 +152,10 @@ public class UserProfileService {
         tx.setUser(user);
         tx.setAmount(amount);
         tx.setType("TOPUP");
+        tx.setDescription("帳戶儲值（本機演示）");
+        tx.setCreatedAt(LocalDateTime.now());
         transactionRecordRepository.save(tx);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("newBalance", user.getBalance());
-        return result;
+        return user;
     }
 
     // ─── 上傳頭像 ─────────────────────────────────────────────

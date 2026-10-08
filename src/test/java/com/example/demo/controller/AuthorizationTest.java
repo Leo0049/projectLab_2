@@ -118,6 +118,15 @@ class AuthorizationTest {
         return "Bearer " + attackerToken;
     }
 
+    @Test
+    @DisplayName("帳號綁定必須先通過既有會員登入")
+    void anonymousCannotBindSocialAccount() throws Exception {
+        mockMvc.perform(post("/api/auth/merge/bind-social")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"idToken\":\"firebase-token\",\"providerUid\":\"attacker\",\"provider\":\"GOOGLE\"}"))
+                .andExpect(status().isForbidden());
+    }
+
     // ── S-1 ────────────────────────────────────────────────────────
 
     @Test
