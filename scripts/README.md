@@ -13,7 +13,7 @@ python3 -m http.server 5500 --directory frontend    # 另開一個終端
 cd scripts
 npm install
 
-node e2e-verify.js                  # API 端對端：12 面向 / 85 項斷言
+node e2e-verify.js                  # API 端對端：12 個面向；腳本會列印實際通過數
 npx playwright install chromium
 E2E_OFFLINE=1 node ui/run-all.js    # UI：全頁面普掃 + 點餐 / 轉盤 / 揪團（斷網模式，CI 用這個）
 ```
@@ -21,7 +21,7 @@ E2E_OFFLINE=1 node ui/run-all.js    # UI：全頁面普掃 + 點餐 / 轉盤 / �
 單獨跑某一支：
 
 ```bash
-node ui/page-sweep.js       # 51 個頁面逐一載入，抓 JS 例外與 API 錯誤
+node ui/page-sweep.js       # 前端頁面逐一載入，抓 JS 例外與 API 錯誤
                             # （顧客端分「有資料 / 空狀態 / 未登入」三段掃）
 node ui/flow-order.js       # 點餐：客製化 → 購物車 → 結帳 → 訂單成立
 node ui/flow-wheel.js       # 轉盤：抽獎 → 優惠券入帳 → 當日不可再抽

@@ -13,6 +13,7 @@ target/
 # 強烈建議：密碼與 API Key 放在 .env，不要 commit 到 Git
 .env
 .env.local
+.env.prod
 .env.*.local
 src/main/resources/serviceAccountKey.json
 # application.yml 本身只含 ${ENV_VAR:預設值}，可安全提交。

@@ -93,7 +93,7 @@ jobs:
           done
           echo "前端啟動逾時"; exit 1
 
-      # ── 第二層：API 端對端（12 個面向、67 項斷言）──
+      # ── 第二層：API 端對端（12 個面向；通過數由腳本輸出）──
       - uses: actions/setup-node@v4
         with:
           node-version: '20'

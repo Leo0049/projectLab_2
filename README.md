@@ -184,6 +184,18 @@ REPEATABLE READ 下讀的是本交易快照，12 筆評分只算出 4 筆。兩�
 
 > 稽核與修補過程使用 Claude Code 協助進行。
 
+### 2026-10-08 全專案程式碼複查補強
+
+這次再做全專案白箱複查，不使用 OCR；新增的回歸防線與修補包括：
+
+- **帳號驗證與合併**：手機驗證 token 必須與正規化後的手機號碼相符；社群綁定須同時證明兩邊帳號的所有權；已刪除帳號不能登入或繼續使用既有 JWT。
+- **揪團與租戶權限**：數字 ID 端點限團主或既有團員讀取；舊式加入流程驗證邀請 token；品牌、門市、商品及門市供應狀態在建立與結帳時重新核對。
+- **購物車與訂單定價**：數量限制為 1–99；尺寸、區域加價與配料價格由伺服器依商品設定重算；拒絕不適用、重複或超過商品上限的配料。
+- **品牌資料與前端輸出**：關聯的分類、規格與配料必須屬於目前品牌；顧客商品頁跳逸使用者可控文字；公開轉盤品牌資料只回傳必要欄位。
+- **帳務與上傳**：模擬儲值預設關閉且正式環境一律拒絕；本機圖片路徑正規化並限制在上傳目錄內。
+
+修補計畫與執行結果見 [全專案複查修補記錄](./docs/superpowers/plans/2026-10-08-full-review-remediations.md) 及 [安全複查修補記錄](./docs/superpowers/plans/2026-10-08-security-review-remediations.md)。
+
 ---
 
 ## 測試
@@ -194,19 +206,28 @@ docker compose up -d && mvn test
 
 | 測試 | 守住的東西 |
 |------|-----------|
-| `AuthorizationTest`（18） | 未認證寫商品、跨帳號讀寫個資／錢包／訂單／收藏、偽造參數與「不帶參數」兩種繞過、拿他人 `userId` 結帳、竄改 `finalPrice`、消耗他人優惠券、debug 與傾印端點已移除、本人存取仍正常 |
+| `AuthorizationTest`（19） | 未認證寫商品、跨帳號讀寫個資／錢包／訂單／收藏、偽造參數與「不帶參數」兩種繞過、拿他人 `userId` 結帳、竄改 `finalPrice`、消耗他人優惠券、debug 與傾印端點已移除、本人存取仍正常 |
+| `GroupOrderSecurityTest`（5） | 揪團數字 ID 查詢的團主／團員權限、邀請 token 與跨品牌商品限制 |
+| `AuthServiceSecurityTest`（7） | 手機 token 與社群 UID 驗證、帳號合併證明、已刪除帳號登入防護 |
+| `JwtUtilsProdGuardTest`（4） | JWT 金鑰長度與正式環境禁止使用內建預設值 |
+| `GroupOrderServiceAuthorizationTest`（6） | 揪團建立、加品項與結帳時的門市及商品供應狀態 |
+| `PricingServiceTest`（5） | 商品尺寸定價、商品專屬配料規則、重複與超量配料拒絕 |
+| `BrandServiceReferenceTest`（2） | 品牌不能引用其他租戶的分類、規格或配料 |
+| `CartServiceTest`（1） | 購物車品項變更後重算單價與總額 |
+| `QuantityLimitsTest`（1） | 訂單數量邊界 1–99 |
+| `RedisCartServiceTest`（2） | Redis 購物車品項與數量更新 |
 | `ItemSpecResolverTest`（7） | 固定規格防竄改：商品只有唯一規格選項時不採信用戶端送來的值 |
 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、任一規格不同即分開、套券的那杯要拆出來 |
 | `CouponEligibilityTest`（6） | 優惠券適用範圍：跨品牌／跨商品要擋、已付款不可再套 |
 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要拆回 type／description、補款靠正負號分辨收付方 |
-| `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 id 覆寫、可疑副檔名正規化 |
+| `ImageStorageServiceTest`（5） | 無 Cloudinary 憑證時改走本機儲存、同 id 覆寫、可疑副檔名正規化、路徑必須留在上傳根目錄內 |
 | `RatingConcurrencyTest`（2） | 併發評分不得死鎖（12 筆必須全部寫入），且門市的則數／平均分數要與實際評分對得起來 |
 | `WalletConcurrencyTest`（3） | 併發儲值不短少、帳本與餘額相符、併發扣款不透支、列鎖不被一級快取架空 |
 | `GroupCheckoutConcurrencyTest`（6） | 揪團的四條金流路徑（團員結帳、團長結帳、補款、取消退款）重複觸發時同一筆金額只能發生一次、帳本與餘額必須相符；同一張優惠券不可被用兩次 |
 | `DemoApplicationTests`（1） | Spring context 載入 |
 
-`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，
-不載入 Spring context，60 個測試裡它們合計只跑 0.1 秒。
+目前共有 95 個 JUnit 測試方法。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，
+不載入 Spring context，合計只跑約 0.1 秒。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
 測試不多，但都對準真正會出事的地方（金流與授權），而且**每一支都驗證過「把修補改回舊寫法時會失敗」**——
@@ -225,15 +246,15 @@ docker compose up -d && mvn test
 ```bash
 cd scripts && npm install          # 只裝驗證腳本的相依套件，前端本身沒有建置流程
 
-node e2e-verify.js                 # 第二層：API 端對端（12 面向 / 85 項斷言）
+node e2e-verify.js                 # 第二層：API 端對端（12 個面向；通過數由腳本輸出）
 npx playwright install chromium
 node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 ```
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（60） | 授權、金流與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
-| `scripts/e2e-verify.js`（85） | 三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、拒單與顧客取消退款、揪團、轉盤、收藏／地址、授權防護、WebSocket 授權、後台端點與分頁 | 交易邊界、序列化、擁有權檢查 |
+| `mvn test`（95 個測試方法） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 51 頁全頁面普掃 ＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
 顧客端是主要使用路徑，普掃分成三段跑：**有資料的帳號**、**剛註冊的空狀態帳號**
@@ -354,9 +375,9 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 檔案 | 用途 | 進 git？ |
 |------|------|---------|
-| `.env` / `application-local.yml` | 本機憑證 | ✗（已 gitignore） |
+| `.env` / `.env.prod` / `application-local.yml` / `application-prod.yml` | 本機或正式環境專用設定（密鑰使用環境變數注入） | ✗（已 gitignore） |
 | `src/main/resources/serviceAccountKey.json` | Firebase 金鑰 | ✗（已 gitignore） |
-| `.env.example` / `application-local.yml.example` | 範本 | ✓ |
+| `.env.example` / `.env.prod.example` / `application-*.yml.example` | 範本 | ✓ |
 
 本機預設 `SMS_MODE=mock`，跳過 Firebase 手機驗證，**不需要金鑰即可註冊登入**。
 
@@ -366,7 +387,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 **上線前務必調整：**
 
 - `JWT_SECRET` 換成自己的隨機字串（**至少 64 字元**，不足會啟動失敗）
-- `JPA_DDL_AUTO` 改為 `validate` 或 `none`
+- 使用 `prod` profile（預設 `ddl-auto: validate`），並在啟動前先套用資料庫 migration
 - `DEMO_DATA_ENABLED=false`
 - `CORS_ALLOWED_ORIGINS` 換成正式網域；Redis 以 `REDIS_PASSWORD` 加上密碼
 
@@ -376,6 +397,8 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 - [API.md](./API.md) — REST API 端點文件
 - [DATABASE.md](./DATABASE.md) — 26 張表 schema 說明
+- [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) — 正式環境部署範圍、設定與限制
+- [docs/SECURITY-FRONTEND.md](./docs/SECURITY-FRONTEND.md) — 前端安全現況與 CSP 路線圖
 - [CLAUDE.md](./CLAUDE.md) — 開發約定與踩過的坑（授權規則、餘額鎖列、STOMP 授權等）
 
 > Schema 的唯一事實來源是 `src/main/java/com/example/demo/entity/` 下的 JPA Entity。
@@ -384,8 +407,4 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ## 部署到正式環境
 
-1. `cp .env.prod.example .env.prod` 並逐項填入（JWT_SECRET 未換會**拒絕啟動**）。
-2. `cp src/main/resources/application-prod.yml.example src/main/resources/application-prod.yml`
-3. 以 `SPRING_PROFILES_ACTIVE=prod` 啟動：`docker compose up -d && SPRING_PROFILES_ACTIVE=prod mvn spring-boot:run`
-4. 啟動自我檢查：prod profile 下若 JWT_SECRET 是開發預設值，應用會直接丟 `IllegalStateException` 並退出——這是刻意設計。
-5. 詳細的安全配置說明見 `docs/SECURITY-FRONTEND.md`。
+正式部署方式、必要環境變數、服務管理與目前前端限制已整理在 [部署指南](./docs/DEPLOYMENT.md)。根目錄 `docker-compose.yml` 只提供本機開發用 MySQL 與 Redis，不會啟動後端，也不是正式環境的服務配置；不要把其中未加密的預設帳密或對外連接埠直接用於公開主機。
