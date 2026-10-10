@@ -217,7 +217,7 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   check('用 token 查揪團（分享連結）', ok(byToken));
 
   const join = await req('POST', `/api/group-orders/${gid}/join`, {
-    token: CT2, body: { items: [{ productId, sugar: '微糖', ice: '少冰', qty: 1, paymentType: 'WALLET' }] },
+    token: CT2, body: { shareToken, items: [{ productId, sugar: '微糖', ice: '少冰', qty: 1, paymentType: 'WALLET' }] },
   });
   check('第二位顧客用 token 加入並加點', ok(join), JSON.stringify(join).slice(0, 120));
 
