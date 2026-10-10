@@ -39,7 +39,10 @@ async function login(phone, password = 'demo1234') {
 /** 註冊一個新顧客（本機 sms.mode=mock，不需要 Firebase），回傳登入資訊 */
 async function newCustomer(prefix, name) {
   const phone = prefix + String(Date.now()).slice(-6);
-  await api('/api/auth/register', { method: 'POST', body: { phone, password: 'demo1234', name } });
+  await api('/api/auth/register', {
+    method: 'POST',
+    body: { phone, password: 'demo1234', name, idToken: 'MOCK_TOKEN' },
+  });
   const u = await login(phone);
   u.phone = phone;
   return u;
