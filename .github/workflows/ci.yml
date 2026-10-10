@@ -40,6 +40,9 @@ jobs:
     env:
       # JWT 密鑰至少 64 字元（HS512），不足會在啟動時直接失敗
       JWT_SECRET: ci-only-secret-key-not-used-anywhere-else-0123456789-abcdefghijklmnop
+      # 僅 CI 使用 mock 驗證與測試儲值；正式環境仍維持 application.yml 的停用預設值。
+      SMS_MODE: mock
+      WALLET_MOCK_TOPUP_ENABLED: 'true'
       # 其餘連線參數沿用 application.yml 的預設值（DB_NAME/DB_USERNAME/DB_PASSWORD 皆為 joindrink），
       # 上面的 services 已照 docker-compose.yml 建好同名資料庫與帳號
       DB_HOST: 127.0.0.1

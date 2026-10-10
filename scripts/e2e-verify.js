@@ -58,7 +58,7 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   // 第二位顧客：揪團與跨帳號授權測試都需要
   const phone2 = '0921' + String(Date.now()).slice(-6);
   let cust2 = D(await req('POST', '/api/auth/register',
-    { body: { phone: phone2, password: 'demo1234', name: '測試團員' } }));
+    { body: { phone: phone2, password: 'demo1234', name: '測試團員', idToken: 'MOCK_TOKEN' } }));
   if (!cust2 || !cust2.token)
     cust2 = D(await req('POST', '/api/auth/login', { body: { phone: phone2, password: 'demo1234' } }));
   check('第二位顧客註冊／登入（mock SMS，免 Firebase）', !!(cust2 && cust2.token));
