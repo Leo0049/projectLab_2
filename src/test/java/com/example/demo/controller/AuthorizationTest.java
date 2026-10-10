@@ -217,7 +217,7 @@ class AuthorizationTest {
     @Test
     @DisplayName("S-4：debug 端點必須已移除")
     void debugEndpointsAreGone() throws Exception {
-        mockMvc.perform(get("/api/auth/debug/social-logins"))
+        mockMvc.perform(get("/api/auth/debug/social-logins").header("Authorization", bearer()))
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/api/public/debug-exception").param("userId", String.valueOf(victimId)))
                 .andExpect(status().isNotFound());
