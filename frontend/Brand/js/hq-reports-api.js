@@ -4,6 +4,9 @@
 (async () => {
   BrandAPI.requireAuth();
   BrandAPI.renderAdminHeader();
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char]);
 
   let currentPeriod = 'month';
 
@@ -21,8 +24,8 @@
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
               <td class="px-6 py-4">
                 <div class="flex items-center gap-3">
-                  <span class="w-6 text-center font-bold ${p.rank<=3?'text-primary':''}">${String(p.rank).padStart(2,'0')}</span>
-                  <span class="font-medium">${p.productName||''}</span>
+                  <span class="w-6 text-center font-bold ${Number(p.rank)<=3?'text-primary':''}">${String(Number(p.rank) || 0).padStart(2,'0')}</span>
+                  <span class="font-medium">${escapeHtml(p.productName || '')}</span>
                 </div>
               </td>
               <td class="px-6 py-4 text-center font-bold tabular-nums">${Number(p.count||0).toLocaleString()}</td>
@@ -45,8 +48,8 @@
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
               <td class="px-6 py-4">
                 <div class="flex items-center gap-3">
-                  <span class="w-6 text-center font-bold text-rose-500">${String(p.rank).padStart(2,'0')}</span>
-                  <span class="font-medium">${p.productName||''}</span>
+                  <span class="w-6 text-center font-bold text-rose-500">${String(Number(p.rank) || 0).padStart(2,'0')}</span>
+                  <span class="font-medium">${escapeHtml(p.productName || '')}</span>
                 </div>
               </td>
               <td class="px-6 py-4 text-center font-bold text-rose-500">${Number(p.count||0).toLocaleString()}</td>

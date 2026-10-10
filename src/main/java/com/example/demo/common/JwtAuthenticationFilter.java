@@ -4,12 +4,13 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import com.example.demo.repository.BrandRepository;
+import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.UserRepository;
 
 import lombok.extern.slf4j.Slf4j;
@@ -21,11 +22,18 @@ import java.util.Collections;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private JwtUtils jwtUtils;
+    private final JwtUtils jwtUtils;
+    private final UserRepository userRepository;
+    private final BrandRepository brandRepository;
+    private final StoreRepository storeRepository;
 
-    @Autowired
-    private UserRepository userRepository;
+    public JwtAuthenticationFilter(JwtUtils jwtUtils, UserRepository userRepository,
+            BrandRepository brandRepository, StoreRepository storeRepository) {
+        this.jwtUtils = jwtUtils;
+        this.userRepository = userRepository;
+        this.brandRepository = brandRepository;
+        this.storeRepository = storeRepository;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -46,12 +54,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Long userId = jwtUtils.getUserIdFromToken(token);
                 String role = jwtUtils.getRoleFromToken(token);
-                boolean activeCustomer = userId != null && (!"CUSTOMER".equalsIgnoreCase(role)
-                        || userRepository.findById(userId)
-                                .map(user -> !Boolean.TRUE.equals(user.getIsDeleted()))
-                                .orElse(false));
+                boolean activeIdentity = isActiveIdentity(userId, role);
 
-                if (userId != null && activeCustomer
+                if (userId != null && activeIdentity
                         && SecurityContextHolder.getContext().getAuthentication() == null) {
                     // 💡 核心：建立 Spring Security 認可的身分物件
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -64,8 +69,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // 順便存入 request，讓 Controller 還是可以用 @RequestAttribute("currentUserId")
                     request.setAttribute("currentUserId", userId);
                     log.debug("JWT 解析成功 - UID: {}, Role: {}", userId, role);
-                } else if (userId != null && !activeCustomer) {
-                    log.debug("已停用會員的 JWT 不予授權 - UID: {}", userId);
+                } else if (userId != null && !activeIdentity) {
+                    log.debug("已停用或不存在的帳號 JWT 不予授權 - UID: {}, Role: {}", userId, role);
                 }
             } catch (Exception e) {
                 log.warn("JWT 解析失敗: {}", e.getMessage());
@@ -75,5 +80,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // 3. 繼續往後走（傳遞給下一個 Filter 或 Controller）
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isActiveIdentity(Long userId, String role) {
+        if (userId == null || role == null) {
+            return false;
+        }
+        if ("CUSTOMER".equalsIgnoreCase(role)) {
+            return userRepository.findById(userId)
+                    .map(user -> !Boolean.TRUE.equals(user.getIsDeleted()))
+                    .orElse(false);
+        }
+        if ("BRAND".equalsIgnoreCase(role)) {
+            return brandRepository.existsById(userId);
+        }
+        if ("STORE".equalsIgnoreCase(role)) {
+            return storeRepository.existsById(userId);
+        }
+        return false;
     }
 }

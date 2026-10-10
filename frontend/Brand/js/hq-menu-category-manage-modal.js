@@ -226,13 +226,14 @@
                     <span class="w-1.5 h-6 bg-primary rounded-full"></span>
                     <span data-hq-category-title></span>
                 </h3>
-                <button type="button" data-hq-category-edit-open data-hq-category-key="${key}" class="text-primary text-sm font-bold flex items-center hover:underline">編輯分類</button>
+                <button type="button" data-hq-category-edit-open class="text-primary text-sm font-bold flex items-center hover:underline">編輯分類</button>
             </div>
             <div class="space-y-4"></div>
         `;
 
         const title = section.querySelector('[data-hq-category-title]');
         if (title) title.textContent = key;
+        section.querySelector('[data-hq-category-edit-open]')?.setAttribute('data-hq-category-key', key);
 
         return section;
     }

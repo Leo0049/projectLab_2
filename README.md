@@ -125,6 +125,9 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
 | D-5 | 評分流程先 insert `order_ratings`（外鍵在 `stores` 那列加共享鎖）再 update 該列的 `avg_rating`／`review_count`（要升級成排他鎖），且彙總是在 Java 端 COUNT 完再寫回 | **12 個併發評分只有 2 筆成功，其餘 10 筆全部死鎖失敗**；把死鎖排除後又換成算錯——12 筆評分寫進去了，門市顯示的則數卻只有 4、平均分數差了 0.1（COUNT 讀的是本交易的快照）| 先取門市列的排他鎖再寫評分（`StoreRepository.findByIdForUpdate`），讓後到的交易排隊而不是形成死結；彙總改用單一 SQL `UPDATE ... (SELECT COUNT/AVG ...)`，子查詢讀的是最新已提交版本而非快照 |
 | D-3 | `findByIdForUpdate` 取得了列鎖，回傳的卻是一級快取裡「上鎖之前」的 User | 呼叫端只要在扣款前讀過同一個 User（揪團結帳會先碰 `item.getUser()`），列鎖就被架空，併發時每個交易用同一個舊餘額計算，最後一個寫入獲勝 | 在持鎖狀態下以 `refresh(user, PESSIMISTIC_WRITE)` 重讀。**不能用普通 `refresh()`**：MySQL 預設 REPEATABLE READ 之下普通 SELECT 讀的是交易快照，回來還是舊值——這一版修補是被測試打回來才改對的 |
 
+| S-10 | JWT 濾器只查 CUSTOMER 是否仍有效，BRAND／STORE 則只信任 token 內的角色與 ID | 若品牌或門市帳號資料列被刪除，既有 token 在到期前仍可通過驗證 | 每個角色都查核對應帳號是否存在；CUSTOMER 仍同時檢查軟刪除狀態 |
+| S-11 | 品牌後台將門市、分類、商品、規格與報表名稱直接插入 HTML 字串 | 被儲存的名稱或錯誤訊息可能被瀏覽器當成標記執行 | 文字改用 `textContent`／DOM 屬性，保留字串模板的地方先做完整 HTML 跳逸；CSP 仍依安全文件的路線圖分階段導入 |
+
 另外修掉幾個會直接影響可用性的問題：
 
 - **登入必定 500**：`signWith(alg, String)` 會將 secret 做 Base64 解碼，預設值解碼後只剩 416 bits，不符 HS512 要求。改用原始位元組建立金鑰，並把長度檢查移到啟動時，不足即啟動失敗。

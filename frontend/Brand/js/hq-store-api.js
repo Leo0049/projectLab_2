@@ -351,13 +351,19 @@
   function setImagePreview(previewEl, url, isAvatar, hintEl) {
     if (!previewEl) return;
     if (url) {
-      previewEl.innerHTML = `<img src="${url}" class="w-full h-full object-cover" />`;
+      const image = document.createElement('img');
+      image.src = url;
+      image.className = 'w-full h-full object-cover';
+      previewEl.replaceChildren(image);
       if (hintEl) hintEl.textContent = '已選擇圖片';
       return;
     }
 
     const icon = isAvatar ? 'add_a_photo' : 'image';
-    previewEl.innerHTML = `<span class="material-symbols-outlined text-2xl">${icon}</span>`;
+    const iconElement = document.createElement('span');
+    iconElement.className = 'material-symbols-outlined text-2xl';
+    iconElement.textContent = icon;
+    previewEl.replaceChildren(iconElement);
     if (hintEl) hintEl.textContent = isAvatar ? '建議尺寸 200x200px' : '建議比例 16:9';
   }
 
@@ -411,10 +417,10 @@
     });
 
     const countEl = document.querySelector('[data-store-count]');
-    tbody.innerHTML = '';
+    tbody.replaceChildren();
 
     if (!filtered.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-8 text-center text-sm text-slate-400">目前沒有分店資料</td></tr>';
+      renderStoreTableMessage('目前沒有分店資料', 'text-slate-400');
       if (countEl) countEl.textContent = '共 0 間分店';
       return;
     }
@@ -429,30 +435,63 @@
           ? 'bg-green-100 text-green-700'
           : 'bg-slate-100 text-slate-500';
 
-      tbody.insertAdjacentHTML(
-        'beforeend',
-        `
-        <tr class="hover:bg-slate-50 transition-colors" data-store-row
-            data-store-id="${store.storeId || store.id}"
-            data-store-name="${(store.storeName || '').replace(/"/g, '&quot;')}"
-            data-account="${(store.account || '').replace(/"/g, '&quot;')}"
-            data-region-id="${store.regionId || ''}"
-            data-manager="${(store.managerName || '').replace(/"/g, '&quot;')}"
-            data-phone="${(store.managerPhone || store.storePhone || '').replace(/"/g, '&quot;')}"
-            data-address="${(store.address || '').replace(/"/g, '&quot;')}"
-            data-cover-url="${(store.coverUrl || '').replace(/"/g, '&quot;')}"
-            data-lat="${store.latitude || ''}"
-            data-lng="${store.longitude || ''}">
-          <td class="px-6 py-4 text-sm font-semibold">${store.storeName || '-'}</td>
-          <td class="px-6 py-4 text-sm text-slate-500">${store.avgRating != null ? store.avgRating : '-'}</td>
-          <td class="px-6 py-4 text-sm text-slate-500">${store.regionName || '-'}</td>
-          <td class="px-6 py-4 text-sm text-slate-500">${store.managerName || '-'}</td>
-          <td class="px-6 py-4 text-sm text-slate-500">${store.managerPhone || store.storePhone || '-'}</td>
-          <td class="px-6 py-4"><span class="px-2 py-1 rounded-full text-xs font-bold ${statusClass}">${statusText}</span></td>
-          <td class="px-6 py-4 text-sm text-center align-middle"><a href="#" data-hq-store-edit-open class="text-primary font-semibold hover:underline">[編輯]</a></td>
-        </tr>`
-      );
+      const row = document.createElement('tr');
+      row.className = 'hover:bg-slate-50 transition-colors';
+      row.setAttribute('data-store-row', '');
+      row.dataset.storeId = String(store.storeId || store.id || '');
+      row.dataset.storeName = store.storeName || '';
+      row.dataset.account = store.account || '';
+      row.dataset.regionId = String(store.regionId || '');
+      row.dataset.manager = store.managerName || '';
+      row.dataset.phone = store.managerPhone || store.storePhone || '';
+      row.dataset.address = store.address || '';
+      row.dataset.coverUrl = store.coverUrl || '';
+      row.dataset.lat = String(store.latitude || '');
+      row.dataset.lng = String(store.longitude || '');
+
+      appendStoreTextCell(row, store.storeName || '-', 'px-6 py-4 text-sm font-semibold');
+      appendStoreTextCell(row, store.avgRating != null ? store.avgRating : '-', 'px-6 py-4 text-sm text-slate-500');
+      appendStoreTextCell(row, store.regionName || '-', 'px-6 py-4 text-sm text-slate-500');
+      appendStoreTextCell(row, store.managerName || '-', 'px-6 py-4 text-sm text-slate-500');
+      appendStoreTextCell(row, store.managerPhone || store.storePhone || '-', 'px-6 py-4 text-sm text-slate-500');
+
+      const statusCell = document.createElement('td');
+      statusCell.className = 'px-6 py-4';
+      const statusBadge = document.createElement('span');
+      statusBadge.className = `px-2 py-1 rounded-full text-xs font-bold ${statusClass}`;
+      statusBadge.textContent = statusText;
+      statusCell.appendChild(statusBadge);
+      row.appendChild(statusCell);
+
+      const actionsCell = document.createElement('td');
+      actionsCell.className = 'px-6 py-4 text-sm text-center align-middle';
+      const editLink = document.createElement('a');
+      editLink.href = '#';
+      editLink.setAttribute('data-hq-store-edit-open', '');
+      editLink.className = 'text-primary font-semibold hover:underline';
+      editLink.textContent = '[編輯]';
+      actionsCell.appendChild(editLink);
+      row.appendChild(actionsCell);
+      tbody.appendChild(row);
     });
+  }
+
+  function appendStoreTextCell(row, value, className) {
+    const cell = document.createElement('td');
+    cell.className = className;
+    cell.textContent = String(value ?? '-');
+    row.appendChild(cell);
+  }
+
+  function renderStoreTableMessage(message, colorClass) {
+    if (!tbody) return;
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 7;
+    cell.className = `px-6 py-8 text-center text-sm ${colorClass}`;
+    cell.textContent = String(message ?? '');
+    row.appendChild(cell);
+    tbody.replaceChildren(row);
   }
 
   async function loadAll() {
@@ -469,7 +508,7 @@
       applyFilters();
     } catch (err) {
       if (tbody) {
-        tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-sm text-red-500">載入失敗：${err.message}</td></tr>`;
+        renderStoreTableMessage(`載入失敗：${err?.message || '未知錯誤'}`, 'text-red-500');
       }
       console.error(err);
     }

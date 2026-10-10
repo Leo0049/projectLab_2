@@ -4,6 +4,9 @@
 (async () => {
   BrandAPI.requireAuth();
   BrandAPI.renderAdminHeader();
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char]);
 
   let brandSpecs = {};
   let brandToppings = [];
@@ -78,7 +81,7 @@
       <td class="px-6 py-4 font-medium">
         <div class="flex items-center gap-2">
           <span class="material-symbols-outlined text-slate-300 cursor-grab select-none" data-drag-handle="true" title="拖曳排序">drag_indicator</span>
-          <span>${spec.name}</span>
+          <span>${escapeHtml(spec.name)}</span>
         </div>
       </td>
       <td class="px-6 py-4"><div class="flex items-center gap-2">${toggleHTML(spec.isEnabled === true)}</div></td>
@@ -94,8 +97,8 @@
     tr.className = "hover:bg-slate-50 transition-colors";
     tr.dataset.toppingId = topping.brandToppingId;
     tr.innerHTML = `
-      <td class="px-6 py-4 font-semibold">${topping.name}</td>
-      <td class="px-6 py-4 font-medium">$${topping.price}</td>
+      <td class="px-6 py-4 font-semibold">${escapeHtml(topping.name)}</td>
+      <td class="px-6 py-4 font-medium">$${escapeHtml(topping.price)}</td>
       <td class="px-6 py-4"><div class="flex items-center gap-2">${toggleHTML(topping.isEnabled === true)}</div></td>
       <td class="px-6 py-4 text-right">
         <div class="flex items-center justify-end gap-3">${toppingActionsHtml(topping.brandToppingId)}</div>

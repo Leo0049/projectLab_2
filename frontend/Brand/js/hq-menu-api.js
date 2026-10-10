@@ -11,6 +11,13 @@
   const MENU_SETUP_REQUIRED_MESSAGE = "目前尚未啟用任何規格。請先至「規格與配料管理」啟用或編輯預設規格，之後飲品的規格套用選項才會顯示你們已開啟的規格。";
   let pendingUploadPromise = null; // 追蹤進行中的圖片上傳
   const detailCache = new Map(); // productId → detail，避免重複 API 呼叫
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[char]);
 
   // ─── 價格格式化（依 specPrices 或 basePrice）─────────────
   const DEFAULT_MAX_TOPPINGS = 3;
@@ -740,13 +747,13 @@
       return `
         <div class="flex items-center gap-2" data-hq-size-row>
           <input type="checkbox" ${checked ? 'checked' : ''} class="size-4 rounded accent-primary"
-            data-hq-drink-size-check="${s.brandSpecId}" />
-          <div class="w-24 shrink-0 py-2 text-sm font-medium">${s.name}</div>
+          data-hq-drink-size-check="${escapeHtml(s.brandSpecId)}" />
+          <div class="w-24 shrink-0 py-2 text-sm font-medium">${escapeHtml(s.name)}</div>
           <div class="w-40 relative">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-            <input type="number" value="${price}"
+            <input type="number" value="${escapeHtml(price)}"
               class="w-full pl-7 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
-              data-hq-drink-size-price="${s.brandSpecId}" />
+              data-hq-drink-size-price="${escapeHtml(s.brandSpecId)}" />
           </div>
         </div>`;
     }).join('');
@@ -789,8 +796,8 @@
         const list = (brandSpecs.ICE || []).filter(s => s.isEnabled);
         wrap.innerHTML = list.length ? list.map(s => `
           <label class="${chipClass}">
-            <input type="checkbox" class="size-4 rounded accent-primary" data-spec-id="${s.brandSpecId}" ${(selectedSpecIds||[]).includes(s.brandSpecId)?'checked':''} />
-            ${s.name}
+            <input type="checkbox" class="size-4 rounded accent-primary" data-spec-id="${escapeHtml(s.brandSpecId)}" ${(selectedSpecIds||[]).includes(s.brandSpecId)?'checked':''} />
+            ${escapeHtml(s.name)}
           </label>`).join('') : emptyHint;
       }
     }
@@ -804,8 +811,8 @@
         const list = (brandSpecs.SWEETNESS || []).filter(s => s.isEnabled);
         wrap.innerHTML = list.length ? list.map(s => `
           <label class="${chipClass}">
-            <input type="checkbox" class="size-4 rounded accent-primary" data-spec-id="${s.brandSpecId}" ${(selectedSpecIds||[]).includes(s.brandSpecId)?'checked':''} />
-            ${s.name}
+            <input type="checkbox" class="size-4 rounded accent-primary" data-spec-id="${escapeHtml(s.brandSpecId)}" ${(selectedSpecIds||[]).includes(s.brandSpecId)?'checked':''} />
+            ${escapeHtml(s.name)}
           </label>`).join('') : emptyHint;
       }
     }
@@ -819,8 +826,8 @@
         const list = (brandToppings || []).filter(t => t.isEnabled);
         wrap.innerHTML = list.length ? list.map(t => `
           <label class="${chipClass}">
-            <input type="checkbox" class="size-4 rounded accent-primary" data-topping-id="${t.brandToppingId}" ${(selectedToppingIds||[]).includes(t.brandToppingId)?'checked':''} />
-            ${t.name} (+$${t.price})
+            <input type="checkbox" class="size-4 rounded accent-primary" data-topping-id="${escapeHtml(t.brandToppingId)}" ${(selectedToppingIds||[]).includes(t.brandToppingId)?'checked':''} />
+            ${escapeHtml(t.name)} (+$${escapeHtml(t.price)})
           </label>`).join('') : emptyHint;
       }
     }
@@ -908,13 +915,13 @@
       return `
         <div class="flex items-center gap-2" data-hq-size-row>
           <input type="checkbox" ${checked ? 'checked' : ''} class="${singleSize ? 'sr-only' : 'size-4 rounded accent-primary'}"
-            data-hq-drink-size-check="${s.brandSpecId}" />
-          <div class="w-24 shrink-0 py-2 text-sm font-medium" data-hq-size-label>${s.name}</div>
+            data-hq-drink-size-check="${escapeHtml(s.brandSpecId)}" />
+          <div class="w-24 shrink-0 py-2 text-sm font-medium" data-hq-size-label>${escapeHtml(s.name)}</div>
           <div class="w-40 relative">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-            <input type="number" value="${price}"
+            <input type="number" value="${escapeHtml(price)}"
               class="w-full pl-7 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-primary focus:border-primary"
-              data-hq-drink-size-price="${s.brandSpecId}" />
+              data-hq-drink-size-price="${escapeHtml(s.brandSpecId)}" />
           </div>
         </div>`;
     }).join('') + (singleSize
@@ -983,10 +990,13 @@
   function setDrinkImagePreview(prevEl, url) {
     if (!prevEl) return;
     if (url) {
-      prevEl.innerHTML = `<img src="${url}" class="w-full h-full object-cover" />`;
+      const image = document.createElement('img');
+      image.src = url;
+      image.className = 'w-full h-full object-cover';
+      prevEl.replaceChildren(image);
       prevEl.className = 'w-full h-full';
     } else {
-      prevEl.innerHTML = '';
+      prevEl.replaceChildren();
       prevEl.className = 'w-full h-full bg-gradient-to-br from-slate-800 to-slate-950';
     }
   }
@@ -1291,11 +1301,15 @@
 
   function buildCard(p) {
     const en = p.isEnabled !== false;
-    const validLogo = p.logoUrl && /^https?:\/\//.test(p.logoUrl);
-    const saveState = p.__saveState || SAVE_STATE.IDLE;
+    const validLogo = typeof p.logoUrl === 'string' && /^https?:\/\//i.test(p.logoUrl);
+    const safeLogoUrl = escapeHtml(p.logoUrl);
+    const saveState = Object.values(SAVE_STATE).includes(p.__saveState) ? p.__saveState : SAVE_STATE.IDLE;
     const isSaving = saveState === SAVE_STATE.SAVING;
     const isFailed = saveState === SAVE_STATE.FAILED;
-    const productKey = getProductKey(p);
+    const productKey = escapeHtml(getProductKey(p));
+    const productId = escapeHtml(p.productId);
+    const productName = escapeHtml(p.name);
+    const productDescription = escapeHtml(p.description);
     const moveDisabled = isSaving || isFailed || p.productId == null ? 'disabled' : '';
     const statusBadge = isSaving
       ? '<span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">儲存中</span>'
@@ -1305,32 +1319,32 @@
     const statusText = isSaving
       ? '<p class="mt-1 text-[11px] font-medium text-amber-600">背景儲存中，你可以先處理其他飲品。</p>'
       : isFailed
-        ? `<p class="mt-1 text-[11px] font-medium text-rose-600">${p.__saveError || '點擊卡片可重新打開並再次儲存。'}</p>`
+        ? `<p class="mt-1 text-[11px] font-medium text-rose-600">${escapeHtml(p.__saveError || '點擊卡片可重新打開並再次儲存。')}</p>`
         : '';
     const actionDisabled = isSaving ? 'disabled' : '';
     const actionClass = isSaving ? 'opacity-40 pointer-events-none' : '';
     return `
-      <div class="flex items-center justify-between p-4 bg-background-light dark:bg-zinc-800 rounded-lg group ${en ? '' : 'opacity-60'} ${isFailed ? 'ring-1 ring-rose-200 dark:ring-rose-900/70' : ''}" data-product-key="${productKey}" data-save-state="${saveState}" ${p.productId != null ? `data-product-id="${p.productId}"` : ''}>
+      <div class="flex items-center justify-between p-4 bg-background-light dark:bg-zinc-800 rounded-lg group ${en ? '' : 'opacity-60'} ${isFailed ? 'ring-1 ring-rose-200 dark:ring-rose-900/70' : ''}" data-product-key="${productKey}" data-save-state="${saveState}" ${p.productId != null ? `data-product-id="${productId}"` : ''}>
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 bg-slate-200 rounded-lg overflow-hidden ${en ? '' : 'grayscale'}">
-            ${validLogo ? `<img src="${p.logoUrl}" class="w-full h-full object-cover"/>` : `<div class="w-full h-full bg-gradient-to-br from-amber-200 to-orange-400"></div>`}
+            ${validLogo ? `<img src="${safeLogoUrl}" class="w-full h-full object-cover"/>` : `<div class="w-full h-full bg-gradient-to-br from-amber-200 to-orange-400"></div>`}
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <p class="font-bold">${p.name}</p>
+              <p class="font-bold">${productName}</p>
               ${statusBadge}
               <label class="flex items-center cursor-pointer">
                 <input class="sr-only peer" type="checkbox" ${en ? 'checked' : ''} ${actionDisabled}/>
                 <div class="relative w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
               </label>
             </div>
-            <p class="text-xs text-slate-500">${p.description || ''}</p>
+            <p class="text-xs text-slate-500">${productDescription}</p>
             ${statusText}
           </div>
         </div>
         <div class="flex items-center gap-6">
           <div class="text-right">
-            <p class="text-sm font-bold ${en ? 'text-primary' : 'text-slate-400'}">${formatPrice(p)}</p>
+          <p class="text-sm font-bold ${en ? 'text-primary' : 'text-slate-400'}">${escapeHtml(formatPrice(p))}</p>
             <p class="text-[10px] text-slate-400">標準售價</p>
           </div>
           <div class="flex items-center gap-2 ${actionClass}">
@@ -1358,10 +1372,10 @@
       <div class="flex items-center justify-between mb-6">
         <h3 class="text-lg font-bold flex items-center gap-2">
           <span class="w-1.5 h-6 bg-primary rounded-full"></span>
-          <span data-hq-category-title>${cat.name}</span>
+      <span data-hq-category-title>${escapeHtml(cat.name)}</span>
         </h3>
         <div class="flex items-center gap-2">
-          <button type="button" data-hq-category-edit-open data-hq-category-key="${cat.name}" data-category-id="${cat.id}" class="text-primary text-sm font-bold flex items-center hover:underline">編輯分類</button>
+          <button type="button" data-hq-category-edit-open data-hq-category-key="${escapeHtml(cat.name)}" data-category-id="${escapeHtml(cat.id)}" class="text-primary text-sm font-bold flex items-center hover:underline">編輯分類</button>
         </div>
       </div>
       <div class="space-y-4" data-category-products>
@@ -1403,7 +1417,12 @@
       gridRoot.appendChild(buildPanel(cat));
     });
     categorySelectStates.forEach(({ select, value }) => {
-      select.innerHTML = sortedCategories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      select.replaceChildren(...sortedCategories.map(category => {
+        const option = document.createElement('option');
+        option.value = String(category.id);
+        option.textContent = String(category.name ?? '');
+        return option;
+      }));
       const hasValue = value && Array.from(select.options).some(option => option.value === String(value));
       if (hasValue) {
         select.value = String(value);

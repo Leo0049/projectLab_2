@@ -4,6 +4,9 @@
 (async () => {
   BrandAPI.requireAuth();
   BrandAPI.renderAdminHeader();
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char]);
 
   // ─── 星星渲染工具 ──────────────────────────────────────────
   function computeStars(score) {
@@ -78,14 +81,14 @@
       const rating = Number(s.avgRating || 0);
       const colorCls = rating < 3 ? 'text-red-500' : 'text-orange-500';
       const reviewCount = Number(s.reviewCount || 0);
-      const distJson = JSON.stringify(s.ratingDistribution || {}).replace(/"/g, '&quot;');
+      const distJson = escapeHtml(JSON.stringify(s.ratingDistribution || {}));
       tbody.insertAdjacentHTML('beforeend', `
         <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
-            data-store-name="${(s.storeName||'').replace(/"/g,'&quot;')}"
+            data-store-name="${escapeHtml(s.storeName || '')}"
             data-store-rating="${rating.toFixed(1)}"
             data-store-review-count="${reviewCount}"
             data-store-dist="${distJson}">
-          <td class="px-6 py-4 font-bold text-sm">${s.storeName || '-'}</td>
+          <td class="px-6 py-4 font-bold text-sm">${escapeHtml(s.storeName || '-')}</td>
           <td class="px-6 py-4 text-center">
             <div class="flex items-center justify-center gap-1 ${colorCls} font-bold">
               <span>${rating.toFixed(1)}</span>
@@ -113,7 +116,7 @@
     regions.slice(0, 4).forEach((r, idx) => {
       const pct = Math.round((r.avgRating / maxRating) * 100);
       const rating = Number(r.avgRating || 0).toFixed(1);
-      const label = r.regionName || labels[idx] || `區域 ${idx + 1}`;
+      const label = escapeHtml(r.regionName || labels[idx] || `區域 ${idx + 1}`);
       const satText = pct >= 85 ? '滿意' : pct >= 75 ? '良好' : '需加強';
       const opacityCls = idx === 0 ? 'bg-primary/80' : idx === 1 ? 'bg-primary/60' : idx === 2 ? 'bg-primary/40' : 'bg-primary/30';
       container.insertAdjacentHTML('beforeend', `

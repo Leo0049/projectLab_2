@@ -768,7 +768,7 @@ const BrandAPI = (() => {
         <div class="relative w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
           <div class="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-5">
             <div>
-              <h3 class="text-xl font-bold text-slate-900">${title}</h3>
+              <h3 class="text-xl font-bold text-slate-900" data-brand-info-dialog-title></h3>
             </div>
             ${dismissible ? `
               <button type="button" data-brand-info-dialog-close class="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="關閉">
@@ -777,15 +777,17 @@ const BrandAPI = (() => {
             ` : ''}
           </div>
           <div class="px-6 py-6">
-            <p class="whitespace-pre-line text-base leading-8 text-slate-700">${message}</p>
+            <p class="whitespace-pre-line text-base leading-8 text-slate-700" data-brand-info-dialog-message></p>
           </div>
           <div class="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-5">
-            <button type="button" data-brand-info-dialog-confirm class="rounded-xl bg-primary px-6 py-2.5 text-base font-bold text-white transition-colors hover:bg-primary/90">
-              ${confirmText}
-            </button>
+            <button type="button" data-brand-info-dialog-confirm class="rounded-xl bg-primary px-6 py-2.5 text-base font-bold text-white transition-colors hover:bg-primary/90"></button>
           </div>
         </div>
       `;
+
+      root.querySelector('[data-brand-info-dialog-title]').textContent = String(title);
+      root.querySelector('[data-brand-info-dialog-message]').textContent = String(message);
+      root.querySelector('[data-brand-info-dialog-confirm]').textContent = String(confirmText);
 
       const close = () => {
         root.remove();

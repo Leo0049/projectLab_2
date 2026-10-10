@@ -6,6 +6,9 @@
 (async () => {
   BrandAPI.requireAuth();
   BrandAPI.renderAdminHeader();
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char]);
 
   const fmt = n => `$ ${Number(n || 0).toLocaleString()}`;
 
@@ -41,7 +44,7 @@
 
     tbody.innerHTML = regions.map(r => `
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-        <td class="px-6 py-4 font-bold text-center">${r.regionName}</td>
+        <td class="px-6 py-4 font-bold text-center">${escapeHtml(r.regionName)}</td>
         <td class="px-6 py-4 text-slate-600 dark:text-slate-400 text-center tabular-nums">${Number(r.storeCount || 0)}</td>
         <td class="px-6 py-4 font-medium text-center tabular-nums whitespace-nowrap">${fmt(r.totalRevenue)}</td>
         <td class="px-6 py-4 text-slate-500 text-center tabular-nums whitespace-nowrap">-$ ${Number(r.commission || 0).toLocaleString()}</td>

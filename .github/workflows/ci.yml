@@ -13,7 +13,8 @@ concurrency:
 jobs:
   verify:
     name: 測試與端對端驗證
-    runs-on: ubuntu-latest
+    # Pin the LTS image so GitHub's ubuntu-latest migration does not change the runner mid-cycle.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     # 與 docker-compose.yml 對齊：MySQL 8 + Redis 7，資料庫名 joindrink
@@ -47,7 +48,7 @@ jobs:
       FE_BASE: http://127.0.0.1:5500
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0    # gitleaks 需完整歷史才能比對 .gitleaksignore baseline
 
@@ -55,12 +56,12 @@ jobs:
       # .gitleaksignore 豁免的僅限「已撤銷」的歷史殘留（見該檔說明）；
       # 新外洩仍會直接讓 CI 變紅。
       - name: Secret 掃描（gitleaks）
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 設定 JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           java-version: '17'
           distribution: temurin
@@ -94,9 +95,9 @@ jobs:
           echo "前端啟動逾時"; exit 1
 
       # ── 第二層：API 端對端（12 個面向；通過數由腳本輸出）──
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: 安裝驗證腳本的相依套件
         working-directory: scripts
@@ -122,7 +123,7 @@ jobs:
       # 失敗時把截圖與後端 log 帶出來，才有辦法判讀
       - name: 上傳失敗時的截圖與日誌
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-failure-artifacts
           path: |

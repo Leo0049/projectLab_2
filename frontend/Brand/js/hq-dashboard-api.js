@@ -1,6 +1,9 @@
 (async () => {
   BrandAPI.requireAuth();
   BrandAPI.renderAdminHeader();
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char]);
 
   const dateEl = document.querySelector('[data-dashboard-date]');
   if (dateEl) {
@@ -60,7 +63,7 @@
         tbody.insertAdjacentHTML('beforeend', `
           <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
             <td class="px-6 py-4 whitespace-nowrap">${rankCell}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold">${s.storeName||''}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold">${escapeHtml(s.storeName || '')}</td>
             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-bold">$ ${Number(s.revenue||0).toLocaleString()}</td>
             <td class="px-6 py-4 whitespace-nowrap text-center">${trendIcon}</td>
           </tr>`);
