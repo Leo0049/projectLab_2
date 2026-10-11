@@ -1,3 +1,11 @@
+function escHtmlSafe(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 /**
  * order-all-sync.js — 訂單管理頁面（最終穩定版）
  * - Section 骨架只建立一次，永不重建
@@ -65,7 +73,7 @@
     const specsPart = specs ? ` <span style="color:#64748b;font-weight:500">(${esc(specs)})</span>` : '';
     const note  = i.note ? ` <span style="color:#ec5b13;font-weight:800">${esc(i.note)}</span>` : '';
     const user  = i.userName ? ` <span style="color:#0f172a;font-weight:700">【${esc(i.userName)}】</span>` : '';
-    return `<span style="font-weight:600;color:#64748b">【${Number(i.qty)||1}杯】${name}</span>${specsPart}${note}${user}`;
+    return `<span style="font-weight:600;color:#64748b">【${Number(i.qty)||1}杯】${name}</span>${specsPart}${escHtmlSafe(note)}${user}`;
   };
 
   const fmtItems = (items) => {
@@ -175,7 +183,7 @@
     const totalQty = (o.items||[]).reduce((s, i) => s + (i.qty||1), 0);
     const firstName = o.items?.[0]?.productNameSnapshot || '飲品';
     const moreCount = (o.items||[]).length > 1 ? ` 等${(o.items||[]).length}項` : '';
-    const itemsSummary = `總${totalQty}杯｜${firstName}${moreCount}`;
+    const itemsSummary = `總${totalQty}杯｜${esc(firstName)}${moreCount}`;
 
     const viewBtn = `<button style="padding:.3rem .65rem;border-radius:.5rem;background:#fff;border:1px solid #e2e8f0;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap" data-order-action="view">詳情</button>`;
     let actionBtns = '';
@@ -193,7 +201,7 @@
 
     return `<div data-order-id="${o.id}" style="background:#fff;border-radius:.75rem;border:1px solid #f1f5f9;padding:.75rem;margin-bottom:.5rem;box-shadow:0 1px 3px rgba(0,0,0,.06)">
       <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem">
-        <span style="flex:1;font-weight:700;color:#0f172a;font-size:.85rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">#${o.orderNo||o.id}</span>
+        <span style="flex:1;font-weight:700;color:#0f172a;font-size:.85rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">#${esc(o.orderNo||o.id)}</span>
         ${badge}
         ${statusPill}
       </div>

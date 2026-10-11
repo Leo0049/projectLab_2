@@ -573,18 +573,16 @@ public class OrderController {
                 return ResponseEntity.badRequest().body(Map.of("error", "訂單狀態無法取消"));
             }
 
-            // 1. 權限檢查：只有團主或是個人訂單擁有者可以取消整份訂單
-            if (userId != null) {
-                boolean isGroupOrder = "GROUP".equals(order.getType());
-                Long initiatorId = order.getInitiator() != null ? order.getInitiator().getId() : null;
-
-                if (isGroupOrder && !Objects.equals(initiatorId, userId)) {
-                    // 成員取消個人品項 (Partial Cancellation)
-                    groupOrderService.cancelMemberItems(orderId, userId);
-                    return ResponseEntity.ok(Map.of("success", true, "message", "個人專屬品項已成功取消，退款已處理完畢。"));
-                } else if (!Objects.equals(initiatorId, userId)) {
-                    return ResponseEntity.status(403).body(Map.of("error", "無權限取消此訂單"));
-                }
+            // 1. 權限檢查（userId 已在上方確認非 null，故不再用 if 包住，避免「條件不符就放行」的寫法再次出現）：
+            //    團員只能取消自己的品項；其餘人一律拒絕整單取消。
+            boolean isGroupOrder = "GROUP".equals(order.getType());
+            Long initiatorId = order.getInitiator() != null ? order.getInitiator().getId() : null;
+            if (isGroupOrder && !Objects.equals(initiatorId, userId)) {
+                // 成員取消個人品項 (Partial Cancellation)
+                groupOrderService.cancelMemberItems(orderId, userId);
+                return ResponseEntity.ok(Map.of("success", true, "message", "個人專屬品項已成功取消，退款已處理完畢。"));
+            } else if (!Objects.equals(initiatorId, userId)) {
+                return ResponseEntity.status(403).body(Map.of("error", "無權限取消此訂單"));
             }
 
             // 2. 執行集中式取消與退款邏輯 (涵蓋所有錢包退款與優惠券還原)

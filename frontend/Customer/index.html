@@ -315,8 +315,6 @@
         </div>
       </section>
 
-
-
       <!-- BEGIN: RecentlyOrdered -->
       <section id="section-recent" class="mb-12 hidden">
         <div class="flex items-center gap-2 mb-6">
@@ -478,7 +476,6 @@
 
     <div class="footer-content">
 
-
       <div class="footer-left">
         <img src="images/logo.png" alt="JOIN 探飲 LOGO" class="footer-logo">
 
@@ -515,7 +512,6 @@
         </div>
 
       </div>
-
 
     </div>
 
@@ -685,6 +681,19 @@
         return BRAND_COLORS[Math.abs(hash) % BRAND_COLORS.length];
       }
 
+      // 店名、封面網址、品牌 logo 都是店家（BRAND 帳號）可自行寫入的欄位，
+      // 這裡全部用 innerHTML 組字串，不轉義就等於讓店家對每位訪客首頁注入 script
+      // （localStorage 的 JWT 會被偷走）。所有插進 HTML 的值一律先過這個函式。
+      function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        })[char]);
+      }
+
       function getTodayHours(openingHours) {
         if (!openingHours) return null;
         const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -818,7 +827,7 @@
             storeContainer.innerHTML = `
               <div class="col-span-full py-10 text-center">
                 <p class="text-red-400 mb-2">載入店家失敗</p>
-                <p class="text-xs text-gray-400 mb-4">${error.message || error}</p>
+                <p class="text-xs text-gray-400 mb-4">${escapeHtml(error.message || error)}</p>
                 <button onclick="location.reload()" class="bg-brand-orange text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-orange-600 transition-colors">
                   重新載入
                 </button>
@@ -862,10 +871,10 @@
               </button>
 
               <div class="h-36 sm:h-48 relative overflow-hidden">
-                <img src="${store.coverUrl || 'images/store-placeholder.svg'}"
+                <img src="${escapeHtml(store.coverUrl) || 'images/store-placeholder.svg'}"
                      class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                      loading="lazy"
-                     alt="${store.storeName || store.name || '店家封面'}"
+                     alt="${escapeHtml(store.storeName || store.name || '店家封面')}"
                      ${store.coverUrl ? '' : `style="filter:hue-rotate(${brandHue(store.brandName)}deg)"`}
                      onerror="this.onerror=null;this.src='images/store-placeholder.svg';this.style.filter='hue-rotate(${brandHue(store.brandName)}deg)'">
                 <div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm flex items-center gap-1 group-hover:bg-brand-orange group-hover:text-white transition-colors">
@@ -885,13 +894,13 @@
                     <div class="flex-shrink-0 rounded-full overflow-hidden border border-gray-100 shadow-sm"
                          style="width:48px;height:48px;background:${brandColor(store.brandName)}">
                       ${store.brandLogoUrl
-                        ? `<img src="${store.brandLogoUrl}" class="w-full h-full object-cover" alt="${store.brandName || ''}"
+                        ? `<img src="${escapeHtml(store.brandLogoUrl)}" class="w-full h-full object-cover" alt="${escapeHtml(store.brandName || '')}"
                                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
                         : ''}
                       <span class="w-full h-full flex items-center justify-center text-white font-bold text-sm"
-                            style="${store.brandLogoUrl ? 'display:none' : ''}">${(store.brandName || '').charAt(0).toUpperCase() || '?'}</span>
+                            style="${store.brandLogoUrl ? 'display:none' : ''}">${escapeHtml((store.brandName || '').charAt(0).toUpperCase()) || '?'}</span>
                     </div>` : ''}
-                    <h3 class="font-extrabold text-lg truncate">${store.name || store.storeName}</h3>
+                    <h3 class="font-extrabold text-lg truncate">${escapeHtml(store.name || store.storeName)}</h3>
                   </div>
                   <div class="flex items-center text-brand-orange">
                     <i data-lucide="footprints" class="w-3.5 h-3.5"></i>
@@ -1012,14 +1021,14 @@
             <div class="flex justify-between items-start mb-4">
               <div class="w-12 h-12 rounded-xl overflow-hidden bg-orange-50 flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
                 ${order.logoUrl
-                  ? `<img src="${order.logoUrl}" alt="品牌 logo" class="w-full h-full object-cover">`
+                  ? `<img src="${escapeHtml(order.logoUrl)}" alt="品牌 logo" class="w-full h-full object-cover">`
                   : `<i data-lucide="clock" class="w-5 h-5 text-brand-orange"></i>`}
               </div>
               <span class="text-[10px] font-bold px-2 py-1 rounded-full ${getStatusColor(order)}">
                 ${getStatusLabel(order)}
               </span>
             </div>
-            <h3 class="font-bold text-gray-800 mb-1">${order.storeName || '-'}</h3>
+            <h3 class="font-bold text-gray-800 mb-1">${escapeHtml(order.storeName || '-')}</h3>
             <p class="text-xs text-gray-400 mb-3">${order.createdAt ? new Date(order.createdAt).toLocaleString() : ''}</p>
             <div class="flex items-center justify-between pt-4 border-t border-gray-50">
               <span class="font-black text-brand-orange">$${order.totalAmount ?? order.finalAmount ?? '-'}</span>
@@ -1109,14 +1118,14 @@
               <div class="flex justify-between items-start mb-4">
                 <div class="w-12 h-12 rounded-xl overflow-hidden bg-orange-50 flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
                   ${order.storeImageUrl
-                    ? `<img src="${order.storeImageUrl}" alt="${order.storeName}" class="w-full h-full object-cover">`
+                    ? `<img src="${escapeHtml(order.storeImageUrl)}" alt="${escapeHtml(order.storeName)}" class="w-full h-full object-cover">`
                     : `<i data-lucide="clock" class="w-5 h-5 text-brand-orange"></i>`}
                 </div>
                 <span class="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-600">已完成</span>
               </div>
-              <h3 class="font-bold text-gray-800 mb-1">${order.storeName || '-'}</h3>
-              <p class="text-xs text-gray-400 mb-3">${order.orderTime || ''}</p>
-              <div class="text-xs text-gray-500 line-clamp-2 mb-3">${order.itemsSummary || ''}</div>
+              <h3 class="font-bold text-gray-800 mb-1">${escapeHtml(order.storeName || '-')}</h3>
+              <p class="text-xs text-gray-400 mb-3">${escapeHtml(order.orderTime || '')}</p>
+              <div class="text-xs text-gray-500 line-clamp-2 mb-3">${escapeHtml(order.itemsSummary || '')}</div>
               <div class="flex items-center justify-between pt-4 border-t border-gray-50">
                 <span class="font-black text-brand-orange">$${order.finalAmount || 0}</span>
                 <span class="text-xs font-bold text-gray-400 group-hover:text-brand-orange flex items-center gap-1">檢視詳情 <i data-lucide="chevron-right" class="w-4 h-4"></i></span>
@@ -1154,13 +1163,13 @@
               <div class="absolute -left-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-gray-50 rounded-full z-10"></div>
               <div class="absolute -right-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-gray-50 rounded-full z-10"></div>
               ${c.finalImageUrl
-                ? `<img src="${c.finalImageUrl}" alt="${c.productName}" class="w-full h-auto block" />
+                ? `<img src="${escapeHtml(c.finalImageUrl)}" alt="${escapeHtml(c.productName)}" class="w-full h-auto block" />
                    <div class="px-4 py-2 text-center text-xs text-gray-400">有效期限至 ${(() => { const d = new Date(c.expiryDate); return d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate(); })()}</div>`
                 : `<div class="p-6 flex items-center justify-between">
                     <div class="flex flex-col gap-1">
                       <div class="flex items-center gap-2">
-                        <span class="px-2 py-0.5 bg-orange-100 text-brand-orange text-[10px] font-bold rounded-full">${c.brandName}</span>
-                        <span class="text-xs font-bold text-gray-600">${c.productName} 專屬</span>
+                        <span class="px-2 py-0.5 bg-orange-100 text-brand-orange text-[10px] font-bold rounded-full">${escapeHtml(c.brandName)}</span>
+                        <span class="text-xs font-bold text-gray-600">${escapeHtml(c.productName)} 專屬</span>
                       </div>
                       <div class="text-[10px] text-gray-400">有效期至: ${new Date(c.expiryDate).toLocaleDateString()}</div>
                     </div>
@@ -1176,8 +1185,6 @@
           console.error('Failed to load coupons', err);
         }
       }
-
-
 
       let selectedBrandId = null;
       let categories = [];
@@ -1312,19 +1319,25 @@
           }
 
           grid.innerHTML = data.map(brand => {
+            const brandName = escapeHtml(brand.name || '');
             const logoHtml = brand.logoUrl
-              ? `<img src="${brand.logoUrl}" class="w-full h-full object-cover" alt="${brand.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+              ? `<img src="${escapeHtml(brand.logoUrl)}" class="w-full h-full object-cover" alt="${brandName}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
               : '';
-            const fallbackHtml = `<span style="display:${brand.logoUrl ? 'none' : 'flex'}" class="w-full h-full items-center justify-center text-white font-black text-xl">${brand.name.charAt(0)}</span>`;
+            const fallbackHtml = `<span style="display:${brand.logoUrl ? 'none' : 'flex'}" class="w-full h-full items-center justify-center text-white font-black text-xl">${escapeHtml((brand.name || '').charAt(0))}</span>`;
+            // 品牌名稱原本直接插進 onclick 的 JS 字串（只換單引號仍有反斜線跳脫問題），
+            // 改用 data 屬性 + 事件代理傳值，名稱永遠不會變成程式碼。
             return `
-            <div onclick="selectBrand(${brand.id}, '${brand.name.replace(/'/g, "\\'")}')"
+            <div data-roulette-brand-id="${escapeHtml(brand.id)}" data-roulette-brand-name="${brandName}"
                  class="bg-white/10 hover:bg-white/20 border border-white/20 rounded-3xl p-6 cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 flex flex-col items-center justify-center gap-4 backdrop-blur-sm shadow-xl">
               <div class="w-16 h-16 rounded-full overflow-hidden bg-white/20 border-2 border-white/30 flex items-center justify-center">
                 ${logoHtml}${fallbackHtml}
               </div>
-              <span class="text-lg font-bold text-center text-white drop-shadow-md">${brand.name}</span>
+              <span class="text-lg font-bold text-center text-white drop-shadow-md">${brandName}</span>
             </div>`;
           }).join('');
+          grid.querySelectorAll('[data-roulette-brand-id]').forEach(el => {
+            el.addEventListener('click', () => selectBrand(el.dataset.rouletteBrandId, el.dataset.rouletteBrandName));
+          });
         } catch (err) {
           grid.innerHTML = '<p class="col-span-full text-center opacity-70">無法載入品牌清單</p>';
         }
@@ -1501,7 +1514,6 @@
       // Initialize the floating button on load
       initRouletteFloatingBtn();
 
-
       // Load initial stores
       loadStores();
       initHeaderSearch();
@@ -1518,7 +1530,6 @@
           scrollTopBtn.classList.remove('opacity-100');
         }
       }, { passive: true });
-
 
       // 登入後第一次進入首頁，且尚未定位時，才自動彈出定位視窗（每次登入只拱一次）
       setTimeout(() => {

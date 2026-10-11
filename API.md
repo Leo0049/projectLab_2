@@ -23,15 +23,15 @@
 |--------|------|------|------|
 | POST | `/api/auth/register` | 無 | 使用者註冊（需 Firebase idToken）Body: `{ phone, password, name, idToken }` |
 | POST | `/api/auth/login` | 無 | 使用者登入 Body: `{ phone, password }` 回傳: `{ token, userId, name }` |
-| POST | `/api/auth/social-login` | 無 | Firebase 第三方登入 Body: `{ idToken, phone, name, provider }` |
+| POST | `/api/auth/social-login` | 無 | Firebase 第三方登入 Body: `{ idToken, provider, phone?, name? }`。已綁定者回 200 並登入；首次登入回 201（需完成手機驗證）。**不會再以未驗證的 phone 建立帳號**，全新手機一律改走 `social-signup` |
+| POST | `/api/auth/social-signup` | 無 | 第三方帳號「全新手機」註冊：**先**以 Firebase 手機 OTP 驗證（`phoneIdToken`），通過後才建立帳號並綁定社群身分。Body: `{ phoneIdToken, phone, idToken, provider, providerUid?, name? }`；手機已有帳號回 203 |
 | POST | `/api/auth/corporate-login` | 無 | **品牌/分店統一登入入口**，自動辨識帳號身分 Body: `{ account, password }` |
 | GET | `/api/auth/check-phone` | 無 | 檢查手機是否已註冊 Query: `?phone=09xx` |
 | POST | `/api/auth/firebase-verify` | 無 | Firebase Token 預檢 Body: `{ idToken }` |
 | POST | `/api/auth/reset-password-firebase` | 無 | 重設密碼 Body: `{ idToken, phone, newPassword }` |
 | POST | `/api/auth/merge/set-password` | 無 | 帳號整合：三方帳號設密碼 Body: `{ idToken, phone, newPassword }` |
 | POST | `/api/auth/merge/bind-social` | 無 | 帳號整合：傳統帳號綁三方 Body: `{ idToken, phone, providerUid, provider }` |
-| PUT | `/api/auth/update` | CUSTOMER | 更新個人資料 Body: `{ name?, picUrl?, phone? }` |
-| GET | `/api/auth/debug/social-logins` | 無 | Dev 工具：列出最近三方登入紀錄 |
+| PUT | `/api/auth/update` | CUSTOMER | 更新個人資料（暱稱、頭像）。Body: `{ name?, picUrl? }`。**變更手機號碼已停用**（回 400，需走手機驗證流程）。暱稱不可含 `< > " \`` 或控制字元，最多 30 字 |
 
 ---
 
@@ -52,8 +52,7 @@
 | GET | `/api/products/{productId}/customization` | 飲品可選規格與配料 |
 | GET | `/api/products/{productId}/customization/v2` | 飲品客製化 V2（ResponseEntity 格式）|
 | GET | `/api/products/{productId}/specs` | 飲品規格列表 |
-| GET | `/api/products/store/{storeId}` | 分店上架飲品列表 |
-| GET | `/api/products/store/{storeId}/all` | 分店所有飲品（含下架）|
+| GET | `/api/products/store/{storeId}` | 分店上架飲品列表（僅 `isEnabled = true`）|
 | GET | `/api/location/search` | 地址關鍵字搜尋 Query: `?keyword=台中市西區` |
 | GET | `/api/location/cities` | 台灣縣市列表 |
 | GET | `/api/location/districts` | 縣市下的區域列表 Query: `?cityCode=TXG` |
@@ -79,7 +78,7 @@
 | GET | `/api/orders/summary` | 各狀態訂單數量統計 |
 | GET | `/api/orders/{orderId}/timeline` | 訂單狀態時間線 |
 | POST | `/api/orders/{orderId}/reorder` | 再次訂購（複製歷史訂單）|
-| POST | `/api/orders/{orderId}/cancel` | 取消訂單（僅 OPEN 狀態）|
+| POST | `/api/orders/{orderId}/cancel` | 取消訂單（僅發起人；狀態 OPEN 或 SUBMITTED）。會退款並還原優惠券，行為與 `cancel/v2` 的整單取消相同 |
 | GET | `/api/orders/{orderId}/rating` | 取得我的訂單評分狀態 |
 | POST | `/api/orders/{orderId}/rating` | 提交訂單評分 Body: `{ rating: 1~5 }` |
 
@@ -235,7 +234,7 @@
 | Method | Path | 說明 |
 |--------|------|------|
 | GET | `/api/brand/dashboard/overview` | 今日整體指標（營收、訂單數、AOV）附昨日對比趨勢 |
-| GET | `/api/brand/dashboard/storestatus` | 分店營業狀態統計 回傳: `{ open, closed, abnormal, total }` |
+| GET | `/api/brand/dashboard/storestatus` | 分店營業狀態統計 回傳: `{ open, closed, abnormal, total }`（`open` 統計的是 `status = active`）|
 | GET | `/api/brand/dashboard/top-stores` | 本週業績前五名分店 回傳: `[{ rank, storeId, storeName, revenue, trend }]` |
 | GET | `/api/brand/analytics/products` | 全台熱銷/滯銷品項 Query: `?period=week\|month\|year` |
 
@@ -271,7 +270,7 @@
 |--------|------|------|
 | GET | `/api/stores/{id}` | 取得分店公開資訊（無需登入）|
 | PUT | `/api/stores/update` | 更新分店資料 Body: `{ id, storeName?, coverUrl? }` |
-| PUT | `/api/stores/status` | 切換營業狀態 Body: `{ status: open\|closed }` |
+| PUT | `/api/stores/status` | 切換營業狀態 Body: `{ status: active\|closed }`（白名單驗證，其餘值回 400）|
 | GET | `/api/stores/settings/profile` | 取得分店完整設定 |
 | PUT | `/api/stores/settings/business-hours` | 更新營業時間 Body: `{ openingHours: "09:00-22:00" }` |
 | PATCH | `/api/stores/settings/delivery-config` | 更新外送設定 Body: `{ allowsDelivery, maxDeliveryKm, minDeliveryAmount, deliveryStartTime, deliveryEndTime }` |

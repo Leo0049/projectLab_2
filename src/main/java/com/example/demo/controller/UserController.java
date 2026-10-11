@@ -20,9 +20,11 @@ import com.example.demo.repository.UserAddressRepository;
 import com.example.demo.exception.CustomException;
 import com.example.demo.repository.TransactionRecordRepository;
 import com.example.demo.service.AuthService;
+import com.example.demo.service.LoginAttemptLimiter;
 import com.example.demo.service.BrandService;
 import com.example.demo.service.MenuService;
 import com.example.demo.service.OrderService;
+import com.example.demo.service.GroupOrderService;
 import com.example.demo.service.OrderRatingService;
 import com.example.demo.service.StoreService;
 import com.example.demo.service.UserCouponService;
@@ -53,6 +55,8 @@ public class UserController {
     @Autowired
     private AuthService authService;
     @Autowired
+    private LoginAttemptLimiter loginAttemptLimiter;
+    @Autowired
     private BrandService brandService;
     @Autowired
     private StoreService storeService;
@@ -60,6 +64,9 @@ public class UserController {
     private UserCouponService userCouponService;
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private GroupOrderService groupOrderService;
     @Autowired
     private OrderRatingService orderRatingService;
     @Autowired
@@ -89,21 +96,30 @@ public class UserController {
 
     @Operation(summary = "使用者登入", description = "傳統帳號密碼登入。\n\n**狀態碼：** 200=成功 / 202=三方帳號需整合 / 401=密碼錯誤 / 404=不存在\n\nBody: { phone, password }")
     @PostMapping("/api/auth/login")
-    public Result login(@Valid @RequestBody ClassicAuthRequest req) throws Exception {
+    public Result login(@Valid @RequestBody ClassicAuthRequest req, HttpServletRequest httpRequest) throws Exception {
+        // ⚠️ C-2 修復：公開的登入端點原本可以無限次嘗試（密碼只要求 8～16 字元）。
+        //    以 IP ＋ 帳號為鍵，同一 NAT 後面的其他使用者不會被連坐
+        loginAttemptLimiter.check("auth-login", LoginAttemptLimiter.identity(
+                LoginAttemptLimiter.clientIp(httpRequest), req.getPhone()));
         return authService.customerLogin(req);
     }
 
     @Operation(summary = "第三方登入", description = "Firebase Google / Facebook 登入。\n\nBody: { idToken, phone, name, provider }\n- provider: GOOGLE / FACEBOOK（預設 GOOGLE）\n\n回傳 JWT Token。")
     @PostMapping("/api/auth/social-login")
-    public Result socialLogin(@Valid @RequestBody SocialAuthRequest req) throws Exception {
+    public Result socialLogin(@Valid @RequestBody SocialAuthRequest req, HttpServletRequest httpRequest) throws Exception {
+        // ⚠️ C-2：防火星 token 的暴力嘗試
+        loginAttemptLimiter.check("auth-social-login", LoginAttemptLimiter.clientIp(httpRequest));
         return authService.socialLogin(req);
     }
 
     @Operation(summary = "企業登入", description = "分店端 / 品牌端統一登入入口。系統自動辨識帳號身分。\n\nBody: { account, password }\n\n回傳 JWT Token，role = STORE | BRAND。")
     @PostMapping("/api/auth/corporate-login")
-    public Result corporateLogin(@Valid @RequestBody CorporateAuthRequest req) {
+    public Result corporateLogin(@Valid @RequestBody CorporateAuthRequest req, HttpServletRequest httpRequest) {
         String account = req.getAccount();
         String password = req.getPassword();
+        // ⚠️ C-2：企業登入同樣是公開端點，未限制前可對品牌／門市帳號碰庫
+        loginAttemptLimiter.check("corporate-login", LoginAttemptLimiter.identity(
+                LoginAttemptLimiter.clientIp(httpRequest), account));
 
         // 1. 先嘗試品牌端（BRAND）
         try {
@@ -132,14 +148,19 @@ public class UserController {
 
     @Operation(summary = "檢查手機是否已註冊", description = "Query Param: ?phone=0912345678\n\n回傳 true（已註冊）/ false（未註冊）")
     @GetMapping("/api/auth/check-phone")
-    public Result checkPhone(@RequestParam String phone) {
+    public Result checkPhone(@RequestParam String phone, HttpServletRequest httpRequest) {
+        // ⚠️ C-2：這支等於是帳號列舉 API（回傳「這支號碼註冊了沒」），
+        //    原本可無限次查。門檻放寬為 5 分鐘 60 次，舊前端正常使用不受影響。
+        loginAttemptLimiter.check("auth-check-phone", LoginAttemptLimiter.clientIp(httpRequest), 60, 300);
         return Result.success(authService.existsByPhoneNumber(phone));
     }
 
     // ✅ 修正：加上 try-catch，Firebase 驗證失敗時回傳標準 Result 格式，不會讓前端 JSON.parse 炸掉
     @Operation(summary = "Firebase Token 預檢", description = "前端跳轉前的安全性檢查，確保 Token 合法且未過期。")
     @PostMapping("/api/auth/firebase-verify")
-    public Result verifyFirebase(@RequestBody Map<String, String> body) {
+    public Result verifyFirebase(@RequestBody Map<String, String> body, HttpServletRequest httpRequest) {
+        // ⚠️ C-2：token 預檢端點原本可無限次嘗試
+        loginAttemptLimiter.check("auth-firebase-verify", LoginAttemptLimiter.clientIp(httpRequest));
         String idToken = body.get("idToken");
         if (idToken == null || idToken.isBlank()) {
             return Result.error("400", "Token 缺失");
@@ -158,7 +179,12 @@ public class UserController {
 
     @Operation(summary = "重設密碼", description = "透過 Firebase 驗證手機身份後重設密碼。\n\nBody: { idToken, phone, newPassword }")
     @PostMapping("/api/auth/reset-password-firebase")
-    public Result resetPassword(@RequestBody Map<String, String> payload) {
+    public Result resetPassword(@RequestBody Map<String, String> payload, HttpServletRequest httpRequest) {
+        // ⚠️ C-2：重設密碼是最值得爆破的端點（成功即接管帳號），務必限流。
+        //    C-5 延伸：這裡的驗證完全依賴手機 OTP，而 OTP 的正確性取決於 sms.mode
+        //    （prod 必須為 firebase，見 AuthService.assertSmsModeForProfile）。
+        loginAttemptLimiter.check("auth-reset-password", LoginAttemptLimiter.identity(
+                LoginAttemptLimiter.clientIp(httpRequest), payload.get("phone")));
         try {
             String idToken = payload.get("idToken");
             String phoneNumber = payload.get("phone");
@@ -238,6 +264,18 @@ public class UserController {
         if (phoneIdToken == null || phone == null || socialIdToken == null || providerUid == null)
             return Result.error("400", "參數不完整");
         return authService.mergeBindSocialByPhone(phoneIdToken, phone, socialIdToken, providerUid, provider);
+    }
+
+    @PostMapping("/api/auth/social-signup")
+    public Result socialSignup(@RequestBody Map<String, String> body) throws Exception {
+        String phoneIdToken = body.get("phoneIdToken");
+        String phone = body.get("phone");
+        String socialIdToken = body.get("idToken");
+        String provider = body.get("provider");
+        if (phoneIdToken == null || phone == null || socialIdToken == null || provider == null)
+            return Result.error("400", "參數不完整");
+        return authService.socialSignupWithVerifiedPhone(phoneIdToken, phone, socialIdToken,
+                body.get("providerUid"), provider, body.get("name"));
     }
 
     @Operation(summary = "更新個人資料", description = "修改使用者暱稱 / 頭像 / 手機，欄位皆為選填。\n\nBody: { name?, picUrl?, phone? }")
@@ -412,7 +450,7 @@ public class UserController {
     public Result cancelOrder(
             @RequestAttribute("currentUserId") Long userId,
             @PathVariable Long orderId) {
-        orderService.cancelOrder(userId, orderId);
+        groupOrderService.cancelAsInitiator(userId, orderId);
         return Result.success("訂單已取消");
     }
 

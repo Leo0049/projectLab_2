@@ -363,6 +363,18 @@
         return BRAND_COLORS[Math.abs(hash) % BRAND_COLORS.length];
       }
 
+      // 店名／封面／品牌 logo 為店家可控欄位，這些值全都插進 innerHTML，
+      // 不轉義即為儲存型 XSS（與首頁相同的風險），一律先過這裡。
+      function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        })[char]);
+      }
+
       function getTodayHours(openingHours) {
         if (!openingHours) return null;
         const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -395,9 +407,9 @@
             </button>
 
             <div class="h-48 relative overflow-hidden">
-              <img src="${store.coverUrl || store.cover_url || 'images/store-placeholder.svg'}"
+              <img src="${escapeHtml(store.coverUrl || store.cover_url) || 'images/store-placeholder.svg'}"
                    class="w-full h-full object-cover transition-transform duration-500 ${isUnavailable ? '' : 'group-hover:scale-110'}"
-                   alt="${store.storeName || store.store_name || ''}">
+                   alt="${escapeHtml(store.storeName || store.store_name || '')}">
               <!-- 評分 badge -->
               <div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm flex items-center gap-1 ${isUnavailable ? '' : 'group-hover:bg-brand-orange group-hover:text-white'} transition-colors">
                 <i data-lucide="star" class="w-3 h-3 fill-current"></i>
@@ -418,13 +430,13 @@
                   <div class="flex-shrink-0 rounded-full overflow-hidden border border-gray-100 shadow-sm"
                        style="width:48px;height:48px;background:${brandColor(store.brandName)}">
                     ${store.brandLogoUrl
-                      ? `<img src="${store.brandLogoUrl}" class="w-full h-full object-cover" alt="${store.brandName || ''}"
+                      ? `<img src="${escapeHtml(store.brandLogoUrl)}" class="w-full h-full object-cover" alt="${escapeHtml(store.brandName || '')}"
                               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
                       : ''}
                     <span class="w-full h-full flex items-center justify-center text-white font-bold text-sm"
-                          style="${store.brandLogoUrl ? 'display:none' : ''}">${(store.brandName || '').charAt(0).toUpperCase() || '?'}</span>
+                          style="${store.brandLogoUrl ? 'display:none' : ''}">${escapeHtml((store.brandName || '').charAt(0).toUpperCase()) || '?'}</span>
                   </div>` : ''}
-                  <h3 class="font-extrabold text-lg truncate">${store.storeName || store.store_name || ''}</h3>
+                  <h3 class="font-extrabold text-lg truncate">${escapeHtml(store.storeName || store.store_name || '')}</h3>
                 </div>
                 <div class="flex items-center text-brand-orange">
                   <i data-lucide="footprints" class="w-3.5 h-3.5"></i>
@@ -439,7 +451,7 @@
                 ${todayHours ? `
                 <div class="flex items-center gap-1.5 text-xs text-brand-text-gray">
                   <i data-lucide="clock" class="w-3 h-3 text-gray-400"></i>
-                  <span>${todayHours}</span>
+                  <span>${escapeHtml(todayHours)}</span>
                 </div>` : '<div></div>'}
                 <button class="bg-brand-orange/10 text-brand-orange p-2 rounded-xl ${isUnavailable ? 'opacity-40' : 'group-hover:bg-brand-orange group-hover:text-white'} transition-all">
                   <i data-lucide="shopping-cart" class="w-5 h-5"></i>

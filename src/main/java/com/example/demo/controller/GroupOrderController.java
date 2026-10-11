@@ -309,6 +309,13 @@ public class GroupOrderController {
             if (resolvedHostId == null)
                 return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
 
+            // ⚠️ 付款方式必須明確指定。舊版未驗證：paymentMethod 為 null 時結帳會先成功提交，
+            //    之後回應組裝的 Map.of 遇到 null 直接 NPE，客戶端看到失敗而重送，又因已結帳而回 409。
+            String paymentMethod = request.getPaymentMethod();
+            if (!"WALLET".equals(paymentMethod) && !"CASH".equals(paymentMethod)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "paymentMethod 必須為 WALLET 或 CASH"));
+            }
+
             // 優先使用單一 address 欄位，若無則組合 city/district/street
             String fullAddress = request.getAddress();
             if (fullAddress == null || fullAddress.isBlank()) {
@@ -317,20 +324,24 @@ public class GroupOrderController {
                         : "";
             }
             Long orderId = groupOrderService.checkout(token, resolvedHostId,
-                    request.getCouponId(), request.getPaymentMethod(), fullAddress, request.getNote());
-            GroupOrder go = groupOrderService.getGroupOrderByToken(token);
+                    request.getCouponId(), paymentMethod, fullAddress, request.getNote());
+            // 通知所需資訊在交易內讀出：控制器不拿 entity 出去再 getStore()（不在交易內會踩 LAZY，
+            // 而那發生在結帳已 commit 之後，客戶端只會看到 400；見 CLAUDE.md「open-in-view」）
+            Map<String, Object> info = groupOrderService.getCheckoutNotifyInfo(token);
+            Long storeId = (Long) info.get("storeId");
+            BigDecimal totalAmount = (BigDecimal) info.get("totalAmount");
 
-            if (messagingTemplate != null && go.getStore() != null) {
-                messagingTemplate.convertAndSend("/topic/store/" + go.getStore().getId(),
-                        Map.of("type", "NEW_ORDER", "data", Map.of("id", orderId, "totalAmount", go.getTotalAmount(),
-                                "paymentMethod", request.getPaymentMethod())));
+            if (messagingTemplate != null && storeId != null) {
+                messagingTemplate.convertAndSend("/topic/store/" + storeId,
+                        Map.of("type", "NEW_ORDER", "data", Map.of("id", orderId, "totalAmount", totalAmount,
+                                "paymentMethod", paymentMethod)));
             }
             if (messagingTemplate != null) {
                 messagingTemplate.convertAndSend("/topic/group/" + token,
-                        Map.of("orderId", orderId, "paymentMethod", request.getPaymentMethod()));
+                        Map.of("orderId", orderId, "paymentMethod", paymentMethod));
             }
             return ResponseEntity.ok(Map.of("message", "Group Order checked out successfully", "orderId", orderId,
-                    "totalAmount", go.getTotalAmount()));
+                    "totalAmount", totalAmount));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

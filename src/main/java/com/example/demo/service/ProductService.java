@@ -49,12 +49,10 @@ public class ProductService {
     // Existing methods (updated to use ProductTemplate)
     // ============================================================
 
+    // 註：這裡只保留「上架商品」查詢。原本另有一個 getAllProductsByStoreId()，
+    // 但它與本方法都呼叫 findByStoreId()（查詢條件已含 isEnabled = true），
+    // 是同一份結果的重複方法，公開端點移除後已刪除。
     public List<com.example.demo.dto.ProductDTO> getActiveProductsByStoreId(Long storeId) {
-        List<ProductTemplate> products = productRepository.findByStoreId(storeId);
-        return convertToDTOList(products);
-    }
-
-    public List<com.example.demo.dto.ProductDTO> getAllProductsByStoreId(Long storeId) {
         List<ProductTemplate> products = productRepository.findByStoreId(storeId);
         return convertToDTOList(products);
     }

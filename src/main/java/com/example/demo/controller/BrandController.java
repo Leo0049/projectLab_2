@@ -13,6 +13,8 @@ import com.example.demo.service.AnalyticsService;
 import com.example.demo.service.BrandService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.example.demo.service.LoginAttemptLimiter;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -28,6 +30,8 @@ public class BrandController {
     private BrandService brandService;
     @Autowired
     private StoreService storeService;
+    @Autowired
+    private LoginAttemptLimiter loginAttemptLimiter;
     @Autowired
     private AnalyticsService analyticsService;
     @Autowired
@@ -47,10 +51,13 @@ public class BrandController {
 
     @Operation(summary = "品牌登入", description = "品牌帳號密碼登入。\n\nBody: { account, password }\n\n回傳 JWT Token（role = BRAND）。")
     @PostMapping("/api/brand-auth/login")
-    public Result login(@RequestBody Map<String, String> body) {
+    public Result login(@RequestBody Map<String, String> body, HttpServletRequest httpRequest) {
         String account = body.get("account"), password = body.get("password");
         if (account == null || password == null)
             return Result.error("400", "帳號與密碼不能為空");
+        // ⚠️ C-2 修復：公開的品牌登入原本可無限次嘗試
+        loginAttemptLimiter.check("brand-login", LoginAttemptLimiter.identity(
+                LoginAttemptLimiter.clientIp(httpRequest), account));
         return Result.success(brandService.login(account, password));
     }
 

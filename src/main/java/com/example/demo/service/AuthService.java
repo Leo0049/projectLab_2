@@ -1,6 +1,8 @@
 package com.example.demo.service;
 
 import com.example.demo.common.JwtUtils;
+import com.example.demo.common.SafeImageUrl;
+import com.example.demo.common.SafeText;
 import com.example.demo.common.Result;
 import com.example.demo.dto.ClassicAuthRequest;
 import com.example.demo.dto.CorporateAuthRequest;
@@ -12,10 +14,12 @@ import com.example.demo.repository.UserAuthProviderRepository;
 import com.example.demo.repository.UserRepository;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseToken;
+import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +41,49 @@ public class AuthService {
     @Value("${sms.mode:firebase}")
     private String smsMode;
 
+    /** ⚠️ prod profile 檢查需要，比照 JwtUtils（required=false 讓純單元測試可只注入需要的欄位）*/
+    @Autowired(required = false)
+    private Environment environment;
+
+    /** 正式環境唯一允許的手機驗證模式 */
+    static final String PROD_SMS_MODE = "firebase";
+
+    /** 本機模擬用的固定 token；務必確認它只在非 prod 且 sms.mode=mock 時有意義 */
+    static final String MOCK_TOKEN = "MOCK_TOKEN";
+
+    /**
+     * 啟動時就檢查「正式環境不得使用 mock 手機驗證」。
+     *
+     * <p>⚠️ 為什麼要 fail-fast：{@code sms.mode} 的預設值是 mock，而 mock 模式下
+     * {@link #MOCK_TOKEN} 會被視為已完成手機驗證——公開的
+     * {@code POST /api/auth/reset-password-firebase} 因此可以對任何手機號碼重設密碼，
+     * 等同任意顧客帳號接管。專案裡另外兩個同等敏感的開關
+     * （{@code jwt.secret}、模擬儲值）都有 prod 防呆，只有這個漏掉。
+     */
+    @PostConstruct
+    void assertSmsModeForProfile() {
+        assertSmsModeForProfile(isProductionProfile(), smsMode);
+    }
+
+    /** package-private static 以利單元測試（同 {@code JwtUtils.assertProductionSecret} 的做法） */
+    static void assertSmsModeForProfile(boolean productionProfile, String mode) {
+        if (!productionProfile) {
+            return;
+        }
+        if (mode == null || !PROD_SMS_MODE.equalsIgnoreCase(mode.trim())) {
+            throw new IllegalStateException(
+                    "偵測到 prod profile 使用 sms.mode=" + mode + "。正式環境必須為 "
+                            + PROD_SMS_MODE + "，否則任何人只要送 MOCK_TOKEN 就能通過手機驗證"
+                            + "並重設他人密碼（帳號接管）。請設定環境變數 SMS_MODE=firebase。");
+        }
+    }
+
+    /** 是否為正式環境 profile */
+    private boolean isProductionProfile() {
+        return environment != null
+                && Arrays.asList(environment.getActiveProfiles()).contains("prod");
+    }
+
     // ─── 傳統註冊 ────────────────────────────────────────────
     // ✅ 補上缺少的方法：UserController /api/auth/register 呼叫此方法，原本不存在會編譯失敗
     @Transactional
@@ -50,7 +97,7 @@ public class AuthService {
         User user = new User();
         user.setPhone(req.getPhone());
         user.setPasswordHash(passwordEncoder.encode(req.getPassword()));
-        user.setName(req.getName() != null ? req.getName() : req.getPhone());
+        user.setName(req.getName() != null ? SafeText.normalizeDisplayName(req.getName()) : req.getPhone());
         user.setRole("CUSTOMER");
         user.setCreatedAt(LocalDateTime.now().withNano(0));
         user = userRepository.save(user);
@@ -129,7 +176,7 @@ public class AuthService {
             User user = existingProvider.get().getUser();
             ensureActiveUser(user);
             if (req.getName() != null && !req.getName().isBlank() && !req.getName().equals(user.getName())) {
-                user.setName(req.getName());
+                user.setName(SafeText.sanitizeDisplayName(req.getName(), user.getName()));
                 userRepository.save(user);
             }
             return Result.success(generateLoginResponse(user));
@@ -141,15 +188,10 @@ public class AuthService {
                 return Result.error("203", "此手機已有帳號，請進行整合",
                     Map.of("phone", req.getPhone(), "providerUid", uid, "provider", providerName, "action", "MERGE_BIND_SOCIAL"));
             }
-            // 全新使用者
-            User newUser = new User();
-            newUser.setPhone(req.getPhone());
-            newUser.setName(req.getName() != null ? req.getName() : "新用戶");
-            newUser.setRole("CUSTOMER");
-            newUser.setCreatedAt(LocalDateTime.now().withNano(0));
-            userRepository.save(newUser);
-            bindSocialProvider(newUser, providerName, uid);
-            return Result.success(generateLoginResponse(newUser));
+            // ⚠️ 這裡不建立帳號：沒有任何手機驗證，舊版會直接用請求中的 phone 寫入新使用者。
+                //    攻擊者可用自己的 Google 帳號綁定「尚未註冊的他人手機」，社群身分會留在對方的帳號上（帳號接管）。
+                //    全新手機一律改走 socialSignupWithVerifiedPhone（先驗 OTP 再建立）。
+                return Result.error("201", "首次登入，請綁定手機", Map.of("providerUid", uid, "provider", providerName));
         }
     }
 
@@ -173,6 +215,40 @@ public class AuthService {
         User user = userRepository.findById(userId).orElseThrow(() -> new CustomException("404", "找不到此帳號"));
         ensureActiveUser(user);
         return bindVerifiedSocialProvider(user, idToken, providerUid, provider);
+    }
+
+    /**
+     * 第三方登入的「全新手機」註冊：先驗證手機 OTP，通過後才建立帳號並綁定社群身分。
+     * ⚠️ 這是唯一允許為第三方登入建立新帳號並寫入手機的路徑（socialLogin 已不再這麼做）。
+     */
+    @Transactional
+    public Result socialSignupWithVerifiedPhone(String phoneIdToken, String phone, String socialIdToken,
+            String providerUid, String provider, String name) throws Exception {
+        verifyFirebasePhone(phoneIdToken, phone);
+        String providerName = normalizeProvider(provider);
+        if (userRepository.existsByPhone(phone)) {
+            return Result.error("203", "此手機已有帳號，請進行整合",
+                    Map.of("phone", phone, "provider", providerName, "action", "MERGE_BIND_SOCIAL"));
+        }
+        FirebaseToken decoded = verifyFirebaseSocialToken(socialIdToken, providerName);
+        String uid;
+        if (decoded != null) {
+            uid = decoded.getUid();
+            if (providerUid != null && !providerUid.equals(uid)) {
+                throw new CustomException("403", "第三方身分驗證失敗");
+            }
+        } else {
+            // 僅 mock 模式（非 prod）會走到這裡，與 resolveUid 的做法一致
+            uid = mockProviderUid(providerName, phone);
+        }
+        User newUser = new User();
+        newUser.setPhone(phone);
+        newUser.setName(SafeText.sanitizeDisplayName(name, "新用戶"));
+        newUser.setRole("CUSTOMER");
+        newUser.setCreatedAt(LocalDateTime.now().withNano(0));
+        userRepository.save(newUser);
+        bindSocialProvider(newUser, providerName, uid);
+        return Result.success(generateLoginResponse(newUser));
     }
 
     /** 以已驗證的手機 OTP 與社群 Firebase token 完成沒有密碼帳號的整合。 */
@@ -234,16 +310,16 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException("404", "使用者不存在"));
         if (req.getName() != null && !req.getName().isBlank()) {
-            user.setName(req.getName());
+            user.setName(SafeText.normalizeDisplayName(req.getName()));
         }
         if (req.getPicUrl() != null) {
-            user.setPicUrl(req.getPicUrl());
+            user.setPicUrl(SafeImageUrl.normalize(req.getPicUrl()));
         }
-        if (req.getPhone() != null && !req.getPhone().isBlank()) {
-            if (userRepository.existsByPhone(req.getPhone()) && !req.getPhone().equals(user.getPhone())) {
-                throw new CustomException("409", "此手機號碼已被使用");
-            }
-            user.setPhone(req.getPhone());
+        if (req.getPhone() != null && !req.getPhone().isBlank() && !req.getPhone().equals(user.getPhone())) {
+            // ⚠️ C-5 修復：手機同時是登入帳號與重設密碼的依據，舊版在沒有 OTP 的情況下就能改掉，
+            //    等於可以先佔住尚未註冊的號碼。前端沒有呼叫此端點改手機，故直接拒絕；
+            //    換號請走 Firebase 手機驗證流程。
+            throw new CustomException("400", "更換手機號碼需要手機驗證，請改用驗證流程");
         }
         userRepository.save(user);
     }
@@ -304,8 +380,13 @@ public class AuthService {
     }
 
     private FirebaseToken verifyFirebaseToken(String idToken) throws Exception {
-        if ("mock".equalsIgnoreCase(smsMode) && "MOCK_TOKEN".equals(idToken)) return null;
-        if (idToken == null || idToken.isBlank() || "MOCK_TOKEN".equals(idToken)) {
+        // ⚠️ 執行期第一層：只有「非 prod」且 sms.mode=mock 才接受本地 mock token。
+        //    啟動檢查（assertSmsModeForProfile）是第二層；兩層都留，因為第一層擋的是
+        //    「設定被改壞」的情況，第二層擋的是「部署忘了設定」。
+        if (!isProductionProfile() && "mock".equalsIgnoreCase(smsMode) && MOCK_TOKEN.equals(idToken)) {
+            return null;
+        }
+        if (idToken == null || idToken.isBlank() || MOCK_TOKEN.equals(idToken)) {
             throw new CustomException("401", "Firebase 驗證失敗");
         }
         return FirebaseAuth.getInstance().verifyIdToken(idToken);

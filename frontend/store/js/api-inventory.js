@@ -1,3 +1,11 @@
+function escHtmlSafe(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 /**
  * api-inventory.js — 飲品與配料庫存管理
  * Stale-while-revalidate：先顯示持久快取，背景靜默更新
@@ -46,7 +54,7 @@
                     <div class="px-4 md:px-6 py-3 md:py-4 bg-primary/5 border-b border-primary/10 flex items-center justify-between">
                         <div class="flex items-center gap-2 md:gap-3">
                             <span class="material-symbols-outlined text-primary text-lg md:text-xl">${icon}</span>
-                            <h3 class="text-base md:text-lg font-bold">${catName}</h3>
+                            <h3 class="text-base md:text-lg font-bold">${escHtmlSafe(catName)}</h3>
                         </div>
                         <span class="text-[10px] md:text-xs font-medium text-slate-500 px-2 py-0.5 md:py-1 bg-slate-100 dark:bg-slate-800 rounded">${drinksInCat.length} 項</span>
                     </div>
@@ -71,7 +79,7 @@
                     const isAvailable = drink.isAvailable !== false;
                     tr.innerHTML = `
                         <td class="px-3 md:px-6 py-3 md:py-4 align-middle">
-                            <span class="text-xs md:text-sm font-semibold text-slate-700 dark:text-slate-200 truncate block">${drink.drinkName}</span>
+                            <span class="text-xs md:text-sm font-semibold text-slate-700 dark:text-slate-200 truncate block">${escHtmlSafe(drink.drinkName)}</span>
                         </td>
                         <td class="px-2 py-3 md:py-4 text-center align-middle">
                             <span class="text-[10px] md:text-sm text-primary font-bold">$${drink.price}</span>
@@ -149,7 +157,7 @@
                 tr.className = 'hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors';
                 const isAvailable = topping.isEnabled !== false;
                 tr.innerHTML = `
-                    <td class="px-3 md:px-6 py-3 md:py-5 font-semibold text-slate-900 dark:text-white">${topping.name}</td>
+                    <td class="px-3 md:px-6 py-3 md:py-5 font-semibold text-slate-900 dark:text-white">${escHtmlSafe(topping.name)}</td>
                     <td class="px-3 md:px-6 py-3 md:py-5 font-medium">$${topping.price}</td>
                     <td class="px-3 md:px-6 py-3 md:py-5">
                         <div class="flex items-center gap-2 md:gap-3">
@@ -162,7 +170,7 @@
                             </p>
                         </div>
                     </td>
-                    <td class="hidden md:table-cell px-6 py-5 text-slate-600 dark:text-slate-400">${topping.description || '總部提供之優質配料'}</td>
+                    <td class="hidden md:table-cell px-6 py-5 text-slate-600 dark:text-slate-400">${escHtmlSafe(topping.description || '總部提供之優質配料')}</td>
                 `;
                 const toggle = tr.querySelector('.topping-toggle');
                 const dot    = toggle.querySelector('div');

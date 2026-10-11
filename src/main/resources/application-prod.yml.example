@@ -19,7 +19,19 @@ logging:
     org.hibernate.SQL: WARN
     org.springframework.data.redis: WARN
 
+# ⚠️ 手機驗證：prod profile 下必須是 firebase。
+#    mock 模式會把 MOCK_TOKEN 當成已驗證的手機，任何人都能重設他人密碼。
+#    AuthService 在啟動時就會檢查此值（不符即拒絕啟動），這裡寫上只是明確表達意圖。
+sms:
+  mode: firebase
+
 app:
+  security:
+    csp:
+      # 預設關閉（見 SecurityHeadersFilter 的說明）。
+      # 要在正式環境開啟前，必須先把前端改成不依賴 inline script、
+      # 並實際點過一輪主要流程（地圖、點餐、揪團、社群登入、WebSocket）。
+      enabled: false
   demo-data:
     enabled: false            # 雙保險：即使忘了設 DEMO_DATA_ENABLED 也不植入示範帳號
   wallet:

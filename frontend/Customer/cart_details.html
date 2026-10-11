@@ -292,6 +292,15 @@
   <script src="js/cartHash.js"></script>
   <script src="js/cart.js"></script>
   <script>
+function escHtmlSafe(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
     // HTML 跳脫工具函數，防止 XSS
     function escapeHtml(str) {
       return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
@@ -611,7 +620,7 @@
                 ${deleteBtnHtml}
                 <div class="flex items-center gap-4 mb-4">
                     <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
-                        <img src="${logoUrl}" class="w-full h-full object-cover" onerror="this.src='images/logo.png'">
+                        <img src="${escHtmlSafe(logoUrl)}" class="w-full h-full object-cover" onerror="this.src='images/logo.png'">
                     </div>
                     <div class="min-w-0 pr-6">
                         <h4 class="font-bold text-slate-800 truncate text-base">${escapeHtml(cart.storeName) || '未知店家'}</h4>

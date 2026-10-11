@@ -4,6 +4,8 @@ import com.example.demo.dto.GroupOrderDTO;
 import com.example.demo.service.order.CouponEligibility;
 import com.example.demo.service.order.ItemHash;
 import com.example.demo.service.order.ItemSpecResolver;
+import com.example.demo.service.order.MemberCancelSettlement;
+import com.example.demo.service.order.OrderStatusGuard;
 import com.example.demo.dto.OrderItemDTO;
 import com.example.demo.dto.OrderItemToppingDTO;
 import com.example.demo.entity.*;
@@ -85,6 +87,21 @@ public class GroupOrderService {
         } finally {
             redisLockService.releaseLock(lockKey, lockToken);
         }
+    }
+
+    /**
+     * 結帳後通知用的最小資訊（門市 id 與總額）。
+     * ⚠️ 控制器不能拿 entity 出去再 getStore()：不在交易內，LAZY 關聯會拋 LazyInitializationException，
+     *    而那發生在結帳已 commit 之後，客戶端只會看到 400。
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getCheckoutNotifyInfo(String token) {
+        GroupOrder go = groupOrderRepository.findByShareToken(token)
+                .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
+        Map<String, Object> info = new HashMap<>();
+        info.put("storeId", go.getStore() != null ? go.getStore().getId() : null);
+        info.put("totalAmount", go.getTotalAmount());
+        return info;
     }
 
     public GroupOrder getGroupOrderByToken(String token) {
@@ -915,12 +932,43 @@ public class GroupOrderService {
         return true;
     }
 
+    /**
+     * 團長從訂單頁取消整張 OPEN／SUBMITTED 訂單（舊端點 POST /api/orders/{orderId}/cancel 走這裡）。
+     * ⚠️ 原本 OrderService.cancelOrder 只把狀態改成 CANCELLED：不退款、不還原優惠券，也沒有列鎖。
+     *    同一張單從 /cancel/v2 取消會退款，從這個入口取消卻沒退，等於錢與券都憑空消失。
+     *    改為與 /cancel/v2 相同的 handleGroupOrderCancellation（列鎖、退款、券還原）。
+     */
+    @Transactional
+    public void cancelAsInitiator(Long userId, Long orderId) {
+        GroupOrder go = groupOrderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new CustomException("404", "Order not found"));
+        if (go.getInitiator() == null || !java.util.Objects.equals(go.getInitiator().getId(), userId)) {
+            throw new CustomException("403", "You cannot cancel this order");
+        }
+        if (!OrderStatusGuard.isOpenOrSubmitted(go.getStatus())) {
+            throw new CustomException("409", "Only open or submitted orders can be cancelled");
+        }
+        if (!handleGroupOrderCancellation(orderId)) {
+            throw new CustomException("409", "取消失敗");
+        }
+    }
+
     @Transactional
     public void cancelMemberItems(Long realOrderId, Long userId) {
-        GroupOrder go = groupOrderRepository.findById(realOrderId)
+        // ⚠️ M-2 修復：必須先鎖住揪團那一列再讀品項。
+        //    原本用 findById／findByGroupOrderId（無鎖），「讀出 PAID 品項 → 退款 → 刪品項」
+        //    在併發時每個交易都會讀到同一批品項並各退一次——與結帳／補款／整團取消同一個成因，
+        //    但這條路徑漏掉了。
+        GroupOrder go = groupOrderRepository.findByIdForUpdate(realOrderId)
                 .orElseThrow(() -> new RuntimeException("Group order not found"));
+        // ⚠️ 狀態守衛必須在鎖內再做一次：控制器的檢查發生在取得鎖之前，期間團長可能已結帳或進入備餐，
+        //    已送給門市的訂單內容不可再被刪改。
+        if (!OrderStatusGuard.isOpenOrSubmitted(go.getStatus())) {
+            throw new CustomException("409", "揪團已進入後續流程，無法再取消個別品項");
+        }
 
-        List<OrderItem> memberItems = orderItemRepository.findByGroupOrderId(go.getId()).stream()
+        List<OrderItem> allItems = orderItemRepository.findByGroupOrderIdForUpdate(go.getId());
+        List<OrderItem> memberItems = allItems.stream()
                 .filter(i -> i.getUser() != null && i.getUser().getId().equals(userId))
                 .toList();
 
@@ -928,35 +976,43 @@ public class GroupOrderService {
             throw new RuntimeException("No items found for this user to cancel");
         }
 
-        BigDecimal hostRefundAmount = BigDecimal.ZERO;
+        // ⚠️ M-1 修復：金額一律交由 MemberCancelSettlement 決定。
+        //    原本「只要品項不是 PAID 就把金額退給團長」——揪團還在 OPEN（團長一毛未付）時，
+        //    成員取消等於讓團長錢包憑空多一筆錢，而且可無限重複（實測可自造餘額）。
+        //    現在只有 PAID 退團員、ESCROWED 退團長且以實際代墊的 escrowAmount 為上限。
+        MemberCancelSettlement.Result settlement = MemberCancelSettlement.settle(
+                memberItems.stream()
+                        .map(i -> MemberCancelSettlement.Item.of(i.getPaymentStatus(),
+                                i.getFinalPrice(), i.getDiscountAmountSnapshot()))
+                        .toList(),
+                go.getEscrowAmount());
 
+        if (settlement.memberRefund().compareTo(BigDecimal.ZERO) > 0) {
+            transactionRecordService.updateStoreCredit(userId, settlement.memberRefund(),
+                    TxType.REFUND, "揪團單品取消退款（已付品項）", LocalDateTime.now());
+        }
+        if (settlement.hostRefund().compareTo(BigDecimal.ZERO) > 0) {
+            transactionRecordService.updateStoreCredit(go.getInitiator().getId(), settlement.hostRefund(),
+                    TxType.REFUND, "揪團團員取消品項退款代墊金", LocalDateTime.now());
+        }
+
+        // 品項被移除就把券還給原持有人（與有沒有退款無關）
         for (OrderItem mItem : memberItems) {
-            BigDecimal itemTotal = mItem.getFinalPrice();
-            if ("PAID".equalsIgnoreCase(mItem.getPaymentStatus())) {
-                transactionRecordService.updateStoreCredit(mItem.getUser().getId(), itemTotal,
-                        TxType.REFUND, "揪團單品取消退款 (商品: " + mItem.getProductNameSnapshot() + ")", LocalDateTime.now());
-            } else {
-                hostRefundAmount = hostRefundAmount.add(itemTotal);
-            }
-
-            // 還原優惠券
             if (mItem.getCouponId() != null) {
                 restoreUserCoupon(mItem.getUser().getId(), mItem.getCouponId());
             }
         }
         orderItemRepository.deleteAll(memberItems);
 
-        if (hostRefundAmount.compareTo(BigDecimal.ZERO) > 0) {
-            transactionRecordService.updateStoreCredit(go.getInitiator().getId(), hostRefundAmount,
-                    TxType.REFUND, "揪團團員取消品項退款代墊金", LocalDateTime.now());
-            go.setTotalAmount(go.getTotalAmount().subtract(hostRefundAmount));
-            // ✅ 新增：同步扣減 escrowAmount，防止後續取消再次退款
-            if (go.getEscrowAmount() != null) {
-                BigDecimal newEscrow = go.getEscrowAmount().subtract(hostRefundAmount).max(BigDecimal.ZERO);
-                go.setEscrowAmount(newEscrow);
-            }
-            groupOrderRepository.save(go);
-        }
+        // totalAmount 是「這張團現在值多少」：OPEN 階段由 addItemsToOrder 累加毛額，
+        // 結帳後由 checkout 改寫為淨額。品項被移除就得把毛額扣回來，且不得為負。
+        BigDecimal grossRemoved = memberItems.stream()
+                .map(i -> i.getFinalPrice() != null ? i.getFinalPrice() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal currentTotal = go.getTotalAmount() != null ? go.getTotalAmount() : BigDecimal.ZERO;
+        go.setTotalAmount(currentTotal.subtract(grossRemoved).max(BigDecimal.ZERO));
+        go.setEscrowAmount(settlement.remainingEscrow());
+        groupOrderRepository.save(go);
     }
 
     public Optional<GroupOrder> getGroupOrderByOrderId(Long realOrderId) {
@@ -1363,11 +1419,12 @@ public class GroupOrderService {
 
         Map<Long, Map<String, Object>> memberMap = new LinkedHashMap<>();
         for (OrderItem item : allItems) {
-            Long uid = item.getUser().getId();
+            // 舊資料可能有 user_id = NULL 的品項（見 handleGroupOrderCancellation），不可直接 getId()
+            Long uid = item.getUser() != null ? item.getUser().getId() : null;
             memberMap.computeIfAbsent(uid, k -> {
                 Map<String, Object> m = new HashMap<>();
                 m.put("userId", uid);
-                m.put("userName", item.getUser().getName());
+                m.put("userName", item.getUser() != null ? item.getUser().getName() : "未綁定成員");
                 m.put("items", new ArrayList<>());
                 m.put("subtotal", BigDecimal.ZERO);
                 return m;
@@ -1416,7 +1473,8 @@ public class GroupOrderService {
         result.put("totalAmount", total);
         result.put("paidAmount", paid);
         result.put("unpaidAmount", total.subtract(paid));
-        result.put("memberCount", items.stream().map(i -> i.getUser().getId()).distinct().count());
+        result.put("memberCount", items.stream().filter(i -> i.getUser() != null)
+                .map(i -> i.getUser().getId()).distinct().count());
         return result;
     }
 

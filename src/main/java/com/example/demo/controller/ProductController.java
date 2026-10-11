@@ -22,10 +22,10 @@ public class ProductController {
         return ResponseEntity.ok(productService.getActiveProductsByStoreId(storeId));
     }
 
-    @GetMapping("/store/{storeId}/all")
-    public ResponseEntity<List<com.example.demo.dto.ProductDTO>> getStoreProducts(@PathVariable Long storeId) {
-        return ResponseEntity.ok(productService.getAllProductsByStoreId(storeId));
-    }
+    // ⚠️ 已移除 GET /api/products/store/{storeId}/all。
+    //    它與上面的 /store/{storeId} 完全同義（兩者都走 productRepository.findByStoreId()，
+    //    該查詢已固定 AND p.isEnabled = true），公開清單多一個重複端點只增加暴露面，
+    //    API.md 過去把它寫成「含下架」也和實作不符。前端從未有呼叫者。
 
     // ⚠️ 已移除 POST /api/products。
     //    它直接接收原始 ProductTemplate 實體並 save()，而 /api/products/** 為 permitAll，

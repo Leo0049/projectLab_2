@@ -1,3 +1,11 @@
+function escHtmlSafe(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 /**
  * api-finance.js — 財務管理收入總覽
  * Stale-while-revalidate：先顯示持久快取，背景靜默更新
@@ -53,7 +61,7 @@
             const trendIcon  = trend > 0 ? 'trending_up' : trend < 0 ? 'trending_down' : 'flatware';
             const trendText  = trend === 0 ? '—' : `${trend > 0 ? '+' : ''}${trend}%`;
             return `
-                <tr data-revenue-detail-row data-revenue-category="${c.name}">
+                <tr data-revenue-detail-row data-revenue-category="${escHtmlSafe(c.name)}">
                   <td class="px-2 md:px-8 py-3 md:py-4 align-middle text-left">
                     <div class="flex items-center gap-2 md:gap-3 md:pl-4">
                       <div class="hidden md:flex size-8 rounded items-center justify-center flex-shrink-0" style="background-color: ${color}20; color: ${color};">
@@ -61,7 +69,7 @@
                       </div>
                       <span class="inline-flex items-center gap-1 md:gap-2 whitespace-nowrap">
                         <span style="color: ${color}" aria-hidden="true"><span class="inline-block w-2 h-2 md:w-2.5 md:h-2.5 rounded-full bg-current"></span></span>
-                        <span class="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200">${c.name}</span>
+                        <span class="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200">${escHtmlSafe(c.name)}</span>
                       </span>
                     </div>
                   </td>

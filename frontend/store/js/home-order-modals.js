@@ -14,13 +14,23 @@
     'canceled':          '已取消 (Canceled)',
   };
 
+  // 品名／規格快照／備註／姓名都是顧客可控資料（見 api-home.js 的同名函式註解），
+  // 這裡同樣以 innerHTML 組字串，一律先轉義。
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[char]);
+
   const fmtItem = (i) => {
     const name  = i.productNameSnapshot || i.name || '飲品';
     const tps   = Array.isArray(i.toppings) ? i.toppings.map(t => `加${t}`).join(',') : '';
     const specs = [i.sizeSnapshot, i.sugarSnapshot, i.iceSnapshot, tps].filter(Boolean).join('|');
-    const note  = i.note ? ` <span style="color:#2563eb">${i.note}</span>` : '';
-    const user  = i.userName ? ` <span style="color:#2563eb">【${i.userName}】</span>` : '';
-    return `【${i.qty||1}杯】${name}${specs ? ` (${specs})` : ''}${note}${user}`;
+    const note  = i.note ? ` <span style="color:#2563eb">${escapeHtml(i.note)}</span>` : '';
+    const user  = i.userName ? ` <span style="color:#2563eb">【${escapeHtml(i.userName)}】</span>` : '';
+    return `【${i.qty||1}杯】${escapeHtml(name)}${specs ? ` (${escapeHtml(specs)})` : ''}${note}${user}`;
   };
 
   const openDetail = (orderId) => {

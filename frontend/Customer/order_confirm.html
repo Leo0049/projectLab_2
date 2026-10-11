@@ -351,6 +351,18 @@
   </div>
   <script src="js/nav-auth.js"></script>
   <script>
+    // 這一頁把品名、加料、規格、備註、成員姓名與圖片網址全部串進 innerHTML；
+    // 揪團訂單會把別人的備註／姓名顯示給你看，不轉義就是跨帳號的儲存型 XSS，一律先過這裡。
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[char]);
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       if (typeof NavAuth !== 'undefined') NavAuth.checkAuth();
 
@@ -525,12 +537,12 @@
 
           // Create tags for size, ice, and sugar
           const customTagsHtml = [size, ice, sugar].filter(text => text && text !== '標準杯').map(text =>
-            `<span class="text-[10px] bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-700 mt-1 inline-block font-medium mr-1">${text}</span>`
+            `<span class="text-[10px] bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-700 mt-1 inline-block font-medium mr-1">${escapeHtml(text)}</span>`
           ).join('');
 
           const toppingsHtml = (item.toppings || []).map(t => {
             const tName = t.name || t.toppingName || (t.id ? t.id.toppingNameSnapshot : null) || '加料';
-            return `<span class="text-[10px] bg-brand-orange/10 dark:bg-brand-orange/20 text-brand-orange px-1.5 py-0.5 rounded border border-brand-orange/20 mt-1 inline-block font-bold mr-1">${tName}</span>`;
+            return `<span class="text-[10px] bg-brand-orange/10 dark:bg-brand-orange/20 text-brand-orange px-1.5 py-0.5 rounded border border-brand-orange/20 mt-1 inline-block font-bold mr-1">${escapeHtml(tName)}</span>`;
           }).join('');
 
           return `
@@ -538,13 +550,13 @@
                             <div class="w-14 h-14 rounded-xl overflow-hidden bg-orange-50 shrink-0 flex items-center justify-center"
                                  ${!item.logoUrl && item.productId ? `data-product-id="${item.productId}"` : ''}>
                                 ${item.logoUrl
-              ? `<img src="${item.logoUrl}" alt="${item.productName || ''}" class="w-full h-full object-cover">`
+              ? `<img src="${escapeHtml(item.logoUrl)}" alt="${escapeHtml(item.productName || '')}" class="w-full h-full object-cover">`
               : `<i data-lucide="cup-soda" class="w-6 h-6 text-brand-orange"></i>`
             }
                             </div>
                             <div class="flex-1 min-w-0">
                                  <div class="flex items-center gap-2 flex-wrap">
-                                     <p class="font-bold text-slate-900 dark:text-slate-100 truncate">${item.productName || item.productNameSnapshot || '飲品'}</p>
+                                     <p class="font-bold text-slate-900 dark:text-slate-100 truncate">${escapeHtml(item.productName || item.productNameSnapshot || '飲品')}</p>
                                      ${discountAmount > 0 ? `<span class="bg-red-50 text-red-500 text-[10px] px-1.5 py-0.5 rounded border border-red-100 font-bold">已折抵 $${discountAmount}</span>` : ''}
                                      ${item.paymentStatus === 'PAID' ? `<span class="bg-emerald-50 text-emerald-500 text-[10px] px-1.5 py-0.5 rounded border border-emerald-100 font-bold">已付款</span>` : ''}
                                  </div>
@@ -552,7 +564,7 @@
                                     ${customTagsHtml}
                                     ${toppingsHtml}
                                 </div>
-                                ${filteredNote ? `<p class="text-[10px] text-slate-400 mt-1 italic">備註: ${filteredNote}</p>` : ''}
+                                ${filteredNote ? `<p class="text-[10px] text-slate-400 mt-1 italic">備註: ${escapeHtml(filteredNote)}</p>` : ''}
                                 <div class="flex items-center gap-2 mt-1">
                                     <span class="text-[11px] font-bold text-slate-400">數量 : ${quantity}</span>
                                 </div>
@@ -603,7 +615,7 @@
                                         <div class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                                             <i data-lucide="user" class="w-4 h-4 text-primary"></i>
                                         </div>
-                                        <span class="font-bold text-sm text-slate-800 dark:text-slate-200">${group.userName}</span>
+                                        <span class="font-bold text-sm text-slate-800 dark:text-slate-200">${escapeHtml(group.userName)}</span>
                                         ${allPaid ? `<span class="bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1 flex items-center gap-0.5"><i data-lucide="check" class="w-3 h-3"></i>支付完成</span>` : ''}
                                     </div>
                                     <span class="font-bold text-primary text-sm">$${Math.round(memberTotal)}</span>
@@ -640,7 +652,7 @@
         placeholders.forEach(el => {
           const pid = el.dataset.productId;
           if (logoMap[pid]) {
-            el.innerHTML = `<img src="${logoMap[pid]}" alt="" class="w-full h-full object-cover">`;
+            el.innerHTML = `<img src="${escapeHtml(logoMap[pid])}" alt="" class="w-full h-full object-cover">`;
             el.removeAttribute('data-product-id');
           }
         });
@@ -675,7 +687,7 @@
       overlay.className = 'fixed inset-0 bg-black/50 z-[9998] flex items-center justify-center';
       overlay.innerHTML = `
                 <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
-                    <p class="text-gray-800 text-sm leading-relaxed mb-6">${message}</p>
+                    <p class="text-gray-800 text-sm leading-relaxed mb-6">${escapeHtml(message)}</p>
                     <div class="flex gap-3">
                         <button id="confirm-cancel-btn" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors">取消</button>
                         <button id="confirm-ok-btn" class="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors">確定</button>

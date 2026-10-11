@@ -188,6 +188,18 @@
     <script src="js/nav-auth.js"></script>
     <script src="js/cart.js"></script>
     <script>
+        // 店名／店家圖片網址／品項摘要/訂單狀態都是店家或訂單資料，這裡全部用來組 innerHTML，
+        // 不轉義就等於讓店家對顧客的訂單頁注入 script，一律先過這個函式。
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;',
+            })[char]);
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             const userId = localStorage.getItem('JOIN_USER_ID');
             if (!userId) {
@@ -326,14 +338,21 @@
                 const card = document.createElement('div');
                 card.className = "bg-white rounded-[2rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-100 flex flex-col group cursor-pointer relative";
                 
+                // 原本這兩條用 setAttribute('onclick', ...) 把店名與品項摘要拼進 JS 字串，
+                // 只把單引號換成 \' 並不足夠：字串結尾若是反斜線，跳脫字元會被吃掉而脫出常值
+                // （而且屬性值本身也是 HTML，同一層還有第二個注入面）。改用監聽器與閉包傳值，
+                // 資料永遠不會變成程式碼的一部分。
                 if (order.type === 'ACTIVE_GROUP') {
-                    card.setAttribute('onclick', `location.href='group_order.html?token=${order.groupToken}'`);
+                    card.addEventListener('click', () => {
+                        window.location.href = `group_order.html?token=${encodeURIComponent(order.groupToken || '')}`;
+                    });
                 } else {
                     const total = order.finalAmount || 0;
                     const st    = order.status || 'OPEN';
-                    const sName = (order.storeName || '').replace(/'/g, "\\'");
-                    const iSum  = (order.itemsSummary || '載入中...').replace(/'/g, "\\'");
-                    card.setAttribute('onclick', `goToOrderDetails('${order.orderId}', '${sName}', ${total}, '${st}', '${order.type||''}', '${order.deliveryType||''}', '${iSum}')`);
+                    card.addEventListener('click', () => {
+                        window.goToOrderDetails(order.orderId, order.storeName || '', total, st,
+                            order.type || '', order.deliveryType || '', order.itemsSummary || '載入中...');
+                    });
                 }
 
                 // 後端沒有 /api/stores/{id}/image 這個端點（而且相對路徑還會打到靜態伺服器），
@@ -344,8 +363,8 @@
 
                 card.innerHTML = `
                     <div class="relative h-56 bg-slate-100 overflow-hidden">
-                        <img alt="${order.storeName}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                            src="${storeImg}" onerror="this.src='${fallbackImg}'" loading="lazy" />
+                        <img alt="${escapeHtml(order.storeName)}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                            src="${escapeHtml(storeImg)}" onerror="this.src='${fallbackImg}'" loading="lazy" />
                         <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent"></div>
                         <div class="absolute top-4 left-4 flex gap-2">
                             ${order.isGroup || order.group ? `
@@ -355,12 +374,12 @@
                             `}
                         </div>
                         <span class="absolute top-4 right-4 px-3 py-1 ${statusInfo.class} text-[10px] font-bold rounded-full shadow-lg">
-                            ${statusInfo.label}
+                            ${escapeHtml(statusInfo.label)}
                         </span>
                         <div class="absolute bottom-4 left-4 right-4 text-white">
-                            <h3 class="font-bold text-xl mb-1 truncate">${order.storeName}</h3>
+                            <h3 class="font-bold text-xl mb-1 truncate">${escapeHtml(order.storeName)}</h3>
                             <p class="text-white/80 text-[10px] flex items-center gap-1">
-                                <i data-lucide="calendar" class="w-3 h-3"></i> ${order.orderTime || '進行中'}
+                                <i data-lucide="calendar" class="w-3 h-3"></i> ${escapeHtml(order.orderTime || '進行中')}
                             </p>
                         </div>
                     </div>
@@ -368,7 +387,7 @@
                         <div class="flex items-center justify-between mb-4">
                             <div class="flex-grow pr-4">
                                 <p class="text-[11px] text-slate-400 font-bold uppercase mb-1">訂單摘要</p>
-                                <p class="text-sm text-slate-600 line-clamp-1">${order.itemsSummary || '查無品項'}</p>
+                                <p class="text-sm text-slate-600 line-clamp-1">${escapeHtml(order.itemsSummary || '查無品項')}</p>
                             </div>
                             <div class="text-right whitespace-nowrap">
                                 <p class="text-[11px] text-slate-400 font-bold uppercase mb-1">金額</p>

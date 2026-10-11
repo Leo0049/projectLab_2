@@ -3,6 +3,16 @@
  * Stale-while-revalidate：先顯示持久快取，背景靜默更新
  */
 (() => {
+    // 商品名稱、日期等報表欄位都是商品主檔或訂單資料（品名由品牌端維護），
+    // 這裡以 innerHTML 組表格，一律先轉義（見 api-home.js 的說明）。
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+    })[char]);
+
     const fmt = (n) => n == null ? '$0' : `$${Number(n).toLocaleString()}`;
 
     const updateText = (selector, val) => {
@@ -41,7 +51,7 @@
             <div class="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors">
                 <div class="flex items-center gap-3">
                     <span class="w-6 text-sm font-black text-slate-300 italic">${String(i+1).padStart(2, '0')}</span>
-                    <span class="text-sm font-bold text-slate-700 dark:text-slate-200">${p.productName}</span>
+                    <span class="text-sm font-bold text-slate-700 dark:text-slate-200">${escapeHtml(p.productName)}</span>
                 </div>
                 <div class="text-right">
                     <p class="text-xs font-bold text-slate-900 dark:text-white">${p.count} 杯</p>
@@ -61,7 +71,7 @@
                     <td class="px-6 py-4">
                         <span class="flex h-6 w-6 items-center justify-center rounded-full ${i < 3 ? 'bg-primary text-white' : 'bg-slate-100 text-slate-500'} text-xs font-bold">${i + 1}</span>
                     </td>
-                    <td class="px-6 py-4 font-semibold text-slate-700 dark:text-slate-200">${p.productName}</td>
+                    <td class="px-6 py-4 font-semibold text-slate-700 dark:text-slate-200">${escapeHtml(p.productName)}</td>
                     <td class="px-6 py-4 text-right font-bold text-primary">${p.count}</td>
                 </tr>
             `).join('');
@@ -73,7 +83,7 @@
                     <td class="px-6 py-4">
                         <span class="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 text-xs font-bold">${i + 1}</span>
                     </td>
-                    <td class="px-6 py-4 font-medium text-slate-700 dark:text-slate-300">${p.productName}</td>
+                    <td class="px-6 py-4 font-medium text-slate-700 dark:text-slate-300">${escapeHtml(p.productName)}</td>
                     <td class="px-6 py-4 text-right font-bold text-slate-900 dark:text-white">${p.count}</td>
                 </tr>
             `).join('');
@@ -90,7 +100,7 @@
         }
         tbody.innerHTML = reports.map(r => `
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                <td class="px-3 md:px-6 py-3 md:py-4 font-bold text-xs md:text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap">${r.date}</td>
+                <td class="px-3 md:px-6 py-3 md:py-4 font-bold text-xs md:text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap">${escapeHtml(r.date)}</td>
                 <td class="px-3 md:px-6 py-3 md:py-4 font-black text-xs md:text-sm text-primary whitespace-nowrap">${fmt(r.revenue)}</td>
                 <td class="px-3 md:px-6 py-3 md:py-4 font-bold text-xs md:text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">${r.orderCount} 筆</td>
                 <td class="px-3 md:px-6 py-3 md:py-4 text-xs md:text-sm text-slate-500 whitespace-nowrap">${fmt(r.avgOrderValue)}</td>

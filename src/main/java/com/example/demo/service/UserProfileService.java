@@ -1,5 +1,7 @@
 package com.example.demo.service;
 
+import com.example.demo.common.SafeImageUrl;
+import com.example.demo.common.SafeText;
 import com.example.demo.entity.*;
 import com.example.demo.exception.CustomException;
 import com.example.demo.repository.*;
@@ -51,8 +53,8 @@ public class UserProfileService {
     public void updateMe(Long userId, String name, String picUrl) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException("404", "找不到使用者"));
-        if (name != null) user.setName(name);
-        if (picUrl != null) user.setPicUrl(picUrl);
+        if (name != null) user.setName(SafeText.normalizeDisplayName(name));
+        if (picUrl != null) user.setPicUrl(SafeImageUrl.normalize(picUrl));
         userRepository.save(user);
     }
 

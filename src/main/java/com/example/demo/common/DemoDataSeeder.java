@@ -70,6 +70,18 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final OrderItemRepository orderItemRepository;
     private final PasswordEncoder passwordEncoder;
     private final com.example.demo.service.TransactionRecordService transactionRecordService;
+    private final org.springframework.core.env.Environment environment;
+
+    /**
+     * 是否植入示範資料。
+     *
+     * <p>⚠️ prod profile 下**一律**不植入，即使 {@code app.demo-data.enabled} 被設成 true：
+     * 示範帳號（顧客 0912000000、品牌 demo_brand、門市 demo_store）密碼都是固定的
+     * {@code demo1234}，在正式環境等於直接開後門。package-private static 以利單元測試。
+     */
+    static boolean shouldSeed(boolean productionProfile, boolean enabled) {
+        return enabled && !productionProfile;
+    }
 
     @Value("${app.demo-data.enabled:true}")
     private boolean enabled;
@@ -77,8 +89,15 @@ public class DemoDataSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (!enabled) {
-            log.info("app.demo-data.enabled=false，略過示範資料");
+        boolean productionProfile = environment != null
+                && java.util.Arrays.asList(environment.getActiveProfiles()).contains("prod");
+        if (!shouldSeed(productionProfile, enabled)) {
+            if (productionProfile && enabled) {
+                // ⚠️ 這裡用 warn 而不是 info：這是設定錯誤，不是正常路徑
+                log.warn("偵測到 prod profile：已強制略過示範資料（示範帳號密碼為固定值，正式環境不得植入）");
+            } else {
+                log.info("app.demo-data.enabled=false，略過示範資料");
+            }
             return;
         }
         if (brandRepository.count() > 0 || storeRepository.count() > 0) {
