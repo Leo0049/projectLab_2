@@ -126,44 +126,17 @@
           return;
         }
 
-        // Step 2：全新手機 → 呼叫 social-login 建立帳號並直接完成
+        // Step 2：全新手機 → 尚未建立帳號。手機還沒經過 OTP 驗證，因此不在這裡呼叫 social-login
+        //（舊版會先用未驗證的手機建立帳號，OTP 只是事後補驗，等於可以先佔住他人號碼）。
+        // 第三方資料留在 JOIN_SOCIAL_PENDING，導向手機 OTP；OTP 通過後由 verify-phone.js
+        // 呼叫 /api/auth/social-signup，同時帶入手機 OTP token 與社群 token 才建立帳號。
         if (!pending?.idToken) {
           showError('第三方登入資訊遺失，請重新點選 Google / Facebook');
           return;
         }
-
-        const socialResult = await postJson('/api/auth/social-login', {
-          idToken:  pending.idToken,
-          phone,
-          name:     pending.name || phone,
-          provider
-        });
-
-        if (socialResult?.code === '200') {
-          // 帳號已建立（寫入 DB），先存 token 再走手機 OTP 驗證確認手機屬於本人
-          const token  = socialResult?.data?.token;
-          const name   = socialResult?.data?.name   || '';
-          const userId = socialResult?.data?.userId  || '';
-          if (token) {
-            localStorage.setItem('JOIN_TOKEN',     token);
-            localStorage.setItem('JOIN_USER_NAME', name);
-            localStorage.setItem('JOIN_USER_ID',   String(userId));
-          }
-          localStorage.removeItem('JOIN_SOCIAL_PENDING');
-          // type=social-signup：帳號已建立，OTP 通過後直接到 register-success
-          window.location.href =
-            `verify-phone.html?type=social-signup&phone=${encodeURIComponent(phone)}`;
-          return;
-        }
-
-        if (socialResult?.code === '203') {
-          // 競態：手機剛被搶先註冊 → 走整合流程
-          window.location.href =
-            `account-verify.html?phone=${encodeURIComponent(phone)}&provider=${encodeURIComponent(provider)}&source=${encodeURIComponent(source)}`;
-          return;
-        }
-
-        showError(socialResult?.msg || '第三方帳號建立失敗，請稍後再試');
+        window.location.href =
+          `verify-phone.html?type=social-signup&phone=${encodeURIComponent(phone)}`;
+        return;
 
       } catch (err) {
         console.error(err);

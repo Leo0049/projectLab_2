@@ -408,6 +408,18 @@
     <script src="js/nav-auth.js"></script>
 
     <script>
+        // 品名、加料、備註、成員姓名與圖片網址都是店家／其他團員可寫入的資料，
+        // 本頁把它們串進 innerHTML，不轉義就是跨帳號的儲存型 XSS（詳見 index.html 的說明）。
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;',
+            })[char]);
+        }
+
         // ─── Hyper-Fast Global Fetch ──────────────────────────────────
         // 在 DOM 解析的同時就發出請求，不等待 DOMContentLoaded
         const _uParams = new URLSearchParams(window.location.search);
@@ -503,7 +515,7 @@
                                             <i data-lucide="shopping-bag" class="w-6 h-6 text-brand-orange"></i>
                                         </div>
                                         <div>
-                                            <p class="text-sm font-bold text-slate-700">正在備妥：${stubData.itemsSummary}</p>
+                                            <p class="text-sm font-bold text-slate-700">正在備妥：${escapeHtml(stubData.itemsSummary)}</p>
                                             <p class="text-[10px] text-slate-400 mt-1">請稍候，正在取得最新訂單清單...</p>
                                         </div>
                                     </div>
@@ -628,9 +640,10 @@
                 const sugar    = item.sugarSnapshot || item.sugar;
                 const size     = item.sizeSnapshot  || item.size;
                 const optionsText = [ice, sugar, size].filter(Boolean).join(' / ');
+                // 加料名稱來自商品主檔（品牌端可編輯）
                 
                 const toppingsHtml = (item.toppings || []).map(t =>
-                    `<span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 mt-1 inline-block font-medium mr-1">${t.toppingName || t.name}</span>`
+                    `<span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 mt-1 inline-block font-medium mr-1">${escapeHtml(t.toppingName || t.name)}</span>`
                 ).join('');
 
                 let paymentBadgeHtml = '';
@@ -643,16 +656,16 @@
                     <div class="flex items-start gap-4 py-5 border-b border-orange-100 last:border-0 ${index % 2 === 0 ? 'bg-white' : 'bg-orange-50'} hover:bg-orange-100/60 rounded-xl px-5 transition-colors">
                         <div class="w-14 h-14 rounded-xl overflow-hidden bg-orange-100 shrink-0 relative flex items-center justify-center">
                             ${(item.imageUrl || item.logoUrl)
-                                ? `<img src="${item.imageUrl || item.logoUrl}" alt="${item.productNameSnapshot || ''}" class="absolute inset-0 w-full h-full object-cover" loading="lazy">`
+                                ? `<img src="${escapeHtml(item.imageUrl || item.logoUrl)}" alt="${escapeHtml(item.productNameSnapshot || '')}" class="absolute inset-0 w-full h-full object-cover" loading="lazy">`
                                 : `<i data-lucide="cup-soda" class="w-6 h-6 text-brand-orange"></i>`}
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 flex-wrap">
-                                <p class="font-bold text-brand-dark truncate">${item.productNameSnapshot || item.productName || '飲品'}</p>
+                                <p class="font-bold text-brand-dark truncate">${escapeHtml(item.productNameSnapshot || item.productName || '飲品')}</p>
                                 ${discountAmount > 0 ? `<span class="bg-red-50 text-red-500 text-[10px] px-1.5 py-0.5 rounded border border-red-100 font-bold">已折抵 $${Math.round(discountAmount)}</span>` : ''}
                                 ${paymentBadgeHtml}
                             </div>
-                            <p class="text-xs text-gray-500 mt-1">${optionsText}</p>
+                            <p class="text-xs text-gray-500 mt-1">${escapeHtml(optionsText)}</p>
                             <div class="flex flex-wrap items-center mt-1">${toppingsHtml}</div>
                             <div class="flex items-center gap-2 mt-2">
                                 <span class="text-xs font-bold text-gray-400">數量 : ${quantity}</span>
@@ -836,7 +849,7 @@
                                         <div class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
                                             <i data-lucide="user" class="w-4 h-4 text-primary"></i>
                                         </div>
-                                        <span class="font-bold text-sm text-text-primary-light">${group.userName}</span>
+                                        <span class="font-bold text-sm text-text-primary-light">${escapeHtml(group.userName)}</span>
                                         ${payStatusLabel}
                                     </div>
                                     <span class="font-bold text-primary text-sm">$${Math.round(memberNetTotal)}</span>

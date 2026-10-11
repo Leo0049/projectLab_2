@@ -66,8 +66,13 @@ firebase:
   config-path: ${FIREBASE_CONFIG_PATH:classpath:serviceAccountKey.json}
 
 # ⚠️ AuthService 讀的是 sms.mode（非 app.sms.mode），必須放在頂層才會生效
+#
+# mock 模式會把 MOCK_TOKEN 視為「手機已驗證」，公開的 /api/auth/reset-password-firebase
+# 因此能對任何號碼重設密碼（＝帳號接管）。因此：
+#   1. 預設值僅供本機開發；
+#   2. prod profile 下 AuthService 啟動时就檢查本值必須為 firebase，不符即啟動失敗。
 sms:
-  mode: ${SMS_MODE:mock}          # mock：跳過 Firebase 手機驗證 / firebase：實際驗證
+  mode: ${SMS_MODE:mock}          # mock：跳過 Firebase 手機驗證 / firebase：實際驗證（prod 必須）
 
 app:
   reset_password_url: ${RESET_PASSWORD_URL:http://localhost:5173/Resetpassword}
@@ -77,12 +82,22 @@ app:
     local-dir: ${UPLOAD_LOCAL_DIR:uploads}
   demo-data:
     # 首次啟動且資料表為空時，植入示範品牌/門市/飲品/顧客，讓專案 clone 下來就能看到畫面。
-    # ⚠️ 會建立密碼已知的示範帳號，正式環境務必設為 false。
+    # ⚠️ 會建立密碼已知（demo1234）的示範帳號。除了設 false 之外，
+    #    DemoDataSeeder 在 prod profile 下一律不植入（双保險）。
     enabled: ${DEMO_DATA_ENABLED:true}
   wallet:
     mock-top-up:
       # 此功能只供本機展示，不會代替實際付款。正式環境一律拒絕此功能。
       enabled: ${WALLET_MOCK_TOPUP_ENABLED:false}
+  security:
+    csp:
+      # ⚠️ CSP 預設關閉。本專案頁面全是 inline event handler 與 inline <script>，
+      #    一旦開啟就必須放寬 script-src（'unsafe-inline'），否則頁面全數失效；
+      #    而 'unsafe-inline' 對注入 inline handler 這類 XSS 幾乎沒有攔阻效果。
+      #    要真正收緊請先把 inline handler 外部化，再依 docs/DEPLOYMENT.md 的政策範例開啟。
+      enabled: ${CSP_ENABLED:false}
+      # 啟用時送出的政策；預設值已放寬到足以支援現有頁面（地圖、Cloudinary、Firebase、WS）
+      policy: "${CSP_POLICY:default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https: ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'}"
   cors:
     # SecurityConfig（HTTP）與 WebSocketConfig（STOMP handshake）共用這份白名單，
     # 避免兩邊各寫一份而漂移——WebSocket 曾寫成 allowedOriginPatterns("*") 完全放行。

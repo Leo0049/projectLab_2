@@ -1,8 +1,28 @@
+function escHtmlSafe(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 /**
  * api-home.js — 首頁待處理訂單預覽
  * 核心原則：資料沒變就不重繪 DOM，只讓計時器在原地更新
  */
 (() => {
+    // 這支檔案把訂單資料（品名、規格快照、備註、顧客姓名）串成字串丟進 innerHTML。
+    // 這些值全部由顧客端提供，而姓名／備註在後端沒有字元白名單，只要把名字改成
+    // <img src=x onerror=...>，門市後台首頁就會執行它（等於用門市身分操作接單、庫存、報表）。
+    // 所有插入 HTML 的值一律先過這支函式；這裡不共用前端模組，避免改動載入順序。
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+    })[char]);
+
     const PENDING_TIMEOUT_MS = 10 * 60 * 1000;
     let allActiveOrders = [];
     let currentTab = 'pending';
@@ -15,10 +35,10 @@
         const sugar = i.sugarSnapshot || i.sugar || '';
         const ice   = i.iceSnapshot   || i.ice   || '';
         const specs = [size, sugar, ice, tps].filter(Boolean).join('|');
-        const specsPart = specs ? ` <span style="color:#64748b;font-weight:500">(${specs})</span>` : '';
-        const note  = i.note ? ` <span style="color:#ec5b13;font-weight:800">${i.note}</span>` : '';
-        const user  = i.userName ? ` <span style="color:#0f172a;font-weight:700">【${i.userName}】</span>` : '';
-        return `<span style="font-weight:600;color:#64748b">【${i.qty||1}杯】${name}</span>${specsPart}${note}${user}`;
+        const specsPart = specs ? ` <span style="color:#64748b;font-weight:500">(${escapeHtml(specs)})</span>` : '';
+        const note  = i.note ? ` <span style="color:#ec5b13;font-weight:800">${escapeHtml(i.note)}</span>` : '';
+        const user  = i.userName ? ` <span style="color:#0f172a;font-weight:700">【${escapeHtml(i.userName)}】</span>` : '';
+        return `<span style="font-weight:600;color:#64748b">【${i.qty||1}杯】${escapeHtml(name)}</span>${specsPart}${escHtmlSafe(note)}${user}`;
     };
 
     const fmtItems = (items) => {
@@ -129,7 +149,7 @@
         const totalQty  = (o.items||[]).reduce((s, i) => s + (i.qty||1), 0);
         const firstName = o.items?.[0]?.productNameSnapshot || '飲品';
         const moreCount = (o.items||[]).length > 1 ? ` 等${(o.items||[]).length}項` : '';
-        const mobileSummary = `總${totalQty}杯｜${firstName}${moreCount}`;
+        const mobileSummary = `總${totalQty}杯｜${escapeHtml(firstName)}${moreCount}`;
 
         let statusText = isDelivery ? '配送中' : '待取餐';
         if (isPending) statusText = '待接單';
@@ -161,7 +181,7 @@
                 <div class="flex items-center gap-2 md:gap-4">
                     <!-- 訂單號碼方塊 -->
                     <div class="w-10 h-10 md:w-16 md:h-16 rounded-xl bg-orange-50 flex flex-col items-center justify-center border border-orange-100 shrink-0">
-                        <span class="text-[7px] md:text-[9px] font-black text-primary leading-tight text-center px-0.5 break-all">#${o.orderNo||o.id}</span>
+                        <span class="text-[7px] md:text-[9px] font-black text-primary leading-tight text-center px-0.5 break-all">#${escapeHtml(o.orderNo||o.id)}</span>
                         ${countdownHtml}
                     </div>
                     <!-- 訂單資訊 -->
@@ -172,7 +192,7 @@
                                 ${badgeDelivery}${badgeStatus}
                             </div>
                             <p class="font-black text-slate-800 text-xs truncate">${mobileSummary}</p>
-                            <p class="text-[10px] text-slate-400 font-bold truncate mt-0.5">${o.amountLabel} • ${o.initiator?.name||'匿名'}</p>
+                            <p class="text-[10px] text-slate-400 font-bold truncate mt-0.5">${o.amountLabel} • ${escapeHtml(o.initiator?.name||'匿名')}</p>
                         </div>
                         <!-- 電腦版：完整多行（原本樣式不動）-->
                         <div class="hidden md:block">
@@ -180,7 +200,7 @@
                                 <p class="font-black text-slate-800">${itemsSummary}</p>
                                 ${badgeDelivery}${badgeStatus}
                             </div>
-                            <p class="text-xs text-slate-400 mt-1 font-bold">${o.amountLabel} • ${o.initiator?.name||'匿名'} • ${timeStr} 下單</p>
+                            <p class="text-xs text-slate-400 mt-1 font-bold">${o.amountLabel} • ${escapeHtml(o.initiator?.name||'匿名')} • ${timeStr} 下單</p>
                         </div>
                     </div>
                     <!-- 操作按鈕 -->

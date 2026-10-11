@@ -20,6 +20,7 @@ import com.example.demo.repository.ProductTemplateRepository;
 import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.StoreProductStatusRepository;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.service.order.OrderStatusGuard;
 import com.example.demo.service.wallet.TxType;
 import jakarta.transaction.Transactional;
 import com.example.demo.repository.UserCouponRepository;
@@ -113,8 +114,12 @@ public class OrderService {
         GroupOrder order = groupOrderRepository.findById(orderId)
                 .filter(o -> o.getInitiator() != null && o.getInitiator().getId().equals(userId))
                 .orElseThrow(() -> new RuntimeException("無權限更新此訂單或訂單不存在"));
-        order.setStatus(status);
-        applyStatusTimestamp(order, status);
+        // ⚠️ C-1 修復：原本直接 order.setStatus(status)，等於發起人可以自己把訂單改成任何字串
+        //    （改成 COMPLETED 就能立刻評分、把已結帳的揪團改回 OPEN 就能重新結帳）。
+        //    白名單與理由見 service/order/OrderStatusGuard。
+        String nextStatus = OrderStatusGuard.requireCustomerTransition(order.getStatus(), status);
+        order.setStatus(nextStatus);
+        applyStatusTimestamp(order, nextStatus);
         return groupOrderRepository.save(order);
     }
 
@@ -891,19 +896,7 @@ public class OrderService {
         return result;
     }
 
-    @Transactional
-    public void cancelOrder(Long userId, Long orderId) {
-        GroupOrder order = groupOrderRepository.findById(orderId)
-                .orElseThrow(() -> new CustomException("404", "Order not found"));
-        if (order.getInitiator() == null || !Objects.equals(order.getInitiator().getId(), userId)) {
-            throw new CustomException("403", "You cannot cancel this order");
-        }
-        if (!"OPEN".equals(order.getStatus())) {
-            throw new CustomException("409", "Only open orders can be cancelled");
-        }
-        order.setStatus("CANCELLED");
-        groupOrderRepository.save(order);
-    }
+    // cancelOrder 已移除：取消一律經 GroupOrderService.cancelAsInitiator（含退款與優惠券還原）。
 
     // ─── private helpers ──────────────────────────────────────
     private BigDecimal sumPrices(List<OrderItem> items) {

@@ -38,12 +38,13 @@ public class SecurityConfig {
                                 .httpBasic(AbstractHttpConfigurer::disable)
                                 .authorizeHttpRequests(auth -> auth
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                                                .requestMatchers(
+                                                // ⚠️ permitAll 一律指定 HTTP method（見 CLAUDE.md「授權規則」）。
+                                                //    下列路徑目前只有 GET 端點；若未來誤加寫入端點，POST/PUT/DELETE
+                                                //    會落到後面的角色規則，不會因為整段萬用字元而被放行。
+                                                .requestMatchers(HttpMethod.GET,
                                                                 "/Brand/**",
                                                                 "/Customer/**",
                                                                 "/Store/**",
-                                                                "/auth/**",
-                                                                "/api/stores/auth/**",
                                                                 "/api/menu/**",
                                                                 "/api/home/**",
                                                                 "/api/public/**",
@@ -57,9 +58,14 @@ public class SecurityConfig {
                                                                 // 未設定 Cloudinary 憑證時，圖片存在本機並以此路徑提供。
                                                                 // 內容等同 Cloudinary 上的公開圖片（頭像／logo／封面），
                                                                 // 且 <img src> 不會帶 Authorization，必須可公開讀取。
-                                                                "/uploads/**",
-                                                                "/ws/**",
-                                                                "/ws-cart/**")
+                                                                "/uploads/**")
+                                                .permitAll()
+                                                // 店家登入只開放 POST
+                                                .requestMatchers(HttpMethod.POST, "/api/stores/auth/**")
+                                                .permitAll()
+                                                // WebSocket 握手：SockJS 的 fallback 傳輸會用到 POST 等多種方法，
+                                                // 真正的身分驗證由 WebSocketConfig 的 STOMP CONNECT 攔截器負責。
+                                                .requestMatchers("/ws/**", "/ws-cart/**")
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.POST,
                                                                 "/api/auth/register",
@@ -71,6 +77,7 @@ public class SecurityConfig {
                                                                 "/api/auth/merge/set-password",
                                                                 "/api/auth/merge/complete",
                                                                 "/api/auth/merge/bind-social-phone",
+                                                                "/api/auth/social-signup",
                                                                 "/api/brand-auth/register",
                                                                 "/api/brand-auth/login")
                                                 .permitAll()
@@ -97,7 +104,10 @@ public class SecurityConfig {
                                                                 "/api/products/*/specs",
                                                                 "/api/products/*/customization",
                                                                 "/api/products/*/customization/v2",
-                                                                "/api/products/store/**")
+                                                                // 原本是 "/api/products/store/**"。參數化路徑在 Spring Security 的
+                                                                // matcher 裡是 pattern 比對，`**` 會連 /store/{id}/all 之類的多層路徑
+                                                                // 一併放行；剩下的公開端點只有單層一個，收窄成 `*`（2026-10-11 複審）。
+                                                                "/api/products/store/*")
                                                 .permitAll()
 
                                                 // ── 分店 API ────────────────────────────────────────
@@ -133,6 +143,29 @@ public class SecurityConfig {
                                                                 "/api/user-favorites/**")
                                                 .hasAnyAuthority("CUSTOMER")
                                                 .anyRequest().authenticated())
+                                // ── 安全標頭 ──────────────────────────────────────────
+                                // ⚠️ C-3 修復：原本完全沒有設定（連預設值都没人知道有没有生效）。
+                                //    這裡明確寫出每一項；Content-Security-Policy 因為需要視環境設定
+                                //    來源白名單，改由 SecurityHeadersFilter 依 app.security.csp.* 決定
+                                //    （預設關閉，理由見該類別的說明）。
+                                .headers(headers -> headers
+                                                // 避免瀏覽器把上傳的內容當成別的型別執行
+                                                .contentTypeOptions(org.springframework.security.config.Customizer.withDefaults())
+                                                // 點擊劫持：同時涵蓋舊瀏覽器的 X-Frame-Options
+                                                .frameOptions(frame -> frame.deny())
+                                                .referrerPolicy(referrer -> referrer.policy(
+                                                                org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                                                // HSTS 只在 HTTPS 請求送出（Spring 的預設行為），本機 HTTP 開發不受影響
+                                                .httpStrictTransportSecurity(hsts -> hsts
+                                                                .includeSubDomains(true)
+                                                                .maxAgeInSeconds(31536000))
+                                                // ⚠️ permissionsPolicy() 回傳的是 PermissionsPolicyConfig，不是
+                                                //    HeadersConfigurer，寫在它後面的任何一個 header 都會編不過
+                                                //    （實測 javac：cannot find symbol，location: PermissionsPolicyConfig）。
+                                                //    它必須是這個 lambda 的最後一個呼叫。
+                                                // 這個應用不需要鏡頭／麥克風／付款 API
+                                                .permissionsPolicy(permissions -> permissions.policy(
+                                                                "geolocation=(self), camera=(), microphone=(), payment=()")))
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .addFilterBefore(

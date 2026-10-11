@@ -1,3 +1,11 @@
+function escHtmlSafe(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 /**
  * home-inventory-quick-toggle.js — 配料庫存快速設定 (修正版)
  */
@@ -31,7 +39,7 @@
                             <span class="material-symbols-outlined text-xl">${icon}</span>
                         </div>
                         <div>
-                            <p class="font-black text-slate-800 dark:text-slate-200 text-sm">${t.name}</p>
+                            <p class="font-black text-slate-800 dark:text-slate-200 text-sm">${escHtmlSafe(t.name)}</p>
                             <p class="text-[10px] ${isAvailable ? 'text-green-500' : 'text-red-400'} font-bold transition-colors">
                                 ${isAvailable ? '供應中' : '缺貨中'}
                             </p>

@@ -19,7 +19,7 @@
 - `CORS_ALLOWED_ORIGINS`：前端正式來源的完整 origin，包含 `https://`，多筆以逗號分隔。
 - `DEMO_DATA_ENABLED=false`、`WALLET_MOCK_TOPUP_ENABLED=false`：正式環境不可植入示範帳號或開啟未付款儲值；後端也會強制拒絕 prod 模式的模擬儲值。
 - `prod` profile 將 `ddl-auto` 設為 `validate`：部署前先套用資料庫 migration，再啟動應用。若有明確需求要覆寫，Spring 環境變數名稱是 `SPRING_JPA_HIBERNATE_DDL_AUTO`。
-- `SMS_MODE=firebase` 與 `FIREBASE_CONFIG_PATH`：若正式環境提供手機驗證，設定可讀取的服務帳戶 JSON 檔案路徑。不要把 JSON 放入 repository 或 JAR。
+- `SMS_MODE=firebase` 與 `FIREBASE_CONFIG_PATH`：**必填**。`sms.mode` 預設是 `mock`，而 mock 模式會把 `MOCK_TOKEN` 當成「手機已驗證」，公開的重設密碼端點因此能接管任何帳號；`AuthService` 在 prod profile 下一律拒絕啟動（不是默默回退）。另請設定可讀取的服務帳戶 JSON 檔案路徑，不要把 JSON 放入 repository 或 JAR。
 - `RESET_PASSWORD_URL`：正式密碼重設頁網址。
 - Cloudinary 憑證可選；若不設定，圖片會寫入 `UPLOAD_LOCAL_DIR` 預設的 `uploads/`。使用本機儲存時，請掛載持久磁碟並納入備份。
 
@@ -54,6 +54,24 @@ java -jar target/demo-0.0.1-SNAPSHOT.jar
 
 應用預設監聽 `8082`。正式入口應由 HTTPS reverse proxy 提供，僅公開代理層；代理 WebSocket 時也需支援 `Upgrade`，後端 STOMP endpoint 為 `/ws-cart`。後端 CORS origin 必須和瀏覽器實際載入前端的 origin 一致。
 
+## 安全標頭與 CSP
+
+後端（Spring Security）固定送出下列標頭：`X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`，並在 HTTPS 請求上送出 HSTS。
+
+`Content-Security-Policy` 預設**不送出**（`app.security.csp.enabled=false`）：本專案頁面大量使用 inline event handler，`script-src` 必須含 `'unsafe-inline'` 才能運作，而那樣的政策對「注入 inline handler」這類 XSS 保護有限，寫錯白名單卻會直接弄壞頁面。要啟用請依下列順序：
+
+1. 先把 `frontend/` 內的 inline handler 改成外部檔案（這是收緊 CSP 的前提）。
+2. 在該環境實際點過地圖、點餐、揪團、社群登入與 WebSocket 流程。
+3. 設定 `CSP_ENABLED=true` 與 `CSP_POLICY`（或 `app.security.csp.policy`），範例：
+
+```
+default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob: https:; connect-src 'self' https://nominatim.openstreetmap.org wss:;
+object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'
+```
+
+⚠️ 前端頁面若由 nginx／Caddy 等靜態伺服器直接提供（**不經過後端**），後端的標頭不會套用到它們，必須在該層自行設定同一組標頭（含 `frame-ancestors`，它無法用 `<meta>` 標籤設定）。
+
 部署後可用公開門市查詢做基本連線檢查：
 
 ```bash
@@ -67,3 +85,17 @@ curl -fsS 'http://127.0.0.1:8082/api/stores/nearby?lat=25&lng=121' >/dev/null
 前端是 `frontend/` 下的靜態檔案，沒有前端建置流程；但正式部署前須先處理前述 `localhost:8082` API 位址，然後將靜態檔放到受 HTTPS 保護的同源或獨立網域。獨立網域要同步更新 `CORS_ALLOWED_ORIGINS`。社群登入也需在 `frontend/Customer/js/firebase-config.js` 設定正式 Firebase Web app，並在 Firebase Console 限定授權網域。
 
 正式環境必須安排 MySQL 備份與還原演練。若圖片使用本機 `uploads/`，也要一併持久化與備份；若使用 Cloudinary，請將憑證放在部署平台的 secret store。
+
+
+## 2026-10-11 第二輪修補後的上線檢查
+
+上線前逐項確認，這些都是本輪修補後新增或變更的行為：
+
+1. **第三方登入**：正式環境的首次社群登入必須經過手機 OTP，新帳號由 `POST /api/auth/social-signup` 建立。前端需部署 `verify-phone.html`、`account-integrate.html` 的新流程，否則首次登入的使用者會卡住。
+2. **簡訊驗證**：`SMS_MODE=firebase`。prod profile 下若不是 `firebase`，應用程式會拒絕啟動。
+3. **示範資料與模擬儲值**：`DEMO_DATA_ENABLED=false`；`WALLET_MOCK_TOPUP_ENABLED` 不設或為 `false`（prod 一律拒絕模擬儲值）。
+4. **手機號碼**：改手機不再經由 `PUT /api/auth/update`，若有客服流程需要換號，請走 Firebase 手機驗證流程或後台人工處理。
+5. **顧客名稱**：既有名稱若含 `< > " \`` 或控制字元，之後改名會被拒絕，需要使用者重新輸入合規的名稱。
+6. **登入與 OTP 限流**：`LoginAttemptLimiter` 預設每 300 秒 10 次，Redis 不可用時退回本機計數。若多台應用程式同時上線，請確認 Redis 可用，否則每台各自計數。
+7. **安全標頭**：HSTS 只在 HTTPS 回應中送出。若頁面由 nginx 或 Caddy 直接提供，需在該層補上同樣的標頭；`app.security.csp.enabled` 預設為 `false`，啟用前需先處理頁面內的 inline event handler。
+8. **取消訂單**：`POST /api/orders/{orderId}/cancel` 現在會退款並還原優惠券，如果你的營運流程依賴舊的「只改狀態」行為，請先與團隊確認。

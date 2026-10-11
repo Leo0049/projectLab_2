@@ -539,6 +539,27 @@
     <!-- END: Footer -->
     <script src="js/nav-auth.js"></script>
     <script>
+function escHtmlSafe(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+        // 收藏清單的店名／封面／品牌 logo／地址都來自店家端可寫入的欄位，
+        // 付款方式的卡號末四碼等也一樣是字串，全部用來組 innerHTML，統一先過這裡。
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;',
+            })[char]);
+        }
+
         function togglePwdVisibility(inputId, btn) {
             const input = document.getElementById(inputId);
             const icon = btn.querySelector('i');
@@ -709,7 +730,7 @@
                     document.getElementById('profile-phone').textContent = user.phone || '';
                     const avatarSrc = user.picUrl || localStorage.getItem(`userAvatar_${userId}`) || 'images/default_avatar.png';
                     document.getElementById('profile-avatar-display').innerHTML =
-                        `<img src="${avatarSrc}" class="w-full h-full object-cover rounded-full" onerror="this.src='images/default_avatar.png'">`;
+                        `<img src="${escHtmlSafe(avatarSrc)}" class="w-full h-full object-cover rounded-full" onerror="this.src='images/default_avatar.png'">`;
                     localStorage.setItem(`userAvatar_${userId}`, avatarSrc);
                     const navAvatar = document.getElementById('nav-user-avatar');
                     if (navAvatar) navAvatar.src = avatarSrc;
@@ -801,19 +822,17 @@
                         const iconMap = { '公司': 'briefcase', '學校': 'book-open', '朋友家': 'users' };
                         container.innerHTML = addresses.map(addr => {
                             const icon = iconMap[addr.label] || 'map-pin';
-                            const escAddr = (addr.address || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                            const escLabel = (addr.label || '').replace(/'/g, "\\'");
                             return `
                             <div class="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-700 flex justify-between items-start">
                                 <div class="flex gap-3">
                                     <i data-lucide="${icon}" class="w-5 h-5 text-gray-400 mt-0.5 shrink-0"></i>
                                     <div>
                                         <p class="font-bold text-sm mb-0.5">${addr.label || '其他'}</p>
-                                        <p class="text-sm text-gray-500">${addr.address || '未填寫地址'}</p>
+                                        <p class="text-sm text-gray-500">${escHtmlSafe(addr.address || '未填寫地址')}</p>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2 shrink-0 ml-3">
-                                    <button onclick="editExtraAddress(${addr.id}, '${escAddr}', '${escLabel}')"
+                                    <button data-address="${escHtmlSafe(addr.address || '')}" data-label="${escHtmlSafe(addr.label || '')}" onclick="editExtraAddressFromEl(this, ${addr.id})"
                                         class="text-gray-400 hover:text-primary transition-colors cursor-pointer" title="編輯">
                                         <i data-lucide="pencil" class="w-4 h-4"></i>
                                     </button>
@@ -839,6 +858,9 @@
                 document.getElementById('save-new-address-btn').classList.add('hidden');
                 document.getElementById('addr-street').scrollIntoView({ behavior: 'smooth', block: 'center' });
             };
+
+            // 從按鈕的 data-* 讀取地址與標籤，避免把使用者字串放進 JS 字串（見 CLAUDE.md）
+            window.editExtraAddressFromEl = (el, id) => window.editExtraAddress(id, el.dataset.address || '', el.dataset.label || '');
 
             // 刪除地址
             window.deleteExtraAddress = async (addressId) => {
@@ -931,7 +953,7 @@
                         <div class="flex items-center gap-4 p-4 bg-white dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-zinc-700">
                             <i data-lucide="credit-card" class="w-7 h-7 text-gray-400"></i>
                             <div class="flex-grow">
-                                <p class="font-bold">${def.type} **** ${def.last4}</p>
+                                <p class="font-bold">${escHtmlSafe(def.type)} **** ${escHtmlSafe(def.last4)}</p>
                                 <p class="text-xs text-gray-400">已設為預設付款方式</p>
                             </div>
                             <i data-lucide="chevron-right" class="w-5 h-5 text-gray-400"></i>
@@ -956,10 +978,10 @@
                                 </div>
                                 <div class="flex-grow min-w-0">
                                     <div class="flex items-center gap-2 flex-wrap">
-                                        <p class="font-bold">${c.type} **** ${c.last4}</p>
+                                        <p class="font-bold">${escHtmlSafe(c.type)} **** ${escHtmlSafe(c.last4)}</p>
                                         ${c.isDefault ? '<span class="text-[10px] px-2 py-0.5 bg-orange-50 text-primary rounded-full font-bold border border-orange-200">預設</span>' : ''}
                                     </div>
-                                    <p class="text-xs text-gray-400 truncate">${c.name} · 有效期 ${c.expiry}</p>
+                                    <p class="text-xs text-gray-400 truncate">${escapeHtml(c.name)} · 有效期 ${escapeHtml(c.expiry)}</p>
                                 </div>
                                 <div class="flex items-center gap-3 shrink-0">
                                     ${!c.isDefault ? `<button onclick="setDefaultCard(${c.id})" class="text-xs text-primary font-bold hover:underline whitespace-nowrap">設為預設</button>` : ''}
@@ -1083,7 +1105,7 @@
                             <div>
                                 <p class="font-bold">${label}</p>
                                 <p class="text-xs text-gray-400">${new Date(r.createdAt).toLocaleString()}</p>
-                                <p class="text-[10px] text-gray-300 mt-1">${subDesc || ''}</p>
+                                <p class="text-[10px] text-gray-300 mt-1">${escHtmlSafe(subDesc || '')}</p>
                             </div>
                             <p class="font-bold ${r.amount >= 0 ? 'text-green-500' : 'text-red-500'}">
                                 ${r.amount >= 0 ? '+' : ''}${parseFloat(r.amount).toFixed(2)}
@@ -1205,9 +1227,9 @@
                             </button>
 
                             <div class="h-48 relative overflow-hidden">
-                                <img src="${image}"
+                                <img src="${escapeHtml(image)}"
                                      class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                     alt="${name}">
+                                     alt="${escapeHtml(name)}">
                                 <!-- 評分 badge -->
                                 <div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm flex items-center gap-1 group-hover:bg-brand-orange group-hover:text-white transition-colors">
                                     <i data-lucide="star" class="w-3 h-3 fill-current"></i>
@@ -1222,17 +1244,17 @@
                                         <div class="flex-shrink-0 rounded-full overflow-hidden border border-gray-100 shadow-sm"
                                              style="width:48px;height:48px;background:${brandColor(s.brandName)}">
                                             ${s.brandLogoUrl
-                                    ? `<img src="${s.brandLogoUrl}" class="w-full h-full object-cover" alt="${s.brandName || ''}"
+                                    ? `<img src="${escapeHtml(s.brandLogoUrl)}" class="w-full h-full object-cover" alt="${escapeHtml(s.brandName || '')}"
                                                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
                                     : ''}
                                             <span class="w-full h-full flex items-center justify-center text-white font-bold text-sm"
-                                                  style="${s.brandLogoUrl ? 'display:none' : ''}">${initial}</span>
+                                                  style="${s.brandLogoUrl ? 'display:none' : ''}">${escapeHtml(initial)}</span>
                                         </div>` : ''}
-                                        <h3 class="font-extrabold text-lg truncate">${name}</h3>
+                                        <h3 class="font-extrabold text-lg truncate">${escapeHtml(name)}</h3>
                                     </div>
                                 </div>
                                 ${s.address ? `
-                                <p class="text-xs text-gray-400 mb-3 truncate">${s.address}</p>` : ''}
+                                <p class="text-xs text-gray-400 mb-3 truncate">${escapeHtml(s.address)}</p>` : ''}
                                 <div class="flex items-center justify-end">
                                     <button class="bg-brand-orange/10 text-brand-orange px-3 py-2 rounded-xl flex items-center gap-1 group-hover:bg-brand-orange group-hover:text-white transition-all text-xs font-bold">
                                         前往店家 <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
@@ -1284,7 +1306,7 @@
                 }).then(() => {
                     showToast('頭像已更新');
                     document.getElementById('profile-avatar-display').innerHTML =
-                        `<img src="${url}" class="w-full h-full object-cover">`;
+                        `<img src="${escHtmlSafe(url)}" class="w-full h-full object-cover">`;
                     localStorage.setItem(`userAvatar_${userId}`, url);
                     const navAvatar = document.getElementById('nav-user-avatar');
                     if (navAvatar) navAvatar.src = url;

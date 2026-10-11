@@ -1,3 +1,11 @@
+function escHtmlSafe(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 /**
  * finance-revenue-overview-lines.js — 各類別營收折線圖 (Chart.js 實作)
  * 支援動態分類勾選、本週/上週切換
@@ -87,10 +95,10 @@
                     const color = RAINBOW_COLORS[i % RAINBOW_COLORS.length];
                     return `
                         <label class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer">
-                            <input type="checkbox" value="${s.name}" ${checked ? 'checked' : ''} 
+                            <input type="checkbox" value="${escHtmlSafe(s.name)}" ${checked ? 'checked' : ''} 
                                 class="category-checkbox size-4 rounded border-slate-300 text-primary focus:ring-primary" />
                             <span class="size-2.5 rounded-full" style="background-color: ${color}"></span>
-                            <span class="text-sm font-bold text-slate-700 dark:text-slate-200">${s.name}</span>
+                            <span class="text-sm font-bold text-slate-700 dark:text-slate-200">${escHtmlSafe(s.name)}</span>
                         </label>
                     `;
                 }).join('')}

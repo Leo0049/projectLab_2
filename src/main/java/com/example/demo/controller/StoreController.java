@@ -10,6 +10,8 @@ import com.example.demo.entity.StoreToppingStatusId;
 import com.example.demo.exception.CustomException;
 import com.example.demo.repository.BrandToppingSettingRepository;
 import com.example.demo.repository.StoreToppingStatusRepository;
+import com.example.demo.service.LoginAttemptLimiter;
+import jakarta.servlet.http.HttpServletRequest;
 import com.example.demo.repository.StoreRepository;
 import com.example.demo.service.AnalyticsService;
 import com.example.demo.service.BrandService;
@@ -36,6 +38,8 @@ public class StoreController {
     @Autowired
     private StoreService storeService;
     @Autowired
+    private LoginAttemptLimiter loginAttemptLimiter;
+    @Autowired
     private AnalyticsService analyticsService;
     @Autowired
     private BrandService brandService;
@@ -55,10 +59,13 @@ public class StoreController {
 
     @Operation(summary = "分店登入", description = "分店帳號密碼登入。\n\nBody: { account, password }\n\n回傳 JWT Token（role = STORE）。")
     @PostMapping("/auth/login")
-    public Result login(@RequestBody Map<String, String> body) {
+    public Result login(@RequestBody Map<String, String> body, HttpServletRequest httpRequest) {
         String account = body.get("account"), password = body.get("password");
         if (account == null || password == null)
             return Result.error("400", "帳號與密碼不能為空");
+        // ⚠️ C-2 修復：公開的門市登入原本可無限次嘗試
+        loginAttemptLimiter.check("store-login", LoginAttemptLimiter.identity(
+                LoginAttemptLimiter.clientIp(httpRequest), account));
         return Result.success(storeService.login(account, password));
     }
 
@@ -92,7 +99,8 @@ public class StoreController {
         return Result.success("店家資訊更新成功");
     }
 
-    @Operation(summary = "更新營業狀態", description = "切換分店的營業狀態。\n\nBody: { status }\n- status: open / closed")
+    @Operation(summary = "更新營業狀態", description = "切換分店的營業狀態。\n\nBody: { status }\n"
+            + "- status: active（營業中，會出現在顧客端） / closed（休息中）；其餘值一律 400。")
     @PutMapping("/status")
     public Result updateStatus(@RequestAttribute("currentUserId") Long storeId,
             @RequestBody Map<String, String> body) {

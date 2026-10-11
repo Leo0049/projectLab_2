@@ -332,11 +332,38 @@ async function handleVerified(idToken) {
 	}
 
 	// ── social-signup：第三方帳號手機驗證 ────────────────────────────────────
-	// 帳號已由 account-integrate.html 呼叫 social-login 建立完成
-	// 此步驟只是確認手機號碼屬於本人，通過後直接到成功頁
+	// 帳號尚未建立：此時手機 OTP 已通過（idToken 為手機驗證 token），才以「手機 token + 社群 token」建立帳號，
+	// 確保號碼確實屬於本人（後端見 AuthService.socialSignupWithVerifiedPhone）。
 	if (type === 'social-signup') {
-		setStatus('手機驗證完成！');
-		setTimeout(() => { location.href = 'register-success.html'; }, 500);
+		const pending = JSON.parse(localStorage.getItem('JOIN_SOCIAL_PENDING') || '{}');
+		if (!pending?.idToken || !pending?.providerUid || !pending?.provider || !phoneFromQuery) {
+			setStatus('第三方登入資料遺失，請重新登入', true);
+			return;
+		}
+		try {
+			const data = await postJson('/api/auth/social-signup', {
+				phoneIdToken: idToken,
+				phone: phoneFromQuery,
+				idToken: pending.idToken,
+				providerUid: pending.providerUid,
+				provider: pending.provider,
+				name: pending.name || ''
+			});
+			if (data?.code === '200') {
+				if (data?.data?.token) localStorage.setItem('JOIN_TOKEN', data.data.token);
+				localStorage.setItem('JOIN_USER_NAME', data.data?.name || '');
+				localStorage.setItem('JOIN_USER_ID', String(data.data?.userId || ''));
+				localStorage.removeItem('JOIN_SOCIAL_PENDING');
+				setStatus('手機驗證完成！');
+				setTimeout(() => { location.href = 'register-success.html'; }, 500);
+			} else if (data?.code === '203') {
+				setStatus('此手機已有帳號，請改用帳號整合流程', true);
+			} else {
+				setStatus(data?.msg || '註冊失敗，請稍後再試', true);
+			}
+		} catch (err) {
+			setStatus(err.message || '註冊失敗，請稍後再試', true);
+		}
 		return;
 	}
 

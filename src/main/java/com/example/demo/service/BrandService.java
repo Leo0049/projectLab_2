@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.common.JwtUtils;
+import com.example.demo.common.SafeImageUrl;
 import com.example.demo.dto.BrandSpecReorderRequest;
 import com.example.demo.dto.CreateCategoryRequest;
 import com.example.demo.dto.CreateProductRequest;
@@ -135,7 +136,7 @@ public class BrandService {
     public Map<String, Object> updateBrandLogo(Long brandId, String logoUrl) {
         Brand brand = brandRepository.findById(brandId)
                 .orElseThrow(() -> new CustomException("404", "Brand not found"));
-        brand.setLogoUrl(logoUrl);
+        brand.setLogoUrl(SafeImageUrl.normalize(logoUrl));
         brandRepository.save(brand);
 
         Map<String, Object> data = new HashMap<>();
@@ -168,7 +169,7 @@ public class BrandService {
         if (address != null)
             store.setAddress(address);
         if (coverUrl != null)
-            store.setCoverUrl(coverUrl);
+            store.setCoverUrl(SafeImageUrl.normalize(coverUrl));
         if (address != null && (latitude == null || longitude == null)) {
             LocationService.Coordinates coords = locationService.geocodeAddress(address)
                     .orElseThrow(() -> new CustomException("400", "Address geocoding failed"));
@@ -346,7 +347,7 @@ public class BrandService {
         if (req.getMaxToppings() != null)
             p.setMaxToppings(req.getMaxToppings());
         if (req.getLogoUrl() != null)
-            p.setLogoUrl(req.getLogoUrl());
+            p.setLogoUrl(SafeImageUrl.normalize(req.getLogoUrl()));
         final ProductTemplate savedP = productTemplateRepository.save(p);
 
         // 儲存 ICE + SWEETNESS 規格關聯
@@ -394,7 +395,7 @@ public class BrandService {
         if (req.getMaxToppings() != null)
             p.setMaxToppings(req.getMaxToppings());
         if (req.getLogoUrl() != null)
-            p.setLogoUrl(req.getLogoUrl().isEmpty() ? null : req.getLogoUrl());
+            p.setLogoUrl(SafeImageUrl.normalize(req.getLogoUrl()));
         validateProductReferences(brandId, req.getBrandSpecIds(), req.getSpecPrices(), req.getBrandToppingIds());
         final ProductTemplate savedP = productTemplateRepository.save(p);
 

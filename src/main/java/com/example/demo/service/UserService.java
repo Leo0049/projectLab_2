@@ -22,23 +22,7 @@ public class UserService {
         return userRepository.findById(userId);
     }
 
-    @Transactional
-    public Long registerUser(String role, String username, String passwordHash, String phone) {
-        if (userRepository.findFirstByName(username).isPresent()) {
-            throw new RuntimeException("Username already exists");
-        }
-        if (userRepository.findByPhone(phone).isPresent()) {
-            throw new RuntimeException("Phone already exists");
-        }
-
-        User user = new User();
-        user.setRole(role);
-        user.setName(username);
-        user.setPasswordHash(passwordHash);
-        user.setPhone(phone);
-        user = userRepository.save(user);
-        return user.getId();
-    }
+    // registerUser 已移除：全專案無呼叫者，且會直接接受未經 OTP 驗證的手機號碼。註冊一律走 AuthService。
 
     public Optional<User> findByUsername(String username) {
         return userRepository.findFirstByName(username);

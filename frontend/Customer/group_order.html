@@ -1369,7 +1369,7 @@
 
                 return `
                     <div class="flex flex-wrap gap-1.5 mt-1.5 mb-2">
-                        ${uniqueTags.map(s => `<span class="px-2 py-0.5 bg-orange-50/50 text-primary border border-orange-100/60 rounded text-[11px] font-bold tracking-wide">${s}</span>`).join('')}
+                        ${uniqueTags.map(s => `<span class="px-2 py-0.5 bg-orange-50/50 text-primary border border-orange-100/60 rounded text-[11px] font-bold tracking-wide">${esc(s)}</span>`).join('')}
                     </div>
                 `;
             }
@@ -1505,7 +1505,7 @@
                                 <div class="mb-8">
                                     <div class="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
                                         <i data-lucide="store" class="w-5 h-5 text-gray-500"></i>
-                                        <h3 class="font-bold text-lg text-slate-800">${storeInfo.storeName}</h3>
+                                        <h3 class="font-bold text-lg text-slate-800">${esc(storeInfo.storeName)}</h3>
                                     </div>
                             `;
 
@@ -2009,7 +2009,7 @@
                         <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center gap-3">
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-1">
-                                    <div class="font-bold text-gray-800 text-sm truncate">${item.productName || item.productNameSnapshot}</div>
+                                    <div class="font-bold text-gray-800 text-sm truncate">${esc(item.productName || item.productNameSnapshot)}</div>
                                     <span class="text-xs font-bold text-primary ml-1 bg-orange-50 px-1.5 py-0.5 rounded">x ${item.qty}</span>
                                 </div>
                                 ${specTags}
@@ -2261,8 +2261,8 @@
                         <div onclick="goSelectCoupon(${idx})" class="p-4 rounded-2xl border-2 border-dashed border-gray-100 bg-white hover:border-primary cursor-pointer transition-all group flex items-center justify-between">
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
-                                    <span class="px-2 py-0.5 bg-orange-100 text-brand-orange text-[10px] font-bold rounded-full">${c.brandName || '品牌券'}</span>
-                                    <span class="text-xs font-bold text-gray-600">${c.productName || '全系列適用'}</span>
+                                    <span class="px-2 py-0.5 bg-orange-100 text-brand-orange text-[10px] font-bold rounded-full">${esc(c.brandName || '品牌券')}</span>
+                                    <span class="text-xs font-bold text-gray-600">${esc(c.productName || '全系列適用')}</span>
                                 </div>
                                 <div class="text-[10px] text-gray-400">有效期至: ${new Date(c.expiryDate || c.expiredAt).toLocaleDateString()}</div>
                             </div>
@@ -2694,7 +2694,7 @@
                                 <button class="py-2.5 text-sm rounded-xl border ${isSelected ? 'border-2 border-primary bg-orange-50/20 text-primary font-bold active-topping' : 'border-slate-200 text-slate-600'} flex justify-between px-3 items-center"
                                     data-price="${t.price}" data-id="${t.id}"
                                     onclick="toggleEditTopping(this)">
-                                    <span>${t.name}</span>
+                                    <span>${esc(t.name)}</span>
                                     <span class="text-[10px] text-gray-400">+$${t.price}</span>
                                 </button>
                             `;

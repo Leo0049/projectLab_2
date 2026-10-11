@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.common.JwtUtils;
+import com.example.demo.common.SafeImageUrl;
 import com.example.demo.dto.StoreDTO;
 import com.example.demo.dto.StoreRequest;
 import com.example.demo.entity.*;
@@ -18,6 +19,11 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class StoreService {
+
+    // 門市狀態只允許這兩個值。公開查詢（StoreRepository）以 status = 'active' 過濾門市，
+    // 而這支原本直接 setStatus(任意字串)：店家只要自行把狀態改成 active，就能把自己
+    // 送上顧客首頁（2026-10-11 複審把這條列為 X-1 的攻擊鏈之一），故改為白名單。
+    private static final Set<String> ALLOWED_STORE_STATUS = Set.of("active", "closed");
 
     private final StoreRepository storeRepository;
 
@@ -161,7 +167,8 @@ public class StoreService {
         if (req.getStoreName() != null)
             store.setStoreName(req.getStoreName());
         if (req.getCoverUrl() != null)
-            store.setCoverUrl(req.getCoverUrl());
+            // ⚠️ 封面會進顧客端 <img src="...">：不驗證＝店家可對所有顧客下 XSS
+            store.setCoverUrl(SafeImageUrl.normalize(req.getCoverUrl()));
         if (req.getManagerName() != null)
             store.setManagerName(req.getManagerName());
         if (req.getManagerPhone() != null)
@@ -204,7 +211,8 @@ public class StoreService {
         if (req.getStoreName() != null)
             store.setStoreName(req.getStoreName());
         if (req.getCoverUrl() != null)
-            store.setCoverUrl(req.getCoverUrl());
+            // ⚠️ 封面會進顧客端 <img src="...">：不驗證＝店家可對所有顧客下 XSS
+            store.setCoverUrl(SafeImageUrl.normalize(req.getCoverUrl()));
         if (req.getManagerName() != null)
             store.setManagerName(req.getManagerName());
         if (req.getManagerPhone() != null)
@@ -235,7 +243,10 @@ public class StoreService {
                 .orElseThrow(() -> new CustomException("404", "店家不存在"));
         if (status == null)
             throw new CustomException("400", "狀態不能為空");
-        store.setStatus(status);
+        String normalized = status.trim().toLowerCase();
+        if (!ALLOWED_STORE_STATUS.contains(normalized))
+            throw new CustomException("400", "狀態僅允許 active 或 closed");
+        store.setStatus(normalized);
         storeRepository.save(store);
     }
 
@@ -285,7 +296,8 @@ public class StoreService {
         if (req.getStoreName() != null)
             store.setStoreName(req.getStoreName());
         if (req.getCoverUrl() != null)
-            store.setCoverUrl(req.getCoverUrl());
+            // ⚠️ 封面會進顧客端 <img src="...">：不驗證＝店家可對所有顧客下 XSS
+            store.setCoverUrl(SafeImageUrl.normalize(req.getCoverUrl()));
         if (req.getManagerName() != null)
             store.setManagerName(req.getManagerName());
         if (req.getManagerPhone() != null)

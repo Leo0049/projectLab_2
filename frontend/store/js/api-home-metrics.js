@@ -3,6 +3,16 @@
  * Stale-while-revalidate：先顯示持久快取，背景靜默更新
  */
 (() => {
+  // 商品名稱是品牌端可維護的欄位，這裡用在 innerHTML 裡，一律先轉義
+  // （與 api-home.js 同一套區域工具，不新增共用模組以免動到載入順序）。
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[char]);
+
   const updateTrend = (key, trendPct) => {
     const badge = document.querySelector(`[data-home-trend="${key}"]`);
     if (!badge) return;
@@ -47,7 +57,7 @@
         <span class="w-5 text-xs font-black text-slate-400 italic shrink-0">${String(i + 1).padStart(2, '0')}</span>
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between mb-1">
-            <span class="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">${p.productName}</span>
+            <span class="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">${escapeHtml(p.productName)}</span>
             <span class="text-xs font-black text-slate-900 dark:text-white ml-2 shrink-0">${p.count} 杯</span>
           </div>
           <div class="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
