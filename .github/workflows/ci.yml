@@ -72,36 +72,30 @@ jobs:
 
       # ── 第一層：單元／整合測試（授權與金流的回歸防線）──
       - name: mvn test
-        run: |
-          set -o pipefail
-          mkdir -p target
-          mvn -B test 2>&1 | tee target/mvn-test.log
+        run: mvn -B test
 
-      - name: 診斷（暫時）：列出失敗的測試與編譯錯誤
+      - name: 診斷（暫時）：根因與失敗清單
         if: always()
         run: |
           python3 - <<'PY'
           import glob
           import xml.etree.ElementTree as ET
-          total = failed = 0
+          roots, failing = [], []
+          total = 0
           for path in sorted(glob.glob('target/surefire-reports/TEST-*.xml')):
               for tc in ET.parse(path).getroot().iter('testcase'):
                   total += 1
                   for kind in ('failure', 'error'):
                       for el in tc.findall(kind):
-                          failed += 1
-                          frames = [l.strip() for l in (el.text or '').splitlines() if 'com.example.demo' in l][:2]
-                          msg = ((el.get('message') or '') + ' || ' + ' || '.join(frames)).replace('\n', ' ')[:500]
-                          print('::error::' + tc.get('classname', '') + '#' + tc.get('name', '') + ' :: ' + msg)
-          print('::notice::surefire total=%d failed=%d' % (total, failed))
-          n = 0
-          try:
-              for line in open('target/mvn-test.log', encoding='utf-8', errors='replace'):
-                  if '[ERROR]' in line and n < 60:
-                      n += 1
-                      print('::error::' + line.strip()[:400])
-          except FileNotFoundError:
-              print('::notice::no mvn log')
+                          failing.append(tc.get('classname', '').split('.')[-1] + '#' + tc.get('name', ''))
+                          for line in (el.text or '').splitlines():
+                              s = line.strip()
+                              if s.startswith('Caused by:') and s not in roots:
+                                  roots.append(s)
+          picked = roots[:3] + (['...'] if len(roots) > 6 else []) + roots[-3:]
+          print('::notice::surefire total=%d failed=%d' % (total, len(failing)))
+          print('::error::ROOT: ' + ' || '.join(r[:300] for r in picked).replace('\n', ' ')[:1800])
+          print('::error::FAILED: ' + ', '.join(failing)[:1800])
           PY
 
 
