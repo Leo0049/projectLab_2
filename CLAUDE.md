@@ -13,7 +13,7 @@
 | 後端框架 | Spring Boot 3.4.3 |
 | ORM | Spring Data JPA / Hibernate |
 | 安全性 | Spring Security 6 + JWT (JJWT 0.11.5, HS512, 24h expiry) |
-| 社群登入 | Firebase Admin SDK 9.2.0 (Google, Facebook, Phone) |
+| 社群登入 | Firebase Admin SDK 9.4.2 (Google, Facebook, Phone) |
 | 資料庫 | MySQL 8（本機 Docker，`docker-compose.yml`）|
 | 快取 / 鎖 | Redis 7（本機 Docker）— 揪團購物車、分散式鎖、每日轉盤狀態 |
 | 即時推播 | WebSocket/STOMP（`/ws-cart`, SockJS）|
@@ -396,7 +396,7 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
 撐到 view 渲染完，掩蓋 N+1 並長時間佔用連線）。代價是：Service 方法回傳後 session 就關了，
 之後任何對 LAZY 關聯的存取都會拋 `LazyInitializationException` → 固定 500。
 
-已經在**五個地方**踩過同一顆雷，兩種型態：
+已經踩過同一顆雷九次，歸納為下面四種型態：
 
 1. **Service 內組 Map 時讀 LAZY 關聯** — `PublicService.buildStoreCard`、
    `ProductService.getProductDetail`、`StoreService.getProfile` 都會讀 `store.getBrand()`。

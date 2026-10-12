@@ -67,6 +67,7 @@ flowchart LR
 - 沒有 schema 遷移工具，結構由 `ddl-auto: update` 管理。正式上線前要導入 Flyway（[ADR-0008](docs/adr/0008-schema-migrations.md)）。
 - WebSocket 目前是單實例的 simple broker；Redis 不可用時，鎖與限流會退回單實例語意（[ADR-0006](docs/adr/0006-redis-shared-state-and-job-exclusion.md)）。
 - `/api/stores/search` 與 `/api/stores/nearby/v2` 仍未分頁，已列為待辦。
+- 前端的 API 位址寫死為 `http://localhost:8082`（`window.JOIN_API_BASE`，共 16 處）。本機與 Docker 展示不受影響；要做公開 demo 前，需先改為設定值或同源反向代理。
 - 文件中的所有測試與效能敘述，以 CI 為準。開發環境無法連到 Maven Central 且沒有 Docker，因此這一輪的 Java 編譯與測試尚未在本機執行。
 
 ---
@@ -120,7 +121,7 @@ VS Code Live Server 的預設埠是 5500，但 5500 被占用時它會**靜默�
 | **優惠券轉盤** | 每日抽獎，優惠券圖片由 Java 2D 動態生成後上傳 Cloudinary |
 | **商品快照** | 下單時保存當下品名與價格，日後改價不影響歷史訂單 |
 
-規模：後端 154 個 Java 檔案 / 約 17.1k 行，26 張資料表，14 個 REST controller；前端 39 個頁面、約 18.1k 行 JS（Vanilla JS + Tailwind）。
+規模：後端 159 個 Java 檔案 / 約 17.6k 行（`src/main/java`），26 張資料表，14 個 REST controller；前端 39 個頁面、約 18.1k 行 JS（不含 `vendor/`；Vanilla JS + Tailwind）。
 
 ---
 
@@ -195,7 +196,7 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
 - **登入必定 500**：`signWith(alg, String)` 會將 secret 做 Base64 解碼，預設值解碼後只剩 416 bits，不符 HS512 要求。改用原始位元組建立金鑰，並把長度檢查移到啟動時，不足即啟動失敗。
 - **`jwt.expiration` 完全不生效**：`JwtUtils` 寫死 7 天，設定檔的 24h 從未套用。
 - **用戶端錯誤一律回 500**：路由不存在、缺參數、型別錯全部落入 catch-all；且原始例外訊息（含 DB 結構）會回傳給前端。現已分流為 404/400/405，內部細節只寫入 log。
-- **`open-in-view: false` 之下的固定 500**：關閉 OSIV 後，交易外碰到 LAZY 關聯就會拋 `LazyInitializationException`。這類錯誤在單元測試看不到、要實際打端點才會現形，前後共出現在十個地方——其中 `GET /api/stores/settings/profile` 是門市後台**每一頁的頁首**都會呼叫的，壞掉時整個後台的營業狀態永遠停在「讀取中…」。另兩個公開端點直接回傳 JPA entity，Jackson 序列化 `brand` / `region` proxy 時必定 500。修法統一為「在交易內轉成純 Map 再回傳」，並用一支涵蓋 45 個 GET 端點的普掃確認歸零。
+- **`open-in-view: false` 之下的固定 500**：關閉 OSIV 後，交易外碰到 LAZY 關聯就會拋 `LazyInitializationException`。這類錯誤在單元測試看不到、要實際打端點才會現形，前後踩過九次（歸納為四種型態，見 CLAUDE.md）——其中 `GET /api/stores/settings/profile` 是門市後台**每一頁的頁首**都會呼叫的，壞掉時整個後台的營業狀態永遠停在「讀取中…」。另兩個公開端點直接回傳 JPA entity，Jackson 序列化 `brand` / `region` proxy 時必定 500。修法統一為「在交易內轉成純 Map 再回傳」，這類問題只有實際打端點才會現形，因此改動序列化或關聯的程式碼後，應重跑 GET 端點的普掃（做法見 CLAUDE.md）。
 
 帳本本身也整理過。`transaction_records.type` 一度被當成顯示字串，實際存的是
 `"消費扣款\n個人訂單 #12 結帳扣款"` 這種兩行文字，前端再自己 split、用 `includes('補款')`
@@ -326,9 +327,10 @@ docker compose up -d && mvn test
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
-測試不多，但都對準真正會出事的地方（金流與授權），而且**每一支都驗證過「把修補改回舊寫法時會失敗」**——
+測試不多，但都對準真正會出事的地方（金流與授權）。**既有的核心測試已驗證「把修補改回舊寫法時會失敗」**——
 授權測試在還原 IDOR 邏輯時 3 個失敗、還原 S-6 時 2 個失敗，錢包測試在改回 `findById` 時 2 個失敗，
 規格測試在把防竄改改回「照單全收」時 4 個失敗，揪團金流測試在拿掉任一條路徑的列鎖時對應的那個失敗。
+2026-10-12 新增的六支測試（含 `LoginAttemptLimiterTest` 的新案例）**尚未做還原驗證**，CI 通過只代表它們能編譯並通過，還不代表它們抓得到回歸。
 
 > 這裡有個值得記下來的細節：取消退款那條，**真正擋住重複退款的是列鎖，不是狀態守衛**——
 > 實測只拿掉列鎖、留著「已取消就 return」的守衛，escrow 仍然退了 140 而不是 35，
@@ -436,6 +438,8 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 ### 併發正確性
 
 以 JMeter 5.6.3（200 執行緒、持續 60 秒）驗證錢包的列鎖修補（見上方 D-1）：
+
+> 壓測計畫（`.jmx`）未納入版本控制，下表是修補當時的紀錄，未在本 repo 重跑。CI 中可重跑的相關驗證是 `WalletConcurrencyTest`（見「測試」一節）。
 
 | 情境 | 請求數 | 錯誤率 | 一致性 |
 |------|--------|--------|--------|

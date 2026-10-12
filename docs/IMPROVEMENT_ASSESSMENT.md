@@ -58,7 +58,7 @@
 - **`DailySpinService` 的使用者訊息是 `RuntimeException`**，若不先改，移除 catch 後訊息會消失（已於第 14 項處理）。
 - **`order_details.html` 的快取鍵是手動拼的**，與 `fetchAPI` 格式可能漂移（已於第 2 項改為共用 helper）。
 - **`PublicService.searchStores` 的 `page`／`size` 被忽略**：回傳全部符合者。這是待辦，不是本次修正的項目（見「仍未做」第 1 點）。
-- **文件數字不一致**：README 寫 `LazyInitializationException` 出現在「十個地方」，`CLAUDE.md` 則寫「踩過九次」。兩者計數口徑不同（前者是「地點」，後者是「次數」），應統一後再引用。
+- **文件數字不一致（已統一）**：`LazyInitializationException` 的重演次數統一以 `CLAUDE.md` 與案例研究的「九次」為準，README 原本的「十個地方」已改寫。
 - **文件與程式不符，已修正**：CLAUDE.md 寫 `AuthorizationTest` 為 18 個、`LoginAttemptLimiterTest` 為 8 個，實際為 19 與 9，且測試表缺 10 個既有類別（另有 6 個為本次新增），已依實際檔案重列；API.md 寫 `/api/upload` 不需認證（實際需登入）、列出不存在的 `SseController`，已修正；DEPLOYMENT.md 寫「部署前套用 migration」，但 repo 沒有 migration，已改為人工建立結構的說明。
 
 ## 仍未做（已知缺口）
