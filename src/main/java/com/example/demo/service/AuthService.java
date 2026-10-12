@@ -226,10 +226,6 @@ public class AuthService {
             String providerUid, String provider, String name) throws Exception {
         verifyFirebasePhone(phoneIdToken, phone);
         String providerName = normalizeProvider(provider);
-        if (userRepository.existsByPhone(phone)) {
-            return Result.error("203", "此手機已有帳號，請進行整合",
-                    Map.of("phone", phone, "provider", providerName, "action", "MERGE_BIND_SOCIAL"));
-        }
         FirebaseToken decoded = verifyFirebaseSocialToken(socialIdToken, providerName);
         String uid;
         if (decoded != null) {
@@ -241,6 +237,29 @@ public class AuthService {
             // 僅 mock 模式（非 prod）會走到這裡，與 resolveUid 的做法一致
             uid = mockProviderUid(providerName, phone);
         }
+        // 第三方身分已綁定既有帳號（例如舊帳號沒有手機，login.js 會導到這裡）：手機已通過 OTP 驗證，
+        // 補在該帳號上並登入，不另建帳號。與 socialLogin 的 200 分支一致，避免同一社群身分綁到兩個帳號。
+        Optional<UserAuthProvider> linked = userAuthProviderRepository.findByProviderAndProviderUid(providerName, uid);
+        User linkedUser = linked.map(UserAuthProvider::getUser).orElse(null);
+        boolean linkedHasPhone = linkedUser != null && linkedUser.getPhone() != null && !linkedUser.getPhone().isBlank();
+        // 決策規則在 SocialSignupRules（純函式，有單元測試）；這裡只依結果執行讀寫
+        SocialSignupRules.Action action = SocialSignupRules.decide(
+                linked.isPresent(), linkedHasPhone, userRepository.existsByPhone(phone));
+        if (action == SocialSignupRules.Action.LOGIN_LINKED) {
+            ensureActiveUser(linkedUser);
+            return Result.success(generateLoginResponse(linkedUser));
+        }
+        if (action == SocialSignupRules.Action.BIND_PHONE_AND_LOGIN) {
+            ensureActiveUser(linkedUser);
+            linkedUser.setPhone(phone);
+            userRepository.save(linkedUser);
+            return Result.success(generateLoginResponse(linkedUser));
+        }
+        if (action == SocialSignupRules.Action.MERGE_CONFLICT) {
+            return Result.error("203", "此手機已有帳號，請進行整合",
+                    Map.of("phone", phone, "provider", providerName, "action", "MERGE_BIND_SOCIAL"));
+        }
+        // CREATE_NEW：社群身分與手機都未被使用，才建立新帳號（見下方）
         User newUser = new User();
         newUser.setPhone(phone);
         newUser.setName(SafeText.sanitizeDisplayName(name, "新用戶"));

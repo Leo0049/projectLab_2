@@ -15,8 +15,8 @@ const CUSTOMER_MAIN = ['index', 'store_list', 'store.html?id=1', 'map', 'search_
 // 少掃這一段等於「顧客連門都還沒進」的頁面完全沒被驗證過。
 const CUSTOMER_AUTH = ['auth/login', 'auth/register', 'auth/register-success', 'auth/forgot-password',
   'auth/reset-password', 'auth/verify-phone', 'auth/account-verify', 'auth/account-integrate'];
-const BRAND = ['hq-dashboard', 'hq-menu-overview', 'hq-menu-specs', 'hq-store-management',
-  'hq-finance', 'hq-reputation', 'hq-trending'];
+const BRAND = ['hq-dashboard', 'hq-menu-overview', 'hq-specs-and-toppings-management', 'hq-store-management',
+  'hq-brand-financial-overview', 'hq-brand-reputation-monitoring', 'hq-hot-and-slow-selling-items-trend'];
 const STORE = ['home', 'order-all', 'menu-drinks', 'menu-toppings', 'store-basic-info',
   'store-business-hours', 'store-delivery-settings', 'finance-revenue-overview',
   'finance-platform-commission-details', 'reports-business-overview',

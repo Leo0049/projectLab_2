@@ -332,6 +332,7 @@ public class OrderController {
     }
 
     @GetMapping("/{orderId}/items")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public ResponseEntity<List<Map<String, Object>>> getOrderItems(@PathVariable Long orderId,
             @RequestParam(required = false) Long ignoredUserId,
             @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {

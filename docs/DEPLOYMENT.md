@@ -1,6 +1,6 @@
 # 正式環境部署指南
 
-本指南描述目前 repository 可以支援的後端部署方式與上線前限制。正式環境使用 `prod` profile；根目錄的 `docker-compose.yml` 只啟動本機開發用 MySQL 與 Redis，使用預設帳密且會發布資料庫連接埠，不是正式環境部署範本，也不會啟動 Spring Boot。
+本指南描述目前 repository 可以支援的後端部署方式與上線前限制。正式環境使用 `prod` profile；根目錄的 `docker-compose.yml` 只啟動本機開發用 MySQL 與 Redis，使用預設帳密，且連接埠只綁定 `127.0.0.1`，不是正式環境部署範本，也不會啟動 Spring Boot。
 
 ## 目前部署範圍與上線限制
 
@@ -13,6 +13,7 @@
 
 準備 Java 17、Maven、MySQL 8 與 Redis 7。資料庫和 Redis 請使用獨立正式環境服務、限制網路來源，並建立專用帳號；正式環境必填值見 [.env.prod.example](../.env.prod.example)：
 
+- `SPRING_PROFILES_ACTIVE=prod`：**必填**。沒有它，prod 防呆（JWT 密鑰、SMS 模式、示範資料）都不會生效，`application-prod.yml` 也會被忽略。
 - `JWT_SECRET`：至少 64 個 UTF-8 位元組的隨機密鑰。prod profile 若仍使用空值或內建開發密鑰，應用會拒絕啟動。
 - `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USERNAME`、`DB_PASSWORD`：正式 MySQL 連線。不得使用 compose 的 `joindrink` / `joindrink` 開發帳密。
 - `REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`：正式 Redis 連線與密碼；Redis 不可公開暴露。
@@ -21,7 +22,8 @@
 - `prod` profile 將 `ddl-auto` 設為 `validate`：部署前先套用資料庫 migration，再啟動應用。若有明確需求要覆寫，Spring 環境變數名稱是 `SPRING_JPA_HIBERNATE_DDL_AUTO`。
 - `SMS_MODE=firebase` 與 `FIREBASE_CONFIG_PATH`：**必填**。`sms.mode` 預設是 `mock`，而 mock 模式會把 `MOCK_TOKEN` 當成「手機已驗證」，公開的重設密碼端點因此能接管任何帳號；`AuthService` 在 prod profile 下一律拒絕啟動（不是默默回退）。另請設定可讀取的服務帳戶 JSON 檔案路徑，不要把 JSON 放入 repository 或 JAR。
 - `RESET_PASSWORD_URL`：正式密碼重設頁網址。
-- Cloudinary 憑證可選；若不設定，圖片會寫入 `UPLOAD_LOCAL_DIR` 預設的 `uploads/`。使用本機儲存時，請掛載持久磁碟並納入備份。
+- 可選：`COUPON_TEMPLATE_URL`（優惠券圖片底圖）、`JWT_EXPIRATION`（預設 86400000 毫秒，即 24 小時）、`SERVER_PORT`（預設 8082）。
+- Cloudinary 憑證可選（`CLOUDINARY_CLOUD_NAME`、`CLOUDINARY_API_KEY`、`CLOUDINARY_API_SECRET`）；若不設定，圖片會寫入 `UPLOAD_LOCAL_DIR` 預設的 `uploads/`。使用本機儲存時，請掛載持久磁碟並納入備份。
 
 `.env.prod` 已列入 `.gitignore`。請把填妥的設定放在部署主機的 secret store 或權限受限目錄，勿提交至 Git，也勿將該檔打包進 JAR。
 
@@ -41,7 +43,7 @@ mvn -B package -DskipTests
 
 `application-prod.yml` 是被 Git 忽略的 profile 設定，必須在打包前複製，JAR 才會包含正式設定。`mvn test` 需要可連線的 MySQL 與 Redis；使用隔離的測試資料庫，不要把正式 `.env.prod` 載入測試流程。
 
-互動式測試啟動可載入環境檔：
+互動式測試啟動可載入環境檔（其中的 `SPRING_PROFILES_ACTIVE=prod` 會啟用正式 profile）：
 
 ```bash
 set -a
@@ -96,6 +98,15 @@ curl -fsS 'http://127.0.0.1:8082/api/stores/nearby?lat=25&lng=121' >/dev/null
 3. **示範資料與模擬儲值**：`DEMO_DATA_ENABLED=false`；`WALLET_MOCK_TOPUP_ENABLED` 不設或為 `false`（prod 一律拒絕模擬儲值）。
 4. **手機號碼**：改手機不再經由 `PUT /api/auth/update`，若有客服流程需要換號，請走 Firebase 手機驗證流程或後台人工處理。
 5. **顧客名稱**：既有名稱若含 `< > " \`` 或控制字元，之後改名會被拒絕，需要使用者重新輸入合規的名稱。
-6. **登入與 OTP 限流**：`LoginAttemptLimiter` 預設每 300 秒 10 次，Redis 不可用時退回本機計數。若多台應用程式同時上線，請確認 Redis 可用，否則每台各自計數。
+6. **登入與 OTP 限流**：`LoginAttemptLimiter` 預設每 300 秒 10 次（`check-phone` 為每 300 秒 60 次），Redis 不可用時退回本機計數。若多台應用程式同時上線，請確認 Redis 可用，否則每台各自計數。
 7. **安全標頭**：HSTS 只在 HTTPS 回應中送出。若頁面由 nginx 或 Caddy 直接提供，需在該層補上同樣的標頭；`app.security.csp.enabled` 預設為 `false`，啟用前需先處理頁面內的 inline event handler。
 8. **取消訂單**：`POST /api/orders/{orderId}/cancel` 現在會退款並還原優惠券，如果你的營運流程依賴舊的「只改狀態」行為，請先與團隊確認。
+
+## 第四輪核查（N-15、N-23 至 N-27）的上線注意事項
+
+9. **團購儲值金付款會實際扣款**：團長結帳與團員付款選擇「儲值金」時，後端會扣除錢包餘額；餘額不足會回錯誤，而不是像修改前那樣靜默記成門市付款。上線前請告知營運團隊，並確認客服流程能處理餘額不足的情況。
+10. **WebSocket 訂閱已依角色限制**：門市不會再收到其他門市的新訂單推播；顧客只能訂閱自己參與的訂單與揪團。目前前端沒有訂閱 `/topic/store`，因此不影響現有畫面。
+11. **本機 Docker 埠口只綁 127.0.0.1**：若需要從其他機器連線資料庫或 Redis，請改用 SSH tunnel，不要把 `docker-compose.yml` 的綁定改回所有介面。
+12. **正式環境不公開 API 文件**：`application-prod.yml.example` 已關閉 springdoc。若要在正式環境查看 API，請在內部環境使用另一份設定。
+13. **靜態資源大小寫**：`WebConfig` 的 `/Store/**` 已改為對應 `frontend/store/`（實際目錄），Linux 上不再 404。`/auth/**` 的遺留映射已移除。
+14. **品牌自助註冊是公開的**：`/api/brand-auth/register` 為 permitAll，任何人都能註冊品牌並建立門市。上線前請業務決定是否要審核制（PENDING 狀態、後台核准）或邀請碼；在決定前，建議由營運團隊定期檢視新註冊的品牌與門市。
