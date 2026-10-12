@@ -68,7 +68,7 @@ flowchart LR
 - WebSocket 目前是單實例的 simple broker；Redis 不可用時，鎖與限流會退回單實例語意（[ADR-0006](docs/adr/0006-redis-shared-state-and-job-exclusion.md)）。
 - `/api/stores/search` 與 `/api/stores/nearby/v2` 仍未分頁，已列為待辦。
 - 前端有 16 處寫死 `http://localhost:8082`（`window.JOIN_API_BASE` 與各頁面、各 JS 模組的 `BASE` 常數）。本機與 Docker 展示不受影響；要做公開 demo 前，需先改為設定值或同源反向代理。
-- 文件中的所有測試與效能敘述，以 CI 為準。開發環境無法連到 Maven Central 且沒有 Docker，因此這一輪的 Java 編譯與測試尚未在本機執行。
+- 文件中的所有測試與效能敘述，以 CI 為準。開發環境無法連到 Maven Central 且沒有 Docker，因此 Java 編譯、`mvn test`、Spring 整合測試與瀏覽器 E2E 都在 GitHub Actions 上執行；最近一次的結果見下方「最近一次 CI 驗證」。
 
 ---
 
@@ -276,7 +276,7 @@ REPEATABLE READ 下讀的是本交易快照，12 筆評分只算出 4 筆。兩�
 - **授權規則**：`SecurityConfig` 的 `permitAll` 路徑限定 HTTP method，移除無用的 `/auth/**`。
 - **第三至五輪**：團購儲值金（`STORE_CREDIT`）送出前映射為 `WALLET`，儲值金付款現在會實際扣款；WebSocket 訂閱依角色授權，門市只能收自己的新訂單推播；`docker-compose.yml` 的資料庫與 Redis 埠口只綁本機；正式範本關閉 springdoc；社群登入的新手機流程補上「已綁定帳號」分支；移除遺留的 `/auth/**` 映射、修正 `/Store/**` 目錄大小寫。
 
-驗證範圍：全部 Java 檔通過語法解析，並以差異編譯（修復版與基準版的 javac 錯誤清單互相比較）確認沒有新增的符號或型別錯誤；純邏輯測試以 JUnit 替身執行真實原始碼（44 支，全數通過）；前端 JS 與內嵌腳本語法檢查通過。未能執行 `mvn test`、Spring 整合測試與瀏覽器端到端測試（本次環境沒有 Maven、Docker 與瀏覽器），**上線前必須在 CI 或本機補跑**。
+驗證範圍：全部 Java 檔通過語法解析，並以差異編譯（修復版與基準版的 javac 錯誤清單互相比較）確認沒有新增的符號或型別錯誤；純邏輯測試以 JUnit 替身執行真實原始碼（44 支，全數通過）；前端 JS 與內嵌腳本語法檢查通過。未能執行 `mvn test`、Spring 整合測試與瀏覽器端到端測試（本次環境沒有 Maven、Docker 與瀏覽器），**上線前必須在 CI 或本機補跑**（已於 CI 補跑，結果見下方「最近一次 CI 驗證」）。
 
 ## 測試
 
@@ -360,6 +360,25 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 三層都在 [GitHub Actions](.github/workflows/ci.yml) 上跑：CI 起 MySQL 8 + Redis 7，
 `mvn test` → 打包 → 起服務 → 跑第二三層；失敗時會把當下的截圖與後端 log 收成 artifact。步驟日誌需要另外下載，所以失敗原因也以 check-run annotation 呈現：`mvn test` 的失敗測試與根因、端對端與 UI 的 ✗ 項目、後端 `app.log` 的 ERROR 行。用 REST API 即可讀取，例如 `gh api repos/<owner>/<repo>/check-runs/<job id>/annotations`；實作見 `scripts/ci/failure_annotations.py`。
+
+### 最近一次 CI 驗證
+
+2026-10-12 UTC（台北時間 2026-10-13 03:04）手動觸發完整 CI，commit `c38d96b`。之後的提交只改文件，程式與測試未變。
+
+| 項目 | 結果 |
+|------|------|
+| 執行 | [run 38295225937](https://github.com/Leo0049/projectLab_2/actions/runs/38295225937)（`workflow_dispatch`）。同一 commit 的 PR run [38293397093](https://github.com/Leo0049/projectLab_2/actions/runs/38293397093) 也全綠 |
+| 靜態檢查（第 0 層） | gitleaks、79 支受版控 JS 的 `node --check`、69 段內嵌 script：通過 |
+| `mvn test`（第 1 層） | 通過（Surefire 失敗 0、錯誤 0，耗時 55 秒）。189 個 `@Test`、36 個類別；其中 8 個類別載入 Spring context（共 43 支），與其餘測試一併執行 |
+| 打包與起服務 | `mvn package -DskipTests` 通過；後端 16 秒內就緒 |
+| API 端對端（第 2 層） | 通過（腳本有任一失敗即 exit 1），耗時 6 秒 |
+| UI 流程（第 3 層，斷網模式） | 通過（同上）：39 個頁面普掃（51 次載入）＋點餐、轉盤、揪團三條主線，耗時 4 分 39 秒 |
+| Docker 映像建置 | 通過（只建置，不推送） |
+
+讀這張表時注意兩點：
+
+- 步驟通過代表**沒有失敗**，不代表每一支都實際執行。`GroupCheckoutConcurrencyTest` 與 `GroupOrderSecurityTest` 以 `assumeTrue` 守示範資料，資料缺失時會略過而不算失敗。逐項的 Surefire 計數（含 Skipped）與 E2E 的逐項通過數，記在 run 的日誌裡。
+- 效能數字不在本次驗證範圍內，見 [IMPROVEMENT_ASSESSMENT](docs/IMPROVEMENT_ASSESSMENT.md)「效能數字」一段。
 
 ### 這兩層實際抓到什麼
 

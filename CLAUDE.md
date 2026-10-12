@@ -173,7 +173,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-12，以 `grep -E '^\s*@Test'` 計算）：189 個 `@Test`，分布在 36 個測試類別。** 新增或刪除測試時，請同步更新此表與這段數字。
+**目前規模（2026-10-12，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：189 個 `@Test`，分布在 36 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 190。新增或刪除測試時，請同步更新此表與這段數字。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -219,7 +219,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
 > 新增測試時請照做，在修補前後各跑一次，確認它真的抓得到回歸，否則只是裝飾。
-> 2026-10-12 新增的測試（`IdempotencyServiceTest`、`ExclusiveJobRunnerTest`、`GeoBoundsTest`、`RequestIdFilterTest`、`AuthorizationRouteInventoryTest`、`BrandSummaryJsonTest`，以及 `LoginAttemptLimiterTest` 的新增案例）尚未做還原驗證（把修補改回舊寫法，確認測試轉紅）；CI 已通過，這一步仍待做。
+> 2026-10-12 新增的測試（`IdempotencyServiceTest`、`ExclusiveJobRunnerTest`、`GeoBoundsTest`、`RequestIdFilterTest`、`AuthorizationRouteInventoryTest`、`BrandSummaryJsonTest`，以及 `LoginAttemptLimiterTest` 的新增案例）尚未做還原驗證（把修補改回舊寫法，確認測試轉紅）；CI 已通過（2026-10-12 UTC 的 run 38295225937，見 README「最近一次 CI 驗證」），這一步仍待做。
 
 ### 另外兩層驗證（都在 CI 上跑）
 
@@ -227,7 +227,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 ```bash
 cd scripts && npm install
-node e2e-verify.js      # API 端對端，85 項斷言
+node e2e-verify.js      # API 端對端，12 個面向（逐項通過數由腳本輸出）
 node ui/run-all.js      # 39 個 HTML 頁普掃（51 次載入）+ 點餐／轉盤／揪團三條主線（Playwright）
 ```
 
