@@ -219,7 +219,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
 > 新增測試時請照做，在修補前後各跑一次，確認它真的抓得到回歸，否則只是裝飾。
-> 2026-10-12 新增的測試（`IdempotencyServiceTest`、`ExclusiveJobRunnerTest`、`GeoBoundsTest`、`RequestIdFilterTest`、`AuthorizationRouteInventoryTest`、`BrandSummaryJsonTest`，以及 `LoginAttemptLimiterTest` 的新增案例）尚未做還原驗證；CI 通過後應補做。
+> 2026-10-12 新增的測試（`IdempotencyServiceTest`、`ExclusiveJobRunnerTest`、`GeoBoundsTest`、`RequestIdFilterTest`、`AuthorizationRouteInventoryTest`、`BrandSummaryJsonTest`，以及 `LoginAttemptLimiterTest` 的新增案例）尚未做還原驗證（把修補改回舊寫法，確認測試轉紅）；CI 已通過，這一步仍待做。
 
 ### 另外兩層驗證（都在 CI 上跑）
 

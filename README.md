@@ -357,7 +357,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 （清單為空時才會踩到的 undefined，用有資料的帳號掃不出來）、以及**未登入的登入註冊 8 頁**。
 
 三層都在 [GitHub Actions](.github/workflows/ci.yml) 上跑：CI 起 MySQL 8 + Redis 7，
-`mvn test` → 打包 → 起服務 → 跑第二三層；失敗時會把當下的截圖與後端 log 收成 artifact。
+`mvn test` → 打包 → 起服務 → 跑第二三層；失敗時會把當下的截圖與後端 log 收成 artifact。步驟日誌需要另外下載，所以失敗原因也以 check-run annotation 呈現：`mvn test` 的失敗測試與根因、端對端與 UI 的 ✗ 項目、後端 `app.log` 的 ERROR 行。用 REST API 即可讀取，例如 `gh api repos/<owner>/<repo>/check-runs/<job id>/annotations`；實作見 `scripts/ci/failure_annotations.py`。
 
 ### 這兩層實際抓到什麼
 

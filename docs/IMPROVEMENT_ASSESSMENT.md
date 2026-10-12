@@ -40,7 +40,7 @@
 | 12 | 超大類別 | **延後**（ADR-0007） | — | `GroupOrderService` 1,610 行、`OrderService` 925 行、`UserController` 758 行（已量測）。拆分必須以完整的 `mvn test` 為安全網，且一次只拆一個類別；在本環境無法執行測試，本次不做。 |
 | 13 | 推播散落在 Controller | **延後**（ADR-0007） | — | 目前 18 處 `convertAndSend` 都位於交易提交之後，沒有現行錯誤。改用 `@TransactionalEventListener(AFTER_COMMIT)` 需要調整所有呼叫點與測試，屬於結構性重構。 |
 | 14 | `DailySpinController` 自行 catch，回 HTTP 200 | **實作** | 業務錯誤交給 `GlobalExceptionHandler`：「今日已抽過」回 **HTTP 409**（原為 200 + body code）。`DailySpinService` 的使用者訊息由 `RuntimeException` 改為 `CustomException`，否則移除 catch 後會變成通用 500。移除 `catch (RuntimeException) → Result.error(e.getMessage())`，不再把內部訊息回給前端。前端 `fetchAPI` 對非 2xx 會拋出 `msg`，提示文字不變。另外把「該品牌沒有可抽獎的飲品」的檢查移到寫入當日標記之前（422 不再消耗當日次數）。 | 當日標記在資料庫寫入之前寫入的問題仍在（見「仍未做」）。 |
-| 15 | 沒有全路由授權檢查 | **實作** | `AuthorizationRouteInventoryTest` 列舉所有 handler mapping，對**未列入白名單**的路由送出未登入請求，必須得到 401／403；白名單中有不存在的路由也會失敗。新增公開路由時，必須同步更新白名單與 `SecurityConfig`。 | 測試的正確性需要 CI 實際執行確認（見「未能在本環境驗證」）。 |
+| 15 | 沒有全路由授權檢查 | **實作** | `AuthorizationRouteInventoryTest` 列舉所有 handler mapping，對**未列入白名單**的路由送出未登入請求，必須得到 401／403；白名單中有不存在的路由也會失敗。新增公開路由時，必須同步更新白名單與 `SecurityConfig`。 | CI 已執行並通過（見「未能在本環境驗證」）。 |
 | 16 | E2E 固定等待、失敗難讀 | **部分實作** | (a) `run-all.js` 寫入 `GITHUB_STEP_SUMMARY` 的表格，失敗項以 `::error` 註解；API e2e 同樣寫摘要。(b) 轉盤流程的 9 秒固定等待改為條件等待。(c) CI 新增靜態檢查：79 個受版控 JS 以 `node --check` 逐一檢查，39 個 HTML 中的 69 個 inline script 以 `scripts/ui/check-inline-scripts.js` 檢查。 | 其餘 34 處 `waitForTimeout` 於改寫相關流程時逐步替換，不一次全改。`run-all.js` 的失敗名稱是攔截 `console.log` 取得的，屬於脆弱做法（見「仍未做」）。 |
 | 17 | 文件與現況不符 | **部分實作** | (a) 更正 CLAUDE.md 的 TestNG 錯誤（`src/test` 內 0 處，全部是 JUnit 5）；依實際檔案重列測試表（189 個 `@Test`、36 個類別）。(b) API.md 移除不存在的 SSE 段落，改寫 WebSocket／STOMP；補上冪等、轉盤狀態碼、附近店家分頁與座標規則、健康檢查與 `X-Request-Id`。(c) 新增 ADR（`docs/adr/`）與案例研究（`docs/CASE_STUDIES.md`），README 增加作品集導覽。(d) DEPLOYMENT.md 改寫「套用 migration」的說法（repo 沒有 migration），補上反向代理與 Docker 段落。 | CLAUDE.md 拆分為多份文件延後：它同時是 AI 協作的規則檔，拆分前要先決定載入方式，否則規則可能失效。 |
 | 18 | 沒有 Actuator、沒有 request id | **部分實作** | (a) `spring-boot-starter-actuator`，只暴露 `health`（不顯示細節），GET `/actuator/health` 加入白名單。(b) `RequestIdFilter`：驗證 `X-Request-Id` 格式、不合規則產生新 id、回寫響應標頭、放入 MDC，日誌樣式顯示 requestId。 | metrics 端點未暴露：暴露前要先決定監控後端與存取控制。 |
@@ -78,19 +78,26 @@
 
 ## 未能在本環境驗證的項目
 
-這些改動都需要 CI 才能確認。PR 的 CI 結果會直接寫在 PR 說明中：
+本環境沒有 Maven Central，也沒有 Docker daemon，因此 Java 編譯、`mvn test`、Docker 建置與 UI 流程都只能由 CI 驗證。
+CI 的結果寫在 PR 說明中：最後一次全綠的 run、第一次失敗的原因與修正，都列在那裡。
 
-- Java 編譯與 `mvn test`（Maven Central 被擋，本地無法編譯；本地只做了 javac 語法解析）。
-- 新的 Spring context 測試（`AuthorizationRouteInventoryTest`）：白名單是從 `SecurityConfig` 與 handler mapping 推導的，它與 Spring Security 實際的比對方式是否完全一致，需要 CI 實際執行才能確認。
-- `IdempotencyService` 的 Redis 路徑與本地退避路徑：單元測試以 mock 驗證，多實例下的行為沒有整合測試。
-- `server.forward-headers-strategy: native` 搭配真實反向代理的行為：本地沒有代理環境，只能依 Tomcat 文件推論。
-- `/api/stores/nearby/v2` 的座標檢查：只做了靜態檢視與語法檢查，尚未實際呼叫。
-- 索引是否被 MySQL 實際使用（需要 `EXPLAIN`，本地沒有 MySQL）。
-- Dockerfile 的實際建置與執行（本地沒有 Docker daemon）。
-- UI 流程（需要後端與 Chromium 同時運行）。
+CI 已執行並通過的項目（不再列為未驗證）：
+
+- Java 編譯與 `mvn test`，包括 `AuthorizationRouteInventoryTest`：白名單與 `SecurityConfig` 的比對在 CI 中一致。
+- API 端對端驗證，以及 UI 普掃與三條主線（點餐、轉盤、揪團）。
+- Docker 映像建置（只建置，不推送、不啟動容器）。
+
+仍然只能在 CI 或線上環境驗證，目前沒有覆蓋的項目：
+
+- `IdempotencyService` 的多實例行為：單元測試以 mock 驗證 Redis 路徑與本地退避路徑，沒有跨實例的整合測試。
+- `server.forward-headers-strategy: native` 搭配真實反向代理的行為：CI 沒有代理，只能依 Tomcat 文件推論。
+- `/api/stores/nearby/v2` 的座標檢查：端對端沒有呼叫這支端點，`AuthorizationRouteInventoryTest` 只做無參數的匿名探測。座標範圍的邏輯（`requireValidCoordinates`）尚未以實際請求驗證。
+- 索引是否被 MySQL 實際採用：需要 `EXPLAIN`，CI 目前沒有這個步驟。
+- 映像的實際執行（容器內的 `java -jar`、非 root 權限、`frontend/` 路徑）：CI 只確認建置成功。
+- 還原驗證：新增的測試（見 CLAUDE.md）尚未做「把修補改回舊寫法、確認測試轉紅」的檢查。
 
 **效能數字**：本 PR 沒有重新量測。README「效能」一節的數字是修補當時留下的既有紀錄，本文件只引用、不另行宣稱。第 7 項的效果（含新增的 `idx_stores_lat_lng`）需要在 CI 或可重現的環境中以 `EXPLAIN` 與壓測重新量測後，才能視為本次驗證的結果。
 
 ## 與既有 PR 的關係
 
-本次分支 `feat/portfolio-hardening` 疊在 `fix/security-review-2026-10-11`（PR #2）之上，PR 的 base 也指向該分支。PR #2 合併後，本 PR 的差異會自動收斂。
+PR #2（`fix/security-review-2026-10-11`）已於 2026-10-12 04:48 UTC 合併到 `main`。本分支原本疊在該分支上，合併後 base 已失效，因此 rebase 到目前的 `main` 上，功能差異只剩 `a870bbb` 這一個 commit；PR #3 的 base 為 `main`。之後的 commit 只處理 CI 的失敗診斷與一個測試注入錯誤。
