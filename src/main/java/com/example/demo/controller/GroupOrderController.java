@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Tag(name = "GroupOrder / 揪團", description = "揪團訂單管理。團長建立 → 分享連結 → 團員加入 → 團長送單。")
 @RestController
@@ -35,6 +36,19 @@ public class GroupOrderController {
 
     @Autowired(required = false)
     private OrderService orderService;
+
+    /**
+     * 團長與團員結帳接受的付款方式，須與團購頁實際送出的值一致。
+     * STORE_CREDIT 由前端映射為 WALLET，不在此列；CREDIT_CARD 是團購頁的預設勾選，後端視為門市付款（見 N-22）。
+     * 不可只留 WALLET／CASH：會擋下團長與團員的預設結帳（見 N-18）。
+     */
+    private static final Set<String> ALLOWED_PAYMENT_METHODS = Set.of("WALLET", "CASH", "CREDIT_CARD");
+
+    private static final String PAYMENT_METHOD_NOT_ALLOWED = "paymentMethod 僅接受 WALLET、CASH 或 CREDIT_CARD";
+
+    private static boolean isAllowedPaymentMethod(String paymentMethod) {
+        return paymentMethod != null && ALLOWED_PAYMENT_METHODS.contains(paymentMethod);
+    }
 
     private Long getUserId(HttpServletRequest request) {
         Object userIdObj = request.getAttribute("currentUserId");
@@ -311,11 +325,14 @@ public class GroupOrderController {
 
             // ⚠️ 付款方式不可為空。舊版未驗證：paymentMethod 為 null 時結帳會先成功提交，之後回應組裝的
             //    Map.of 遇到 null 直接 NPE，客戶端看到失敗而重送，又因已結帳而回 409。
-            //    非空值維持原行為：前端目前會送 STORE_CREDIT／CREDIT_CARD／CASH，與後端 WALLET 的對應不一致，
-            //    屬於金流語意決定，不在這裡擅自改（見審查報告 N-15）。
+            //    只接受 ALLOWED_PAYMENT_METHODS 內的值，任意字串會被當成非錢包付款寫入。STORE_CREDIT 由前端映射為 WALLET；
+            //    CASH／CREDIT_CARD 的已付款語意維持原行為，屬於金流產品決定（見審查報告 N-15、N-22）。
             String paymentMethod = request.getPaymentMethod();
             if (paymentMethod == null || paymentMethod.isBlank()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "paymentMethod 不可為空"));
+            }
+            if (!isAllowedPaymentMethod(paymentMethod)) {
+                return ResponseEntity.badRequest().body(Map.of("error", PAYMENT_METHOD_NOT_ALLOWED));
             }
 
             // 優先使用單一 address 欄位，若無則組合 city/district/street
@@ -369,6 +386,11 @@ public class GroupOrderController {
             Long uid = getUserId(httpRequest);
             if (uid == null)
                 return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
+
+            // 白名單同團長結帳。任意字串會被當成非錢包付款而標記為已付款，故一律拒絕。
+            if (!isAllowedPaymentMethod(request.getPaymentMethod())) {
+                return ResponseEntity.badRequest().body(Map.of("error", PAYMENT_METHOD_NOT_ALLOWED));
+            }
 
             BigDecimal totalAmount = groupOrderService.getMemberUnpaidTotalAndMarkPaid(token, uid,
                     request.getPaymentMethod(), request.getCouponId());
