@@ -79,106 +79,18 @@ jobs:
           node scripts/ui/check-inline-scripts.js
 
       # ── 第一層：單元／整合測試（授權與金流的回歸防線）──
+      # tee 另存一份輸出給下方的失敗摘要使用；pipefail 讓 mvn 失敗時步驟仍然失敗
       - name: mvn test
         shell: bash
-        # tee 另存一份輸出給下一步解析；pipefail 讓 mvn 失敗時步驟仍然失敗
         run: |
           set -o pipefail
           mvn -B test 2>&1 | tee "$RUNNER_TEMP/mvn-test.log"
 
-      # 測試失敗時把失敗的測試名稱與根因寫成 annotation：步驟日誌需要登入 Actions 網頁才看得到，
-      # 但 check-run annotation 可以用 REST API 讀取（gh api repos/<owner>/<repo>/check-runs/<job id>/annotations）。
+      # 測試失敗時把失敗的測試名稱與根因寫成 annotation（實作見 scripts/ci/failure_annotations.py）。
+      # 步驟日誌需要登入 Actions 網頁才看得到，但 check-run annotation 可以用 REST API 讀取。
       - name: 失敗測試摘要（annotation）
         if: failure()
-        run: |
-          python3 - "$RUNNER_TEMP/mvn-test.log" <<'PY'
-          """測試失敗時，把失敗的測試名稱與根因寫成 GitHub Actions annotation（CI 的「失敗測試摘要」步驟）。
-
-          步驟日誌需要登入 Actions 網頁才看得到，但 check-run annotation 可以用 REST API 讀取。
-          讀取來源：surefire 的 XML 報告（target/surefire-reports/TEST-*.xml）；沒有報告時改讀 mvn 輸出的 [ERROR] 行。
-          只輸出 workflow command 與 stdout，本身不會讓步驟失敗。
-          """
-          import glob
-          import sys
-          import xml.etree.ElementTree as ET
-
-          # 單一步驟的 error／warning annotation 數量有上限，所以細節只給前幾筆，其餘名稱集中成一則 warning
-          DETAIL_LIMIT = 9
-          HEAD_LIMIT = 400
-          CAUSE_LIMIT = 500
-          NAME_LIST_LIMIT = 3000
-
-
-          def escape_data(text):
-              return text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-
-
-          def escape_property(text):
-              return escape_data(text).replace(':', '%3A').replace(',', '%2C')
-
-
-          def root_cause(trace):
-              causes = [line.strip() for line in trace.splitlines() if line.strip().startswith('Caused by:')]
-              return causes[-1] if causes else ''
-
-
-          def surefire_failures(pattern):
-              found = []
-              for path in sorted(glob.glob(pattern)):
-                  try:
-                      root = ET.parse(path).getroot()
-                  except ET.ParseError as exc:
-                      print(f'無法解析 {path}：{exc}')
-                      continue
-                  for case in root.iter('testcase'):
-                      for kind in ('failure', 'error'):
-                          node = case.find(kind)
-                          if node is None:
-                              continue
-                          name = f"{case.get('classname', '?')}.{case.get('name', '?')}"
-                          head = (node.get('message') or '').strip()[:HEAD_LIMIT]
-                          cause = root_cause(node.text or '')[:CAUSE_LIMIT]
-                          detail = f'{node.get("type") or kind}: {head}'
-                          if cause:
-                              detail += f' ‖ {cause}'
-                          found.append((name, detail))
-              return found
-
-
-          def maven_errors(log_path):
-              try:
-                  with open(log_path, encoding='utf-8', errors='replace') as fh:
-                      lines = [line.strip() for line in fh if '[ERROR]' in line]
-              except OSError as exc:
-                  print(f'無法讀取 {log_path}：{exc}')
-                  return []
-              return [(f'mvn 輸出第 {i} 筆', line[:HEAD_LIMIT + CAUSE_LIMIT]) for i, line in enumerate(lines, 1)]
-
-
-          def main():
-              log_path = sys.argv[1] if len(sys.argv) > 1 else ''
-              found = surefire_failures('target/surefire-reports/TEST-*.xml')
-              if not found:
-                  print('沒有 surefire 失敗報告，改以 mvn 的 [ERROR] 行做摘要')
-                  found = maven_errors(log_path)
-
-              print(f'失敗項目：{len(found)} 筆')
-              for name, detail in found:
-                  print(f'- {name} :: {detail}')
-
-              for name, detail in found[:DETAIL_LIMIT]:
-                  print(f'::error title={escape_property(name)}::{escape_data(detail)}')
-
-              if found:
-                  names = '; '.join(name for name, _ in found)
-                  if len(names) > NAME_LIST_LIMIT:
-                      names = names[:NAME_LIST_LIMIT] + '…（其餘略）'
-                  print(f'::warning title={escape_property(f"失敗測試清單（共 {len(found)} 筆）")}::{escape_data(names)}')
-
-
-          if __name__ == '__main__':
-              main()
-          PY
+        run: python3 scripts/ci/failure_annotations.py surefire "$RUNNER_TEMP/mvn-test.log"
 
       - name: 打包
         run: mvn -B package -DskipTests
@@ -226,7 +138,10 @@ jobs:
 
       - name: API 端對端驗證
         working-directory: scripts
-        run: node e2e-verify.js
+        shell: bash
+        run: |
+          set -o pipefail
+          node e2e-verify.js 2>&1 | tee "$RUNNER_TEMP/e2e.log"
 
       # ── 第三層：實際操作 UI 的流程驗證 ──
       - name: 安裝 Chromium
@@ -237,9 +152,17 @@ jobs:
       # 所以斷網狀態下畫面必須完全正常。有人重新引入 CDN 的話，這一步就會紅。
       - name: UI 流程驗證（斷網模式：全頁面普掃 + 點餐 + 轉盤 + 揪團）
         working-directory: scripts
+        shell: bash
         env:
           E2E_OFFLINE: '1'
-        run: node ui/run-all.js
+        run: |
+          set -o pipefail
+          node ui/run-all.js 2>&1 | tee "$RUNNER_TEMP/ui.log"
+
+      # 端對端、UI 與後端的失敗原因也寫成 annotation（後端取 app.log 的 ERROR 行與其後的 Caused by:）
+      - name: 失敗原因摘要（annotation）
+        if: failure()
+        run: python3 scripts/ci/failure_annotations.py checks "$RUNNER_TEMP/e2e.log" "$RUNNER_TEMP/ui.log" app.log
 
       # 失敗時把截圖與後端 log 帶出來，才有辦法判讀
       - name: 上傳失敗時的截圖與日誌
