@@ -146,7 +146,25 @@ jobs:
         working-directory: scripts
         env:
           E2E_OFFLINE: '1'
-        run: node ui/run-all.js
+        run: |
+          set +e
+          node ui/run-all.js > /tmp/ui-run.log 2>&1
+          rc=$?
+          cat /tmp/ui-run.log
+          exit $rc
+
+      - name: DIAG 注解 UI 失敗內容
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import re
+          lines = open('/tmp/ui-run.log', encoding='utf-8', errors='replace').read().splitlines()
+          keep = [l for l in lines if re.search(r'✗|FAIL|rror|失敗|imeout|429|HTTP', l)]
+          body = '\n'.join(keep[:150] + ['----- tail -----'] + lines[-60:])[-20000:]
+          enc = body.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print('::error title=UI diag::' + enc)
+          print('::notice title=UI diag lines::total=' + str(len(lines)) + ' keep=' + str(len(keep)))
+          PY
 
       # 失敗時把截圖與後端 log 帶出來，才有辦法判讀
       - name: 上傳失敗時的截圖與日誌
