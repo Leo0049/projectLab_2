@@ -38,7 +38,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Value("${app.cors.allowed-origins}")
     private String[] allowedOrigins;
 
-    private static final Pattern ORDER_TOPIC = Pattern.compile("^/topic/order/(\\d+)$");
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
@@ -102,7 +101,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             if (userId == null) {
                 throw new MessageDeliveryException("WebSocket token 無法解析出使用者");
             }
-            return new StompUserPrincipal(userId);
+            String role = jwtUtils.getRoleFromToken(token);
+            return new StompUserPrincipal(userId, role);
         } catch (MessageDeliveryException e) {
             throw e;
         } catch (Exception e) {
@@ -117,31 +117,25 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         if (!(principal instanceof StompUserPrincipal user)) {
             throw new MessageDeliveryException("尚未認證，無法訂閱");
         }
-        String destination = accessor.getDestination();
-        if (destination == null) {
-            throw new MessageDeliveryException("訂閱目的地不得為空");
+        // 規則本體在 StompSubscribeRules（純函式，有單元測試）；這裡只負責接上資料庫查詢與例外
+        String reason = StompSubscribeRules.denyReason(user.role(), user.userId(), accessor.getDestination(),
+                this::isOrderParticipant);
+        if (reason != null) {
+            log.warn("連線者 {}（{}）訂閱 {} 被拒絕：{}", user.userId(), user.role(), accessor.getDestination(), reason);
+            throw new MessageDeliveryException(reason);
         }
-
-        Matcher m = ORDER_TOPIC.matcher(destination);
-        if (m.matches()) {
-            Long orderId = Long.valueOf(m.group(1));
-            Long userId = user.userId();
-            boolean isInitiator = groupOrderRepository.findById(orderId)
-                    .map(o -> o.getInitiator() != null && userId.equals(o.getInitiator().getId()))
-                    .orElse(false);
-            // 揪團訂單的參與者也會看訂單狀態，不能只認發起人
-            boolean isParticipant = isInitiator
-                    || orderItemRepository.existsByGroupOrderIdAndUserId(orderId, userId);
-            if (!isParticipant) {
-                log.warn("使用者 {} 嘗試訂閱非本人的訂單推播 {}", userId, destination);
-                throw new MessageDeliveryException("無權訂閱此訂單的推播");
-            }
-        }
-        // /topic/group/{token}：token 即為分享憑證，已認證即可訂閱
     }
 
-    /** 綁在 STOMP 連線上的身分，僅承載 userId */
-    private record StompUserPrincipal(Long userId) implements Principal {
+    /** 訂單的發起人或參與者（揪團的團員也會看訂單狀態，不能只認發起人） */
+    private boolean isOrderParticipant(long orderId, long userId) {
+        boolean isInitiator = groupOrderRepository.findById(orderId)
+                .map(o -> o.getInitiator() != null && Long.valueOf(userId).equals(o.getInitiator().getId()))
+                .orElse(false);
+        return isInitiator || orderItemRepository.existsByGroupOrderIdAndUserId(orderId, userId);
+    }
+
+    /** 綁在 STOMP 連線上的身分：userId 與角色（門市與顧客的 id 會撞號，必須一併比對角色） */
+    private record StompUserPrincipal(Long userId, String role) implements Principal {
         @Override
         public String getName() {
             return String.valueOf(userId);

@@ -183,6 +183,8 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | `SafeImageUrlTest`（7） | 圖片網址白名單：擋 `x" onerror=…`、`javascript:`、`../`、控制字元 |
 | `SafeTextTest`（6） | 會顯示給他人看的名稱：拒絕 `< > " \`` 與控制字元、上限 30 字；第三方登入名稱只清理、不拒絕 |
 | `CancellableStatusTest`（2） | 揪團品項可否取消：只有 OPEN、SUBMITTED（大小寫與空白不敏感） |
+| `StompSubscribeRulesTest`（9） | WebSocket 訂閱授權的純規則：顧客只能訂閱自己參與的訂單與揪團；門市只能訂閱自己的頻道；角色必須相符（id 會撞號）；未知目的地與超大數字 id 一律拒絕 |
+| `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策：已綁定、手機衝突、建立新帳號；不變量：手機已被使用就絕不另建帳號 |
 | `LoginAttemptLimiterTest`（8） | 登入／OTP 滑動視窗限流，Redis 不可用時退回本地計數 |
 | `AuthServiceSmsModeGuardTest`（6） | prod profile 下 `sms.mode` 不是 firebase 就拒絕（含 `MOCK_TOKEN` 分支）|
 | `DemoDataSeederProdGuardTest`（2） | prod profile 不植入示範帳號，即使 `DEMO_DATA_ENABLED=true` |
@@ -579,8 +581,10 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **`PUT /api/auth/update` 不接受改手機**。手機是登入與重設密碼的依據，必須經 Firebase 手機驗證，不可在沒有 OTP 的端點直接改。`UserService.registerUser` 已移除（無呼叫者，且會接受未驗證手機）。
 - **取消揪團品項或整單時，取得列鎖後必須再用 `OrderStatusGuard.isOpenOrSubmitted` 檢查狀態**。控制器在鎖外做的檢查無法保證當下仍是 OPEN／SUBMITTED。
 - **`POST /api/orders/{orderId}/cancel` 走 `GroupOrderService.cancelAsInitiator`**（列鎖、退款、還原券，與 `cancel/v2` 相同）。`OrderService.cancelOrder` 已移除，它不退款、也不還原優惠券。
-- **結帳通知所需的門市 id 與總額由 `GroupOrderService.getCheckoutNotifyInfo` 在交易內取得**，控制器不得拿 entity 出去再 `getStore()`。`paymentMethod` 必須是 `WALLET` 或 `CASH`，否則回 400。
+- **結帳通知所需的門市 id 與總額由 `GroupOrderService.getCheckoutNotifyInfo` 在交易內取得**，控制器不得拿 entity 出去再 `getStore()`。`paymentMethod` 不可為空（回 400）。非空值沿用既有行為。團購頁的儲值金（`STORE_CREDIT`）在送出前映射為 `WALLET`（見 N-15）；`CREDIT_CARD` 後端視為門市付款（見 N-22）。
 - **使用者可控名稱的寫入規則在 `common/SafeText`**：自己送來的值用 `normalizeDisplayName`（不合規回 400）；第三方登入帶來的名稱用 `sanitizeDisplayName`（清理、截斷、不失敗）。
 - **前端含 HTML 的模板字串中插入名稱類欄位，一律以頁面內的轉義函式包住**（自動規則注入的是 `escHtmlSafe`，既有頁面用 `esc`／`escapeHtml`）。**不要對已在來源處轉義的變數再轉義一次**，否則會顯示成 `&amp;`。
 - **`onclick="…${值}…"` 的 JS 字串內不得插入名稱類資料**：HTML 轉義不能防止字串跳脫。改用 `data-*` 屬性，由事件函式讀取 `dataset`（見 `profile.html` 的 `editExtraAddressFromEl`）。
 - **`permitAll` 一律指定 HTTP method**（`SecurityConfig`）。`/api/stores/auth/**` 只開放 POST，`/api/menu/**`、`/api/home/**`、`/api/location/**`、`/api/group-orders/join/**` 等只開放 GET；WebSocket 的 `/ws/**`、`/ws-cart/**` 例外，因為 SockJS 會用到多種方法。
+- **WebSocket 的 SUBSCRIBE 依角色授權**（`WebSocketConfig.authorizeSubscribe`）：`/topic/order/{id}` 限顧客且須為參與者；`/topic/group/{token}` 限顧客；`/topic/store/{id}` 只允許該門市本人（角色為 `STORE` 且 id 相符）；其餘目的地一律拒絕。principal 必須帶 `role`，因為門市與顧客的 id 會撞號。
+- **`docker-compose.yml` 的 MySQL 與 Redis 埠口只綁 `127.0.0.1`**；正式環境範本關閉 springdoc（`application-prod.yml.example`）。

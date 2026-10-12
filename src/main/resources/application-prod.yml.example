@@ -37,3 +37,10 @@ app:
   wallet:
     mock-top-up:
       enabled: false           # 正式環境不可用未付款請求增加錢包餘額
+
+# 正式環境不公開 API 文件（SecurityConfig 對 /v3/api-docs、/swagger-ui 為 permitAll，關閉端點才是真正的防護）
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

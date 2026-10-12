@@ -1917,7 +1917,7 @@
                         method: 'POST',
                         body: JSON.stringify({
                             userId: parseInt(userId),
-                            paymentMethod: selectedMethod,
+                            paymentMethod: selectedMethod === 'STORE_CREDIT' ? 'WALLET' : selectedMethod,
                             deliveryType: currentDeliveryType,
                             address: currentDeliveryType === 'delivery' ? `${document.getElementById('go-checkout-city').value}${document.getElementById('go-checkout-district').value}${document.getElementById('go-checkout-street').value}` : '',
                             note: document.getElementById('go-checkout-remarks')?.value || '',
@@ -2081,7 +2081,7 @@
             btnConfirmMemberPay.addEventListener('click', async () => {
                 try {
                     const selectedMethod = document.querySelector('input[name="member-payment"]:checked').value;
-                    const req = { userId: parseInt(userId), paymentMethod: selectedMethod, couponId: goSelectedCoupon ? goSelectedCoupon.couponId : null };
+                    const req = { userId: parseInt(userId), paymentMethod: selectedMethod === 'STORE_CREDIT' ? 'WALLET' : selectedMethod, couponId: goSelectedCoupon ? goSelectedCoupon.couponId : null };
 
                     btnConfirmMemberPay.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> 處理中...';
                     btnConfirmMemberPay.disabled = true;

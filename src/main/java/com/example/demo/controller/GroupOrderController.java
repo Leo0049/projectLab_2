@@ -309,11 +309,13 @@ public class GroupOrderController {
             if (resolvedHostId == null)
                 return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
 
-            // ⚠️ 付款方式必須明確指定。舊版未驗證：paymentMethod 為 null 時結帳會先成功提交，
-            //    之後回應組裝的 Map.of 遇到 null 直接 NPE，客戶端看到失敗而重送，又因已結帳而回 409。
+            // ⚠️ 付款方式不可為空。舊版未驗證：paymentMethod 為 null 時結帳會先成功提交，之後回應組裝的
+            //    Map.of 遇到 null 直接 NPE，客戶端看到失敗而重送，又因已結帳而回 409。
+            //    非空值維持原行為：前端目前會送 STORE_CREDIT／CREDIT_CARD／CASH，與後端 WALLET 的對應不一致，
+            //    屬於金流語意決定，不在這裡擅自改（見審查報告 N-15）。
             String paymentMethod = request.getPaymentMethod();
-            if (!"WALLET".equals(paymentMethod) && !"CASH".equals(paymentMethod)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "paymentMethod 必須為 WALLET 或 CASH"));
+            if (paymentMethod == null || paymentMethod.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "paymentMethod 不可為空"));
             }
 
             // 優先使用單一 address 欄位，若無則組合 city/district/street

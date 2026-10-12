@@ -14,7 +14,7 @@ services:
     container_name: joindrink-mysql
     restart: unless-stopped
     ports:
-      - "${DB_PORT:-3306}:3306"
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${DB_NAME:-joindrink}
@@ -40,7 +40,7 @@ services:
     container_name: joindrink-redis
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     # appendonly：重啟後購物車 / 鎖狀態不會整份消失
     command: ["redis-server", "--appendonly", "yes"]
     volumes:

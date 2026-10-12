@@ -18,7 +18,7 @@ mvn spring-boot:run       # 服務起在 :8082
 
 不需要任何額外設定：`application.yml` 每一項都有對應本機 Docker 的預設值，
 首次啟動會自動建表並植入**示範資料**（2 個品牌、3 間門市、6 款飲品、1 個顧客帳號，
-以及 7 筆橫跨待處理／製作中／配送中／待取餐／已完成的訂單，讓門市後台一開就有東西可看）。
+以及 7 筆訂單，涵蓋待處理、製作中、待取餐、已完成四種狀態，讓門市後台一開就有東西可看）。
 
 開 http://localhost:8082/swagger-ui.html 看 API，或用下列帳號登入前端頁面
 （`frontend/` 為靜態頁，用 VS Code Live Server 之類的工具開啟即可）：
@@ -32,7 +32,7 @@ mvn spring-boot:run       # 服務起在 :8082
 > 示範資料只在資料表為空時植入，不會覆蓋既有資料；正式環境請設 `DEMO_DATA_ENABLED=false`。
 
 **要現場演示的話，開始前先跑一次 `./scripts/demo-reset.sh`**（清空並重新植入，實測 13 秒）。
-原因是有兩個功能會隨時間失效：門市後台「待處理」的訂單有 **10 分鐘倒數**，逾時會自動取消——
+原因是有兩個功能會隨時間失效：門市首頁「待處理」的訂單有 **10 分鐘倒數**，時間到時若頁面仍開著，前端會自動送出拒單（伺服器端沒有排程，見「已知技術債」）——
 服務開著講了十幾分鐘架構之後才打開後台，接單／拒單那段就沒東西可以示範了；
 每日轉盤則是**一個帳號一天只能抽一次**，彩排抽過，正式演示就只會看到「你今日已參加過」。
 
@@ -58,7 +58,7 @@ VS Code Live Server 的預設埠是 5500，但 5500 被占用時它會**靜默�
 | **優惠券轉盤** | 每日抽獎，優惠券圖片由 Java 2D 動態生成後上傳 Cloudinary |
 | **商品快照** | 下單時保存當下品名與價格，日後改價不影響歷史訂單 |
 
-規模：後端 144 個檔案 / 約 15.2k 行，26 張資料表，14 個 REST controller；前端 39 個頁面、約 17.8k 行 JS（Vanilla JS + Tailwind）。
+規模：後端 154 個 Java 檔案 / 約 17.1k 行，26 張資料表，14 個 REST controller；前端 39 個頁面、約 18.1k 行 JS（Vanilla JS + Tailwind）。
 
 ---
 
@@ -211,8 +211,9 @@ REPEATABLE READ 下讀的是本交易快照，12 筆評分只算出 4 筆。兩�
 - **前端儲存型 XSS**：結帳頁的品名與圖片、門市後台的品項與配料名稱、顧客頭像與卡片欄位、揪團配料標籤等，改為轉義後輸出；地址編輯按鈕改用 `data-*` 屬性，移除 `onclick` 字串注入。
 - **檔案與設定**：壓縮檔中被轉義的中文圖片檔名已還原（4 個頁面的圖片恢復顯示）；`.gitattributes` 的 CRLF 已還原為 LF。
 - **授權規則**：`SecurityConfig` 的 `permitAll` 路徑限定 HTTP method，移除無用的 `/auth/**`。
+- **第三至五輪**：團購儲值金（`STORE_CREDIT`）送出前映射為 `WALLET`，儲值金付款現在會實際扣款；WebSocket 訂閱依角色授權，門市只能收自己的新訂單推播；`docker-compose.yml` 的資料庫與 Redis 埠口只綁本機；正式範本關閉 springdoc；社群登入的新手機流程補上「已綁定帳號」分支；移除遺留的 `/auth/**` 映射、修正 `/Store/**` 目錄大小寫。
 
-驗證範圍：全部 Java 檔通過語法解析；純邏輯測試以 JUnit 替身執行真實原始碼（29 支，全數通過）；前端 JS 與內嵌腳本語法檢查通過。未能執行 `mvn test`、Spring 整合測試與瀏覽器端到端測試（本次環境沒有 Maven、Docker 與瀏覽器），**上線前必須在 CI 或本機補跑**。
+驗證範圍：全部 Java 檔通過語法解析，並以差異編譯（修復版與基準版的 javac 錯誤清單互相比較）確認沒有新增的符號或型別錯誤；純邏輯測試以 JUnit 替身執行真實原始碼（44 支，全數通過）；前端 JS 與內嵌腳本語法檢查通過。未能執行 `mvn test`、Spring 整合測試與瀏覽器端到端測試（本次環境沒有 Maven、Docker 與瀏覽器），**上線前必須在 CI 或本機補跑**。
 
 ## 測試
 
@@ -236,14 +237,26 @@ docker compose up -d && mvn test
 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、任一規格不同即分開、套券的那杯要拆出來 |
 | `CouponEligibilityTest`（6） | 優惠券適用範圍：跨品牌／跨商品要擋、已付款不可再套 |
 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要拆回 type／description、補款靠正負號分辨收付方 |
-| `ImageStorageServiceTest`（5） | 無 Cloudinary 憑證時改走本機儲存、同 id 覆寫、可疑副檔名正規化、路徑必須留在上傳根目錄內 |
+| `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 id 覆寫、可疑副檔名正規化、路徑必須留在上傳根目錄內 |
 | `RatingConcurrencyTest`（2） | 併發評分不得死鎖（12 筆必須全部寫入），且門市的則數／平均分數要與實際評分對得起來 |
 | `WalletConcurrencyTest`（3） | 併發儲值不短少、帳本與餘額相符、併發扣款不透支、列鎖不被一級快取架空 |
 | `GroupCheckoutConcurrencyTest`（6） | 揪團的四條金流路徑（團員結帳、團長結帳、補款、取消退款）重複觸發時同一筆金額只能發生一次、帳本與餘額必須相符；同一張優惠券不可被用兩次 |
 | `DemoApplicationTests`（1） | Spring context 載入 |
+| `DemoDataSeederProdGuardTest`（2） | 正式環境不植入示範資料（即使 `DEMO_DATA_ENABLED` 沒設定也不會） |
+| `JwtAuthenticationFilterTest`（7） | JWT 過濾器：無效或過期的 token 會被拒絕；已刪除的帳號每次請求都會被擋下 |
+| `AuthServiceSmsModeGuardTest`（6） | 正式環境若 `sms.mode` 不是 `firebase` 就拒絕啟動（含 `MOCK_TOKEN` 繞過） |
+| `LoginAttemptLimiterTest`（8） | 登入與 OTP 限流：超過次數回 429；Redis 不可用時退回本機計數 |
+| `SafeImageUrlTest`（7） | 圖片網址白名單（純邏輯）：擋 `javascript:`、`../`、引號跳脫與控制字元 |
+| `SafeTextTest`（6） | 顧客名稱寫入規則（純邏輯）：拒絕 `< > " \`` 與控制字元，上限 30 字 |
+| `MemberCancelSettlementTest`（9） | 團員取消品項的退款結算（純邏輯）：只退已付款的部分，團長退款以 escrow 為上限 |
+| `OrderStatusGuardTest`（5） | 顧客端訂單狀態轉換白名單（純邏輯） |
+| `CancellableStatusTest`（2） | 揪團品項可否取消：只有 OPEN 與 SUBMITTED（純邏輯） |
+| `StompSubscribeRulesTest`（9） | WebSocket 訂閱授權（純邏輯）：顧客、門市、品牌的頻道權限，未知目的地一律拒絕 |
+| `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策（純邏輯）：手機已被使用就絕不另建帳號 |
 
-目前共有 95 個 JUnit 測試方法。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，
+目前共有 161 個 JUnit 測試方法（30 個測試類別）。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，
 不載入 Spring context，合計只跑約 0.1 秒。
+本輪另新增 7 個純邏輯測試類別（共 44 支，`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
 測試不多，但都對準真正會出事的地方（金流與授權），而且**每一支都驗證過「把修補改回舊寫法時會失敗」**——
@@ -304,7 +317,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 拆出可測試的規則
 
-`GroupOrderService` 有 1,404 行、38 個方法，最長的單一方法 135 行。
+`GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
 這種尺寸沒辦法寫單元測試——要驗一條「甜度該落哪個值」的規則，得先備妥
 揪團、使用者、商品、規格關聯一整組資料。所以先把三條**與金額和防竄改有關**的規則
 從中抽出來，成為不依賴任何框架的純函式：
@@ -375,19 +388,23 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 刻意未處理，列在這裡是因為知道它們存在、也知道代價：
 
-- `GroupOrderService` 仍有約 1,300 行、`BrandService` 1,165 行，最長的方法 135 行。
+- `GroupOrderService` 仍有約 1,600 行、`BrandService` 約 1,200 行，最長的方法 127 行。
   已先抽出三條規則並補上單元測試（見「拆出可測試的規則」），但金流方法
   （`checkout`、`handleGroupOrderCancellation`、`repayToHost`）還沒動，
   那幾條仍然只能靠端對端與 UI 流程從外面框住行為
-- 40 處以 `Map<String, Object>` 作為 API 回傳型別，失去編譯期型別檢查，Swagger 也無法描述結構
+- 41 處以 `Map<String, Object>` 作為 API 回傳型別，失去編譯期型別檢查，Swagger 也無法描述結構
 - V1／V2 端點並存，同一資源有多套格式
 - 輸入驗證目前只覆蓋金流與訂單路徑，其餘 DTO 尚未補齊
+- 待處理訂單的 10 分鐘逾時拒單只在門市首頁開著時由瀏覽器執行（`frontend/store/js/api-home.js` 的 `autoRejectExpired`，每秒檢查一次）；伺服器端沒有對應的排程。門市後台沒人開著時，訂單會停在待處理。改為伺服器排程前，需先決定逾時訂單的退款與通知規則。
+- 團購的「信用卡」選項（`CREDIT_CARD`）後端視為門市付款，與 UI 文字不符（見 `docs/REVIEW_2026-10-11.md` N-22），需產品決定。
+- 品牌自助註冊對外開放（`/api/brand-auth/register` 為 permitAll，N-28），需業務決定是否改為審核制或邀請碼。
+- 依賴漏洞稽核（npm 與 Maven）與 CI action 版本查證尚未完成（N-29、N-20），需在有網路的環境執行。
 
 ---
 
 ## 設定與部署
 
-所有設定走 `${ENV_VAR:本機預設值}`，`application.yml` 不含任何明文密鑰。
+所有設定都走環境變數，格式為 `${變數名:本機預設值}`，`application.yml` 不含任何明文密鑰。
 
 | 檔案 | 用途 | 進 git？ |
 |------|------|---------|
@@ -403,7 +420,8 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 **上線前務必調整：**
 
 - `JWT_SECRET` 換成自己的隨機字串（**至少 64 字元**，不足會啟動失敗）
-- 使用 `prod` profile（預設 `ddl-auto: validate`），並在啟動前先套用資料庫 migration
+- `SPRING_PROFILES_ACTIVE=prod`（必填，沒有它 prod 防呆不會生效）；`ddl-auto` 為 `validate`，啟動前先套用資料庫 migration
+- `SMS_MODE=firebase` 與 `FIREBASE_CONFIG_PATH`（必填；prod 下 `SMS_MODE` 不是 `firebase` 會拒絕啟動）
 - `DEMO_DATA_ENABLED=false`
 - `CORS_ALLOWED_ORIGINS` 換成正式網域；Redis 以 `REDIS_PASSWORD` 加上密碼
 
