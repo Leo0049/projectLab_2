@@ -8,7 +8,10 @@ import lombok.ToString;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "stores")
+@Table(name = "stores",
+        // 附近查詢的矩形預篩（見 PublicService／StoreRepository.findNearbyStores）。
+        // 欄位順序與查詢的 BETWEEN 條件一致；實際是否被 MySQL 採用需以 EXPLAIN 確認（尚未在 CI 量測）。
+        indexes = @Index(name = "idx_stores_lat_lng", columnList = "latitude, longitude"))
 @Data
 public class Store {
 

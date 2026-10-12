@@ -17,9 +17,10 @@
 - `JWT_SECRET`：至少 64 個 UTF-8 位元組的隨機密鑰。prod profile 若仍使用空值或內建開發密鑰，應用會拒絕啟動。
 - `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USERNAME`、`DB_PASSWORD`：正式 MySQL 連線。不得使用 compose 的 `joindrink` / `joindrink` 開發帳密。
 - `REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`：正式 Redis 連線與密碼；Redis 不可公開暴露。
-- `CORS_ALLOWED_ORIGINS`：前端正式來源的完整 origin，包含 `https://`，多筆以逗號分隔。
+- `CORS_ALLOWED_ORIGINS`：前端正式來源的完整 origin，包含 `https://`，多筆以逗號分隔。未設定時會退回 `application.yml` 的預設值（只含本機來源），因此正式環境**必須**設定。
+- `SERVER_FORWARD_HEADERS_STRATEGY`（預設 `native`）：後端如何信任反向代理送來的 `X-Forwarded-*`，見下方「反向代理與來源 IP」。
 - `DEMO_DATA_ENABLED=false`、`WALLET_MOCK_TOPUP_ENABLED=false`：正式環境不可植入示範帳號或開啟未付款儲值；後端也會強制拒絕 prod 模式的模擬儲值。
-- `prod` profile 將 `ddl-auto` 設為 `validate`：部署前先套用資料庫 migration，再啟動應用。若有明確需求要覆寫，Spring 環境變數名稱是 `SPRING_JPA_HIBERNATE_DDL_AUTO`。
+- `prod` profile 將 `ddl-auto` 設為 `validate`：應用只檢查結構、不修改。repo 目前**沒有 migration 腳本或工具**（見 `docs/adr/0008-schema-migrations.md`）。首次部署前必須以人工方式建立與 Entity 一致的結構，例如在相同版本的開發資料庫以 `ddl-auto: update` 啟動一次、匯出 DDL 作為基線，檢查後再套用到正式庫；之後每次結構變更同樣需要人工套用。若有明確需求要覆寫，Spring 環境變數名稱是 `SPRING_JPA_HIBERNATE_DDL_AUTO`。
 - `SMS_MODE=firebase` 與 `FIREBASE_CONFIG_PATH`：**必填**。`sms.mode` 預設是 `mock`，而 mock 模式會把 `MOCK_TOKEN` 當成「手機已驗證」，公開的重設密碼端點因此能接管任何帳號；`AuthService` 在 prod profile 下一律拒絕啟動（不是默默回退）。另請設定可讀取的服務帳戶 JSON 檔案路徑，不要把 JSON 放入 repository 或 JAR。
 - `RESET_PASSWORD_URL`：正式密碼重設頁網址。
 - 可選：`COUPON_TEMPLATE_URL`（優惠券圖片底圖）、`JWT_EXPIRATION`（預設 86400000 毫秒，即 24 小時）、`SERVER_PORT`（預設 8082）。
@@ -29,7 +30,7 @@
 
 ## 建置與啟動後端
 
-以下命令適用於 Linux 部署主機；請在套用資料庫 migration 後執行：
+以下命令適用於 Linux 部署主機；請在資料庫結構建立完成後執行：
 
 ```bash
 cp .env.prod.example .env.prod
@@ -55,6 +56,34 @@ java -jar target/demo-0.0.1-SNAPSHOT.jar
 正式服務請以 systemd、容器平台或主機 secret manager 管理環境變數，避免依賴互動式 shell。systemd 可將受限權限的環境檔放在 repository 外，再於 unit 設定 `EnvironmentFile=/etc/joindrink/joindrink.env` 與 `ExecStart=/usr/bin/java -jar /opt/joindrink/demo-0.0.1-SNAPSHOT.jar`。環境需包含 `SPRING_PROFILES_ACTIVE=prod`。
 
 應用預設監聽 `8082`。正式入口應由 HTTPS reverse proxy 提供，僅公開代理層；代理 WebSocket 時也需支援 `Upgrade`，後端 STOMP endpoint 為 `/ws-cart`。後端 CORS origin 必須和瀏覽器實際載入前端的 origin 一致。
+
+## 反向代理與來源 IP
+
+- 應用程式**不解析** `X-Forwarded-For`。登入與 OTP 的限流以 `getRemoteAddr()` 為準（見 `docs/adr/0004-client-ip-trust-and-rate-limits.md`），因此偽造的標頭不會改變識別。
+- `server.forward-headers-strategy`（環境變數 `SERVER_FORWARD_HEADERS_STRATEGY`）決定容器是否採用代理送來的 `X-Forwarded-*`：
+  - `native`（預設）：由 Tomcat 的 RemoteIpValve 處理，只信任來自內部代理網段的標頭。內部代理網段由 `server.tomcat.remoteip.internal-proxies` 決定，預設為私有網段與 127.0.0.1。
+  - `framework`：由 Spring 的 ForwardedHeaderFilter 處理。
+  - `none`：忽略轉送標頭。直接對外、沒有代理時使用。
+- 建議部署方式：代理與後端位於私有網路；代理必須**覆寫** `X-Forwarded-For`（不可附加使用者送來的值）；後端埠口 `8082` 不直接對外。
+- 若代理不在內部代理網段內，`native` 不會採用它的標頭，所有使用者都會被視為同一個來源 IP，限流會誤傷正常使用者。此時應調整代理位置，或明確設定 `server.tomcat.remoteip.internal-proxies`。
+
+## Docker 映像與健康檢查
+
+- 建置：於 repository 根目錄執行 `docker build -t joindrink:<tag> .`。多階段建置：Maven 產出 jar，執行階段只含 JRE、jar 與 `frontend/`（靜態頁面由後端提供，位於映像內的 `/app/frontend`）。
+- 不會進入映像的內容（見 `.dockerignore`）：`.git`、`.github`、`docs/`、`scripts/`、`.env*`、`serviceAccountKey.json`、`application-local.yml`、本機 `uploads/`、建置產物。
+- 映像**不含**資料庫與 Redis，兩者需由外部提供。`.env.prod` 中的 `DB_HOST`、`REDIS_HOST` 必須是容器可以連到的位址，不能寫 `localhost`（在容器內那指的是容器自己）。
+- 執行範例：
+
+  ```bash
+  docker run --rm -p 8082:8082 \
+    --env-file .env.prod \
+    -v joindrink-uploads:/app/uploads \
+    joindrink:<tag>
+  ```
+
+- 容器以非 root 的 `app` 使用者執行。本機上傳目錄為 `/app/uploads`，需要保留圖片時請掛載 volume。
+- 健康檢查：`GET /actuator/health` 只回傳 `{"status":"UP"}`，可作為容器平台或負載平衡器的探測端點，例如 `curl -fsS http://127.0.0.1:8082/actuator/health`。
+- CI 的 `docker` 工作只建置映像、不推送，也不帶任何憑證。
 
 ## 安全標頭與 CSP
 

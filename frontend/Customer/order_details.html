@@ -1252,7 +1252,7 @@
                         body: JSON.stringify({ rating: selectedRating })
                     });
                     // 清除快取，避免下次載入時彈出評分 modal
-                    const cacheKey = `cache_${NavAuth.getApiUrl(`/api/orders/${orderId}/rating`)}`;
+                    const cacheKey = NavAuth.cacheKeyFor(NavAuth.getApiUrl(`/api/orders/${orderId}/rating`));
                     sessionStorage.removeItem(cacheKey);
                     document.getElementById('rating-modal').classList.add('hidden');
                     showToast('感謝您的評價！', 'success');

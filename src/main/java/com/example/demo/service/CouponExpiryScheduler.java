@@ -17,9 +17,17 @@ public class CouponExpiryScheduler {
     @Autowired
     private UserCouponRepository userCouponRepository;
 
+    @Autowired
+    private ExclusiveJobRunner exclusiveJobRunner;
+
     // 每天 00:01 執行，把過期的券標記為 expired
+    // 多實例部署時只由取得鎖的實例執行（見 ExclusiveJobRunner）。
     @Scheduled(cron = "0 1 0 * * *")
     public void expireCoupons() {
+        exclusiveJobRunner.runExclusively("coupon-expiry", 600, this::markExpiredCoupons);
+    }
+
+    void markExpiredCoupons() {
         LocalDateTime now = LocalDateTime.now();
         List<UserCoupon> expired = userCouponRepository.findByStatusAndExpiredAtBefore("unused", now);
         expired.forEach(c -> c.setStatus("expired"));

@@ -224,6 +224,8 @@
 | manager_name / manager_phone / store_phone | VARCHAR | 管理員姓名、手機、門市電話 |
 | cover_url | VARCHAR(255) | 店家封面圖（Cloudinary）|
 
+> **索引**：`idx_stores_lat_lng (latitude, longitude)`（宣告於 `entity/Store.java` 的 `@Table(indexes=…)`）。附近店家查詢先以經緯度矩形做 `BETWEEN` 預篩，讓這個索引能做範圍掃描；精確距離在第二段計算。查詢本身見 `repository/StoreRepository.findNearbyStores`。
+
 ---
 
 ### 13. store_product_settings 分店飲品供應狀態
@@ -508,6 +510,37 @@ OPEN（待處理）→ SUBMITTED（已送出）→ PREPARING（製作中）→ R
 | final_price | DECIMAL(10,2) | 飲品 + 加料 + 規格加價後的單杯總價 |
 | qty | INT NOT NULL DEFAULT 1 | 數量（相同品項可合併，默認 1）|
 | created_at | DATETIME | 加入購物車時間 |
+
+---
+
+## 🔑 Redis 鍵一覽
+
+Redis 7.4（見 `docker-compose.yml`）。下表是程式中實際寫入的鍵，依擁有者整理；沒有列在這裡的鍵代表程式中不存在。
+
+| 鍵格式 | 型別 | TTL／租約 | 擁有者 | 用途 |
+|------|------|----------|-------|------|
+| `idem:checkout:<userId>:<key>` | String | `IN_PROGRESS` 120 秒；`DONE:<json>` 86400 秒 | `IdempotencyService` | 結帳冪等（ADR-0005）|
+| `lock:checkout:<userId>` | String（token）| 30 秒 | `OrderService.createOrder` | 同一使用者的結帳互斥 |
+| `lock:group-create:<hostId>:<storeId>` | String（token）| 10 秒 | `GroupOrderService.createGroupOrderV2` | 防止同一人在同一門市開出多個活躍揪團 |
+| `lock:job:<name>` | String（token）| 由呼叫端指定（排程任務為 600 秒）| `ExclusiveJobRunner` | 多實例排程互斥（ADR-0006）|
+| `lock:spin:<userId>` | String（token）| 10 秒 | `DailySpinService` | 同一使用者的轉盤併發保護 |
+| `spin:done:<userId>:<yyyy-MM-dd>` | String（token）| 到當日午夜（至少 1 秒）| `DailySpinService` | 今日已抽標記 |
+| `ratelimit:<scope>:<identity>` | Integer 計數 | 視窗秒數（預設 300），第一次計數時設定 | `LoginAttemptLimiter` | 登入與 OTP 的固定視窗限流（ADR-0004）|
+| `cart:items:<cartToken>` | Hash（field = 品項 id，value = JSON 快照）| **無 TTL** | `RedisCartService` | 購物車品項快照 |
+| `carts:active` | Sorted Set（member = cartToken，score = 最後更新的毫秒時間戳）| 無 | `RedisCartService` | 預留給清理排程；目前沒有消費者（已知缺口）|
+
+說明：
+
+- `lock:*` 的值是隨機 token，釋放時以 Lua 腳本比對 token 後才刪除，避免誤刪他人的鎖。
+- Redis 不可用時，鎖與計數退回 JVM 內的本地實作，**只在單實例下正確**（ADR-0006）。
+- `cart:items:*` 與 `carts:active` 目前沒有過期時間，也沒有清理排程；只會在 `clearCart` 等明確操作時刪除。這是已知缺口，列於 `docs/IMPROVEMENT_ASSESSMENT.md`。
+- 目前所有環境若共用同一個 Redis，鍵會互相干擾。正式環境應使用獨立的 Redis 實例。
+
+## 🧭 結構變更方式
+
+- 目前 schema 由 Hibernate 的 `spring.jpa.hibernate.ddl-auto: update` 管理（見 `application.yml`）。`update` 只會新增資料表與欄位，**不會**刪除、改名或改型別，也不做資料遷移。
+- 本專案**沒有遷移工具**。正式上線前導入 Flyway 的做法與驗收條件，見 [`docs/adr/0008-schema-migrations.md`](docs/adr/0008-schema-migrations.md)。
+- 本文件是手寫的對照說明；Entity 才是唯一事實來源。修改 Entity 時請同步更新本文件，並注意上方 `user_coupons` 一節提到的 generated column。
 
 ---
 

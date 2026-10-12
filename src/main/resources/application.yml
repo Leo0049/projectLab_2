@@ -7,6 +7,9 @@
 
 server:
   port: ${SERVER_PORT:8082}
+  # 反向代理之後取得真實來源 IP。只信任可信代理（Tomcat RemoteIpValve 的預設清單：私有網段與 127.0.0.1）送來的 X-Forwarded-*；
+  # 直連時標頭一律忽略，因此攻擊者無法用偽造的 X-Forwarded-For 繞過登入限流（ADR-0004）。
+  forward-headers-strategy: ${SERVER_FORWARD_HEADERS_STRATEGY:native}
 
 spring:
   application:
@@ -43,6 +46,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+        # 懶載入關聯依 50 筆一批載入，降低 N+1（ADR-0002：open-in-view 維持關閉）
+        default_batch_fetch_size: 50
         jdbc:
           time_zone: Asia/Taipei
 
@@ -102,11 +107,12 @@ app:
     # SecurityConfig（HTTP）與 WebSocketConfig（STOMP handshake）共用這份白名單，
     # 避免兩邊各寫一份而漂移——WebSocket 曾寫成 allowedOriginPatterns("*") 完全放行。
     #
-    # ⚠️ 這裡多列了 5501/5502/3000/8080：VS Code Live Server 的預設埠是 5500，
-    # 但 5500 被占用時它會靜默改用 5501，此時整個前端會因為 CORS 而全部 403——
-    # 實測 5501 / 3000 / 8080 與 file://（Origin: null）的 preflight 都被擋下。
-    # 直接用瀏覽器開檔案（file://）本來就不支援，請用靜態伺服器。
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:5501,http://localhost:5501,http://127.0.0.1:5502,http://localhost:5502,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080,http://localhost:60687,http://localhost:54376,http://localhost:63342,http://localhost:8082,http://127.0.0.1:8082}
+    # 預設列出：本專案前端的靜態伺服器（localhost／127.0.0.1 的 5500；CI 與 scripts/ 的 FE_BASE 預設即此埠）、
+    # 本機後端（8082），以及 localhost:5173（Vite 的預設埠；本專案前端是靜態 HTML、不使用 Vite，
+    # 此埠目前沒有程式依賴，確認無人使用後可移除）。
+    # IDE 的臨時埠等其他來源，請寫在 application-local.yml（範例見 application-local.yml.example），不要改這裡的預設值。
+    # 直接以 file:// 開啟頁面（Origin: null）不受支援，請用靜態伺服器。
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5500,http://localhost:5500,http://localhost:8082,http://127.0.0.1:8082}
 
 jwt:
   # 本機預設值僅供開發，正式環境務必以 JWT_SECRET 覆寫。
@@ -125,6 +131,20 @@ cloudinary:
 coupon:
   template-url: ${COUPON_TEMPLATE_URL:}
 
+# ── 健康檢查（Actuator）──────────────────────────────────
+# 只暴露 health，且不顯示細節：DB／Redis 的內部狀態不對外。GET /actuator/health 不需登入（SecurityConfig）。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
 logging:
+  # %X{requestId}：RequestIdFilter 放入 MDC 的請求編號；請求之外的日誌顯示 --
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{requestId:--}] %logger{36} - %msg%n"
   level:
     org.springframework.data.redis: WARN

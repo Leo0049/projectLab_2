@@ -38,6 +38,8 @@ public class SecurityConfig {
                                 .httpBasic(AbstractHttpConfigurer::disable)
                                 .authorizeHttpRequests(auth -> auth
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                                                // 健康檢查：只暴露 health，且不顯示細節（見 application.yml 的 management.*）
+                                                .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                                                 // ⚠️ permitAll 一律指定 HTTP method（見 CLAUDE.md「授權規則」）。
                                                 //    下列路徑目前只有 GET 端點；若未來誤加寫入端點，POST/PUT/DELETE
                                                 //    會落到後面的角色規則，不會因為整段萬用字元而被放行。

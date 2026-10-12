@@ -53,7 +53,12 @@ module.exports = async function run() {
     await spin.click();
     log('按下「立即抽獎」');
 
-    await page.waitForTimeout(9000);   // 轉盤動畫
+    // 轉盤動畫結束（約 4.6 秒）後 showResult() 才會移除 #roulette-step-result 的 hidden，見 index.html。
+    // 等它真的出現，最多 20 秒；超時不在這裡報錯，交給下面的檢查去報。
+    await page.waitForFunction(() => {
+      const el = document.getElementById('roulette-step-result');
+      return !!el && !el.classList.contains('hidden');
+    }, null, { timeout: 20000 }).catch(() => {});
     await shot('result');
     if (await page.evaluate(() => document.getElementById('roulette-step-result').classList.contains('hidden'))) {
       await shot('no-result'); fail('轉完之後沒有顯示中獎結果'); return failed;
@@ -65,9 +70,10 @@ module.exports = async function run() {
     if (after > before) log(`優惠券入帳：${before} → ${after}`);
     else fail(`畫面顯示中獎，但優惠券沒有增加（${before} → ${after}）`);
 
+    // 每日限抽一次：第二次必須被拒絕，code 為 '409'（HTTP 409）
     const again = await api('/api/coupons/spin', { method: 'POST', token: user.token, body: { brandId: 1 } });
-    if (again.code === '200') fail('每日限抽一次沒有生效，第二次仍然抽中');
-    else log(`當日第二次抽獎被擋下：${String(again.msg).slice(0, 30)}`);
+    if (again.code === '409') log(`當日第二次抽獎被擋下（409）：${String(again.msg).slice(0, 30)}`);
+    else fail(`每日限抽一次沒有生效：第二次回傳 code=${again.code}，應為 409`);
 
     const errs = projectErrors(errors);
     if (errs.length) fail(`前端有錯誤：\n      ${errs.join('\n      ')}`);

@@ -20,7 +20,7 @@ jobs:
     # 與 docker-compose.yml 對齊：MySQL 8 + Redis 7，資料庫名 joindrink
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.0.42
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: joindrink
@@ -31,7 +31,7 @@ jobs:
           --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
           --health-interval=10s --health-timeout=5s --health-retries=12
       redis:
-        image: redis:7-alpine
+        image: redis:7.4-alpine
         ports: ['6379:6379']
         options: >-
           --health-cmd="redis-cli ping"
@@ -70,12 +70,32 @@ jobs:
           distribution: temurin
           cache: maven
 
+      # ── 靜態檢查（不需要後端，先跑先報錯）──
+      # 受版控的 .js 逐一做語法檢查（frontend/vendor 是第三方檔，略過）；
+      # HTML 內嵌的 <script> 不在 node --check 的範圍內，改用 check-inline-scripts 檢查。
+      - name: 靜態語法檢查（JS 與 HTML 內嵌 script）
+        run: |
+          git ls-files -z '*.js' | grep -zv '^frontend/vendor/' | xargs -0 -r -n1 node --check
+          node scripts/ui/check-inline-scripts.js
+
       # ── 第一層：單元／整合測試（授權與金流的回歸防線）──
       - name: mvn test
         run: mvn -B test
 
       - name: 打包
         run: mvn -B package -DskipTests
+
+      # 覆蓋率只做摘要、不設門檻；沒有報告（pom 未產生 JaCoCo）就略過，不影響建置結果
+      - name: JaCoCo 行覆蓋率摘要（僅供參考）
+        run: |
+          csv=target/site/jacoco/jacoco.csv
+          if [ ! -f "$csv" ]; then echo "沒有 $csv，略過覆蓋率摘要"; exit 0; fi
+          # 欄位 8 = LINE_MISSED、欄位 9 = LINE_COVERED；第 1 列是標題
+          summary=$(awk -F, 'NR > 1 { m += $8; c += $9 } END { t = m + c; printf "%d / %d（%.1f%%）", c, t, (t ? c * 100 / t : 0) }' "$csv") || summary="無法解析 $csv"
+          echo "JaCoCo 行覆蓋率：$summary"
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            printf '### JaCoCo 行覆蓋率\n\n覆蓋行數：%s\n' "$summary" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # ── 起服務 ──
       - name: 啟動後端
@@ -134,3 +154,17 @@ jobs:
             app.log
           retention-days: 7
           if-no-files-found: ignore
+
+  # 只驗證 Dockerfile 能建成映像：不推送、不帶任何憑證
+  docker:
+    name: 容器映像建置（僅建置）
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: docker build
+        run: docker build -t joindrink:ci .

@@ -58,47 +58,53 @@ public class DailySpinService {
 
     @Transactional
     public SpinResult spin(Long userId, Long brandId) {
+        if (brandId == null) {
+            throw new com.example.demo.exception.CustomException("400", "請選擇品牌");
+        }
+
         // 1. 使用 Redis 鎖防止同一用戶同時多次併發請求
         // ⚠️ M-3 修復：acquire/release 改為 token 配對，避免逾時後誤刪他人的鎖
         String lockKey = "lock:spin:" + userId;
         String lockToken = redisLockService.acquireLock(lockKey, 10);
         if (lockToken == null) {
-            throw new RuntimeException("系統繁忙中，請稍後再試");
+            throw new com.example.demo.exception.CustomException("503", "系統繁忙中，請稍後再試");
         }
         try {
-            // 2. 使用 Redis 記錄今日已轉（TTL 到午夜）
+            // 2. 先確認品牌有可抽獎的內容。
+            //    ⚠️ 必須在寫入「今日已轉」標記之前檢查：品牌沒有飲品時若標記已寫入，
+            //    使用者當天就再也抽不到，卻沒有拿到任何獎品（2026-10-12 評估中發現）。
+            List<ProductTemplate> allProducts = productRepository.findByBrandId(brandId);
+            if (allProducts.isEmpty()) {
+                throw new com.example.demo.exception.CustomException("422", "該品牌目前沒有可抽獎的飲品");
+            }
+            List<com.example.demo.entity.MenuCategory> categories =
+                    menuCategoryRepository.findByBrandIdOrderBySortOrderAsc(brandId);
+            if (categories.isEmpty()) {
+                throw new com.example.demo.exception.CustomException("422", "該品牌目前沒有可抽獎的飲品分類");
+            }
+
+            // 3. 使用 Redis 記錄今日已轉（TTL 到午夜）
             String dailyKey = "spin:done:" + userId + ":" + LocalDate.now();
             long ttl = getRemainingSecondsToday();
-            
+
             boolean redisCheckPassed = true;
             try {
                 // ⚠️ M-3 修復：acquire 故障時回傳 null（內部已 log），不再靠例外分支
                 String dailyToken = redisLockService.acquireLock(dailyKey, ttl);
                 redisCheckPassed = dailyToken != null;
             } catch (Exception e) {
+                // Redis 例外時無法判定「已轉過」，交給下面的資料庫檢查決定。
+                // （原本這裡設為 false，等於把 Redis 故障誤報成「今日已參加過」。）
                 log.warn("Redis unavailable for spin dailyKey lock, will rely on DB: {}", e.getMessage());
-                // If Redis fails, we continue and let DB layer handle duplicate check
-                redisCheckPassed = false;
             }
 
             if (!redisCheckPassed) {
                 throw new com.example.demo.exception.CustomException("409", "你今日已參加過轉盤遊戲");
             }
 
-            // 3. 資料庫層級二次檢查（防止 Redis 重啟導致狀態遺失，或 Redis 故障）
+            // 4. 資料庫層級二次檢查（防止 Redis 重啟導致狀態遺失，或 Redis 故障）
             if (userCouponRepository.existsByUserIdAndObtainedDateAndCouponType(userId, LocalDate.now(), "WHEEL_GAME")) {
                 throw new com.example.demo.exception.CustomException("409", "你今日已參加過轉盤遊戲");
-            }
-
-            List<ProductTemplate> allProducts = productRepository.findByBrandId(brandId);
-            if (allProducts.isEmpty()) {
-                throw new RuntimeException("該品牌目前沒有可抽獎的飲品");
-            }
-
-            List<com.example.demo.entity.MenuCategory> categories =
-                    menuCategoryRepository.findByBrandIdOrderBySortOrderAsc(brandId);
-            if (categories.isEmpty()) {
-                throw new RuntimeException("該品牌目前沒有可抽獎的飲品分類");
             }
 
             com.example.demo.entity.MenuCategory winningCategory =
@@ -128,10 +134,9 @@ public class DailySpinService {
             uc.setDiscountAmount(new BigDecimal("5.00"));
             uc.setStatus("unused");
             uc.setObtainedAt(LocalDateTime.now());
-            
+
             // obtainedDate 由資料庫 Generated Column 自動生成，故不在此顯式設定
-            // uc.setObtainedDate(LocalDate.now()); 
-            
+
             userCouponRepository.save(uc);
 
             return new SpinResult(winningCategory.getName(), winningProduct.getName(), winningProduct.getId(),

@@ -896,6 +896,30 @@ function escHtmlSafe(value) {
         let selectedCoupon = null;
         let currentStoreConfig = null;
 
+        // ─── 結帳冪等鍵 ───────────────────────────────────────────────
+        // 同一份訂單內容重送時沿用同一把 Idempotency-Key，伺服器據此擋下重複下單。
+        // 只存於記憶體（不寫入 storage）：重新整理頁面即視為新的嘗試。
+        let pendingCheckoutAttempt = null; // { key, fingerprint }
+
+        function makeCheckoutIdempotencyKey() {
+            const raw = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+                ? crypto.randomUUID()
+                : Date.now().toString(36) + Math.random().toString(36).slice(2);
+            let key = raw.replace(/[^A-Za-z0-9_-]/g, '');
+            if (key.length < 8) {
+                key += Date.now().toString(36) + Math.random().toString(36).slice(2).replace(/[^A-Za-z0-9]/g, '');
+            }
+            return key.slice(0, 64);
+        }
+
+        // 內容與上一次相同就沿用 key；內容不同（或尚無嘗試）則換新的
+        function checkoutIdempotencyKeyFor(fingerprint) {
+            if (!pendingCheckoutAttempt || pendingCheckoutAttempt.fingerprint !== fingerprint) {
+                pendingCheckoutAttempt = { key: makeCheckoutIdempotencyKey(), fingerprint };
+            }
+            return pendingCheckoutAttempt.key;
+        }
+
         function escapeHtml(str) {
             if (str == null) return '';
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -2090,11 +2114,16 @@ function escHtmlSafe(value) {
                     note: document.getElementById('checkout-remarks')?.value?.trim() || ''
                 };
 
+                const fingerprint = JSON.stringify(orderData);
+                const idempotencyKey = checkoutIdempotencyKeyFor(fingerprint);
+
                 try {
                     const result = await NavAuth.fetchAPI('/api/orders/checkout', {
                         method: 'POST',
-                        body: JSON.stringify(orderData)
+                        body: JSON.stringify(orderData),
+                        headers: { 'Idempotency-Key': idempotencyKey }
                     });
+                    pendingCheckoutAttempt = null;
 
                     if (typeof Cart.clearCart === 'function') {
                         Cart.clearCart(storeId);
@@ -2124,6 +2153,10 @@ function escHtmlSafe(value) {
                         window.location.href = `order_confirm.html?orderId=${result.orderId}`;
                     }
                 } catch (err) {
+                    // A 4xx other than 409 means no order was created, so release the key and the next try gets a fresh one.
+                    // 409 (still processing), 5xx and network/timeout errors leave the outcome unknown: keep the key.
+                    const status = err?.status;
+                    if (status >= 400 && status < 500 && status !== 409) pendingCheckoutAttempt = null;
                     console.error('Checkout error:', err);
                     showToast('下單失敗：' + (err.message || '未知錯誤'), 'error');
                     submitBtn.disabled = false;

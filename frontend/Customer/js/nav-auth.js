@@ -56,13 +56,43 @@ const NavAuth = {
     },
 
     /**
+     * sessionStorage key for a cached GET response.
+     * Scoped by the logged-in user id so one user's cached responses are never served to another user.
+     */
+    cacheKeyFor(url) {
+        let scope = 'anon';
+        try {
+            scope = localStorage.getItem('JOIN_USER_ID') || 'anon';
+        } catch (e) {
+            // Storage unavailable: fall back to the anonymous scope
+        }
+        return `cache_${scope}_${url}`;
+    },
+
+    /**
+     * Remove every cached GET response from this tab's sessionStorage
+     */
+    purgeCache() {
+        try {
+            const keys = [];
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                if (key && key.startsWith('cache_')) keys.push(key);
+            }
+            keys.forEach((key) => sessionStorage.removeItem(key));
+        } catch (e) {
+            console.warn('Failed to purge API cache:', e);
+        }
+    },
+
+    /**
      * Fetch API wrapper with error handling, JSON parsing, and optional caching
      */
     async fetchAPI(endpoint, options = {}) {
         const url = this.getApiUrl(endpoint);
         
         // Caching Logic
-        const cacheKey = `cache_${url}`;
+        const cacheKey = this.cacheKeyFor(url);
         if (options.cache && options.method?.toUpperCase() !== 'POST') {
             const cached = sessionStorage.getItem(cacheKey);
             if (cached) {
@@ -118,13 +148,15 @@ const NavAuth = {
             const body = isJson ? await response.json() : await response.text();
 
             if (!response.ok) {
+                // Carry the HTTP status so callers can tell a 4xx rejection from a 5xx or a network failure
+                const httpError = (message) => Object.assign(new Error(message), { status: response.status });
                 if (body && typeof body === 'object') {
                     // Handle both V1 (msg) and V2 (message, error) error structures
-                    throw new Error(body.msg || body.message || body.error || `API Error: ${response.status}`);
+                    throw httpError(body.msg || body.message || body.error || `API Error: ${response.status}`);
                 }
                 // Avoid throwing raw HTML (e.g. Spring error pages) as error message
                 const isHtml = typeof body === 'string' && body.trimStart().startsWith('<');
-                throw new Error(isHtml ? `伺服器錯誤 (${response.status})，請稍後再試` : (body || `API Error: ${response.status}`));
+                throw httpError(isHtml ? `伺服器錯誤 (${response.status})，請稍後再試` : (body || `API Error: ${response.status}`));
             }
 
             let result = body;
@@ -211,6 +243,7 @@ const NavAuth = {
         localStorage.removeItem('JOIN_LOCATION_MODAL_SHOWN');
         sessionStorage.removeItem('activeGroupToken');
         sessionStorage.removeItem('nearbyStores');
+        this.purgeCache();
         window.location.href = this.getFrontendPath('auth/login.html');
     },
 

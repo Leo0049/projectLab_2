@@ -21,7 +21,8 @@
 | 圖片生成 | Java 2D (優惠券動態圖片生成) |
 | API 文件 | SpringDoc OpenAPI / Swagger UI v2.8.5 |
 | 建置工具 | Maven（**注意：repo 內沒有 `mvnw` 腳本，請用系統 `mvn`**）|
-| 其他 | Lombok, TestNG |
+| 容器 | Dockerfile（多階段：`maven:3.9-eclipse-temurin-17` → `eclipse-temurin:17-jre`，非 root 執行）；CI 只建置、不推送 |
+| 其他 | Lombok, JUnit 5 + Mockito（**沒有 TestNG**）, JaCoCo 0.8.12（僅產生報告，無覆蓋率門檻）, Spring Boot Actuator（僅 `/actuator/health`）|
 | 前端 | Vanilla JavaScript + Tailwind CSS (無框架) |
 | 前端 HTTP | Fetch API + Bearer JWT from localStorage |
 
@@ -31,12 +32,12 @@
 join_drink/
 ├── src/main/java/com/example/demo/
 │   ├── controller/          # 14 REST controllers
-│   ├── service/             # 26 業務邏輯 services
+│   ├── service/             # 31 個頂層類別（另有 order/、wallet/ 子套件共 7 個）
 │   ├── entity/              # 26 JPA entities + 6 EmbeddedId 類別
 │   ├── repository/          # 28 JPA repositories
-│   ├── dto/                 # 24 Data Transfer Objects
-│   ├── common/              # JWT, Security, Cloudinary, Firebase, DataSeeder, DemoDataSeeder
-│   ├── config/              # RedisConfig, WebSocketConfig
+│   ├── dto/                 # 25 Data Transfer Objects
+│   ├── common/              # JWT、SecurityHeadersFilter、RequestIdFilter、SafeImageUrl／SafeText、GeoBounds、Cloudinary／Firebase／Swagger／WebConfig、DataSeeder、DemoDataSeeder
+│   ├── config/              # RedisConfig、WebSocketConfig（授權規則在 StompSubscribeRules）、TimeZoneConfig
 │   ├── exception/           # CustomException + GlobalExceptionHandler
 │   ├── DemoApplication.java # Spring Boot 入口
 │   └── SecurityConfig.java  # 安全設定
@@ -170,41 +171,55 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 ## 測試
 
-`mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL）：
+`mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-| 測試 | 守住的東西 |
-|------|-----------|
-| `AuthorizationTest`（18） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、拿他人 userId 結帳、竄改 finalPrice、跨帳號讀寫收藏、消耗他人優惠券、debug 與門市傾印端點已移除 |
-| `ItemSpecResolverTest`（7） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）|
-| `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
-| `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
-| `MemberCancelSettlementTest`（9） | 團員取消品項的退款規則：只有真的付過（PAID／ESCROWED）才會退，且以 `escrowAmount` 為上限 |
-| `OrderStatusGuardTest`（5） | 顧客端狀態轉換白名單（`OPEN\|SUBMITTED → CANCELLED`、`SUBMITTED → PAID`）|
-| `SafeImageUrlTest`（7） | 圖片網址白名單：擋 `x" onerror=…`、`javascript:`、`../`、控制字元 |
-| `SafeTextTest`（6） | 會顯示給他人看的名稱：拒絕 `< > " \`` 與控制字元、上限 30 字；第三方登入名稱只清理、不拒絕 |
-| `CancellableStatusTest`（2） | 揪團品項可否取消：只有 OPEN、SUBMITTED（大小寫與空白不敏感） |
-| `StompSubscribeRulesTest`（9） | WebSocket 訂閱授權的純規則：顧客只能訂閱自己參與的訂單與揪團；門市只能訂閱自己的頻道；角色必須相符（id 會撞號）；未知目的地與超大數字 id 一律拒絕 |
-| `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策：已綁定、手機衝突、建立新帳號；不變量：手機已被使用就絕不另建帳號 |
-| `LoginAttemptLimiterTest`（8） | 登入／OTP 滑動視窗限流，Redis 不可用時退回本地計數 |
-| `AuthServiceSmsModeGuardTest`（6） | prod profile 下 `sms.mode` 不是 firebase 就拒絕（含 `MOCK_TOKEN` 分支）|
-| `DemoDataSeederProdGuardTest`（2） | prod profile 不植入示範帳號，即使 `DEMO_DATA_ENABLED=true` |
-| `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要能拆回兩欄、補款靠正負號分辨收付方 |
-| `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 publicId 覆寫、可疑副檔名正規化 |
-| `RatingConcurrencyTest`（2） | 併發評分不得死鎖、門市則數與平均分數要對得起來 |
-| `WalletConcurrencyTest`（3） | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支、列鎖不被一級快取架空 |
-| `GroupCheckoutConcurrencyTest`（6） | 揪團四條金流路徑重複觸發時只能發生一次；同一張券不可用兩次 |
-| `DemoApplicationTests`（1） | Spring context 能否載入 |
+**目前規模（2026-10-12，以 `grep -E '^\s*@Test'` 計算）：189 個 `@Test`，分布在 36 個測試類別。** 新增或刪除測試時，請同步更新此表與這段數字。
 
-`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `MemberCancelSettlementTest` / `OrderStatusGuardTest`
-在 `service/order/`，`TxDisplayTest` 在 `service/wallet/`，`SafeImageUrlTest` / `DemoDataSeederProdGuardTest` 在 `common/`，
-是**不載入 Spring context** 的純邏輯測試（合計 0.05 秒）。
-新增純規則時請放在那裡，不要為了測一條規則去啟整個 context。
+| 區域 | 測試（數量） | 守住的東西 |
+|------|-------------|-----------|
+| 授權與路由 | `AuthorizationTest`（19） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、拿他人 userId 結帳、竄改 finalPrice、跨帳號讀寫收藏、消耗他人優惠券、debug 與門市傾印端點已移除 |
+| 授權與路由 | `AuthorizationRouteInventoryTest`（3） | 列舉全部路由：非公開路由匿名呼叫必須回 401／403；公開清單的每一條都必須真的存在（ADR-0003） |
+| 授權與路由 | `GroupOrderSecurityTest`（5） | 揪團 H-1～H-3：伺服器重算價格與歸屬；他人的 couponId 被拒；非團長不可改他人揪團狀態；團長本人的截單與重開可行，亂打的狀態被白名單擋下 |
+| 授權與路由 | `GroupOrderServiceAuthorizationTest`（6） | 揪團讀取與加入：只有發起人能取得分享 token；非成員不可讀數字 id 的明細；舊版加入必須帶正確的 token；拒絕他品牌的商品與門市停售的商品 |
+| 授權與路由 | `StompSubscribeRulesTest`（9） | WebSocket 訂閱授權的純規則：顧客只能訂閱自己參與的訂單與揪團；門市只能訂閱自己的頻道；角色必須相符（id 會撞號）；未知目的地與超大數字 id 一律拒絕 |
+| 授權與路由 | `JwtAuthenticationFilterTest`（7） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒 |
+| 帳號與登入 | `AuthServiceSecurityTest`（7） | 帳號安全：mock Firebase token 只在 mock 模式可用；已刪除帳號不可經社群登入；手機證明不可與他人的社群 UID 併用；合併帳號時拒絕其他號碼的 token；社群 provider 不符時在設定密碼前拒絕 |
+| 帳號與登入 | `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策：已綁定、手機衝突、建立新帳號；不變量：手機已被使用就絕不另建帳號 |
+| 帳號與登入 | `AuthServiceSmsModeGuardTest`（6） | prod profile 下 `sms.mode` 不是 firebase 就拒絕（含 `MOCK_TOKEN` 分支） |
+| 帳號與登入 | `JwtUtilsProdGuardTest`（4） | JWT 密鑰：dev 可用預設值；prod 拒絕預設值與空白密鑰；prod 接受隨機密鑰 |
+| 帳號與登入 | `DemoDataSeederProdGuardTest`（2） | prod profile 不植入示範帳號，即使 `DEMO_DATA_ENABLED=true` |
+| 帳號與登入 | `LoginAttemptLimiterTest`（9） | 登入／OTP 固定視窗限流（ADR-0004）；偽造的 `X-Forwarded-For` 不改變識別；Redis 不可用時退回本地計數 |
+| 金流與併發 | `WalletConcurrencyTest`（3） | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支、列鎖不被一級快取架空 |
+| 金流與併發 | `GroupCheckoutConcurrencyTest`（6） | 揪團四條金流路徑重複觸發時只能發生一次；同一張券不可用兩次 |
+| 金流與併發 | `RatingConcurrencyTest`（2） | 併發評分不得死鎖、門市則數與平均分數要對得起來 |
+| 金流與併發 | `IdempotencyServiceTest`（9） | 結帳冪等（ADR-0005）：格式檢查、重送回放、進行中衝突、失敗與例外釋放、使用者之間互不影響；Redis 與本地兩條路徑 |
+| 金流與併發 | `ExclusiveJobRunnerTest`（3） | 排程互斥（ADR-0006）：他人持鎖時略過；取得鎖時執行並以同一 token 釋放；任務拋出例外仍釋放 |
+| 金流與併發 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要能拆回兩欄、補款靠正負號分辨收付方 |
+| 訂單規則 | `ItemSpecResolverTest`（7） | 固定規格防竄改（見下方「品項規則抽在 service/order/」） |
+| 訂單規則 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
+| 訂單規則 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
+| 訂單規則 | `MemberCancelSettlementTest`（9） | 團員取消品項的退款規則：只有真的付過（PAID／ESCROWED）才會退，且以 `escrowAmount` 為上限 |
+| 訂單規則 | `OrderStatusGuardTest`（5） | 顧客端狀態轉換白名單（`OPEN\|SUBMITTED → CANCELLED`、`SUBMITTED → PAID`） |
+| 訂單規則 | `CancellableStatusTest`（2） | 揪團品項可否取消：只有 OPEN、SUBMITTED（大小寫與空白不敏感） |
+| 訂單規則 | `PricingServiceTest`（5） | 定價：規格與加料取用伺服器價格；拒絕未設定的規格與加料；加料數量上限與重複選取 |
+| 訂單規則 | `QuantityLimitsTest`（1） | 數量只接受範圍內的整數 |
+| 訂單規則 | `CartServiceTest`（1） | 購物車小計 = 單價 × 數量 |
+| 訂單規則 | `RedisCartServiceTest`（2） | Redis 購物車的快照不含 LAZY 欄位；品項的 product 為 null 也能存 |
+| 訂單規則 | `BrandServiceReferenceTest`（2） | 品牌參照：拒絕引用他品牌的分類、規格與加料 id |
+| 輸入與輸出安全 | `SafeImageUrlTest`（7） | 圖片網址白名單：擋 `x" onerror=…`、`javascript:`、`../`、控制字元 |
+| 輸入與輸出安全 | `SafeTextTest`（6） | 會顯示給他人看的名稱：拒絕 `< > " \`` 與控制字元、上限 30 字；第三方登入名稱只清理、不拒絕 |
+| 其他 | `GeoBoundsTest`（5） | 附近店家的矩形預篩必為 50 km 圓的超集（取樣驗證） |
+| 其他 | `RequestIdFilterTest`（5） | `X-Request-Id` 的沿用與替換規則；請求結束後 MDC 清空 |
+| 其他 | `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 publicId 覆寫、可疑副檔名正規化 |
+| 其他 | `BrandSummaryJsonTest`（2） | 品牌清單的 JSON 欄位名稱（`brandId`、`brandName`、`logoUrl`）是前端的契約 |
+| 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-> 以上每一支都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR
-> 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，
-> `ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，
-> `GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
+除了上表中載入 Spring context 的 8 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`）之外，其餘 28 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
+
+> 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
 > 新增測試時請照做，在修補前後各跑一次，確認它真的抓得到回歸，否則只是裝飾。
+> 2026-10-12 新增的測試（`IdempotencyServiceTest`、`ExclusiveJobRunnerTest`、`GeoBoundsTest`、`RequestIdFilterTest`、`AuthorizationRouteInventoryTest`、`BrandSummaryJsonTest`，以及 `LoginAttemptLimiterTest` 的新增案例）尚未做還原驗證；CI 通過後應補做。
 
 ### 另外兩層驗證（都在 CI 上跑）
 
@@ -213,7 +228,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 ```bash
 cd scripts && npm install
 node e2e-verify.js      # API 端對端，85 項斷言
-node ui/run-all.js      # 51 頁普掃 + 點餐／轉盤／揪團三條主線（Playwright）
+node ui/run-all.js      # 39 個 HTML 頁普掃（51 次載入）+ 點餐／轉盤／揪團三條主線（Playwright）
 ```
 
 `.github/workflows/ci.yml` 會依序跑完這三層。**改完動到序列化、交易邊界或前端流程的
@@ -463,6 +478,7 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
    本機 `uploads/`（以 `/uploads/**` 提供），因此不需任何第三方帳號即可完整展示
 5. 本機 `sms.mode=mock`，跳過 Firebase 驗證，不需要 `serviceAccountKey.json`
 6. 啟動埠：`8082`；Swagger UI：`http://localhost:8082/swagger-ui.html`
+7. 容器映像（選用）：`docker build -t joindrink .`。映像內含 `frontend/`；資料庫與 Redis 需由外部提供。部署細節見 `docs/DEPLOYMENT.md`
 
 設定值一律走 `${ENV_VAR:本機預設值}`，`application.yml` 內不再有任何明文密鑰。
 
@@ -472,13 +488,15 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
 `SecurityConfig`（HTTP）與 `WebSocketConfig`（STOMP handshake）**共用同一份**，
 可用環境變數 `CORS_ALLOWED_ORIGINS` 覆寫：
 
-- `localhost:5173`
-- `localhost:5500`
-- `127.0.0.1:5500`
-- `localhost:60687`
-- `localhost:54376`
-- `localhost:63342`
-- `localhost:8082`
+預設清單（與 `application.yml` 的 `${CORS_ALLOWED_ORIGINS:…}` 預設值完全一致）：
+
+- `http://localhost:5173`
+- `http://127.0.0.1:5500`
+- `http://localhost:5500`
+- `http://localhost:8082`
+- `http://127.0.0.1:8082`
+
+本機額外的來源（Live Server 改用 5501／5502、IDE 內建伺服器的臨時埠、3000、8080 等）不再寫在預設值裡，改放在 `application-local.yml`（範本見 `application-local.yml.example`），或在啟動時設定 `CORS_ALLOWED_ORIGINS`。
 
 ⚠️ 曾因 WebSocket 端獨立寫成 `setAllowedOriginPatterns("*")`，
 與 HTTP 端白名單自相矛盾而完全對外放行。新增來源請只改設定檔，不要在程式碼中另寫一份。
@@ -551,7 +569,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 
 - `application.yml` 已全面改為 `${ENV_VAR:預設值}`，**不要把明文密鑰寫回去**
 - `serviceAccountKey.json` 與 `application-local.yml` 已在 `.gitignore`
-- DB DDL：`spring.jpa.hibernate.ddl-auto`（本機 `update`，production 需改 `validate`/`none`）
+- DB DDL：`spring.jpa.hibernate.ddl-auto`（本機 `update`，production 需改 `validate`/`none`）。目前沒有遷移工具，Flyway 導入的做法見 `docs/adr/0008-schema-migrations.md`
   - ⚠️ YAML 冒號後**一定要有空格**。曾寫成 `ddl-auto:validate` 導致
     `spring.jpa.hibernate` 被解析成字串、Spring 綁定失敗而無法啟動。
 - SMS 為 mock 模式。設定鍵是頂層的 `sms.mode`，**不是** `app.sms.mode`
@@ -588,3 +606,15 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **`permitAll` 一律指定 HTTP method**（`SecurityConfig`）。`/api/stores/auth/**` 只開放 POST，`/api/menu/**`、`/api/home/**`、`/api/location/**`、`/api/group-orders/join/**` 等只開放 GET；WebSocket 的 `/ws/**`、`/ws-cart/**` 例外，因為 SockJS 會用到多種方法。
 - **WebSocket 的 SUBSCRIBE 依角色授權**（`WebSocketConfig.authorizeSubscribe`）：`/topic/order/{id}` 限顧客且須為參與者；`/topic/group/{token}` 限顧客；`/topic/store/{id}` 只允許該門市本人（角色為 `STORE` 且 id 相符）；其餘目的地一律拒絕。principal 必須帶 `role`，因為門市與顧客的 id 會撞號。
 - **`docker-compose.yml` 的 MySQL 與 Redis 埠口只綁 `127.0.0.1`**；正式環境範本關閉 springdoc（`application-prod.yml.example`）。
+
+## 2026-10-12 新增的不變量與約定
+
+- **結帳冪等**：`POST /api/orders/checkout` 接受選擇性的 `Idempotency-Key` 標頭，由 `service/IdempotencyService` 處理（範圍為 `checkout` 加上 JWT 使用者 id；鍵須符合 `^[A-Za-z0-9_-]{8,64}$`）。成功的請求重送時會回放第一次的結果並帶 `Idempotent-Replayed: true`；進行中的重複請求回 409；非 2xx 會釋放鍵。**新增任何可能被重送的金流 POST，一律沿用這個 helper，不要另外發明儲存方式。** 已知缺口：伺服器不比對 body 指紋，同一把鍵搭配不同的 body 會回放第一次的結果（見 ADR-0005）。
+- **不信任 `X-Forwarded-For`**：限流與識別一律以 `getRemoteAddr()` 為準（`LoginAttemptLimiter.clientIp`）。`server.forward-headers-strategy`（環境變數 `SERVER_FORWARD_HEADERS_STRATEGY`，預設 `native`）決定容器是否信任反向代理送來的 `X-Forwarded-*`；部署到代理之後必須明確設定，並確認代理會覆寫這些標頭（見 `docs/DEPLOYMENT.md`、ADR-0004）。
+- **新增 `permitAll` 路由，必須同步更新 `AuthorizationRouteInventoryTest`**：把路徑加入 `PUBLIC_GET` 或 `PUBLIC_POST`，讓公開例外在 review 中可見。其他非公開路由的匿名呼叫必須回 401／403，否則該測試會紅（見 ADR-0003）。
+- **排程任務以 `ExclusiveJobRunner.runExclusively(jobName, leaseSeconds, job)` 包住**（Redis 鍵 `lock:job:<name>`），多實例時同一時間只會有一個實例執行。這是互斥，不是「每天只跑一次」，因此任務本身必須冪等（見 ADR-0006）。
+- **業務錯誤用 `CustomException`，code 填 HTTP 狀態碼字串**（如 `"409"`、`"422"`、`"503"`、`"400"`）。`GlobalExceptionHandler` 會轉成對應的 HTTP 狀態；不要在 Controller 手寫錯誤 Map。已知不一致：`OrderService.createOrder` 的結帳鎖忙碌時拋出的是 `RuntimeException`，待統一，見 `docs/IMPROVEMENT_ASSESSMENT.md`。
+- **CORS 的預設值只存在 `application.yml`**（`app.cors.allowed-origins`，環境變數 `CORS_ALLOWED_ORIGINS`），本機額外來源寫在 `application-local.yml`。上方「CORS 白名單」一節必須與預設值一致。
+- **Actuator 只開放 `health`，且 `show-details` 為 `never`**。不要為了除錯暴露更多端點；需要的資訊走 log，並以 `X-Request-Id` 串接。
+- **`X-Request-Id`**：每個回應都帶此標頭。合規的傳入值會沿用（`^[A-Za-z0-9_-]{8,64}$`），否則產生新的 32 位十六進位 id；它同時被寫進每一行 log 的 MDC。
+- **靜態頁面由後端的 `common/WebConfig` 以 `file:frontend/…` 提供**，Docker 映像的工作目錄因此必須有 `frontend/`（見 `Dockerfile`）。新增執行期需要的頂層目錄時，要同步更新 Dockerfile；`.dockerignore` 排除了 `docs/`、`scripts/`、`.github/`。
