@@ -67,7 +67,7 @@ flowchart LR
 - 沒有 schema 遷移工具，結構由 `ddl-auto: update` 管理。正式上線前要導入 Flyway（[ADR-0008](docs/adr/0008-schema-migrations.md)）。
 - WebSocket 目前是單實例的 simple broker；Redis 不可用時，鎖與限流會退回單實例語意（[ADR-0006](docs/adr/0006-redis-shared-state-and-job-exclusion.md)）。
 - `/api/stores/search` 與 `/api/stores/nearby/v2` 仍未分頁，已列為待辦。
-- 前端的 API 位址寫死為 `http://localhost:8082`（`window.JOIN_API_BASE`，共 16 處）。本機與 Docker 展示不受影響；要做公開 demo 前，需先改為設定值或同源反向代理。
+- 前端有 16 處寫死 `http://localhost:8082`（`window.JOIN_API_BASE` 與各頁面、各 JS 模組的 `BASE` 常數）。本機與 Docker 展示不受影響；要做公開 demo 前，需先改為設定值或同源反向代理。
 - 文件中的所有測試與效能敘述，以 CI 為準。開發環境無法連到 Maven Central 且沒有 Docker，因此這一輪的 Java 編譯與測試尚未在本機執行。
 
 ---
