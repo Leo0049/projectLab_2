@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
@@ -84,7 +85,12 @@ class AuthorizationRouteInventoryTest {
             "/api/brand-auth/register",
             "/api/brand-auth/login");
 
+    /**
+     * ⚠️ 必須指定名稱：加入 spring-boot-starter-actuator 後，容器內會有第二個 RequestMappingHandlerMapping
+     * （controllerEndpointHandlerMapping，給 actuator 端點用）。不指定名稱時注入會失敗，三支測試全數紅燈（CI 實測）。
+     */
     @Autowired
+    @Qualifier("requestMappingHandlerMapping")
     private RequestMappingHandlerMapping handlerMapping;
 
     @Autowired
