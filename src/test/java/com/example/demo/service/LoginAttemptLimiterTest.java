@@ -8,6 +8,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.mock.web.MockHttpServletRequest;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -19,7 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -108,16 +111,34 @@ class LoginAttemptLimiterTest {
     }
 
     @Test
-    @DisplayName("身分鍵：取 X-Forwarded-For 第一段，沒有才用 remoteAddr")
-    void identityKeyPrefersForwardedFor() {
+    @DisplayName("身分鍵只看 remoteAddr：偽造的 X-Forwarded-For 不會換掉限流 key")
+    void forgedForwardedForDoesNotChangeTheIdentity() {
+        // 舊版會取 XFF 第一段（攻擊者可任意填），每次換值就等於換一組計數器。
+        // 信任可信代理的工作交給容器（server.forward-headers-strategy=native），這裡不再解析。
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setRemoteAddr("10.0.0.9");
+        request.setRemoteAddr("198.51.100.20");
         request.addHeader("X-Forwarded-For", "203.0.113.7, 10.0.0.1");
 
-        assertEquals("203.0.113.7", LoginAttemptLimiter.clientIp(request));
-        assertEquals("203.0.113.7|0912000000",
+        assertEquals("198.51.100.20", LoginAttemptLimiter.clientIp(request));
+        assertEquals("198.51.100.20|0912000000",
                 LoginAttemptLimiter.identity(LoginAttemptLimiter.clientIp(request), "0912000000"));
-        assertEquals("203.0.113.7", LoginAttemptLimiter.identity("203.0.113.7", "  "));
+        assertEquals("198.51.100.20", LoginAttemptLimiter.identity("198.51.100.20", "  "));
+    }
+
+    @Test
+    @DisplayName("Redis 計數器的逾時使用呼叫端的視窗，不是寫死的 300 秒")
+    void redisExpiryUsesTheRequestedWindow() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.increment(anyString())).thenReturn(1L);
+        when(redisTemplate.expire(anyString(), any())).thenReturn(true);
+
+        LoginAttemptLimiter limiter = new LoginAttemptLimiter(providerOf(redisTemplate));
+        assertDoesNotThrow(() -> limiter.check("check-phone", "ip", 60, 60));
+
+        verify(redisTemplate).expire(anyString(), eq(Duration.ofSeconds(60)));
     }
 
     @Test

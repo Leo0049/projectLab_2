@@ -9,6 +9,68 @@
 
 ---
 
+## 作品集導覽
+
+JoinDrink 是我以 Spring Boot 實作的多租戶飲料訂購與揪團平台，有顧客、品牌總部、門市三種角色。
+這個專案的重點不在功能數量，而在 **金流與授權的正確性**：我用兩次安全審查與併發實測找出問題，逐一修補、寫成可重跑的測試，並把每個取捨記錄成決策文件。
+
+**建議閱讀順序（約五分鐘）**
+
+1. [案例研究](docs/CASE_STUDIES.md)：十個實際遇到的工程問題，每個都有症狀、根因、修法與防止再發生的方式。
+2. [架構決策紀錄（ADR）](docs/adr/README.md)：金流列鎖、授權白名單、IP 信任邊界、冪等結帳、Redis 與排程互斥，以及明確延後的事項。
+3. [優化建議實作評估](docs/IMPROVEMENT_ASSESSMENT.md)：20 項建議的逐項決策，包含沒做的部分與理由。
+4. [API 文件](API.md)、[資料庫說明](DATABASE.md)、[部署指南](docs/DEPLOYMENT.md)。
+
+```mermaid
+flowchart LR
+  subgraph Browser["瀏覽器（Vanilla JS）"]
+    C["顧客前台"]
+    B["品牌後台"]
+    S["門市後台"]
+  end
+  subgraph App["Spring Boot 3.4（Java 17）"]
+    F["JwtAuthenticationFilter<br/>寫入 currentUserId"]
+    API["Controllers（14）"]
+    SVC["Services<br/>金流：列鎖・狀態守衛"]
+    WS["STOMP /ws-cart<br/>SUBSCRIBE 依角色授權"]
+    SCH["@Scheduled + ExclusiveJobRunner"]
+  end
+  DB[("MySQL 8<br/>JPA Entity 為唯一事實來源")]
+  R[("Redis 7<br/>分散式鎖・限流・冪等・轉盤")]
+  C -- "Bearer JWT" --> F
+  B -- "Bearer JWT" --> F
+  S -- "Bearer JWT" --> F
+  F --> API --> SVC
+  C -. "SockJS" .-> WS
+  B -. "SockJS" .-> WS
+  S -. "SockJS" .-> WS
+  SVC --> DB
+  SVC --> R
+  SCH --> R
+  SCH --> SVC
+```
+
+**三層驗證，全部在 CI 上跑**
+
+| 層 | 內容 | 守住的東西 |
+|----|------|-----------|
+| 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
+| 1. 單元與整合測試 | `mvn test`：189 個 `@Test`，36 個測試類別（JUnit 5 + Mockito；8 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
+| 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：39 個 HTML 頁面全數普掃（共 51 次載入，顧客主頁有資料與空狀態各掃一次），加上點餐、轉盤、揪團三條主線 | 只有真的載入畫面、真的按下去才會出現的問題 |
+
+此外，CI 會以 `docker build` 驗證 Dockerfile 能建成映像（只建置、不推送）。
+
+**誠實的限制**
+
+- JWT 存於 `localStorage`，CSP 預設關閉。改為 httpOnly cookie 與強制 CSP 需要先外部化大量 inline handler，已列為延後事項（[ADR-0007](docs/adr/0007-deferred-decisions.md)）。
+- 沒有 schema 遷移工具，結構由 `ddl-auto: update` 管理。正式上線前要導入 Flyway（[ADR-0008](docs/adr/0008-schema-migrations.md)）。
+- WebSocket 目前是單實例的 simple broker；Redis 不可用時，鎖與限流會退回單實例語意（[ADR-0006](docs/adr/0006-redis-shared-state-and-job-exclusion.md)）。
+- `/api/stores/search` 與 `/api/stores/nearby/v2` 仍未分頁，已列為待辦。
+- 文件中的所有測試與效能敘述，以 CI 為準。開發環境無法連到 Maven Central 且沒有 Docker，因此這一輪的 Java 編譯與測試尚未在本機執行。
+
+---
+
 ## 30 秒把它跑起來
 
 ```bash
@@ -42,7 +104,7 @@ mvn spring-boot:run       # 服務起在 :8082
 
 ⚠️ 前端請用**靜態伺服器**開啟，不要直接雙擊 HTML 檔（`file://` 的 Origin 是 `null`，會被 CORS 擋掉）。
 VS Code Live Server 的預設埠是 5500，但 5500 被占用時它會**靜默改用 5501**；
-白名單已一併涵蓋 5501/5502/3000/8080，其他埠請用 `CORS_ALLOWED_ORIGINS` 覆寫。
+預設白名單為 `localhost:5173`、`localhost:5500`、`127.0.0.1:5500`、`localhost:8082`、`127.0.0.1:8082`（與 `application.yml` 一致）。若 Live Server 改用其他埠，請改用固定埠，或把來源加到 `application-local.yml`，或設定 `CORS_ALLOWED_ORIGINS`。
 
 ---
 
@@ -92,7 +154,7 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
       │  + STOMP 攔截器       │  CONNECT 驗 JWT、SUBSCRIBE 驗訂單關係人
       └──────────┬───────────┘
                  ▼
-   14 Controllers → 26 Services → 28 Repositories
+   14 Controllers → Services → 28 Repositories
                  │                      │
                  ▼                      ▼
           Redis 7                   MySQL 8
@@ -154,14 +216,14 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
   重置後餘額 1130 與帳本總額 1130 完全相等。
 - **CORS 只放行 5500**：VS Code Live Server 預設是 5500，但 5500 被占用時會**靜默改用 5501**，
   此時整個前端因為 preflight 被擋而全部失效（實測 5501／3000／8080／`file://` 都是 403）。
-  白名單已補上常見開發埠。
+  修法是讓 Live Server 使用固定埠，並把實際用到的來源寫進 `application-local.yml`（範本見 `application-local.yml.example`）。預設白名單不再為個別 IDE 的臨時埠放寬。
 - **「今天已經抽過」回 500**：那是正常的使用者情境，不是系統錯誤。演示時第二次點轉盤，
   devtools 會出現一個紅色的 500。已改為 409。
 
 - **整個前端靠 CDN**：Tailwind、Leaflet、Lucide、SockJS 等全部從 CDN 載入，會議室網路擋掉或不穩時，
   地圖／結帳／揪團／個人資料四頁直接壞掉（`L is not defined`、`SockJS is not defined`…），
   Tailwind 掛掉更是整頁沒有樣式。現已全部收進 `frontend/vendor/`，並把 **斷網模式加進 CI**——
-  實測擋掉所有連外請求後，51 頁普掃 0 問題、三條主線全過。
+  實測擋掉所有連外請求後，39 個頁面（51 次載入）普掃 0 問題、三條主線全過。
 
 另外補了 `scripts/demo-reset.sh`（13 秒清空重植），因為待處理訂單的 10 分鐘倒數與
 每日轉盤的一天一次限制，都會讓「講完架構才開始 demo」的那一份資料失效。
@@ -224,6 +286,7 @@ docker compose up -d && mvn test
 | 測試 | 守住的東西 |
 |------|-----------|
 | `AuthorizationTest`（19） | 未認證寫商品、跨帳號讀寫個資／錢包／訂單／收藏、偽造參數與「不帶參數」兩種繞過、拿他人 `userId` 結帳、竄改 `finalPrice`、消耗他人優惠券、debug 與傾印端點已移除、本人存取仍正常 |
+| `AuthorizationRouteInventoryTest`（3） | 路由清單全數列舉：白名單以外的每一條路由，匿名請求都必須回 401／403；白名單中的路由都真實存在；新增端點忘了加授權時 CI 會紅 |
 | `GroupOrderSecurityTest`（5） | 揪團數字 ID 查詢的團主／團員權限、邀請 token 與跨品牌商品限制 |
 | `AuthServiceSecurityTest`（7） | 手機 token 與社群 UID 驗證、帳號合併證明、已刪除帳號登入防護 |
 | `JwtUtilsProdGuardTest`（4） | JWT 金鑰長度與正式環境禁止使用內建預設值 |
@@ -245,7 +308,7 @@ docker compose up -d && mvn test
 | `DemoDataSeederProdGuardTest`（2） | 正式環境不植入示範資料（即使 `DEMO_DATA_ENABLED` 沒設定也不會） |
 | `JwtAuthenticationFilterTest`（7） | JWT 過濾器：無效或過期的 token 會被拒絕；已刪除的帳號每次請求都會被擋下 |
 | `AuthServiceSmsModeGuardTest`（6） | 正式環境若 `sms.mode` 不是 `firebase` 就拒絕啟動（含 `MOCK_TOKEN` 繞過） |
-| `LoginAttemptLimiterTest`（8） | 登入與 OTP 限流：超過次數回 429；Redis 不可用時退回本機計數 |
+| `LoginAttemptLimiterTest`（9） | 登入與 OTP 限流：超過次數回 429；Redis 不可用時退回本機計數 |
 | `SafeImageUrlTest`（7） | 圖片網址白名單（純邏輯）：擋 `javascript:`、`../`、引號跳脫與控制字元 |
 | `SafeTextTest`（6） | 顧客名稱寫入規則（純邏輯）：拒絕 `< > " \`` 與控制字元，上限 30 字 |
 | `MemberCancelSettlementTest`（9） | 團員取消品項的退款結算（純邏輯）：只退已付款的部分，團長退款以 escrow 為上限 |
@@ -253,10 +316,14 @@ docker compose up -d && mvn test
 | `CancellableStatusTest`（2） | 揪團品項可否取消：只有 OPEN 與 SUBMITTED（純邏輯） |
 | `StompSubscribeRulesTest`（9） | WebSocket 訂閱授權（純邏輯）：顧客、門市、品牌的頻道權限，未知目的地一律拒絕 |
 | `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策（純邏輯）：手機已被使用就絕不另建帳號 |
+| `IdempotencyServiceTest`（9） | 冪等結帳：同一把鍵重送只執行一次並重播結果；失敗會釋放鍵以便重試；佔位中的重送回 409；鍵格式與使用者範圍；Redis 路徑（多實例共用完成紀錄） |
+| `ExclusiveJobRunnerTest`（3） | 排程互斥：其他實例持有鎖時略過且不釋放別人的鎖；取得鎖時執行一次並以同一 token 釋放；任務拋例外仍會釋放鎖 |
+| `GeoBoundsTest`（5） | 附近店家的預篩矩形是 50 公里圓的超集合，不會漏掉圓內的店；經緯度夾在合法範圍內；負半徑拒絕 |
+| `RequestIdFilterTest`（5） | `X-Request-Id`：合規的 id 沿用，非法或長度不符的重新產生；請求結束後 MDC 清空 |
+| `BrandSummaryJsonTest`（2） | 前端契約：品牌摘要的 JSON 欄位固定為 brandId、brandName、logoUrl，沒有 logo 時 logoUrl 為 null |
 
-目前共有 161 個 JUnit 測試方法（30 個測試類別）。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，
-不載入 Spring context，合計只跑約 0.1 秒。
-本輪另新增 7 個純邏輯測試類別（共 44 支，`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
+目前共有 189 個 `@Test`（36 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
 測試不多，但都對準真正會出事的地方（金流與授權），而且**每一支都驗證過「把修補改回舊寫法時會失敗」**——
@@ -282,9 +349,9 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（95 個測試方法） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（189 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
-| `scripts/ui/run-all.js` | 51 頁全頁面普掃 ＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
+| `scripts/ui/run-all.js` | 39 個頁面全頁面普掃（51 次載入）＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
 顧客端是主要使用路徑，普掃分成三段跑：**有資料的帳號**、**剛註冊的空狀態帳號**
 （清單為空時才會踩到的 undefined，用有資料的帳號掃不出來）、以及**未登入的登入註冊 8 頁**。
@@ -341,7 +408,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 索引
 
-依實際查詢補了 8 個複合索引（原本 26 張表的 `@Index` 定義為 0，只有 FK 自動索引）。
+依實際查詢補了 8 個複合索引（原本 26 張表的 `@Index` 定義為 0，只有 FK 自動索引）。本輪另為附近店家的矩形預篩新增 `idx_stores_lat_lng`，entity 上共 9 個 `@Index`；這一個尚未以 `EXPLAIN` 量測。
 以 5000 筆訂單實測 `EXPLAIN`：
 
 | 查詢 | 修補前 | 修補後 |
@@ -388,11 +455,11 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 刻意未處理，列在這裡是因為知道它們存在、也知道代價：
 
-- `GroupOrderService` 仍有約 1,600 行、`BrandService` 約 1,200 行，最長的方法 127 行。
+- `GroupOrderService` 仍有約 1,600 行（最長的方法 `createGroupOrder` 約 127 行）、`BrandService` 約 1,200 行。
   已先抽出三條規則並補上單元測試（見「拆出可測試的規則」），但金流方法
   （`checkout`、`handleGroupOrderCancellation`、`repayToHost`）還沒動，
   那幾條仍然只能靠端對端與 UI 流程從外面框住行為
-- 41 處以 `Map<String, Object>` 作為 API 回傳型別，失去編譯期型別檢查，Swagger 也無法描述結構
+- 311 處 `Map<String, Object>`（其中 Service 層公開方法的回傳型別就有 89 處），失去編譯期型別檢查，Swagger 也無法描述結構
 - V1／V2 端點並存，同一資源有多套格式
 - 輸入驗證目前只覆蓋金流與訂單路徑，其餘 DTO 尚未補齊
 - 待處理訂單的 10 分鐘逾時拒單只在門市首頁開著時由瀏覽器執行（`frontend/store/js/api-home.js` 的 `autoRejectExpired`，每秒檢查一次）；伺服器端沒有對應的排程。門市後台沒人開著時，訂單會停在待處理。改為伺服器排程前，需先決定逾時訂單的退款與通知規則。
@@ -420,7 +487,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 **上線前務必調整：**
 
 - `JWT_SECRET` 換成自己的隨機字串（**至少 64 字元**，不足會啟動失敗）
-- `SPRING_PROFILES_ACTIVE=prod`（必填，沒有它 prod 防呆不會生效）；`ddl-auto` 為 `validate`，啟動前先套用資料庫 migration
+- `SPRING_PROFILES_ACTIVE=prod`（必填，沒有它 prod 防呆不會生效）；`ddl-auto` 為 `validate`，目前沒有 migration 工具，啟動前須先以人工方式建立與 Entity 一致的結構（見 [部署指南](docs/DEPLOYMENT.md)）
 - `SMS_MODE=firebase` 與 `FIREBASE_CONFIG_PATH`（必填；prod 下 `SMS_MODE` 不是 `firebase` 會拒絕啟動）
 - `DEMO_DATA_ENABLED=false`
 - `CORS_ALLOWED_ORIGINS` 換成正式網域；Redis 以 `REDIS_PASSWORD` 加上密碼
@@ -432,6 +499,9 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 - [API.md](./API.md) — REST API 端點文件
 - [DATABASE.md](./DATABASE.md) — 26 張表 schema 說明
 - [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) — 正式環境部署範圍、設定與限制
+- [docs/adr/README.md](./docs/adr/README.md) — 架構決策紀錄（ADR）
+- [docs/CASE_STUDIES.md](./docs/CASE_STUDIES.md) — 工程案例研究
+- [docs/IMPROVEMENT_ASSESSMENT.md](./docs/IMPROVEMENT_ASSESSMENT.md) — 優化建議的實作評估與未做項目
 - [docs/SECURITY-FRONTEND.md](./docs/SECURITY-FRONTEND.md) — 前端安全現況與 CSP 路線圖
 - [CLAUDE.md](./CLAUDE.md) — 開發約定與踩過的坑（授權規則、餘額鎖列、STOMP 授權等）
 

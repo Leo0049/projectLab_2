@@ -386,6 +386,9 @@ public class StoreController {
             @RequestParam(required = false, defaultValue = "distance") String sort,
             @RequestParam(required = false, defaultValue = "all") String category,
             @RequestParam(required = false, defaultValue = "false") boolean freeDelivery) {
+        // 與 v1 相同的座標檢查：超出範圍回 400，不再靜默算出錯誤距離。
+        // ⚠️ 此端點仍未分頁（回傳全部營業中店家），列於 docs/IMPROVEMENT_ASSESSMENT.md 待辦。
+        com.example.demo.service.PublicService.requireValidCoordinates(lat, lon);
         List<StoreDTO> stores = storeService.getOpenStoresSortedByDistance(lat, lon, sort, category, freeDelivery);
         return ResponseEntity.ok(stores);
     }

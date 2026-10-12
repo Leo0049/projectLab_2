@@ -1,6 +1,7 @@
 package com.example.demo.repository;
 
 import com.example.demo.entity.Store;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -46,23 +47,44 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
             @Param("lat") double lat,
             @Param("lng") double lng);
 
-    // 附近店家 - 依距離排序（Haversine）
+    /**
+     * 附近店家（兩段式查詢）。
+     *
+     * <p>第一段：以經緯度矩形做 {@code BETWEEN} 預篩，讓 {@code idx_stores_lat_lng} 可以做範圍掃描，
+     * 不必對全表算 Haversine。矩形由 {@code GeoBounds} 換算，必為圓的超集合（見 GeoBoundsTest）。
+     * 第二段：只對候選列算精確的 Haversine 距離，{@code HAVING} 以 {@code :radiusKm} 過濾並排序。
+     *
+     * <p>{@code acos} 的引數以 LEAST／GREATEST 夾在 [-1, 1]：同一座標時浮點誤差可能讓引數略大於 1，
+     * MySQL 會回 NULL，於是「站在店家位置上」的店反而被 HAVING 過濾掉。
+     *
+     * <p>排序加上 {@code s.id} 作為次要鍵，分頁結果才穩定（距離相同時否則順序不定，會重複或漏列）。
+     *
+     * <p>SELECT 只取 {@code id} 與 {@code distance} 兩欄，呼叫端再以 id 載入實體。
+     */
     @Query(value = """
-            SELECT s.*, b.name as brand_name,
-            (6371 * acos(cos(radians(:lat)) * cos(radians(s.latitude))
+            SELECT s.id AS id,
+            (6371 * acos(LEAST(1, GREATEST(-1,
+            cos(radians(:lat)) * cos(radians(s.latitude))
             * cos(radians(s.longitude) - radians(:lng))
-            + sin(radians(:lat)) * sin(radians(s.latitude)))) AS distance
+            + sin(radians(:lat)) * sin(radians(s.latitude)))))) AS distance
             FROM stores s JOIN brands b ON s.brand_id = b.id
             WHERE s.status = 'active'
+            AND s.latitude BETWEEN :latMin AND :latMax
+            AND s.longitude BETWEEN :lngMin AND :lngMax
             AND (:brandId IS NULL OR s.brand_id = :brandId)
             AND (:minRating IS NULL OR s.avg_rating IS NULL OR s.avg_rating >= :minRating)
-            HAVING distance < 50
-            ORDER BY distance
+            HAVING distance < :radiusKm
+            ORDER BY distance, s.id
             LIMIT :size OFFSET :offset
             """, nativeQuery = true)
     List<Object[]> findNearbyStores(
             @Param("lat") double lat,
             @Param("lng") double lng,
+            @Param("latMin") double latMin,
+            @Param("latMax") double latMax,
+            @Param("lngMin") double lngMin,
+            @Param("lngMax") double lngMax,
+            @Param("radiusKm") double radiusKm,
             @Param("brandId") Long brandId,
             @Param("minRating") Double minRating,
             @Param("size") int size,
@@ -74,6 +96,14 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
     @EntityGraph(attributePaths = {"brand"})
     List<Store> findByStatus(String status);
+
+    /** 無定位時的分頁列表（依 id 排序，分頁才穩定）。 */
+    @EntityGraph(attributePaths = {"brand"})
+    List<Store> findByStatusOrderByIdAsc(String status, Pageable pageable);
+
+    /** 無定位且指定品牌時的分頁列表。 */
+    @EntityGraph(attributePaths = {"brand"})
+    List<Store> findByStatusAndBrandIdOrderByIdAsc(String status, Long brandId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"brand"})
     List<Store> findByBrandId(Long brandId);

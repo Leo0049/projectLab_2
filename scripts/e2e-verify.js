@@ -13,24 +13,32 @@
 let WebSocket = null;
 try { WebSocket = require('ws'); } catch (e) { /* 選用 */ }
 
+const fs = require('fs');
+const { randomUUID } = require('crypto');
+
 const API = process.env.API_BASE || 'http://127.0.0.1:8082';
 
 let pass = 0, fail = 0;
 const fails = [];
 function check(name, ok, detail) {
-  if (ok) { pass++; console.log(`  ✓ ${name}`); }
-  else { fail++; fails.push(name); console.log(`  ✗ ${name}${detail ? '  → ' + detail : ''}`); }
+  if (ok) { pass++; console.log(`  ✓ ${name}`); return; }
+  fail++; fails.push(name);
+  console.log(`  ✗ ${name}${detail ? '  → ' + detail : ''}`);
+  // GitHub Actions 註解必須是單行，% 與換行要跳脫
+  const msg = `${name}${detail ? ': ' + detail : ''}`.replace(/%/g, '%25').replace(/\r?\n/g, ' ');
+  console.log(`::error title=API e2e::${msg}`);
 }
 function section(t) { console.log(`\n── ${t} ──`); }
 
-async function req(method, path, { token, body, raw } = {}) {
-  const h = { 'Content-Type': 'application/json' };
+async function req(method, path, { token, body, raw, headers } = {}) {
+  const h = { 'Content-Type': 'application/json', ...(headers || {}) };
   if (token) h.Authorization = 'Bearer ' + token;
   const r = await fetch(API + path, { method, headers: h, body: body ? JSON.stringify(body) : undefined });
   const text = await r.text();
   let json = null;
   try { json = JSON.parse(text); } catch (e) { /* 非 JSON */ }
-  return raw ? { status: r.status, json, text } : json;
+  // raw 模式另外給 HTTP 狀態碼與回應標頭（標頭名稱為小寫）；一般模式仍只回傳 JSON，既有呼叫端不受影響
+  return raw ? { status: r.status, json, text, headers: Object.fromEntries(r.headers) } : json;
 }
 // 專案有兩種回應形狀：統一格式 {code,msg,data}，以及少數直接回傳陣列／物件的舊端點。
 const ok = (j) => Array.isArray(j) ? true : !!(j && (j.code === '200' || j.code === 200));
@@ -235,9 +243,20 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   check('查詢今日轉盤狀態', ok(spinStatus));
   const wheelBrands = await req('GET', '/api/game-wheel/brands', { token: CT });
   check('轉盤品牌列表', ok(wheelBrands));
-  const spin = await req('POST', '/api/coupons/spin', { token: CT, body: { brandId: 1 } });
-  check('執行抽獎（已抽過會回明確錯誤，兩者都算正常）',
-    ok(spin) || (spin && spin.msg), JSON.stringify(spin).slice(0, 100));
+  const wheelList = D(wheelBrands);
+  check('轉盤品牌契約：data 為非空陣列，每筆都有數字 brandId 與字串 brandName',
+    Array.isArray(wheelList) && wheelList.length > 0 &&
+    wheelList.every((b) => typeof b.brandId === 'number' && typeof b.brandName === 'string'),
+    Array.isArray(wheelList) ? `${wheelList.length} 筆` : JSON.stringify(wheelBrands).slice(0, 100));
+
+  // 每日限抽一次：今天第一次可能成功（200），若之前已抽過則為 409；之後再抽一定是 409
+  const spin = await req('POST', '/api/coupons/spin', { token: CT, body: { brandId: 1 }, raw: true });
+  check('第一次抽獎：成功（200）或今日已抽過（409）', spin.status === 200 || spin.status === 409,
+    `HTTP ${spin.status} ${spin.text.slice(0, 100)}`);
+  const spinAgain = await req('POST', '/api/coupons/spin', { token: CT, body: { brandId: 1 }, raw: true });
+  check('當日第二次抽獎 → HTTP 409（code 409）',
+    spinAgain.status === 409 && !!spinAgain.json && spinAgain.json.code === '409',
+    `HTTP ${spinAgain.status} code=${spinAgain.json && spinAgain.json.code}`);
   const coupons = await req('GET', '/api/coupons/my', { token: CT });
   check('查詢我的優惠券', ok(coupons));
 
@@ -323,6 +342,39 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   const charged = tamperBefore - tamperAfter;
   check('竄改 finalPrice 為 1 → 仍以資料庫售價扣款', tamper.status === 200 && charged > 1,
     `HTTP ${tamper.status}，實扣 ${charged}`);
+
+  // ── Idempotency-Key：同一把 key 重送只能扣一次（重送回原結果，並帶 idempotent-replayed: true）──
+  const idemBal = async () => Number((D(await req('GET', '/api/wallet', { token: CT })) || {}).balance || 0);
+  const idemKey = 'e2e-' + randomUUID();
+  const idemBody = checkoutBody(UID, 35); // 價格由伺服器依資料庫重算，這裡只是一般的請求內容
+  const idemBalBefore = await idemBal();
+  const idemFirst = await req('POST', '/api/orders/checkout', {
+    token: CT, body: idemBody, headers: { 'Idempotency-Key': idemKey }, raw: true,
+  });
+  // 結帳回應是直接的物件 {message, orderId, finalAmount}，不是 {code,msg,data} 包裝，不能用 D() 取值
+  const idemFirstId = idemFirst.json && idemFirst.json.orderId;
+  check('首次結帳（帶 Idempotency-Key）成功', idemFirst.status === 200 && !!idemFirstId,
+    `HTTP ${idemFirst.status} ${idemFirst.text.slice(0, 80)}`);
+  const idemBalAfterFirst = await idemBal();
+
+  // 首次沒成功就不送重送，免得在壞掉的狀態下再扣一次
+  const idemReplay = idemFirstId
+    ? await req('POST', '/api/orders/checkout', { token: CT, body: idemBody, headers: { 'Idempotency-Key': idemKey }, raw: true })
+    : { status: 0, json: null, text: '', headers: {} };
+  const idemReplayId = idemReplay.json && idemReplay.json.orderId;
+  check('同一把 key 重送 → 同一張訂單、HTTP 200',
+    idemReplay.status === 200 && !!idemFirstId && String(idemReplayId) === String(idemFirstId),
+    `HTTP ${idemReplay.status} 訂單 ${idemReplayId}，首次 ${idemFirstId}`);
+  check('重送回應帶 idempotent-replayed: true', idemReplay.headers['idempotent-replayed'] === 'true',
+    `header=${idemReplay.headers['idempotent-replayed']}`);
+  const idemBalAfterReplay = await idemBal();
+  check('同一把 key 只扣款一次', idemBalAfterFirst < idemBalBefore && idemBalAfterReplay === idemBalAfterFirst,
+    `${idemBalBefore} → ${idemBalAfterFirst} → ${idemBalAfterReplay}`);
+
+  const idemBad = await req('POST', '/api/orders/checkout', {
+    token: CT, body: idemBody, headers: { 'Idempotency-Key': 'bad' }, raw: true,
+  });
+  check('格式錯誤的 Idempotency-Key（"bad"）→ HTTP 400', idemBad.status === 400, `HTTP ${idemBad.status}`);
 
   // ── 收藏店家：三支端點原本都吃用戶端送的 userId ──
   const favRead = await req('GET', `/api/user-favorites/user/${UID}`, { token: CT2, raw: true });
@@ -441,5 +493,15 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   console.log(`  通過 ${pass} 項，失敗 ${fail} 項`);
   if (fail) console.log(`  失敗項目：\n   - ${fails.join('\n   - ')}`);
   console.log('='.repeat(52));
+
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    const lines = ['', '### API 端對端驗證', '', `通過 **${pass}** 項，失敗 **${fail}** 項`];
+    if (fail) lines.push('', '失敗項目：', ...fails.map((n) => `- ${n}`));
+    try {
+      fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
+    } catch (e) {
+      console.warn(`無法寫入 GITHUB_STEP_SUMMARY：${e.message}`);
+    }
+  }
   process.exit(fail ? 1 : 0);
 })();

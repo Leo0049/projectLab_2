@@ -123,57 +123,6 @@ public class CouponService {
     }
 
     @Transactional
-    public Long playRoulette(Long userId, Long storeId) {
-        // 1. Redis 鎖防止同時併發
-        // ⚠️ M-3 修復：acquire/release 改為 token 配對，避免逾時後誤刪他人的鎖
-        String lockKey = "lock:spin:" + userId;
-        String lockToken = redisLockService.acquireLock(lockKey, 10);
-        if (lockToken == null) {
-            throw new RuntimeException("系統繁忙中，請稍後再試");
-        }
-        try {
-            // 2. 每日限制檢查 (Redis)
-            String dailyKey = "spin:done:" + userId + ":" + LocalDate.now();
-            long ttl = 86400; // 為簡單起見使用 24 小時，或計算到午夜
-            if (redisLockService.acquireLock(dailyKey, ttl) == null) {
-                throw new com.example.demo.exception.CustomException("409", "你今日已參加過轉盤遊戲");
-            }
-
-            // 3. 每日限制檢查 (DB)
-            if (userCouponRepository.existsByUserIdAndObtainedDateAndCouponType(userId, LocalDate.now(), "WHEEL_GAME")) {
-                throw new com.example.demo.exception.CustomException("409", "你今日已參加過轉盤遊戲");
-            }
-
-            List<ProductTemplate> products = productRepository.findByStoreId(storeId);
-            if (products.isEmpty()) {
-                throw new RuntimeException("該店目前沒有可抽獎的飲品");
-            }
-
-            ProductTemplate product = products.get((int) (Math.random() * products.size()));
-            BigDecimal discount = new BigDecimal("5.00");
-
-            User user = new User();
-            user.setId(userId);
-
-            UserCoupon uc = new UserCoupon();
-            uc.setUser(user);
-            uc.setBrand(product.getBrand());
-            uc.setProduct(product);
-            uc.setCouponType("WHEEL_GAME");
-            uc.setDiscountAmount(discount);
-            uc.setStatus("unused");
-            uc.setObtainedAt(LocalDateTime.now());
-            uc.setObtainedDate(LocalDate.now());
-            uc.setExpiredAt(LocalDate.now().atTime(23, 59, 59));
-            
-            uc = userCouponRepository.save(uc);
-            return uc.getId();
-        } finally {
-            redisLockService.releaseLock(lockKey, lockToken);
-        }
-    }
-
-    @Transactional
     public void expireOldCoupons() {
         List<UserCoupon> activeCoupons = userCouponRepository.findByStatusAndExpiredAtBefore("unused", LocalDateTime.now());
         for (UserCoupon c : activeCoupons) {

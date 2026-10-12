@@ -4,6 +4,7 @@ import com.example.demo.entity.GroupOrder;
 import com.example.demo.entity.OrderItem;
 import com.example.demo.entity.UserAddress;
 import com.example.demo.service.OrderService;
+import com.example.demo.service.IdempotencyService;
 import com.example.demo.repository.UserAddressRepository;
 import com.example.demo.entity.User;
 import com.example.demo.entity.OrderItemTopping;
@@ -38,6 +39,7 @@ public class OrderController {
     private final com.example.demo.repository.OrderItemToppingRepository orderItemToppingRepository;
     private final UserAddressRepository userAddressRepository;
     private final com.example.demo.service.OrderRatingService orderRatingService;
+    private final IdempotencyService idempotencyService;
 
     public OrderController(OrderService orderService,
             org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate,
@@ -47,7 +49,8 @@ public class OrderController {
             com.example.demo.repository.GroupOrderRepository groupOrderRepository,
             com.example.demo.repository.OrderItemToppingRepository orderItemToppingRepository,
             UserAddressRepository userAddressRepository,
-            com.example.demo.service.OrderRatingService orderRatingService) {
+            com.example.demo.service.OrderRatingService orderRatingService,
+            IdempotencyService idempotencyService) {
         this.orderService = orderService;
         this.messagingTemplate = messagingTemplate;
         this.groupOrderService = groupOrderService;
@@ -58,6 +61,7 @@ public class OrderController {
         this.orderItemToppingRepository = orderItemToppingRepository;
         this.userAddressRepository = userAddressRepository;
         this.orderRatingService = orderRatingService;
+        this.idempotencyService = idempotencyService;
     }
 
     /**
@@ -420,88 +424,71 @@ public class OrderController {
 
     @PostMapping("/checkout")
     public ResponseEntity<?> checkout(@RequestBody CheckoutRequest request,
-            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId,
+            @RequestHeader(value = IdempotencyService.HEADER, required = false) String idempotencyKey) {
         // ⚠️ 身分只能取自 token。原本是直接用 request.getUserId() 去建單並扣款，
         // 實測任一登入顧客把 userId 換成別人的，就能拿他人錢包付自己的訂單
         // （受害者餘額 19255 → 19220，攻擊者餘額不變）。
         // request.getUserId() 與 item.userId 為相容舊前端保留，一律不採信。
         if (currentUserId == null)
             throw new CustomException("403", "請先登入");
-        final Long userId = currentUserId;
+
+        // 冪等鍵是選用的：沒有帶就照舊執行；帶了就保證同一把鍵只會真的建單扣款一次（ADR-0005）。
+        if (idempotencyKey == null) {
+            return placeCheckout(request, currentUserId);
+        }
+        return idempotencyService.execute("checkout", currentUserId, idempotencyKey,
+                () -> placeCheckout(request, currentUserId));
+    }
+
+    /**
+     * 結帳的實際流程：建單與扣款，然後回應。
+     *
+     * <p>交易邊界：{@code orderService.createOrder} 自己是一個交易，它回傳時訂單與扣款已經提交。
+     * 所以提交之後的步驟（儲存常用地址、讀取金額、通知門市）失敗時，只記 log 並照常回傳成功。
+     * 原本這些步驟與建單共用同一個 try，任一失敗都回 400，前端會當成失敗而重送；
+     * 重送若沒有冪等鍵就會再扣一次款（見 docs/IMPROVEMENT_ASSESSMENT.md 第 4 項）。
+     *
+     * <p>提交之前的失敗（餘額不足、品項無效等）仍回 400。這種失敗不會留下冪等紀錄，同一把鍵可以重試。
+     */
+    private ResponseEntity<?> placeCheckout(CheckoutRequest request, Long userId) {
+        Long orderId;
         try {
-            String deliveryAddress = null;
-            if ("delivery".equals(request.getDeliveryType())) {
-                deliveryAddress = request.getCity() + request.getDistrict() + request.getStreet();
-            }
-            // 將 OrderItemDTO 轉換為 OrderItem Entity (嚴禁更動 Entity，故在此手動映射)
-            List<OrderItem> entities = request.getItems().stream().map(dto -> {
-                OrderItem item = new OrderItem();
+            orderId = createOrderFromRequest(request, userId);
+        } catch (Exception e) {
+            Map<String, String> errorResp = new HashMap<>();
+            errorResp.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResp);
+        }
 
-                // 核心關鍵: 手動建立 ProductTemplate 殼並填入 ID
-                if (dto.getProductId() != null) {
-                    com.example.demo.entity.ProductTemplate p = new com.example.demo.entity.ProductTemplate();
-                    p.setId(dto.getProductId());
-                    item.setProduct(p);
-                }
+        // ── 以下訂單已提交：失敗只記 log，不改變回應 ──
 
-                // 拷貝快照欄位
-                item.setProductNameSnapshot(dto.getProductNameSnapshot());
-                item.setUnitPriceSnapshot(dto.getUnitPriceSnapshot());
-                item.setFinalPrice(dto.getFinalPrice());
-                item.setIceSnapshot(dto.getIceSnapshot());
-                item.setSugarSnapshot(dto.getSugarSnapshot());
-                item.setSizeSnapshot(dto.getSizeSnapshot());
-                item.setPaymentStatus(dto.getPaymentStatus());
-
-                // 品項的擁有者一律綁 token 的使用者，不看 dto.getUserId()
-                com.example.demo.entity.User u = new com.example.demo.entity.User();
-                u.setId(userId);
-                item.setUser(u);
-
-                // 數量帶進 entity；售價由 OrderService 依 qty 重算，這裡送什麼價都不算數
-                item.setQty(dto.getQuantity() != null && dto.getQuantity() > 0 ? dto.getQuantity() : 1);
-
-                // 處理加料 (這部分需要 Service 支援，或在 Controller 處理)
-                if (dto.getToppingNames() != null) {
-                    List<OrderItemTopping> toppings = dto.getToppingNames().stream().map(name -> {
-                        OrderItemTopping t = new OrderItemTopping();
-                        OrderItemToppingId tid = new OrderItemToppingId();
-                        tid.setToppingNameSnapshot(name);
-                        t.setId(tid);
-                        t.setOrderItem(item);
-                        t.setToppingPriceSnapshot(BigDecimal.ZERO); // 簡化處理
-                        return t;
-                    }).collect(Collectors.toList());
-                    item.setToppings(toppings);
-                }
-
-                return item;
-            }).collect(java.util.stream.Collectors.toList());
-
-            Long orderId = orderService.createOrder(
-                    userId,
-                    request.getStoreId(),
-                    request.getTotalAmount(),
-                    request.getCouponId(),
-                    entities,
-                    request.getPaymentMethod(),
-                    deliveryAddress,
-                    request.getNote());
-
-            // Handle Save Address
-            if (Boolean.TRUE.equals(request.getSaveAddress()) && "delivery".equals(request.getDeliveryType())) {
+        // Handle Save Address
+        if (Boolean.TRUE.equals(request.getSaveAddress()) && "delivery".equals(request.getDeliveryType())) {
+            try {
                 saveOrUpdateUserAddress(userId, request);
+            } catch (Exception e) {
+                log.error("結帳已成立但儲存常用地址失敗 orderId={}", orderId, e);
             }
+        }
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", "Order created");
-            response.put("orderId", orderId);
-
+        BigDecimal finalAmount = request.getTotalAmount() != null ? request.getTotalAmount() : BigDecimal.ZERO;
+        try {
             GroupOrder createdOrder = orderService.getOrderById(orderId);
-            BigDecimal finalAmount = createdOrder != null ? createdOrder.getTotalAmount() : BigDecimal.ZERO;
-            response.put("finalAmount", finalAmount);
+            if (createdOrder != null && createdOrder.getTotalAmount() != null) {
+                finalAmount = createdOrder.getTotalAmount();
+            }
+        } catch (Exception e) {
+            log.error("結帳已成立但讀取訂單金額失敗 orderId={}", orderId, e);
+        }
 
-            // Notify merchant
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Order created");
+        response.put("orderId", orderId);
+        response.put("finalAmount", finalAmount);
+
+        // Notify merchant
+        try {
             if (messagingTemplate != null) {
                 Map<String, Object> orderData = new HashMap<>();
                 orderData.put("id", orderId);
@@ -510,13 +497,73 @@ public class OrderController {
                 messagingTemplate.convertAndSend("/topic/store/" + request.getStoreId(),
                         Map.of("type", "NEW_ORDER", "data", orderData));
             }
-
-            return ResponseEntity.ok(response);
         } catch (Exception e) {
-            Map<String, String> errorResp = new HashMap<>();
-            errorResp.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResp);
+            log.error("結帳已成立但通知門市失敗 orderId={}", orderId, e);
         }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /** 將請求轉成訂單品項並建單（含扣款）。金額與身分都由 OrderService 依資料庫重新決定。 */
+    private Long createOrderFromRequest(CheckoutRequest request, Long userId) {
+        String deliveryAddress = null;
+        if ("delivery".equals(request.getDeliveryType())) {
+            deliveryAddress = request.getCity() + request.getDistrict() + request.getStreet();
+        }
+        // 將 OrderItemDTO 轉換為 OrderItem Entity (嚴禁更動 Entity，故在此手動映射)
+        List<OrderItem> entities = request.getItems().stream().map(dto -> {
+            OrderItem item = new OrderItem();
+
+            // 核心關鍵: 手動建立 ProductTemplate 殼並填入 ID
+            if (dto.getProductId() != null) {
+                com.example.demo.entity.ProductTemplate p = new com.example.demo.entity.ProductTemplate();
+                p.setId(dto.getProductId());
+                item.setProduct(p);
+            }
+
+            // 拷貝快照欄位
+            item.setProductNameSnapshot(dto.getProductNameSnapshot());
+            item.setUnitPriceSnapshot(dto.getUnitPriceSnapshot());
+            item.setFinalPrice(dto.getFinalPrice());
+            item.setIceSnapshot(dto.getIceSnapshot());
+            item.setSugarSnapshot(dto.getSugarSnapshot());
+            item.setSizeSnapshot(dto.getSizeSnapshot());
+            item.setPaymentStatus(dto.getPaymentStatus());
+
+            // 品項的擁有者一律綁 token 的使用者，不看 dto.getUserId()
+            com.example.demo.entity.User u = new com.example.demo.entity.User();
+            u.setId(userId);
+            item.setUser(u);
+
+            // 數量帶進 entity；售價由 OrderService 依 qty 重算，這裡送什麼價都不算數
+            item.setQty(dto.getQuantity() != null && dto.getQuantity() > 0 ? dto.getQuantity() : 1);
+
+            // 處理加料 (這部分需要 Service 支援，或在 Controller 處理)
+            if (dto.getToppingNames() != null) {
+                List<OrderItemTopping> toppings = dto.getToppingNames().stream().map(name -> {
+                    OrderItemTopping t = new OrderItemTopping();
+                    OrderItemToppingId tid = new OrderItemToppingId();
+                    tid.setToppingNameSnapshot(name);
+                    t.setId(tid);
+                    t.setOrderItem(item);
+                    t.setToppingPriceSnapshot(BigDecimal.ZERO); // 簡化處理
+                    return t;
+                }).collect(Collectors.toList());
+                item.setToppings(toppings);
+            }
+
+            return item;
+        }).collect(java.util.stream.Collectors.toList());
+
+        return orderService.createOrder(
+                userId,
+                request.getStoreId(),
+                request.getTotalAmount(),
+                request.getCouponId(),
+                entities,
+                request.getPaymentMethod(),
+                deliveryAddress,
+                request.getNote());
     }
 
     @PutMapping("/{orderId}/status")

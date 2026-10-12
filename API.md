@@ -1,6 +1,6 @@
 # JoinDrink API 技術手冊 (v4.1)
 
-> **最後更新**：2026-03-30
+> **最後更新**：2026-10-12（補充：冪等結帳、轉盤狀態碼、附近店家分頁與座標檢查、健康檢查、`X-Request-Id`；移除不存在的 SSE 端點）
 > **Base URL**：`http://localhost:8082`
 > **認證方式**：`Authorization: Bearer <JWT>`
 > **統一回應格式**：`{ "code": "200", "msg": "請求成功", "data": { ... } }`
@@ -41,9 +41,9 @@
 |--------|------|------|
 | GET | `/api/home` | 首頁資料（banners、附近店家）Query: `?lat=&lng=` |
 | GET | `/api/stores/map` | 地圖所有營業中店家座標 |
-| GET | `/api/stores/nearby` | 附近店家分頁 Query: `?lat=&lng=&brandId=&minRating=&page=1&size=6` |
-| GET | `/api/stores/nearby/v2` | 附近店家 V2 Query: `?lat=&lon=&sort=&category=&freeDelivery=` |
-| GET | `/api/stores/search` | 關鍵字搜尋品牌/店家 Query: `?keyword=&lat=&lng=&page=1&size=10` |
+| GET | `/api/stores/nearby` | 附近店家分頁 Query: `?lat=&lng=&brandId=&minRating=&page=1&size=6`。有座標時依距離排序；無座標時 `minRating` 不生效（見 §7）|
+| GET | `/api/stores/nearby/v2` | 附近店家 V2 Query: `?lat=&lon=&sort=&category=&freeDelivery=`。`lat`、`lon` 必填；回傳依距離排序的全部接單中店家（未分頁，已知缺口）|
+| GET | `/api/stores/search` | 關鍵字搜尋品牌/店家 Query: `?keyword=&lat=&lng=`。`page`、`size` 目前被忽略，回傳全部符合者（已知缺口，見 §7）|
 | GET | `/api/stores/{storeId}/info` | 店家詳細資訊（評分、營業時間、地址）|
 | GET | `/api/stores/{storeId}/v2` | 店家詳情 V2 |
 | GET | `/api/brands` | 平台所有品牌列表 |
@@ -57,7 +57,7 @@
 | GET | `/api/location/cities` | 台灣縣市列表 |
 | GET | `/api/location/districts` | 縣市下的區域列表 Query: `?cityCode=TXG` |
 | GET | `/api/group-orders/join/{token}` | 透過分享 Token 取得揪團資訊（V1，無需登入）|
-| GET | `/api/game-wheel/brands` | 可參與轉盤的品牌列表（無需登入）|
+| GET | `/api/game-wheel/brands` | 可參與轉盤的品牌列表（無需登入）。回傳 `[{ brandId, brandName, logoUrl }]` |
 | GET | `/api/game-wheel/menu/{brandId}` | 品牌轉盤選項 回傳: `{ wheelOptions: [{ categoryName }] }` |
 
 ---
@@ -90,7 +90,7 @@
 | GET | `/api/orders/user/{userId}/active` | 使用者進行中訂單。同上，僅限本人 |
 | GET | `/api/orders/{orderId}/v2` | 訂單詳情 V2（ResponseEntity 格式）。限發起人或參與者 |
 | GET | `/api/orders/{orderId}/items` | 訂單品項列表。限發起人或參與者 |
-| POST | `/api/orders/checkout` | 結帳下單 |
+| POST | `/api/orders/checkout` | 結帳下單。選擇性標頭 `Idempotency-Key`：重送時回放第一次的結果（見 §7）|
 | PUT | `/api/orders/{orderId}/status` | 更新訂單狀態 Query: `?status=`。僅限訂單發起人；門市請改用 `/api/stores/dashboard/orders/{id}/*` |
 | PUT | `/api/orders/{orderId}/cancel/v2` | 取消訂單 V2（ResponseEntity 格式）。僅限發起人（團員則取消自己的品項）|
 | GET | `/api/orders` | 訂單列表 Query: `?userId=` |
@@ -126,7 +126,7 @@
 ### 優惠券與轉盤
 | Method | Path | 說明 |
 |--------|------|------|
-| POST | `/api/coupons/spin` | 轉盤抽券（每日限1次，超過上限回 error）Body: `{ brandId }` |
+| POST | `/api/coupons/spin` | 轉盤抽券（每日 1 次）Body: `{ brandId }`。狀態碼見 §7 |
 | GET | `/api/coupons/my` | 我的優惠券列表 |
 | PUT | `/api/coupons/{userCouponId}/use` | 使用優惠券 |
 | GET | `/api/coupons/spin-status` | 今日轉盤剩餘次數 回傳: `{ remainSpins: 0\|1 }` |
@@ -279,7 +279,7 @@
 ### 訂單管理
 | Method | Path | 說明 |
 |--------|------|------|
-| GET | `/api/stores/orders` | 訂單列表 Query: `?status=OPEN\|SUBMITTED\|...` |
+| GET | `/api/stores/orders` | 訂單列表 Query: `?status=OPEN\|SUBMITTED\|...&page=0&size=50`（`size` 上限 200；回傳 `{ orders, page, size, total, totalPages, hasNext }`）|
 | GET | `/api/stores/dashboard/orders/pending` | 待接單列表（status=OPEN）|
 | GET | `/api/stores/dashboard/orders/active` | 進行中訂單（OPEN/SUBMITTED/READY）|
 | POST | `/api/stores/dashboard/orders/{orderId}/accept` | 接單 OPEN → SUBMITTED |
@@ -319,20 +319,79 @@
 
 ---
 
-## 6. SSE 即時推播
+## 6. 其他
 
 | Method | Path | 認證 | 說明 |
 |--------|------|------|------|
-| GET | `/api/sse/subscribe/{storeId}` | STORE | 分店訂閱 SSE（新訂單即時推播）|
-| GET | `/api/sse/group-subscribe/{token}` | 無 | 揪團 SSE（成員加入/品項更新即時推播）|
+| POST | `/api/upload` | 登入（任一角色）| 上傳圖片（png／jpg／jpeg／gif／webp），以檔案內容（magic bytes）驗證，5 MB 上限；儲存位置由 `ImageStorageService` 決定（Cloudinary，或本機 `uploads/`）|
+| GET | `/actuator/health` | 無 | 健康檢查，只回傳 `{"status":"UP"}`（見 §7）|
 
 ---
 
-## 7. 其他
+## 7. 共通約定
 
-| Method | Path | 認證 | 說明 |
-|--------|------|------|------|
-| POST | `/api/upload` | 無 | 上傳檔案至本地 `static/uploads/` |
+### 冪等結帳（`Idempotency-Key`）
+
+`POST /api/orders/checkout` 接受選擇性的標頭 `Idempotency-Key`；未帶時行為與舊版相同。
+
+| 情況 | 回應 |
+|------|------|
+| 格式不合規（需符合 `^[A-Za-z0-9_-]{8,64}$`）| 400 |
+| 首次送出且成功（2xx）| 200，結果保存 24 小時 |
+| 同一使用者、同一把鍵，成功後重送 | 回放第一次的狀態碼與 body，並加上 `Idempotent-Replayed: true`；不會再次扣款 |
+| 同一把鍵，第一次仍在處理中 | 409 |
+| 首次失敗（非 2xx 或例外）| 釋放此鍵，可以用同一把鍵重試 |
+
+- 鍵的範圍是使用者；不同使用者可以使用相同字串，互不影響。
+- 伺服器目前**不比對請求內容**：同一把鍵搭配不同的 body 會回放第一次的結果（已知缺口，見 ADR-0005）。
+
+### 轉盤（`POST /api/coupons/spin`）狀態碼
+
+| 狀態碼 | 情況 |
+|------|------|
+| 200 | 抽獎成功，回傳抽獎結果 |
+| 400 | 未選擇品牌（`請選擇品牌`）|
+| 409 | 今日已抽過（`你今日已參加過轉盤遊戲`）|
+| 422 | 該品牌沒有可抽獎的飲品，或沒有飲品分類（此時不會消耗當日次數）|
+| 503 | 同一使用者的抽獎請求正在處理中（使用者鎖 10 秒）|
+
+`GET /api/coupons/spin-status` 回傳 `{ remainSpins: 0 | 1 }`。
+
+### 附近店家（`GET /api/stores/nearby`）
+
+- 分頁：`page` 從 1 開始（小於 1 視為 1，上限 100000）；`size` 介於 1 與 50 之間（超過即截為 50）。回傳 `{ stores, page, size }`。
+- **有座標**（`lat` 介於 -90 與 90、`lng` 介於 -180 與 180）：只列出 50 km 內的營業中店家，依距離排序；`minRating` 生效。
+- **無座標**：依店家 id 分頁列出營業中店家；**`minRating` 不生效**（評分篩選只存在於距離排序的查詢路徑）。
+- 座標超出範圍或不是有限數字：400（`經緯度超出合法範圍`）。`/api/stores/nearby/v2` 採用相同的座標檢查。
+
+### 即時推播（WebSocket／STOMP）
+
+- 端點：`/ws-cart`（SockJS）。CONNECT 必須帶 `Authorization: Bearer <JWT>`。
+- SUBSCRIBE 規則：
+  - `/topic/order/{orderId}`：顧客，且為該訂單的發起人或參與者。
+  - `/topic/group/{token}`：顧客（token 本身即分享憑證）。
+  - `/topic/store/{storeId}`：該門市本人（角色 STORE 且 id 相符）。
+  - 其他目的地一律拒絕。
+- 推播來源為 `messagingTemplate.convertAndSend`，涵蓋訂單狀態、揪團品項異動與門市的新訂單通知。
+- 本專案**沒有** SSE（Server-Sent Events）端點。
+
+### 健康檢查
+
+`GET /actuator/health`（公開）只回傳 `{"status":"UP"}`，不揭露細節（`management.endpoint.health.show-details: never`）。其他 Actuator 端點未開放。
+
+### 請求追蹤（`X-Request-Id`）
+
+每個回應都帶 `X-Request-Id`。傳入的合規值（`^[A-Za-z0-9_-]{8,64}$`）會被沿用，否則產生新的 32 位十六進位 id。同一個 id 會出現在後端 log 的 `[requestId]` 欄位，可用來串接前端回報與後端紀錄。
+
+### 錯誤與狀態碼
+
+業務錯誤以 `CustomException` 拋出，其 code 即 HTTP 狀態碼（如 409、422、503），由 `GlobalExceptionHandler` 轉換。500 只回傳泛用訊息，內部例外細節只寫入 log。
+
+### 分頁
+
+- 會隨營運時間累積的列表端點必須分頁（規則見 `CLAUDE.md`）。
+- 門市訂單：`GET /api/stores/orders?page=0&size=50`，`size` 上限 200。
+- **已知未分頁**：`GET /api/stores/search`（`page`、`size` 目前被忽略）與 `GET /api/stores/nearby/v2`。列為待辦，見 `docs/IMPROVEMENT_ASSESSMENT.md`。
 
 ---
 
@@ -344,8 +403,8 @@
 4. **分店菜單 toggle**：`store_product_settings.is_enabled=false` 表示不供應；`store_topping_settings.is_out_of_stock=true` 表示配料售完。
 5. **訂單評分**：`order_ratings`（星級，可即時更新）管理評分，`order_reviews` 表已停用移除。
 6. **轉盤路由**：實際路由為 `/api/coupons/spin`（執行）、`/api/coupons/spin-status`（狀態）、`/api/game-wheel/brands`（品牌列表）、`/api/game-wheel/menu/{brandId}`（轉盤選項），**非** `/api/daily-spin/*`。
-7. **Controllers 清單**（15 個）：`UserController`、`GroupOrderController`、`BrandController`、`BrandSpecOrderController`、`StoreController`、`CartController`、`PublicController`、`LocationController`、`CouponController`、`DailySpinController`、`OrderController`、`ProductController`、`SseController`、`UploadController`、`UserFavoriteController`。
-8. **SSE 推播**：分店使用 storeId 訂閱即時訂單通知；揪團使用 token 訂閱成員動態。
+7. **Controllers 清單**（14 個）：`UserController`、`GroupOrderController`、`BrandController`、`BrandSpecOrderController`、`StoreController`、`CartController`、`PublicController`、`LocationController`、`CouponController`、`DailySpinController`、`OrderController`、`ProductController`、`UploadController`、`UserFavoriteController`。本專案沒有 SSE 控制器。
+8. **即時推播**：WebSocket／STOMP（`/ws-cart`），訂閱規則見 §7。
 9. **GroupOrder V2**：V2 路由統一使用 `token` 作為 path variable，支援品項 CRUD、結帳、補款等完整流程。刪除路由為 `/api/group-orders/token/{token}`（加 `token/` 前綴避免衝突）。
 10. **常用地址 API**：新增 `/api/users/{userId}/address`（GET）、`/api/users/{userId}/addresses`（POST）、`/api/users/{userId}/addresses/{addressId}`（PUT/DELETE）對應 `user_addresses` 表。
-11. **CORS 白名單**：`localhost:5173`、`localhost:5500`、`127.0.0.1:5500`、`localhost:60687`、`localhost:63342`、`localhost:8082`。
+11. **CORS 白名單**：預設為 `localhost:5173`、`127.0.0.1:5500`、`localhost:5500`、`localhost:8082`、`127.0.0.1:8082`（與 `application.yml` 一致）。本機其他來源請放在 `application-local.yml`，或設定環境變數 `CORS_ALLOWED_ORIGINS`。

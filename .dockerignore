@@ -1,0 +1,22 @@
+# 不進入建置上下文的檔案：避免把本機機密、產物與開發資料打進映像。
+# 注意：frontend/ 必須保留（WebConfig 會從 frontend/ 提供靜態頁面）。
+
+.git
+.github
+.idea
+.vscode
+.env
+**/.env
+target
+**/target
+node_modules
+**/node_modules
+uploads
+**/uploads
+docs
+scripts
+src/main/resources/serviceAccountKey.json
+src/main/resources/application-local.yml
+*.zip
+*.patch
+*.log

@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 登入／重設密碼的嘗試次數限制（滑動視窗計數）。
+ * 登入／重設密碼的嘗試次數限制（固定視窗計數：自第一次嘗試起算，視窗到期後歸零）。
  *
  * <p>⚠️ 為什麼需要：本專案原本<b>沒有任何速率限制</b>。密碼規則只有 8～16 字元，
  * {@code /api/auth/login}、{@code /api/brand-auth/login}、{@code /api/stores/auth/login}
@@ -56,7 +56,7 @@ public class LoginAttemptLimiter {
         StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
         this.counter = redisTemplate == null
                 ? this::incrementLocally
-                : (key, windowSeconds) -> incrementInRedis(redisTemplate, key);
+                : (key, windowSeconds) -> incrementInRedis(redisTemplate, key, windowSeconds);
     }
 
     /** 測試用：直接注入計數器 */
@@ -88,21 +88,15 @@ public class LoginAttemptLimiter {
     /**
      * 取用戶端 IP。
      *
-     * <p>反向代理後 {@code getRemoteAddr()} 會是代理的位址，因此優先讀
-     * {@code X-Forwarded-For} 的第一段；本機直連時兩者相同。
-     * 注意：這個標頭可由用戶端偽造，所以只用於「區分來源」而非作為授權依據。
+     * <p>⚠️ 只看 {@code getRemoteAddr()}，<b>不自己解析 {@code X-Forwarded-For}</b>。
+     * 舊版直接讀 XFF 第一段，攻擊者每次換一個值就換一組限流 key，等於沒有限流。
+     * 經過反向代理時，真實來源由容器判定：{@code server.forward-headers-strategy=native}
+     * 只採信「可信代理」送來的標頭（Tomcat RemoteIpValve），直連時標頭一律忽略。
+     * 因此這裡拿到的已經是容器判定後的來源位址；信任邊界的說明見 ADR-0004。
      */
     public static String clientIp(HttpServletRequest request) {
         if (request == null) {
             return "unknown";
-        }
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            int comma = forwarded.indexOf(',');
-            String first = (comma > 0 ? forwarded.substring(0, comma) : forwarded).trim();
-            if (!first.isEmpty()) {
-                return first;
-            }
         }
         String remote = request.getRemoteAddr();
         return remote == null || remote.isBlank() ? "unknown" : remote;
@@ -113,18 +107,19 @@ public class LoginAttemptLimiter {
         return account == null || account.isBlank() ? ip : ip + "|" + account.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
-    private long incrementInRedis(StringRedisTemplate redisTemplate, String key) {
+    private long incrementInRedis(StringRedisTemplate redisTemplate, String key, long windowSeconds) {
         try {
             Long value = redisTemplate.opsForValue().increment(key);
             long count = value == null ? 1L : value;
             if (count == 1L) {
-                // 第一次才設逾時，讓計數器隨視窗自然過期
-                redisTemplate.expire(key, Duration.ofSeconds(DEFAULT_WINDOW_SECONDS));
+                // 第一次才設逾時，讓計數器隨視窗自然過期。
+                // ⚠️ 必須用呼叫端的視窗：舊版寫死 300 秒，任何其他視窗都會失效。
+                redisTemplate.expire(key, Duration.ofSeconds(windowSeconds));
             }
             return count;
         } catch (Exception e) {
             log.warn("Redis 不可用，速率限制改用本地計數：{}", e.getMessage());
-            return incrementLocally(key, DEFAULT_WINDOW_SECONDS);
+            return incrementLocally(key, windowSeconds);
         }
     }
 
