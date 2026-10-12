@@ -72,7 +72,38 @@ jobs:
 
       # ── 第一層：單元／整合測試（授權與金流的回歸防線）──
       - name: mvn test
-        run: mvn -B test
+        run: |
+          set -o pipefail
+          mkdir -p target
+          mvn -B test 2>&1 | tee target/mvn-test.log
+
+      - name: 診斷（暫時）：列出失敗的測試與編譯錯誤
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+          total = failed = 0
+          for path in sorted(glob.glob('target/surefire-reports/TEST-*.xml')):
+              for tc in ET.parse(path).getroot().iter('testcase'):
+                  total += 1
+                  for kind in ('failure', 'error'):
+                      for el in tc.findall(kind):
+                          failed += 1
+                          frames = [l.strip() for l in (el.text or '').splitlines() if 'com.example.demo' in l][:2]
+                          msg = ((el.get('message') or '') + ' || ' + ' || '.join(frames)).replace('\n', ' ')[:500]
+                          print('::error::' + tc.get('classname', '') + '#' + tc.get('name', '') + ' :: ' + msg)
+          print('::notice::surefire total=%d failed=%d' % (total, failed))
+          n = 0
+          try:
+              for line in open('target/mvn-test.log', encoding='utf-8', errors='replace'):
+                  if '[ERROR]' in line and n < 60:
+                      n += 1
+                      print('::error::' + line.strip()[:400])
+          except FileNotFoundError:
+              print('::notice::no mvn log')
+          PY
+
 
       - name: 打包
         run: mvn -B package -DskipTests
