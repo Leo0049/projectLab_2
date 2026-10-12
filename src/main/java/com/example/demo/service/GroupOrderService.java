@@ -94,7 +94,7 @@ public class GroupOrderService {
      * ⚠️ 控制器不能拿 entity 出去再 getStore()：不在交易內，LAZY 關聯會拋 LazyInitializationException，
      *    而那發生在結帳已 commit 之後，客戶端只會看到 400。
      */
-    @Transactional(readOnly = true)
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public Map<String, Object> getCheckoutNotifyInfo(String token) {
         GroupOrder go = groupOrderRepository.findByShareToken(token)
                 .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
