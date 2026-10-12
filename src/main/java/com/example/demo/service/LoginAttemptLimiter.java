@@ -4,6 +4,7 @@ import com.example.demo.exception.CustomException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -46,6 +47,11 @@ public class LoginAttemptLimiter {
     private record LocalCounter(long count, long expiresAtMillis) {
     }
 
+    /**
+     * ⚠️ 必須標 {@code @Autowired}：類別有兩個建構子且都沒有無參數版本，Spring 不標註就不知道
+     * 該用哪一個，會在啟動時拋 {@code No default constructor found}，整個 context 起不來。
+     */
+    @Autowired
     public LoginAttemptLimiter(ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
         StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
         this.counter = redisTemplate == null
