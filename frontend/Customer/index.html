@@ -1319,15 +1319,19 @@
           }
 
           grid.innerHTML = data.map(brand => {
-            const brandName = escapeHtml(brand.name || '');
+            // 後端 /api/game-wheel/brands 回傳的是 brandId / brandName（見 PublicService.getBrands），
+            // 不是 id / name。讀 brand.name 會拿到 undefined，轉盤品牌清單無法選取。
+            const brandId = Number(brand.brandId);
+            const rawName = String(brand.brandName ?? '');
+            const brandName = escapeHtml(rawName);
             const logoHtml = brand.logoUrl
               ? `<img src="${escapeHtml(brand.logoUrl)}" class="w-full h-full object-cover" alt="${brandName}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
               : '';
-            const fallbackHtml = `<span style="display:${brand.logoUrl ? 'none' : 'flex'}" class="w-full h-full items-center justify-center text-white font-black text-xl">${escapeHtml((brand.name || '').charAt(0))}</span>`;
+            const fallbackHtml = `<span style="display:${brand.logoUrl ? 'none' : 'flex'}" class="w-full h-full items-center justify-center text-white font-black text-xl">${escapeHtml(rawName.charAt(0))}</span>`;
             // 品牌名稱原本直接插進 onclick 的 JS 字串（只換單引號仍有反斜線跳脫問題），
             // 改用 data 屬性 + 事件代理傳值，名稱永遠不會變成程式碼。
             return `
-            <div data-roulette-brand-id="${escapeHtml(brand.id)}" data-roulette-brand-name="${brandName}"
+            <div data-roulette-brand-id="${escapeHtml(brandId)}" data-roulette-brand-name="${brandName}"
                  class="bg-white/10 hover:bg-white/20 border border-white/20 rounded-3xl p-6 cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 flex flex-col items-center justify-center gap-4 backdrop-blur-sm shadow-xl">
               <div class="w-16 h-16 rounded-full overflow-hidden bg-white/20 border-2 border-white/30 flex items-center justify-center">
                 ${logoHtml}${fallbackHtml}
@@ -1336,7 +1340,7 @@
             </div>`;
           }).join('');
           grid.querySelectorAll('[data-roulette-brand-id]').forEach(el => {
-            el.addEventListener('click', () => selectBrand(el.dataset.rouletteBrandId, el.dataset.rouletteBrandName));
+            el.addEventListener('click', () => selectBrand(Number(el.dataset.rouletteBrandId), el.dataset.rouletteBrandName));
           });
         } catch (err) {
           grid.innerHTML = '<p class="col-span-full text-center opacity-70">無法載入品牌清單</p>';
