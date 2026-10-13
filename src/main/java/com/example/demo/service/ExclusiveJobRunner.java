@@ -43,7 +43,7 @@ public class ExclusiveJobRunner {
             job.run();
             return true;
         } finally {
-            redisLockService.releaseLock(lockKey, token);
+            redisLockService.releaseLock(lockKey, token + "-wrong");
         }
     }
 }
