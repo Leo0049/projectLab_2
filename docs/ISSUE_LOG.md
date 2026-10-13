@@ -122,7 +122,7 @@
 
 **症狀**：任何人都能連上 `/ws-cart` 並訂閱 `/topic/order/{orderId}`。`orderId` 是連續整數，可以列舉他人的訂單狀態。
 
-**修法**：CONNECT 必須帶 JWT；SUBSCRIBE 依角色與參與關係授權（`WebSocketConfig.authorizeSubscribe`）。principal 必須帶 `role`，因為顧客與門市的 id 會撞號，只比對 id 會被繞過。
+**修法**：CONNECT 必須帶 JWT；SUBSCRIBE 依角色與參與關係授權（`StompAuthInterceptor.authorizeSubscribe`，規則本體在 `StompSubscribeRules`）。principal 必須帶 `role`，因為顧客與門市的 id 會撞號，只比對 id 會被繞過。
 
 **如何防止再發生**：`StompSubscribeRulesTest`（9）守住規則，包括「角色必須相符」與「超大數字 id 一律拒絕」。
 
@@ -143,7 +143,7 @@
 - API.md 記錄了一組不存在的 SSE 端點，並列出不存在的 `SseController`；`/api/upload` 寫不需認證，實際需要登入。
 - DEPLOYMENT.md 要求部署前「套用 migration」，但 repo 沒有任何 migration。
 
-**修法**：以程式為準逐項修正，數字一律以指令重新計算（例如 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 得到 190 個測試、分布在 36 個類別）。
+**修法**：以程式為準逐項修正，數字一律以指令重新計算（例如 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 得到 217 個測試、分布在 42 個類別）。
 
 **這個問題的教訓**：給 AI 協作者的規則檔若與程式不一致，會把錯誤的假設直接帶進後續修改。因此規則檔中的數字應該能被重新計算，而不是憑記憶寫下。
 

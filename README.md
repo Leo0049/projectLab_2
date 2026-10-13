@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：190 個 `@Test`，36 個測試類別（JUnit 5 + Mockito；8 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：217 個 `@Test`，42 個測試類別（JUnit 5 + Mockito；9 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：39 個 HTML 頁面全數普掃（共 51 次載入，顧客主頁有資料與空狀態各掃一次），加上點餐、轉盤、揪團三條主線 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -322,15 +322,21 @@ docker compose up -d && mvn test
 | `GeoBoundsTest`（5） | 附近店家的預篩矩形是 50 公里圓的超集合，不會漏掉圓內的店；經緯度夾在合法範圍內；負半徑拒絕 |
 | `RequestIdFilterTest`（5） | `X-Request-Id`：合規的 id 沿用，非法或長度不符的重新產生；請求結束後 MDC 清空 |
 | `BrandSummaryJsonTest`（2） | 前端契約：品牌摘要的 JSON 欄位固定為 brandId、brandName、logoUrl，沒有 logo 時 logoUrl 為 null |
+| `StompAuthInterceptorTest`（13） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團頻道只開放顧客 |
+| `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
+| `OrderNoFormatTest`（2） | 訂單編號格式為 ORD＋MMdd＋10 位十六進位；同一天 300 張單不重複 |
+| `UploadControllerTest`（4） | 通用圖片上傳以檔案內容（magic bytes）判斷，副檔名改成 .png 的 HTML 被拒；副檔名白名單；5 MB 上限；內容為 PNG 時成功並交給儲存服務 |
+| `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
+| `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 190 個 `@Test`（36 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 217 個 `@Test`（42 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
 測試不多，但都對準真正會出事的地方（金流與授權）。**既有的核心測試已驗證「把修補改回舊寫法時會失敗」**——
 授權測試在還原 IDOR 邏輯時 3 個失敗、還原 S-6 時 2 個失敗，錢包測試在改回 `findById` 時 2 個失敗，
 規格測試在把防竄改改回「照單全收」時 4 個失敗，揪團金流測試在拿掉任一條路徑的列鎖時對應的那個失敗。
-2026-10-12 新增的測試已於 2026-10-13 逐一做還原驗證（見下方「還原驗證」）。CI 通過只代表它們能編譯並通過，還不代表它們抓得到回歸，所以要把修補改回舊寫法或刻意破壞規則，確認對應的測試會轉紅。
+2026-10-12 新增的測試，以及 STOMP 授權、分頁夾制、上傳內容檢查、訂單編號與時區測試，已於 2026-10-13 逐一做還原驗證（見下方「還原驗證」）。CI 通過只代表它們能編譯並通過，還不代表它們抓得到回歸，所以要把修補改回舊寫法或刻意破壞規則，確認對應的測試會轉紅。
 
 > 這裡有個值得記下來的細節：取消退款那條，**真正擋住重複退款的是列鎖，不是狀態守衛**——
 > 實測只拿掉列鎖、留著「已取消就 return」的守衛，escrow 仍然退了 140 而不是 35，
@@ -351,7 +357,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（190 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（217 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 39 個頁面全頁面普掃（51 次載入）＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -363,16 +369,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 最近一次 CI 驗證
 
-2026-10-13 UTC 的 `pull_request` run 38349049697（commit `96d263e`，即程式與測試的最終狀態）全綠。之後的提交只改文件，程式與測試未變。
+2026-10-13 UTC 的 `pull_request` run 38352055664（commit `15c2a7d`，即程式與測試的最終狀態）全綠。之後的提交只改文件，程式與測試未變。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | [run 38349049697](https://github.com/Leo0049/projectLab_2/actions/runs/38349049697)（`pull_request`，commit `96d263e`）；同一 run 的「容器映像建置（僅建置）」也全綠 |
+| 執行 | [run 38352055664](https://github.com/Leo0049/projectLab_2/actions/runs/38352055664)（`pull_request`，commit `15c2a7d`）；同一 run 的「容器映像建置（僅建置）」也全綠 |
 | 靜態檢查（第 0 層） | gitleaks、79 支受版控 JS 的 `node --check`、69 段內嵌 script：通過 |
-| `mvn test`（第 1 層） | 通過，耗時 66 秒。測試總計 **190 個測試、36 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」）；其中 8 個類別載入 Spring context（共 43 支），與其餘測試一併執行 |
-| 打包與起服務 | `mvn package -DskipTests` 通過（7 秒）；後端 14 秒內就緒 |
-| API 端對端（第 2 層） | 通過（腳本有任一失敗即 exit 1），耗時 5 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過（同上）：39 個頁面普掃（51 次載入）＋點餐、轉盤、揪團三條主線，耗時 4 分 36 秒 |
+| `mvn test`（第 1 層） | 通過，耗時 59 秒。測試總計 **217 個測試、42 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」）；其中 9 個類別載入 Spring context，與其餘測試一併執行 |
+| 打包與起服務 | `mvn package -DskipTests` 通過（7 秒）；「啟動後端」步驟耗時 17 秒（輪詢到服務就緒為止） |
+| API 端對端（第 2 層） | 通過（腳本有任一失敗即 exit 1），耗時 6 秒 |
+| UI 流程（第 3 層，斷網模式） | 通過（同上）：39 個頁面普掃（51 次載入）＋點餐、轉盤、揪團三條主線，耗時 4 分 39 秒 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -382,7 +388,9 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 還原驗證
 
-把修補改回舊寫法、或刻意破壞規則，確認對應的測試會轉紅。2026-10-13 共做了 16 組故意破壞，每一組在 CI 上都讓至少一支測試失敗。每一組都是獨立的暫存 commit，跑完即還原，沒有進入 PR 分支。失敗清單取自 check-run annotation（`gh api repos/<owner>/<repo>/check-runs/<job id>/annotations`）。
+把修補改回舊寫法、或刻意破壞規則，確認對應的測試會轉紅。2026-10-13 共做了 39 組故意破壞：第 1–16 組針對上一輪新增的測試；第 17–39 組針對本輪的補強，包括 STOMP 授權、排程任務的正向路徑、分頁夾制、上傳檢查、訂單編號與時區。每一組都在 CI 上讓至少一支測試失敗。破壞都在暫存分支上做，跑完即還原，沒有進入 PR 分支。
+
+失敗清單取自 check-run annotation（`gh api repos/<owner>/<repo>/check-runs/<job id>/annotations`）：逐筆的失敗 annotation 最多 9 筆，完整清單在標題為「失敗清單（共 N 筆）」的警告裡。
 
 | # | 故意破壞的行為 | 轉紅的測試 |
 |---|----------------|-----------|
@@ -402,8 +410,33 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 | 14 | 品牌摘要的 `logoUrl` 序列化成 `logo` | `BrandSummaryJsonTest.serializesTheFieldNamesTheFrontendReads`、`allowsAMissingLogo` |
 | 15 | 冪等佔位永遠成功 | `IdempotencyServiceTest.secondCallReplaysTheFirstResult`、`duplicateWhileInProgressIsRejected`、`redisReplaysWhenTheKeyIsAlreadyDone`、`redisInProgressReturnsConflict` |
 | 16 | 排程鎖被其他實例持有時仍執行任務 | `ExclusiveJobRunnerTest.skipsWhenAnotherInstanceHoldsTheLock` |
+| 17 | STOMP CONNECT 缺 `Authorization` 或不是 `Bearer` 時放行（fail-open） | `StompAuthInterceptorTest.connectWithoutAuthorizationIsRejected`、`connectWithNonBearerSchemeIsRejected` |
+| 18 | JWT 驗證失敗（偽造、過期、亂碼）時放行（fail-open） | `connectWithForgedTokenIsRejected`、`connectWithExpiredTokenIsRejected`、`connectWithMalformedTokenIsRejected` |
+| 19 | 未經 CONNECT 認證的 SUBSCRIBE 靜默略過，而不是拒絕 | `subscribeWithoutConnectIsRejected` |
+| 20 | 訂單發起人判定失效（發起人沒有品項時無法訂閱） | `initiatorCanSubscribeWithoutItems` |
+| 21 | 訂單參與者判定失效（只剩發起人） | `participantCanSubscribeToOrder` |
+| 22 | 授權時角色一律當成 `CUSTOMER` | `groupChannelIsCustomerOnly`、`storeMayOnlySubscribeToItsOwnChannel`；`storeWithParticipantsNumericIdCannotSubscribeToOrder` 與第 21 組同時破壞時被遮蔽，見下文 |
+| 23 | WebSocket 攔截器沒有掛上 `clientInboundChannel` | `WebSocketWiringTest.inboundChannelCarriesTheStompAuthInterceptor` |
+| 24 | 訂單編號的隨機碼由 10 位改成 4 位 | `OrderNoFormatTest.orderNumberHasTenHexRandomCharacters`；`noCollisionsAcrossADaysWorthOfOrders` 本身是機率性的（4 位時 300 張單的撞號機率約 50%），這次也紅了 |
+| 25 | 上傳內容不檢查 magic bytes（HTML 改名成 .png 就放行） | `UploadControllerTest.htmlRenamedToPngIsRejected` |
+| 26 | 排程任務沒有執行 | `ExclusiveJobRunnerTest.runsOnceAndReleasesWithTheSameToken`、`releasesTheLockWhenTheJobThrows` |
+| 27 | 排程釋放鎖時用錯的 token | 同上兩支 |
+| 28 | 門市訂單列表的 `size` 沒有上限 | `PageSizeClampTest.storeOrdersCapsPageSize` |
+| 29 | 門市訂單列表的負數 `page` 沒有當成第一頁 | `PageSizeClampTest.storeOrdersTreatsNegativePageAsFirstPage` |
+| 30 | 附近店家的 `page` 沒有上限 | `PageSizeClampTest.nearbyStoresCapsPageNumber` |
+| 31 | 附近店家的 `size` 沒有上限 | `PageSizeClampTest.nearbyStoresCapsPageSize` |
+| 32 | 錢包帳本的 `size` 沒有上限 | `PageSizeClampTest.userProfileTransactionsCapsPageSize` |
+| 33 | 錢包帳本的 `page` 為 0 時沒有當成第一頁 | `PageSizeClampTest.userProfileTransactionsTreatsPageZeroAsFirstPage` |
+| 34 | 參與者判定恆為真（任何顧客都能訂閱任何訂單） | `outsiderCannotSubscribeToOrder` |
+| 35 | 時區預設值沒有設定 | `TimeZoneConfigTest.appliesAsiaTaipeiAsTheJvmDefault` |
+| 36 | CONNECT 沒有把 token 身分綁到連線上 | `connectWithValidTokenBindsTheTokenIdentity`，以及依賴該身分的 4 支訂閱測試（`participantCanSubscribeToOrder`、`initiatorCanSubscribeWithoutItems`、`storeMayOnlySubscribeToItsOwnChannel`、`groupChannelIsCustomerOnly`） |
+| 37 | 上傳副檔名白名單沒有檢查 | `UploadControllerTest.disallowedExtensionIsRejectedEvenWithPngBytes` |
+| 38 | 上傳大小上限沒有檢查 | `UploadControllerTest.oversizedFileIsRejected` |
+| 39 | 上傳成功時回 500 | `UploadControllerTest.genuinePngIsStored` |
 
-沒有被破壞的測試，主要是各類別的正向案例（例如合規的 request id 會被沿用、取得鎖時會執行任務並以同一個 token 釋放）。它們的任務是確認不會誤擋，不在這個實驗的範圍內。
+**同時破壞會互相遮蔽，遮蔽的組合要單獨再跑。** 第 21 組與第 22 組同時破壞時，`storeWithParticipantsNumericIdCannotSubscribeToOrder` 會因為先被第 21 組拒絕而一直是綠的，第 22 組單獨破壞時它才紅。第 26、27 組原本寫在同一段程式碼上，兩者同時破壞時分不出是哪一個讓測試紅，所以各自單獨再跑。第 37、38、39 組同時破壞時，檢查被關掉的請求會走到成功路徑而回 500，400 的斷言因此紅，看不出各自是否被抓到；所以第 37、38 組各自單獨再跑，確認它們真的把回應從 400 改成 200。
+
+沒有被破壞的測試，主要是各類別的正向案例（例如合規的 request id 會被沿用）。它們的任務是確認不會誤擋，不在這個實驗的範圍內。排程任務的正向路徑（取得鎖時執行一次、並以同一個 token 釋放）則列在第 26、27 組，破壞它就會紅。
 
 ### 這兩層實際抓到什麼
 

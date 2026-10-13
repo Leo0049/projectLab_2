@@ -20,7 +20,7 @@
 3. **身分只來自 token**：`JwtAuthenticationFilter` 驗證 JWT 後，把使用者 id 寫入 request attribute `currentUserId`。顧客端點以 `@RequestAttribute(value = "currentUserId", required = false)` 讀取，不接受任何請求參數。
 4. **路徑上的 id 必須比對擁有權**：進入方法後第一件事是 `requireSelf(...)`（`UserController`、`CouponController`、`OrderController` 都有）；訂單相關端點則呼叫 `OrderController.requireOwnedOrder()`。查詢參數中的 `userId` 只為相容舊前端而保留，一律不採信。
 5. **角色以 authority 隔離**：顧客、品牌、門市各自的路由以 `hasAuthority` 限定；`/api/stores/**` 兜底要求 STORE 角色，涵蓋所有寫入端點。
-6. **WebSocket 同樣依角色與參與關係**：`WebSocketConfig.authorizeSubscribe` 檢查訂閱目的地。principal 必須帶 `role`，因為顧客與門市的 id 會撞號。
+6. **WebSocket 同樣依角色與參與關係**：`StompAuthInterceptor.authorizeSubscribe` 檢查訂閱目的地（規則本體在 `StompSubscribeRules`）。principal 必須帶 `role`，因為顧客與門市的 id 會撞號。
 
 ## 後果
 

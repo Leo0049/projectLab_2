@@ -42,7 +42,7 @@
 | 14 | `DailySpinController` 自行 catch，回 HTTP 200 | **實作** | 業務錯誤交給 `GlobalExceptionHandler`：「今日已抽過」回 **HTTP 409**（原為 200 + body code）。`DailySpinService` 的使用者訊息由 `RuntimeException` 改為 `CustomException`，否則移除 catch 後會變成通用 500。移除 `catch (RuntimeException) → Result.error(e.getMessage())`，不再把內部訊息回給前端。前端 `fetchAPI` 對非 2xx 會拋出 `msg`，提示文字不變。另外把「該品牌沒有可抽獎的飲品」的檢查移到寫入當日標記之前（422 不再消耗當日次數）。 | 當日標記在資料庫寫入之前寫入的問題仍在（見「仍未做」）。 |
 | 15 | 沒有全路由授權檢查 | **實作** | `AuthorizationRouteInventoryTest` 列舉所有 handler mapping，對**未列入白名單**的路由送出未登入請求，必須得到 401／403；白名單中有不存在的路由也會失敗。新增公開路由時，必須同步更新白名單與 `SecurityConfig`。 | CI 已執行並通過（見「未能在本環境驗證」）。 |
 | 16 | E2E 固定等待、失敗難讀 | **部分實作** | (a) `run-all.js` 寫入 `GITHUB_STEP_SUMMARY` 的表格，失敗項以 `::error` 註解；API e2e 同樣寫摘要。(b) 轉盤流程的 9 秒固定等待改為條件等待。(c) CI 新增靜態檢查：79 個受版控 JS 以 `node --check` 逐一檢查，39 個 HTML 中的 69 個 inline script 以 `scripts/ui/check-inline-scripts.js` 檢查。 | 其餘 34 處 `waitForTimeout` 於改寫相關流程時逐步替換，不一次全改。`run-all.js` 的失敗名稱是攔截 `console.log` 取得的，屬於脆弱做法（見「仍未做」）。 |
-| 17 | 文件與現況不符 | **部分實作** | (a) 更正 CLAUDE.md 的 TestNG 錯誤（`src/test` 內 0 處，全部是 JUnit 5）；依實際檔案重列測試表（190 個 `@Test`、36 個類別）。(b) API.md 移除不存在的 SSE 段落，改寫 WebSocket／STOMP；補上冪等、轉盤狀態碼、附近店家分頁與座標規則、健康檢查與 `X-Request-Id`。(c) 新增 ADR（`docs/adr/`）與問題紀錄（`docs/ISSUE_LOG.md`），README 增加文件導覽。(d) DEPLOYMENT.md 改寫「套用 migration」的說法（repo 沒有 migration），補上反向代理與 Docker 段落。 | CLAUDE.md 拆分為多份文件延後：它同時是 AI 協作的規則檔，拆分前要先決定載入方式，否則規則可能失效。 |
+| 17 | 文件與現況不符 | **部分實作** | (a) 更正 CLAUDE.md 的 TestNG 錯誤（`src/test` 內 0 處，全部是 JUnit 5）；依實際檔案重列測試表（217 個 `@Test`、42 個類別）。(b) API.md 移除不存在的 SSE 段落，改寫 WebSocket／STOMP；補上冪等、轉盤狀態碼、附近店家分頁與座標規則、健康檢查與 `X-Request-Id`。(c) 新增 ADR（`docs/adr/`）與問題紀錄（`docs/ISSUE_LOG.md`），README 增加文件導覽。(d) DEPLOYMENT.md 改寫「套用 migration」的說法（repo 沒有 migration），補上反向代理與 Docker 段落。 | CLAUDE.md 拆分為多份文件延後：它同時是 AI 協作的規則檔，拆分前要先決定載入方式，否則規則可能失效。 |
 | 18 | 沒有 Actuator、沒有 request id | **部分實作** | (a) `spring-boot-starter-actuator`，只暴露 `health`（不顯示細節），GET `/actuator/health` 加入白名單。(b) `RequestIdFilter`：驗證 `X-Request-Id` 格式、不合規則產生新 id、回寫響應標頭、放入 MDC，日誌樣式顯示 requestId。 | metrics 端點未暴露：暴露前要先決定監控後端與存取控制。 |
 | 19 | 多實例：WebSocket 與排程重複執行 | **部分實作** | 兩支 `@Scheduled` 任務改由 `ExclusiveJobRunner` 執行，沿用 `RedisLockService` 的 token 鎖；只有取得鎖的實例會真的執行，其餘記 log 後略過（`ExclusiveJobRunnerTest`）。 | WebSocket 仍是 `enableSimpleBroker`（單實例）。改為 STOMP relay 需要 RabbitMQ 或類似基礎設施，列入 ADR-0007。 |
 | 20 | 工程基礎與安全小項 | **部分實作** | (a) JaCoCo 報告，**無覆蓋率門檻**，CI 摘要顯示行覆蓋率。(b) CI 與 `docker-compose.yml` 的映像鎖版：`mysql:8.0.42`、`redis:7.4-alpine`。(c) 多階段 `Dockerfile`（`maven:3.9-eclipse-temurin-17` → `eclipse-temurin:17-jre`，非 root 執行，映像內含 `frontend/`），CI 新增建置工作（只建置、不推送）。(d) CORS 預設清單改為 `localhost:5173`、`127.0.0.1:5500`、`localhost:5500`、`localhost:8082`、`127.0.0.1:8082`，移除 `60687`、`54376`、`63342` 等 IDE 臨時埠，並移除 5501／5502／3000／8080，改列在 local 範例檔。 | `mvnw`：需要從 Maven Central 下載 wrapper，此環境無法產生。Testcontainers 延後，現行測試仰賴 `docker compose` 與 CI service，遷移需要另案。密碼政策（8–16 字元 → 較長上限與黑名單）屬產品決策，且需處理 BCrypt 的 72 bytes 上限，另案處理。 |
@@ -79,14 +79,14 @@
 ## 未能在本環境驗證的項目
 
 本環境沒有 Maven Central，也沒有 Docker daemon，因此 Java 編譯、`mvn test`、Docker 建置與 UI 流程都只能由 CI 驗證。
-最近一次完整的 CI 執行是 [run 38349049697](https://github.com/Leo0049/projectLab_2/actions/runs/38349049697)（commit `96d263e`）：`mvn test`（190 個測試、略過 0）、API 端對端、UI 普掃與三條主線、Docker 建置全部步驟成功，摘要見 README「最近一次 CI 驗證」。CI 失敗的原因與修正歷程仍寫在 PR 說明中。
+最近一次完整的 CI 執行是 [run 38352055664](https://github.com/Leo0049/projectLab_2/actions/runs/38352055664)（commit `15c2a7d`）：`mvn test`（217 個測試、略過 0）、API 端對端、UI 普掃與三條主線、Docker 建置全部步驟成功，摘要見 README「最近一次 CI 驗證」。CI 失敗的原因與修正歷程仍寫在 PR 說明中。
 
 CI 已執行並通過的項目（不再列為未驗證）：
 
 - Java 編譯與 `mvn test`，包括 `AuthorizationRouteInventoryTest`：白名單與 `SecurityConfig` 的比對在 CI 中一致。
 - API 端對端驗證，以及 UI 普掃與三條主線（點餐、轉盤、揪團）。
 - Docker 映像建置（只建置，不推送、不啟動容器）。
-- 還原驗證（2026-10-13）：16 組故意破壞，全部讓對應的測試轉紅，對照表見 README「還原驗證」。
+- 還原驗證（2026-10-13）：39 組故意破壞，每一組都讓對應的測試轉紅，對照表見 README「還原驗證」。
 
 仍然只能在 CI 或線上環境驗證，目前沒有覆蓋的項目：
 
