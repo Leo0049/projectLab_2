@@ -39,9 +39,11 @@
 
 ## 如何驗證
 
-`LoginAttemptLimiterTest`（9）：
+`LoginAttemptLimiterTest`（10）：
 - `blocksOnlyAfterTheLimitIsExceeded`、`countsEachIdentitySeparately`、`countsEachScopeSeparately`：限流的基本行為。
 - `usesRedisWhenAvailable`、`fallsBackToLocalCounterWhenRedisIsUnavailable`：兩條儲存路徑。
+- `keepsCountingLocallyWhenRedisThrows`：Redis 拋例外時改用本地計數，第三次仍被擋下（不因 Redis 故障而放行）。
+- `pureDecision`：門檻判斷的純函式（`shouldBlock`）。
 - `forgedForwardedForDoesNotChangeTheIdentity`：偽造的 `X-Forwarded-For` 不改變識別。
 - `redisExpiryUsesTheRequestedWindow`：Redis 的逾時使用呼叫端指定的視窗（修補前寫死為 300 秒，任何其他視窗都會失效）。
 - `clientIpFallsBackToRemoteAddr`：沒有可用資訊時回到 `getRemoteAddr()`。

@@ -22,7 +22,7 @@ import java.util.UUID;
  * 這樣做的理由：Cloudinary 沒有可供上傳的公開測試帳號，若上傳一律綁死 Cloudinary，
  * 任何人 clone 下來都得先自己申請帳號才能用到頭像、品牌 logo、門市封面與優惠券圖片，
  * 否則會收到函式庫拋出的 "cloud_name is disabled"。改為自動回退後，
- * 不需要任何第三方帳號也能完整展示。
+ * 不需要任何第三方帳號也能完整運作。
  */
 @Slf4j
 @Service

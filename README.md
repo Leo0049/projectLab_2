@@ -9,14 +9,14 @@
 
 ---
 
-## 作品集導覽
+## 文件導覽
 
-JoinDrink 是我以 Spring Boot 實作的多租戶飲料訂購與揪團平台，有顧客、品牌總部、門市三種角色。
-這個專案的重點不在功能數量，而在 **金流與授權的正確性**：我用兩次安全審查與併發實測找出問題，逐一修補、寫成可重跑的測試，並把每個取捨記錄成決策文件。
+JoinDrink 是以 Spring Boot 實作的多租戶飲料訂購與揪團平台，有顧客、品牌總部、門市三種角色。
+本專案的重心是 **金流與授權的正確性**。兩次安全審查與併發實測找出的問題都已修補，並寫成可重跑的測試；每個取捨都記錄在決策文件中。
 
-**建議閱讀順序（約五分鐘）**
+**建議閱讀順序**
 
-1. [案例研究](docs/CASE_STUDIES.md)：十個實際遇到的工程問題，每個都有症狀、根因、修法與防止再發生的方式。
+1. [問題紀錄](docs/ISSUE_LOG.md)：十個實際遇到的工程問題，每個都有症狀、根因、修法與防止再發生的方式。
 2. [架構決策紀錄（ADR）](docs/adr/README.md)：金流列鎖、授權白名單、IP 信任邊界、冪等結帳、Redis 與排程互斥，以及明確延後的事項。
 3. [優化建議實作評估](docs/IMPROVEMENT_ASSESSMENT.md)：20 項建議的逐項決策，包含沒做的部分與理由。
 4. [API 文件](API.md)、[資料庫說明](DATABASE.md)、[部署指南](docs/DEPLOYMENT.md)。
@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：189 個 `@Test`，36 個測試類別（JUnit 5 + Mockito；8 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：217 個 `@Test`，42 個測試類別（JUnit 5 + Mockito；9 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：39 個 HTML 頁面全數普掃（共 51 次載入，顧客主頁有資料與空狀態各掃一次），加上點餐、轉盤、揪團三條主線 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -67,7 +67,8 @@ flowchart LR
 - 沒有 schema 遷移工具，結構由 `ddl-auto: update` 管理。正式上線前要導入 Flyway（[ADR-0008](docs/adr/0008-schema-migrations.md)）。
 - WebSocket 目前是單實例的 simple broker；Redis 不可用時，鎖與限流會退回單實例語意（[ADR-0006](docs/adr/0006-redis-shared-state-and-job-exclusion.md)）。
 - `/api/stores/search` 與 `/api/stores/nearby/v2` 仍未分頁，已列為待辦。
-- 文件中的所有測試與效能敘述，以 CI 為準。開發環境無法連到 Maven Central 且沒有 Docker，因此這一輪的 Java 編譯與測試尚未在本機執行。
+- 前端有 16 處寫死 `http://localhost:8082`（`window.JOIN_API_BASE` 與各頁面、各 JS 模組的 `BASE` 常數）。本機與 Docker 展示不受影響；要做公開 demo 前，需先改為設定值或同源反向代理。
+- 文件中的所有測試與效能敘述，以 CI 為準。開發環境無法連到 Maven Central 且沒有 Docker，因此 Java 編譯、`mvn test`、Spring 整合測試與瀏覽器 E2E 都在 GitHub Actions 上執行；結果見下方「程式與測試的最後一次 CI 驗證」。
 
 ---
 
@@ -120,7 +121,7 @@ VS Code Live Server 的預設埠是 5500，但 5500 被占用時它會**靜默�
 | **優惠券轉盤** | 每日抽獎，優惠券圖片由 Java 2D 動態生成後上傳 Cloudinary |
 | **商品快照** | 下單時保存當下品名與價格，日後改價不影響歷史訂單 |
 
-規模：後端 154 個 Java 檔案 / 約 17.1k 行，26 張資料表，14 個 REST controller；前端 39 個頁面、約 18.1k 行 JS（Vanilla JS + Tailwind）。
+規模：後端 159 個 Java 檔案 / 約 17.6k 行（`src/main/java`），26 張資料表，14 個 REST controller；前端 39 個頁面、約 18.1k 行 JS（不含 `vendor/`；Vanilla JS + Tailwind）。
 
 ---
 
@@ -195,7 +196,7 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
 - **登入必定 500**：`signWith(alg, String)` 會將 secret 做 Base64 解碼，預設值解碼後只剩 416 bits，不符 HS512 要求。改用原始位元組建立金鑰，並把長度檢查移到啟動時，不足即啟動失敗。
 - **`jwt.expiration` 完全不生效**：`JwtUtils` 寫死 7 天，設定檔的 24h 從未套用。
 - **用戶端錯誤一律回 500**：路由不存在、缺參數、型別錯全部落入 catch-all；且原始例外訊息（含 DB 結構）會回傳給前端。現已分流為 404/400/405，內部細節只寫入 log。
-- **`open-in-view: false` 之下的固定 500**：關閉 OSIV 後，交易外碰到 LAZY 關聯就會拋 `LazyInitializationException`。這類錯誤在單元測試看不到、要實際打端點才會現形，前後共出現在十個地方——其中 `GET /api/stores/settings/profile` 是門市後台**每一頁的頁首**都會呼叫的，壞掉時整個後台的營業狀態永遠停在「讀取中…」。另兩個公開端點直接回傳 JPA entity，Jackson 序列化 `brand` / `region` proxy 時必定 500。修法統一為「在交易內轉成純 Map 再回傳」，並用一支涵蓋 45 個 GET 端點的普掃確認歸零。
+- **`open-in-view: false` 之下的固定 500**：關閉 OSIV 後，交易外碰到 LAZY 關聯就會拋 `LazyInitializationException`。這類錯誤在單元測試看不到、要實際打端點才會現形，前後踩過九次（歸納為四種型態，見 CLAUDE.md）——其中 `GET /api/stores/settings/profile` 是門市後台**每一頁的頁首**都會呼叫的，壞掉時整個後台的營業狀態永遠停在「讀取中…」。另兩個公開端點直接回傳 JPA entity，Jackson 序列化 `brand` / `region` proxy 時必定 500。修法統一為「在交易內轉成純 Map 再回傳」，這類問題只有實際打端點才會現形，因此改動序列化或關聯的程式碼後，應重跑 GET 端點的普掃（做法見 CLAUDE.md）。
 
 帳本本身也整理過。`transaction_records.type` 一度被當成顯示字串，實際存的是
 `"消費扣款\n個人訂單 #12 結帳扣款"` 這種兩行文字，前端再自己 split、用 `includes('補款')`
@@ -275,7 +276,7 @@ REPEATABLE READ 下讀的是本交易快照，12 筆評分只算出 4 筆。兩�
 - **授權規則**：`SecurityConfig` 的 `permitAll` 路徑限定 HTTP method，移除無用的 `/auth/**`。
 - **第三至五輪**：團購儲值金（`STORE_CREDIT`）送出前映射為 `WALLET`，儲值金付款現在會實際扣款；WebSocket 訂閱依角色授權，門市只能收自己的新訂單推播；`docker-compose.yml` 的資料庫與 Redis 埠口只綁本機；正式範本關閉 springdoc；社群登入的新手機流程補上「已綁定帳號」分支；移除遺留的 `/auth/**` 映射、修正 `/Store/**` 目錄大小寫。
 
-驗證範圍：全部 Java 檔通過語法解析，並以差異編譯（修復版與基準版的 javac 錯誤清單互相比較）確認沒有新增的符號或型別錯誤；純邏輯測試以 JUnit 替身執行真實原始碼（44 支，全數通過）；前端 JS 與內嵌腳本語法檢查通過。未能執行 `mvn test`、Spring 整合測試與瀏覽器端到端測試（本次環境沒有 Maven、Docker 與瀏覽器），**上線前必須在 CI 或本機補跑**。
+驗證範圍：全部 Java 檔通過語法解析，並以差異編譯（修復版與基準版的 javac 錯誤清單互相比較）確認沒有新增的符號或型別錯誤；純邏輯測試以 JUnit 替身執行真實原始碼（44 支，全數通過）；前端 JS 與內嵌腳本語法檢查通過。未能執行 `mvn test`、Spring 整合測試與瀏覽器端到端測試（本次環境沒有 Maven、Docker 與瀏覽器），**上線前必須在 CI 或本機補跑**（已於 CI 補跑，結果見下方「程式與測試的最後一次 CI 驗證」）。
 
 ## 測試
 
@@ -308,7 +309,7 @@ docker compose up -d && mvn test
 | `DemoDataSeederProdGuardTest`（2） | 正式環境不植入示範資料（即使 `DEMO_DATA_ENABLED` 沒設定也不會） |
 | `JwtAuthenticationFilterTest`（7） | JWT 過濾器：無效或過期的 token 會被拒絕；已刪除的帳號每次請求都會被擋下 |
 | `AuthServiceSmsModeGuardTest`（6） | 正式環境若 `sms.mode` 不是 `firebase` 就拒絕啟動（含 `MOCK_TOKEN` 繞過） |
-| `LoginAttemptLimiterTest`（9） | 登入與 OTP 限流：超過次數回 429；Redis 不可用時退回本機計數 |
+| `LoginAttemptLimiterTest`（10） | 登入與 OTP 限流：超過次數回 429；Redis 不可用時退回本機計數 |
 | `SafeImageUrlTest`（7） | 圖片網址白名單（純邏輯）：擋 `javascript:`、`../`、引號跳脫與控制字元 |
 | `SafeTextTest`（6） | 顧客名稱寫入規則（純邏輯）：拒絕 `< > " \`` 與控制字元，上限 30 字 |
 | `MemberCancelSettlementTest`（9） | 團員取消品項的退款結算（純邏輯）：只退已付款的部分，團長退款以 escrow 為上限 |
@@ -321,14 +322,21 @@ docker compose up -d && mvn test
 | `GeoBoundsTest`（5） | 附近店家的預篩矩形是 50 公里圓的超集合，不會漏掉圓內的店；經緯度夾在合法範圍內；負半徑拒絕 |
 | `RequestIdFilterTest`（5） | `X-Request-Id`：合規的 id 沿用，非法或長度不符的重新產生；請求結束後 MDC 清空 |
 | `BrandSummaryJsonTest`（2） | 前端契約：品牌摘要的 JSON 欄位固定為 brandId、brandName、logoUrl，沒有 logo 時 logoUrl 為 null |
+| `StompAuthInterceptorTest`（13） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團頻道只開放顧客 |
+| `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
+| `OrderNoFormatTest`（2） | 訂單編號格式為 ORD＋MMdd＋10 位十六進位；同一天 300 張單不重複 |
+| `UploadControllerTest`（4） | 通用圖片上傳以檔案內容（magic bytes）判斷，副檔名改成 .png 的 HTML 被拒；副檔名白名單；5 MB 上限；內容為 PNG 時成功並交給儲存服務 |
+| `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
+| `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 189 個 `@Test`（36 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 217 個 `@Test`（42 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
-測試不多，但都對準真正會出事的地方（金流與授權），而且**每一支都驗證過「把修補改回舊寫法時會失敗」**——
+測試不多，但都對準真正會出事的地方（金流與授權）。**既有的核心測試已驗證「把修補改回舊寫法時會失敗」**——
 授權測試在還原 IDOR 邏輯時 3 個失敗、還原 S-6 時 2 個失敗，錢包測試在改回 `findById` 時 2 個失敗，
 規格測試在把防竄改改回「照單全收」時 4 個失敗，揪團金流測試在拿掉任一條路徑的列鎖時對應的那個失敗。
+2026-10-12 新增的測試，以及 STOMP 授權、分頁夾制、上傳內容檢查、訂單編號與時區測試，已於 2026-10-13 做過還原驗證（見下方「還原驗證」）。這些測試並非每一個都被破壞過，未被破壞的項目同樣列在該節。CI 通過只代表它們能編譯並通過，還不代表它們抓得到回歸，所以要把修補改回舊寫法或刻意破壞規則，確認對應的測試會轉紅。
 
 > 這裡有個值得記下來的細節：取消退款那條，**真正擋住重複退款的是列鎖，不是狀態守衛**——
 > 實測只拿掉列鎖、留著「已取消就 return」的守衛，escrow 仍然退了 140 而不是 35，
@@ -349,7 +357,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（189 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（217 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 39 個頁面全頁面普掃（51 次載入）＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -358,6 +366,84 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 三層都在 [GitHub Actions](.github/workflows/ci.yml) 上跑：CI 起 MySQL 8 + Redis 7，
 `mvn test` → 打包 → 起服務 → 跑第二三層；失敗時會把當下的截圖與後端 log 收成 artifact。步驟日誌需要另外下載，所以失敗原因也以 check-run annotation 呈現：`mvn test` 的失敗測試與根因、端對端與 UI 的 ✗ 項目、後端 `app.log` 的 ERROR 行。用 REST API 即可讀取，例如 `gh api repos/<owner>/<repo>/check-runs/<job id>/annotations`；實作見 `scripts/ci/failure_annotations.py`。
+
+### 程式與測試的最後一次 CI 驗證
+
+2026-10-13 UTC 的 `pull_request` run 38352055664（commit `15c2a7d`，即程式與測試的最終狀態）全綠。之後的提交只改文件，程式與測試未變。
+
+| 項目 | 結果 |
+|------|------|
+| 執行 | [run 38352055664](https://github.com/Leo0049/projectLab_2/actions/runs/38352055664)（`pull_request`，commit `15c2a7d`）；同一 run 的「容器映像建置（僅建置）」也全綠 |
+| 靜態檢查（第 0 層） | gitleaks、79 支受版控 JS 的 `node --check`、69 段內嵌 script：通過 |
+| `mvn test`（第 1 層） | 通過，耗時 59 秒。測試總計 **217 個測試、42 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」）；其中 9 個類別載入 Spring context，與其餘測試一併執行 |
+| 打包與起服務 | `mvn package -DskipTests` 通過（7 秒）；「啟動後端」步驟耗時 17 秒（輪詢到服務就緒為止） |
+| API 端對端（第 2 層） | 通過（腳本有任一失敗即 exit 1），耗時 6 秒 |
+| UI 流程（第 3 層，斷網模式） | 通過（同上）：39 個頁面普掃（51 次載入）＋點餐、轉盤、揪團三條主線，耗時 4 分 39 秒 |
+| Docker 映像建置 | 通過（只建置，不推送） |
+
+讀這張表時注意兩點：
+
+- 步驟通過代表**沒有失敗**；「測試總計與略過檢查」步驟另外保證**沒有略過**（`scripts/ci/surefire_totals.py --fail-on-skipped`）。`GroupCheckoutConcurrencyTest` 與 `GroupOrderSecurityTest` 以 `assumeTrue` 守示範資料，條件不成立時會被略過；這個 run 的略過數為 0，所以它們確實執行並通過。E2E 的逐項通過數仍由腳本輸出，記在 run 的日誌裡。
+- 效能數字不在本次驗證範圍內，見 [IMPROVEMENT_ASSESSMENT](docs/IMPROVEMENT_ASSESSMENT.md)「效能數字」一段。
+
+### 還原驗證
+
+把修補改回舊寫法、或刻意破壞規則，確認對應的測試會轉紅。2026-10-13 共做了 39 組故意破壞：第 1–16 組針對上一輪新增的測試；第 17–39 組針對本輪的補強，包括 STOMP 授權、排程任務的正向路徑、分頁夾制、上傳檢查、訂單編號與時區。每一組都在 CI 上讓至少一支測試失敗。破壞都在暫存分支上做，跑完即還原，沒有進入 PR 分支。
+
+失敗清單取自 check-run annotation（`gh api repos/<owner>/<repo>/check-runs/<job id>/annotations`）：逐筆的失敗 annotation 最多 9 筆，完整清單在標題為「失敗清單（共 N 筆）」的警告裡。
+
+| # | 故意破壞的行為 | 轉紅的測試 |
+|---|----------------|-----------|
+| 1 | 地理矩形的換算係數 111 → 120，矩形變小、會漏掉圓內的店 | `GeoBoundsTest.boundsContainEveryPointInsideTheRadius`、`boundsStayTight` |
+| 2 | request id 不驗格式，接受任何字串 | `RequestIdFilterTest.replacesAnIdWithControlCharacters`、`replacesTooShortAndTooLongIds` |
+| 3 | 請求結束後不清除 MDC | `RequestIdFilterTest.clearsTheMdcAfterTheRequest` |
+| 4 | 排程鎖只在任務成功時釋放 | `ExclusiveJobRunnerTest.releasesTheLockWhenTheJobThrows` |
+| 5 | 冪等佔位在非 2xx 結果時不釋放 | `IdempotencyServiceTest.failedAttemptReleasesTheKey` |
+| 6 | 冪等佔位在例外時不釋放 | `IdempotencyServiceTest.exceptionPropagatesAndReleasesTheKey` |
+| 7 | 冪等鍵不驗格式 | `IdempotencyServiceTest.rejectsMalformedKeys` |
+| 8 | 冪等鍵不分使用者 | `IdempotencyServiceTest.keysAreScopedPerUser` |
+| 9 | Redis 中的結果前綴改掉，重播讀不回去 | `IdempotencyServiceTest.redisClaimThenStoresTheResult`、`redisReplaysWhenTheKeyIsAlreadyDone` |
+| 10 | 限流身分信任 `X-Forwarded-For` 第一段 | `LoginAttemptLimiterTest.forgedForwardedForDoesNotChangeTheIdentity` |
+| 11 | Redis 拋例外時放行（fail-open） | `LoginAttemptLimiterTest.keepsCountingLocallyWhenRedisThrows` |
+| 12 | 白名單多開一條 `GET /api/cart/**` | `AuthorizationRouteInventoryTest.everyOtherRouteRequiresAuthentication` |
+| 13 | 白名單少開一條 `GET /api/menu/**` | `AuthorizationRouteInventoryTest.everyPublicRouteExistsAndIsOpen` |
+| 14 | 品牌摘要的 `logoUrl` 序列化成 `logo` | `BrandSummaryJsonTest.serializesTheFieldNamesTheFrontendReads`、`allowsAMissingLogo` |
+| 15 | 冪等佔位永遠成功 | `IdempotencyServiceTest.secondCallReplaysTheFirstResult`、`duplicateWhileInProgressIsRejected`、`redisReplaysWhenTheKeyIsAlreadyDone`、`redisInProgressReturnsConflict` |
+| 16 | 排程鎖被其他實例持有時仍執行任務 | `ExclusiveJobRunnerTest.skipsWhenAnotherInstanceHoldsTheLock` |
+| 17 | STOMP CONNECT 缺 `Authorization` 或不是 `Bearer` 時放行（fail-open） | `StompAuthInterceptorTest.connectWithoutAuthorizationIsRejected`、`connectWithNonBearerSchemeIsRejected` |
+| 18 | JWT 驗證失敗（偽造、過期、亂碼）時放行（fail-open） | `connectWithForgedTokenIsRejected`、`connectWithExpiredTokenIsRejected`、`connectWithMalformedTokenIsRejected` |
+| 19 | 未經 CONNECT 認證的 SUBSCRIBE 靜默略過，而不是拒絕 | `subscribeWithoutConnectIsRejected` |
+| 20 | 訂單發起人判定失效（發起人沒有品項時無法訂閱） | `initiatorCanSubscribeWithoutItems` |
+| 21 | 訂單參與者判定失效（只剩發起人） | `participantCanSubscribeToOrder` |
+| 22 | 授權時角色一律當成 `CUSTOMER` | `groupChannelIsCustomerOnly`、`storeMayOnlySubscribeToItsOwnChannel`；`storeWithParticipantsNumericIdCannotSubscribeToOrder` 與第 21 組同時破壞時被遮蔽，見下文 |
+| 23 | WebSocket 攔截器沒有掛上 `clientInboundChannel` | `WebSocketWiringTest.inboundChannelCarriesTheStompAuthInterceptor` |
+| 24 | 訂單編號的隨機碼由 10 位改成 4 位 | `OrderNoFormatTest.orderNumberHasTenHexRandomCharacters`；`noCollisionsAcrossADaysWorthOfOrders` 本身是機率性的（4 位時 300 張單的撞號機率約 50%），這次也紅了 |
+| 25 | 上傳內容不檢查 magic bytes（HTML 改名成 .png 就放行） | `UploadControllerTest.htmlRenamedToPngIsRejected` |
+| 26 | 排程任務沒有執行 | `ExclusiveJobRunnerTest.runsOnceAndReleasesWithTheSameToken`、`releasesTheLockWhenTheJobThrows` |
+| 27 | 排程釋放鎖時用錯的 token | 同上兩支 |
+| 28 | 門市訂單列表的 `size` 沒有上限 | `PageSizeClampTest.storeOrdersCapsPageSize` |
+| 29 | 門市訂單列表的負數 `page` 沒有當成第一頁 | `PageSizeClampTest.storeOrdersTreatsNegativePageAsFirstPage` |
+| 30 | 附近店家的 `page` 沒有上限 | `PageSizeClampTest.nearbyStoresCapsPageNumber` |
+| 31 | 附近店家的 `size` 沒有上限 | `PageSizeClampTest.nearbyStoresCapsPageSize` |
+| 32 | 錢包帳本的 `size` 沒有上限 | `PageSizeClampTest.userProfileTransactionsCapsPageSize` |
+| 33 | 錢包帳本的 `page` 為 0 時沒有當成第一頁 | `PageSizeClampTest.userProfileTransactionsTreatsPageZeroAsFirstPage` |
+| 34 | 參與者判定恆為真（任何顧客都能訂閱任何訂單） | `outsiderCannotSubscribeToOrder` |
+| 35 | 時區預設值沒有設定 | `TimeZoneConfigTest.appliesAsiaTaipeiAsTheJvmDefault` |
+| 36 | CONNECT 沒有把 token 身分綁到連線上 | `connectWithValidTokenBindsTheTokenIdentity`，以及依賴該身分的 4 支訂閱測試（`participantCanSubscribeToOrder`、`initiatorCanSubscribeWithoutItems`、`storeMayOnlySubscribeToItsOwnChannel`、`groupChannelIsCustomerOnly`） |
+| 37 | 上傳副檔名白名單沒有檢查 | `UploadControllerTest.disallowedExtensionIsRejectedEvenWithPngBytes` |
+| 38 | 上傳大小上限沒有檢查 | `UploadControllerTest.oversizedFileIsRejected` |
+| 39 | 上傳成功時回 500 | `UploadControllerTest.genuinePngIsStored` |
+
+**同時破壞會互相遮蔽，遮蔽的組合要單獨再跑。** 第 21 組與第 22 組同時破壞時，`storeWithParticipantsNumericIdCannotSubscribeToOrder` 會因為先被第 21 組拒絕而一直是綠的，第 22 組單獨破壞時它才紅。第 26、27 組原本寫在同一段程式碼上，兩者同時破壞時分不出是哪一個讓測試紅，所以各自單獨再跑。第 37、38、39 組同時破壞時，檢查被關掉的請求會走到成功路徑而回 500，400 的斷言因此紅，看不出各自是否被抓到；所以第 37、38 組各自單獨再跑，確認它們真的把回應從 400 改成 200。
+
+2026-10-12 新增或補強的四個類別（`GeoBoundsTest`、`RequestIdFilterTest`、`AuthorizationRouteInventoryTest`、`LoginAttemptLimiterTest`）中，沒有被破壞的測試共 14 個。這些測試沒有被任何一組破壞，因此沒有還原驗證的證據；這不代表它們抓不到回歸：
+
+- `GeoBoundsTest`：`zeroRadiusCollapsesToTheCentre`、`clampsToValidCoordinateRanges`、`rejectsNegativeRadius`
+- `RequestIdFilterTest`：`keepsAValidIncomingId`、`generatesADistinctIdWhenMissing`
+- `AuthorizationRouteInventoryTest`：`inventoryIsNotEmpty`
+- `LoginAttemptLimiterTest`：其餘 8 個既有案例
+
+排程任務的正向路徑（取得鎖時執行一次、並以同一個 token 釋放）已由第 26、27 組覆蓋，破壞它就會紅。
 
 ### 這兩層實際抓到什麼
 
@@ -437,6 +523,8 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 以 JMeter 5.6.3（200 執行緒、持續 60 秒）驗證錢包的列鎖修補（見上方 D-1）：
 
+> 壓測計畫（`.jmx`）未納入版本控制，下表是修補當時的紀錄，未在本 repo 重跑。CI 中可重跑的相關驗證是 `WalletConcurrencyTest`（見「測試」一節）。
+
 | 情境 | 請求數 | 錯誤率 | 一致性 |
 |------|--------|--------|--------|
 | 全部打**同一列**（鎖競爭最大） | 12,005 | 0% | 成功數 = 帳本筆數 = 帳本總額 = 餘額 |
@@ -482,7 +570,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 本機預設 `SMS_MODE=mock`，跳過 Firebase 手機驗證，**不需要金鑰即可註冊登入**。
 
 圖片上傳同理：有設定 Cloudinary 憑證就上傳雲端，沒有就自動存到本機 `uploads/`
-並以 `/uploads/**` 提供。**整個專案不需要任何第三方帳號即可完整展示。**
+並以 `/uploads/**` 提供。**整個專案不需要任何第三方帳號即可完整運作。**
 
 **上線前務必調整：**
 
@@ -500,7 +588,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 - [DATABASE.md](./DATABASE.md) — 26 張表 schema 說明
 - [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) — 正式環境部署範圍、設定與限制
 - [docs/adr/README.md](./docs/adr/README.md) — 架構決策紀錄（ADR）
-- [docs/CASE_STUDIES.md](./docs/CASE_STUDIES.md) — 工程案例研究
+- [docs/ISSUE_LOG.md](./docs/ISSUE_LOG.md) — 工程問題紀錄
 - [docs/IMPROVEMENT_ASSESSMENT.md](./docs/IMPROVEMENT_ASSESSMENT.md) — 優化建議的實作評估與未做項目
 - [docs/SECURITY-FRONTEND.md](./docs/SECURITY-FRONTEND.md) — 前端安全現況與 CSP 路線圖
 - [CLAUDE.md](./CLAUDE.md) — 開發約定與踩過的坑（授權規則、餘額鎖列、STOMP 授權等）
