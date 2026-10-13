@@ -72,8 +72,8 @@ public class PublicService {
     public Map<String, Object> getNearbyStoresPage(Double lat, Double lng,
                                                     Long brandId, Double minRating,
                                                     int page, int size, Long userId) {
-        int safePage = Math.max(1, page);
-        int safeSize = Math.max(1, size);
+        int safePage = Math.min(Math.max(1, page), MAX_PAGE);
+        int safeSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
         List<Map<String, Object>> stores =
                 getNearbyStores(lat, lng, brandId, minRating, safePage - 1, safeSize, userId);
         Map<String, Object> result = new HashMap<>();

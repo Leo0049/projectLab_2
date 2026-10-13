@@ -51,6 +51,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      */
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        // 接線已拿掉（MUT-22）
+        registration.interceptors(new StompAuthInterceptor(jwtUtils, groupOrderRepository, orderItemRepository));
     }
 }

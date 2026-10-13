@@ -346,7 +346,7 @@ public class OrderService {
     public static String generateOrderNo() {
         String datePart = java.time.format.DateTimeFormatter.ofPattern("MMdd")
                 .format(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Taipei")));
-        String randomPart = UUID.randomUUID().toString().replace("-", "").substring(0, 4).toUpperCase();
+        String randomPart = UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase();
         return "ORD" + datePart + randomPart;
     }
 

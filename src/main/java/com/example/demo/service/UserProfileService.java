@@ -93,8 +93,8 @@ public class UserProfileService {
      * 前端不必再自己 split 或用中文字串比對猜種類。
      */
     public Map<String, Object> getTransactions(Long userId, Integer months, int page, int size) {
-        int safeSize = Math.max(size, 1);
-        int zeroBased = page - 1;
+        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        int zeroBased = Math.max(page - 1, 0);
         Pageable pageable = PageRequest.of(zeroBased, safeSize);
 
         Page<TransactionRecord> result = (months != null)
