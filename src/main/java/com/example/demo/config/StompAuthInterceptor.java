@@ -92,7 +92,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         }
         // 規則本體在 StompSubscribeRules（純函式，有單元測試）；這裡只負責接上資料庫查詢與例外
         String reason = StompSubscribeRules.denyReason(user.role(), user.userId(), accessor.getDestination(),
-                (o, u) -> true);
+                this::isOrderParticipant);
         if (reason != null) {
             log.warn("連線者 {}（{}）訂閱 {} 被拒絕：{}", user.userId(), user.role(), accessor.getDestination(), reason);
             throw new MessageDeliveryException(reason);
