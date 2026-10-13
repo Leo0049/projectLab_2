@@ -16,7 +16,7 @@ public record GeoBounds(double latMin, double latMax, double lngMin, double lngM
      * 1° 經線弧長（km）。球面模型（R = 6371）的精確值為 2πR/360 ≈ 111.195；
      * 取 111.0 讓矩形略大，屬於安全方向。
      */
-    static final double KM_PER_DEGREE = 111.0;
+    static final double KM_PER_DEGREE = 120.0;
 
     public static GeoBounds around(double lat, double lng, double radiusKm) {
         if (radiusKm < 0) {

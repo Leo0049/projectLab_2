@@ -8,5 +8,5 @@ package com.example.demo.dto;
  * 兩邊對不上就會讓轉盤無法選取品牌，而且編譯與後端測試都不會發現。
  * 要改這裡的欄位名稱，必須同步修改前端並更新 {@code BrandSummaryJsonTest}。
  */
-public record BrandSummary(Long brandId, String brandName, String logoUrl) {
+public record BrandSummary(Long brandId, String brandName, @com.fasterxml.jackson.annotation.JsonProperty("logo") String logoUrl) {
 }
