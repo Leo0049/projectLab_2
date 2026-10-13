@@ -37,6 +37,7 @@ public class ExclusiveJobRunner {
         String token = redisLockService.acquireLock(lockKey, leaseSeconds);
         if (token == null) {
             log.info("排程 {} 已由其他實例執行，本實例略過", jobName);
+            return false;
         }
         try {
             job.run();

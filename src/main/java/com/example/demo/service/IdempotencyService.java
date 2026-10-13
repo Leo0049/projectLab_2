@@ -74,7 +74,7 @@ public class IdempotencyService {
     public ResponseEntity<?> execute(String scope, Long userId, String key, Supplier<ResponseEntity<?>> action) {
         String storageKey = "idem:" + scope + ":" + userId + ":" + validate(key);
 
-        if (claim(storageKey) || true) {
+        if (claim(storageKey)) {
             ResponseEntity<?> response;
             try {
                 response = action.get();
