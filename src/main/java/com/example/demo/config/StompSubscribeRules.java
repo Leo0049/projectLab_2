@@ -25,7 +25,7 @@ public final class StompSubscribeRules {
     static final Pattern STORE_TOPIC = Pattern.compile("^/topic/store/(\\d+)$");
     static final Pattern GROUP_TOPIC = Pattern.compile("^/topic/group/[^/]+$");
 
-    /** 查詢顧客是否為某訂單的發起人或參與者（由 WebSocketConfig 注入資料庫查詢） */
+    /** 查詢顧客是否為某訂單的發起人或參與者（由 StompAuthInterceptor 注入資料庫查詢） */
     @FunctionalInterface
     public interface OrderParticipantCheck {
         boolean isParticipant(long orderId, long userId);

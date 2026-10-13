@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：189 個 `@Test`，36 個測試類別（JUnit 5 + Mockito；8 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：190 個 `@Test`，36 個測試類別（JUnit 5 + Mockito；8 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：39 個 HTML 頁面全數普掃（共 51 次載入，顧客主頁有資料與空狀態各掃一次），加上點餐、轉盤、揪團三條主線 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -323,14 +323,14 @@ docker compose up -d && mvn test
 | `RequestIdFilterTest`（5） | `X-Request-Id`：合規的 id 沿用，非法或長度不符的重新產生；請求結束後 MDC 清空 |
 | `BrandSummaryJsonTest`（2） | 前端契約：品牌摘要的 JSON 欄位固定為 brandId、brandName、logoUrl，沒有 logo 時 logoUrl 為 null |
 
-目前共有 189 個 `@Test`（36 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 190 個 `@Test`（36 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
 測試不多，但都對準真正會出事的地方（金流與授權）。**既有的核心測試已驗證「把修補改回舊寫法時會失敗」**——
 授權測試在還原 IDOR 邏輯時 3 個失敗、還原 S-6 時 2 個失敗，錢包測試在改回 `findById` 時 2 個失敗，
 規格測試在把防竄改改回「照單全收」時 4 個失敗，揪團金流測試在拿掉任一條路徑的列鎖時對應的那個失敗。
-2026-10-12 新增的六支測試（含 `LoginAttemptLimiterTest` 的新案例）**尚未做還原驗證**，CI 通過只代表它們能編譯並通過，還不代表它們抓得到回歸。
+2026-10-12 新增的測試已於 2026-10-13 逐一做還原驗證（見下方「還原驗證」）。CI 通過只代表它們能編譯並通過，還不代表它們抓得到回歸，所以要把修補改回舊寫法或刻意破壞規則，確認對應的測試會轉紅。
 
 > 這裡有個值得記下來的細節：取消退款那條，**真正擋住重複退款的是列鎖，不是狀態守衛**——
 > 實測只拿掉列鎖、留著「已取消就 return」的守衛，escrow 仍然退了 140 而不是 35，
@@ -351,7 +351,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（189 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（190 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 39 個頁面全頁面普掃（51 次載入）＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -363,22 +363,47 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 最近一次 CI 驗證
 
-2026-10-12 UTC（台北時間 2026-10-13 03:04）手動觸發完整 CI，commit `c38d96b`。之後的提交只改文件，程式與測試未變。
+2026-10-13 UTC 的 `pull_request` run 38349049697（commit `96d263e`，即程式與測試的最終狀態）全綠。之後的提交只改文件，程式與測試未變。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | [run 38295225937](https://github.com/Leo0049/projectLab_2/actions/runs/38295225937)（`workflow_dispatch`）。同一 commit 的 PR run [38293397093](https://github.com/Leo0049/projectLab_2/actions/runs/38293397093) 也全綠 |
+| 執行 | [run 38349049697](https://github.com/Leo0049/projectLab_2/actions/runs/38349049697)（`pull_request`，commit `96d263e`）；同一 run 的「容器映像建置（僅建置）」也全綠 |
 | 靜態檢查（第 0 層） | gitleaks、79 支受版控 JS 的 `node --check`、69 段內嵌 script：通過 |
-| `mvn test`（第 1 層） | 通過（Surefire 失敗 0、錯誤 0，耗時 55 秒）。189 個 `@Test`、36 個類別；其中 8 個類別載入 Spring context（共 43 支），與其餘測試一併執行 |
-| 打包與起服務 | `mvn package -DskipTests` 通過；後端 16 秒內就緒 |
-| API 端對端（第 2 層） | 通過（腳本有任一失敗即 exit 1），耗時 6 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過（同上）：39 個頁面普掃（51 次載入）＋點餐、轉盤、揪團三條主線，耗時 4 分 39 秒 |
+| `mvn test`（第 1 層） | 通過，耗時 66 秒。測試總計 **190 個測試、36 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」）；其中 8 個類別載入 Spring context（共 43 支），與其餘測試一併執行 |
+| 打包與起服務 | `mvn package -DskipTests` 通過（7 秒）；後端 14 秒內就緒 |
+| API 端對端（第 2 層） | 通過（腳本有任一失敗即 exit 1），耗時 5 秒 |
+| UI 流程（第 3 層，斷網模式） | 通過（同上）：39 個頁面普掃（51 次載入）＋點餐、轉盤、揪團三條主線，耗時 4 分 36 秒 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
 
-- 步驟通過代表**沒有失敗**，不代表每一支都實際執行。`GroupCheckoutConcurrencyTest` 與 `GroupOrderSecurityTest` 以 `assumeTrue` 守示範資料，資料缺失時會略過而不算失敗。逐項的 Surefire 計數（含 Skipped）與 E2E 的逐項通過數，記在 run 的日誌裡。
+- 步驟通過代表**沒有失敗**；「測試總計與略過檢查」步驟另外保證**沒有略過**（`scripts/ci/surefire_totals.py --fail-on-skipped`）。`GroupCheckoutConcurrencyTest` 與 `GroupOrderSecurityTest` 以 `assumeTrue` 守示範資料，條件不成立時會被略過；這個 run 的略過數為 0，所以它們確實執行並通過。E2E 的逐項通過數仍由腳本輸出，記在 run 的日誌裡。
 - 效能數字不在本次驗證範圍內，見 [IMPROVEMENT_ASSESSMENT](docs/IMPROVEMENT_ASSESSMENT.md)「效能數字」一段。
+
+### 還原驗證
+
+把修補改回舊寫法、或刻意破壞規則，確認對應的測試會轉紅。2026-10-13 共做了 16 組故意破壞，每一組在 CI 上都讓至少一支測試失敗。每一組都是獨立的暫存 commit，跑完即還原，沒有進入 PR 分支。失敗清單取自 check-run annotation（`gh api repos/<owner>/<repo>/check-runs/<job id>/annotations`）。
+
+| # | 故意破壞的行為 | 轉紅的測試 |
+|---|----------------|-----------|
+| 1 | 地理矩形的換算係數 111 → 120，矩形變小、會漏掉圓內的店 | `GeoBoundsTest.boundsContainEveryPointInsideTheRadius`、`boundsStayTight` |
+| 2 | request id 不驗格式，接受任何字串 | `RequestIdFilterTest.replacesAnIdWithControlCharacters`、`replacesTooShortAndTooLongIds` |
+| 3 | 請求結束後不清除 MDC | `RequestIdFilterTest.clearsTheMdcAfterTheRequest` |
+| 4 | 排程鎖只在任務成功時釋放 | `ExclusiveJobRunnerTest.releasesTheLockWhenTheJobThrows` |
+| 5 | 冪等佔位在非 2xx 結果時不釋放 | `IdempotencyServiceTest.failedAttemptReleasesTheKey` |
+| 6 | 冪等佔位在例外時不釋放 | `IdempotencyServiceTest.exceptionPropagatesAndReleasesTheKey` |
+| 7 | 冪等鍵不驗格式 | `IdempotencyServiceTest.rejectsMalformedKeys` |
+| 8 | 冪等鍵不分使用者 | `IdempotencyServiceTest.keysAreScopedPerUser` |
+| 9 | Redis 中的結果前綴改掉，重播讀不回去 | `IdempotencyServiceTest.redisClaimThenStoresTheResult`、`redisReplaysWhenTheKeyIsAlreadyDone` |
+| 10 | 限流身分信任 `X-Forwarded-For` 第一段 | `LoginAttemptLimiterTest.forgedForwardedForDoesNotChangeTheIdentity` |
+| 11 | Redis 拋例外時放行（fail-open） | `LoginAttemptLimiterTest.keepsCountingLocallyWhenRedisThrows` |
+| 12 | 白名單多開一條 `GET /api/cart/**` | `AuthorizationRouteInventoryTest.everyOtherRouteRequiresAuthentication` |
+| 13 | 白名單少開一條 `GET /api/menu/**` | `AuthorizationRouteInventoryTest.everyPublicRouteExistsAndIsOpen` |
+| 14 | 品牌摘要的 `logoUrl` 序列化成 `logo` | `BrandSummaryJsonTest.serializesTheFieldNamesTheFrontendReads`、`allowsAMissingLogo` |
+| 15 | 冪等佔位永遠成功 | `IdempotencyServiceTest.secondCallReplaysTheFirstResult`、`duplicateWhileInProgressIsRejected`、`redisReplaysWhenTheKeyIsAlreadyDone`、`redisInProgressReturnsConflict` |
+| 16 | 排程鎖被其他實例持有時仍執行任務 | `ExclusiveJobRunnerTest.skipsWhenAnotherInstanceHoldsTheLock` |
+
+沒有被破壞的測試，主要是各類別的正向案例（例如合規的 request id 會被沿用、取得鎖時會執行任務並以同一個 token 釋放）。它們的任務是確認不會誤擋，不在這個實驗的範圍內。
 
 ### 這兩層實際抓到什麼
 
