@@ -86,6 +86,13 @@ jobs:
           set -o pipefail
           mvn -B test 2>&1 | tee "$RUNNER_TEMP/mvn-test.log"
 
+      # 測試總計（類別／測試／失敗／錯誤／略過）以 annotation 印出，check-run 的 REST API 可讀取。
+      # 略過的測試會讓這一步變紅：assumeTrue 不成立時測試是「略過」而不是「失敗」，
+      # 步驟仍然是綠的，那樣的綠燈不代表該測試有驗到東西（實作見 scripts/ci/surefire_totals.py）。
+      - name: 測試總計與略過檢查
+        if: always()
+        run: python3 scripts/ci/surefire_totals.py --fail-on-skipped
+
       # 測試失敗時把失敗的測試名稱與根因寫成 annotation（實作見 scripts/ci/failure_annotations.py）。
       # 步驟日誌需要登入 Actions 網頁才看得到，但 check-run annotation 可以用 REST API 讀取。
       - name: 失敗測試摘要（annotation）

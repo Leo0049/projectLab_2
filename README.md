@@ -9,14 +9,14 @@
 
 ---
 
-## 作品集導覽
+## 文件導覽
 
-JoinDrink 是我以 Spring Boot 實作的多租戶飲料訂購與揪團平台，有顧客、品牌總部、門市三種角色。
-這個專案的重點不在功能數量，而在 **金流與授權的正確性**：我用兩次安全審查與併發實測找出問題，逐一修補、寫成可重跑的測試，並把每個取捨記錄成決策文件。
+JoinDrink 是以 Spring Boot 實作的多租戶飲料訂購與揪團平台，有顧客、品牌總部、門市三種角色。
+本專案的重心是 **金流與授權的正確性**。兩次安全審查與併發實測找出的問題都已修補，並寫成可重跑的測試；每個取捨都記錄在決策文件中。
 
-**建議閱讀順序（約五分鐘）**
+**建議閱讀順序**
 
-1. [案例研究](docs/CASE_STUDIES.md)：十個實際遇到的工程問題，每個都有症狀、根因、修法與防止再發生的方式。
+1. [問題紀錄](docs/ISSUE_LOG.md)：十個實際遇到的工程問題，每個都有症狀、根因、修法與防止再發生的方式。
 2. [架構決策紀錄（ADR）](docs/adr/README.md)：金流列鎖、授權白名單、IP 信任邊界、冪等結帳、Redis 與排程互斥，以及明確延後的事項。
 3. [優化建議實作評估](docs/IMPROVEMENT_ASSESSMENT.md)：20 項建議的逐項決策，包含沒做的部分與理由。
 4. [API 文件](API.md)、[資料庫說明](DATABASE.md)、[部署指南](docs/DEPLOYMENT.md)。
@@ -505,7 +505,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 本機預設 `SMS_MODE=mock`，跳過 Firebase 手機驗證，**不需要金鑰即可註冊登入**。
 
 圖片上傳同理：有設定 Cloudinary 憑證就上傳雲端，沒有就自動存到本機 `uploads/`
-並以 `/uploads/**` 提供。**整個專案不需要任何第三方帳號即可完整展示。**
+並以 `/uploads/**` 提供。**整個專案不需要任何第三方帳號即可完整運作。**
 
 **上線前務必調整：**
 
@@ -523,7 +523,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 - [DATABASE.md](./DATABASE.md) — 26 張表 schema 說明
 - [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) — 正式環境部署範圍、設定與限制
 - [docs/adr/README.md](./docs/adr/README.md) — 架構決策紀錄（ADR）
-- [docs/CASE_STUDIES.md](./docs/CASE_STUDIES.md) — 工程案例研究
+- [docs/ISSUE_LOG.md](./docs/ISSUE_LOG.md) — 工程問題紀錄
 - [docs/IMPROVEMENT_ASSESSMENT.md](./docs/IMPROVEMENT_ASSESSMENT.md) — 優化建議的實作評估與未做項目
 - [docs/SECURITY-FRONTEND.md](./docs/SECURITY-FRONTEND.md) — 前端安全現況與 CSP 路線圖
 - [CLAUDE.md](./CLAUDE.md) — 開發約定與踩過的坑（授權規則、餘額鎖列、STOMP 授權等）

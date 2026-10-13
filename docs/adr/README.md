@@ -21,4 +21,4 @@
 
 - 第 0001–0006 篇是在 2026-10-12 補錄的。決策多數在 2026-10-11 的複審與修補中做出，文件補記當時的理由與代價，沒有改寫歷史。
 - 第 0007 篇是延後事項的登記冊，列出的項目沒有被採用。
-- 修補的過程與實測數據見 [`docs/REVIEW_2026-10-11.md`](../REVIEW_2026-10-11.md)；改善項目的評估與取捨見 [`docs/IMPROVEMENT_ASSESSMENT.md`](../IMPROVEMENT_ASSESSMENT.md)；案例整理見 [`docs/CASE_STUDIES.md`](../CASE_STUDIES.md)。
+- 修補的過程與實測數據見 [`docs/REVIEW_2026-10-11.md`](../REVIEW_2026-10-11.md)；改善項目的評估與取捨見 [`docs/IMPROVEMENT_ASSESSMENT.md`](../IMPROVEMENT_ASSESSMENT.md)；問題紀錄見 [`docs/ISSUE_LOG.md`](../ISSUE_LOG.md)。

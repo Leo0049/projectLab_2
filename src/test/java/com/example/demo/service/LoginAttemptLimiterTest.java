@@ -4,6 +4,7 @@ import com.example.demo.exception.CustomException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -97,6 +98,25 @@ class LoginAttemptLimiterTest {
     void fallsBackToLocalCounterWhenRedisIsUnavailable() {
         LoginAttemptLimiter limiter = new LoginAttemptLimiter(providerOf(null));
 
+        assertDoesNotThrow(() -> limiter.check("login", "ip|acct", 2, 300));
+        assertDoesNotThrow(() -> limiter.check("login", "ip|acct", 2, 300));
+        assertThrows(CustomException.class, () -> limiter.check("login", "ip|acct", 2, 300));
+    }
+
+    @Test
+    @DisplayName("Redis 呼叫拋例外時改用本地計數，不會因為 Redis 故障而放行")
+    void keepsCountingLocallyWhenRedisThrows() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.increment(anyString()))
+                .thenThrow(new DataAccessResourceFailureException("Redis connection refused"));
+
+        LoginAttemptLimiter limiter = new LoginAttemptLimiter(providerOf(redisTemplate));
+
+        // 每次呼叫都拋例外，計數只能來自本地計數器；第三次必須被擋下。
+        // 若退回「失敗就放行」（回傳 0），這裡的第三次就不會拋 429。
         assertDoesNotThrow(() -> limiter.check("login", "ip|acct", 2, 300));
         assertDoesNotThrow(() -> limiter.check("login", "ip|acct", 2, 300));
         assertThrows(CustomException.class, () -> limiter.check("login", "ip|acct", 2, 300));

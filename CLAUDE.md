@@ -475,7 +475,7 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
 3. 首次啟動且資料表為空時，`DemoDataSeeder` 會植入示範品牌／門市／飲品／顧客
    （帳號見 README，密碼皆為 `demo1234`）。正式環境務必 `DEMO_DATA_ENABLED=false`
 4. Cloudinary 憑證為選填：填了就上傳雲端，沒填則由 `ImageStorageService` 自動改存
-   本機 `uploads/`（以 `/uploads/**` 提供），因此不需任何第三方帳號即可完整展示
+   本機 `uploads/`（以 `/uploads/**` 提供），因此不需任何第三方帳號即可完整運作
 5. 本機 `sms.mode=mock`，跳過 Firebase 驗證，不需要 `serviceAccountKey.json`
 6. 啟動埠：`8082`；Swagger UI：`http://localhost:8082/swagger-ui.html`
 7. 容器映像（選用）：`docker build -t joindrink .`。映像內含 `frontend/`；資料庫與 Redis 需由外部提供。部署細節見 `docs/DEPLOYMENT.md`
@@ -536,7 +536,7 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
 - **即時推播**：WebSocket/STOMP 推送訂單狀態與揪團品項異動（非 SSE，見上方說明）
 - **圖片儲存**：一律走 `ImageStorageService`，**不要直接呼叫 `cloudinary.uploader()`**。
   有憑證上傳 Cloudinary，沒有則存本機 `uploads/` 並以 `/uploads/**` 提供，
-  讓專案不需任何第三方帳號即可完整展示
+  讓專案不需任何第三方帳號即可完整運作
 - **GroupOrder V2**：完整揪團流程（品項 CRUD、套用優惠券、結帳、補款）
 - **常用地址管理**：使用者可儲存多筆常用地址（`user_addresses`），結帳時快速選用
 
