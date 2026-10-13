@@ -309,7 +309,7 @@ docker compose up -d && mvn test
 | `DemoDataSeederProdGuardTest`（2） | 正式環境不植入示範資料（即使 `DEMO_DATA_ENABLED` 沒設定也不會） |
 | `JwtAuthenticationFilterTest`（7） | JWT 過濾器：無效或過期的 token 會被拒絕；已刪除的帳號每次請求都會被擋下 |
 | `AuthServiceSmsModeGuardTest`（6） | 正式環境若 `sms.mode` 不是 `firebase` 就拒絕啟動（含 `MOCK_TOKEN` 繞過） |
-| `LoginAttemptLimiterTest`（9） | 登入與 OTP 限流：超過次數回 429；Redis 不可用時退回本機計數 |
+| `LoginAttemptLimiterTest`（10） | 登入與 OTP 限流：超過次數回 429；Redis 不可用時退回本機計數 |
 | `SafeImageUrlTest`（7） | 圖片網址白名單（純邏輯）：擋 `javascript:`、`../`、引號跳脫與控制字元 |
 | `SafeTextTest`（6） | 顧客名稱寫入規則（純邏輯）：拒絕 `< > " \`` 與控制字元，上限 30 字 |
 | `MemberCancelSettlementTest`（9） | 團員取消品項的退款結算（純邏輯）：只退已付款的部分，團長退款以 escrow 為上限 |
@@ -336,7 +336,7 @@ docker compose up -d && mvn test
 測試不多，但都對準真正會出事的地方（金流與授權）。**既有的核心測試已驗證「把修補改回舊寫法時會失敗」**——
 授權測試在還原 IDOR 邏輯時 3 個失敗、還原 S-6 時 2 個失敗，錢包測試在改回 `findById` 時 2 個失敗，
 規格測試在把防竄改改回「照單全收」時 4 個失敗，揪團金流測試在拿掉任一條路徑的列鎖時對應的那個失敗。
-2026-10-12 新增的測試，以及 STOMP 授權、分頁夾制、上傳內容檢查、訂單編號與時區測試，已於 2026-10-13 逐一做還原驗證（見下方「還原驗證」）。CI 通過只代表它們能編譯並通過，還不代表它們抓得到回歸，所以要把修補改回舊寫法或刻意破壞規則，確認對應的測試會轉紅。
+2026-10-12 新增的測試，以及 STOMP 授權、分頁夾制、上傳內容檢查、訂單編號與時區測試，已於 2026-10-13 做過還原驗證（見下方「還原驗證」）。這些測試並非每一個都被破壞過，未被破壞的項目同樣列在該節。CI 通過只代表它們能編譯並通過，還不代表它們抓得到回歸，所以要把修補改回舊寫法或刻意破壞規則，確認對應的測試會轉紅。
 
 > 這裡有個值得記下來的細節：取消退款那條，**真正擋住重複退款的是列鎖，不是狀態守衛**——
 > 實測只拿掉列鎖、留著「已取消就 return」的守衛，escrow 仍然退了 140 而不是 35，
@@ -436,7 +436,14 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 **同時破壞會互相遮蔽，遮蔽的組合要單獨再跑。** 第 21 組與第 22 組同時破壞時，`storeWithParticipantsNumericIdCannotSubscribeToOrder` 會因為先被第 21 組拒絕而一直是綠的，第 22 組單獨破壞時它才紅。第 26、27 組原本寫在同一段程式碼上，兩者同時破壞時分不出是哪一個讓測試紅，所以各自單獨再跑。第 37、38、39 組同時破壞時，檢查被關掉的請求會走到成功路徑而回 500，400 的斷言因此紅，看不出各自是否被抓到；所以第 37、38 組各自單獨再跑，確認它們真的把回應從 400 改成 200。
 
-沒有被破壞的測試，主要是各類別的正向案例（例如合規的 request id 會被沿用）。它們的任務是確認不會誤擋，不在這個實驗的範圍內。排程任務的正向路徑（取得鎖時執行一次、並以同一個 token 釋放）則列在第 26、27 組，破壞它就會紅。
+2026-10-12 新增或補強的四個類別（`GeoBoundsTest`、`RequestIdFilterTest`、`AuthorizationRouteInventoryTest`、`LoginAttemptLimiterTest`）中，沒有被破壞的測試共 14 個。這些測試沒有被任何一組破壞，因此沒有還原驗證的證據；這不代表它們抓不到回歸：
+
+- `GeoBoundsTest`：`zeroRadiusCollapsesToTheCentre`、`clampsToValidCoordinateRanges`、`rejectsNegativeRadius`
+- `RequestIdFilterTest`：`keepsAValidIncomingId`、`generatesADistinctIdWhenMissing`
+- `AuthorizationRouteInventoryTest`：`inventoryIsNotEmpty`
+- `LoginAttemptLimiterTest`：其餘 8 個既有案例
+
+排程任務的正向路徑（取得鎖時執行一次、並以同一個 token 釋放）已由第 26、27 組覆蓋，破壞它就會紅。
 
 ### 這兩層實際抓到什麼
 
