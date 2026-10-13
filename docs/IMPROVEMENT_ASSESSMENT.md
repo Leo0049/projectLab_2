@@ -79,7 +79,7 @@
 ## 未能在本環境驗證的項目
 
 本環境沒有 Maven Central，也沒有 Docker daemon，因此 Java 編譯、`mvn test`、Docker 建置與 UI 流程都只能由 CI 驗證。
-最近一次完整的 CI 執行是 [run 38352055664](https://github.com/Leo0049/projectLab_2/actions/runs/38352055664)（commit `15c2a7d`）：`mvn test`（217 個測試、略過 0）、API 端對端、UI 普掃與三條主線、Docker 建置全部步驟成功，摘要見 README「最近一次 CI 驗證」。CI 失敗的原因與修正歷程仍寫在 PR 說明中。
+程式與測試最後一次變更（commit `15c2a7d`）上的完整 CI 執行是 [run 38352055664](https://github.com/Leo0049/projectLab_2/actions/runs/38352055664)：`mvn test`（217 個測試、略過 0）、API 端對端、UI 普掃與三條主線、Docker 建置全部步驟成功，摘要見 README「程式與測試的最後一次 CI 驗證」。CI 失敗的原因與修正歷程仍寫在 PR 說明中。
 
 CI 已執行並通過的項目（不再列為未驗證）：
 
