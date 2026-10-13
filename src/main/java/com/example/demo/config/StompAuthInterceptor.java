@@ -55,7 +55,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         }
 
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            authenticate(accessor);
+            accessor.setUser(authenticate(accessor));
         } else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
             authorizeSubscribe(accessor);
         }
