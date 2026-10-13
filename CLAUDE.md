@@ -302,6 +302,16 @@ SUBMITTED 進入 PREPARING。
 
 揪團流程：揪團主建立 → 產生 token → 其他人用 token 加入 → 揪團主統一提交
 
+### 揪團退款與可見性（團長 2026-10-13 定案）
+
+判斷與退款去向集中在 `service/order/GroupRefundPolicy`（純函式，有單元測試）；`GroupOrderService` 只負責接上資料庫與列鎖。
+
+- **送單前（OPEN）**：團員已結帳的品項可自行取消並退款，退回該品項**當下的付款方式**。錢包付款退回錢包；現金、信用卡不經錢包、不入帳。品項在送單前已取消，因此無後續收款與對帳。
+- **送單後（SUBMITTED）**：團員不可自行取消或退款，一律由團長操作，退款**入團長帳號**。團長整單取消時，送單後已付的金額同樣入團長帳號。
+- **截單（LOCKED）**：團員不可自行取消品項，由團長處理。團長定案未明載此狀態，這是暫定解讀，見 `GroupRefundPolicy.memberMaySelfCancel`。
+- **團內資料僅供成員檢視**：成員 = 團長，或已在團內有品項的團員。非成員（含未登入）持分享連結只拿到店家、狀態、建立時間等基本欄位（`getGroupOrderDTOByToken` 的 `outsiderView`；不含品項、地址、備註、金額、團長與分享 token），須先加入揪團才能看到團內資料。
+- **已知缺口**：`/topic/group/{token}` 的推播目前對持 token 的已登入顧客開放。事件內容是品項 id、成員 userId 與狀態（不含姓名與金額）。依上述規則應收斂到成員，尚未實作，因為前端需要同時改成「成員確認後才訂閱」。
+
 ⚠️ **顧客只能走 `service/order/OrderStatusGuard` 允許的轉換**（`OPEN\|SUBMITTED → CANCELLED`、
 `SUBMITTED → PAID`，後者是舊前端「已付款」通知）。`OrderController` 的狀態端點原本只驗
 「是不是發起人」就 `setStatus`，任何登入者都能把訂單直接改成 `COMPLETED`（拿去評分）、

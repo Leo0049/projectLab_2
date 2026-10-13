@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.dto.GroupOrderDTO;
 import com.example.demo.service.order.CouponEligibility;
+import com.example.demo.service.order.GroupRefundPolicy;
 import com.example.demo.service.order.ItemHash;
 import com.example.demo.service.order.ItemSpecResolver;
 import com.example.demo.service.order.MemberCancelSettlement;
@@ -109,11 +110,80 @@ public class GroupOrderService {
                 .orElseThrow(() -> new RuntimeException("Group order not found"));
     }
 
+    /**
+     * 取揪團並鎖住該列。會改品項、改狀態、扣款的流程一律用這個，不用 {@link #getGroupOrderByToken}：
+     * 檢查狀態與寫入之間若沒有列鎖，團長結帳或送單可能插在中間（見 GroupItemRulesTest、GroupCheckoutConcurrencyTest）。
+     * 鎖的順序固定為「揪團列 → 品項列 → 使用者列」，與結帳、整單取消一致。
+     */
+    private GroupOrder lockGroupByToken(String token) {
+        return groupOrderRepository.findByShareTokenForUpdate(token)
+                .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
+    }
+
+    /**
+     * 取出屬於這個揪團的品項。品項 id 是連續整數，光看「品項的主人是誰」不夠：
+     * 同一個人可能同時在 A、B 兩團，拿 B 團的 token 就能動 A 團的品項（N1）。
+     * 不屬於這個揪團一律回 404，也不洩漏該品項是否存在。
+     */
+    private OrderItem requireItemInGroup(GroupOrder go, Long itemId) {
+        OrderItem item = orderItemRepository.findById(itemId)
+                .orElseThrow(() -> new CustomException("404", "找不到品項"));
+        if (item.getGroupOrder() == null || !go.getId().equals(item.getGroupOrder().getId())) {
+            throw new CustomException("404", "找不到品項");
+        }
+        populateToppingIds(item);
+        return item;
+    }
+
+    /** 品項的實付淨額：單價 × 數量，扣掉券折扣（不為負） */
+    private static BigDecimal netOf(OrderItem item) {
+        BigDecimal gross = item.getFinalPrice() != null ? item.getFinalPrice() : BigDecimal.ZERO;
+        BigDecimal discount = item.getDiscountAmountSnapshot() != null
+                ? item.getDiscountAmountSnapshot() : BigDecimal.ZERO;
+        return gross.subtract(discount).max(BigDecimal.ZERO);
+    }
+
     // --- DTO Conversion & Grouping Logic ---
 
-    public GroupOrderDTO getGroupOrderDTOByToken(String token) {
+    /**
+     * 依分享 token 取揪團。
+     *
+     * <p>團內資料（地址、備註、品項、金額、團長姓名、分享 token）只給參與者：團長與已有品項的團員。
+     * 持有連結的非團員（含未登入）只拿到店家、狀態與建立時間；要看內容必須先加入揪團（N12，團長 2026-10-13 定案）。
+     */
+    public GroupOrderDTO getGroupOrderDTOByToken(String token, Long viewerId) {
         GroupOrder go = getGroupOrderByToken(token);
-        return convertToDTO(go);
+        if (isParticipant(go, viewerId)) {
+            return convertToDTO(go);
+        }
+        return outsiderView(go);
+    }
+
+    /** 參與者 = 團長，或已在團內有品項的團員。未登入者一律不是參與者。 */
+    private boolean isParticipant(GroupOrder go, Long viewerId) {
+        if (viewerId == null) {
+            return false;
+        }
+        return isInitiator(go, viewerId) || orderItemRepository.existsByGroupOrderIdAndUserId(go.getId(), viewerId);
+    }
+
+    /** 非參與者看到的揪團：只有店家、狀態與建立時間，團內欄位一律空白或為 null */
+    private GroupOrderDTO outsiderView(GroupOrder go) {
+        return GroupOrderDTO.builder()
+                .id(go.getId())
+                .status(go.getStatus())
+                .type(go.getType())
+                .storeId(go.getStore() != null ? go.getStore().getId() : null)
+                .brandId(go.getStore() != null && go.getStore().getBrand() != null
+                        ? go.getStore().getBrand().getId() : null)
+                .storeName(go.getStore() != null ? go.getStore().getStoreName() : null)
+                .storeLogoUrl(go.getStore() != null && go.getStore().getBrand() != null
+                        ? go.getStore().getBrand().getLogoUrl() : "images/logo.png")
+                .createdAt(go.getCreatedAt())
+                .items(new ArrayList<>())
+                .address("")
+                .note("")
+                .build();
     }
 
     public GroupOrderDTO convertToDTO(GroupOrder go) {
@@ -289,15 +359,17 @@ public class GroupOrderService {
 
     @Transactional
     public void deleteGroupOrder(String token, Long hostId) {
-        GroupOrder go = getGroupOrderByToken(token);
-        if (!go.getInitiator().getId().equals(hostId)) {
+        GroupOrder go = lockGroupByToken(token);
+        if (!isInitiator(go, hostId)) {
             throw new RuntimeException("Only host can delete this group order");
         }
-        if ("CLOSED".equals(go.getStatus())) {
-            throw new RuntimeException("Cannot delete a closed group order");
+        // ⚠️ N2：店家接單（PREPARING 以後）之後不可刪除。刪除會連帶退款，店家卻已在製作。
+        //    原本這裡沒有狀態守衛，而 handleGroupOrderCancellation 對 PREPARING 也照退不誤。
+        if (!GroupRefundPolicy.wholeGroupCancellable(go.getStatus())) {
+            throw new CustomException("409", "店家已接單或揪團已結束，無法刪除");
         }
 
-        // 先執行退款：PAID 品項退給成員，escrowAmount 退給團長，ESCROWED 僅改狀態
+        // 先執行退款（送單後已付款金額入團長帳號，見 GroupRefundPolicy）；
         // handleGroupOrderCancellation 會將 status 設為 CANCELLED 並清零 escrowAmount
         handleGroupOrderCancellation(go.getId());
 
@@ -351,7 +423,8 @@ public class GroupOrderService {
      */
     @Transactional
     public OrderItem addItem(String token, Map<String, Object> req, Long userId) {
-        GroupOrder go = getGroupOrderByToken(token);
+        // 加點與團長結帳互斥：否則結帳讀完品項後才插入的新品項會是 UNPAID 的孤兒
+        GroupOrder go = lockGroupByToken(token);
         if (!"OPEN".equalsIgnoreCase(go.getStatus())) {
             throw new RuntimeException(
                     "Group order is " + go.getStatus().toLowerCase() + " and cannot accept more items");
@@ -490,12 +563,14 @@ public class GroupOrderService {
 
     @Transactional
     public OrderItem updateItem(String token, Long itemId, Map<String, Object> req, Long userId) {
-        GroupOrder go = getGroupOrderByToken(token);
+        GroupOrder go = lockGroupByToken(token);
         if (!"OPEN".equalsIgnoreCase(go.getStatus())) {
             throw new RuntimeException("Group order is " + go.getStatus().toLowerCase() + " and cannot be edited");
         }
-        OrderItem item = getItemById(itemId);
-        if (!go.getInitiator().getId().equals(userId) && !item.getUser().getId().equals(userId)) {
+        OrderItem item = requireItemInGroup(go, itemId);
+        boolean isHost = isInitiator(go, userId);
+        boolean isOwner = item.getUser() != null && userId != null && userId.equals(item.getUser().getId());
+        if (!isHost && !isOwner) {
             throw new RuntimeException("Permission denied");
         }
         if ("PAID".equalsIgnoreCase(item.getPaymentStatus())) {
@@ -579,34 +654,134 @@ public class GroupOrderService {
         return orderItemRepository.save(item);
     }
 
+    /**
+     * 移除一筆品項（DELETE /api/group-orders/{token}/items/{itemId}）。
+     *
+     * <ul>
+     *   <li>團員只能移除自己的品項，且只限送單前（OPEN）。送單後一律由團長處理。</li>
+     *   <li>團長可移除任一成員的品項：送單前照常退款給團員錢包（錢包付款）；送單後已付款金額入團長帳號。</li>
+     *   <li>品項必須屬於這個揪團（見 {@link #requireItemInGroup}）。</li>
+     * </ul>
+     */
     @Transactional
     public void removeItem(String token, Long itemId, Long userId) {
-        GroupOrder go = getGroupOrderByToken(token);
-        if (!"OPEN".equalsIgnoreCase(go.getStatus()) && !"LOCKED".equalsIgnoreCase(go.getStatus())) {
-            throw new RuntimeException("Cannot remove items from a " + go.getStatus().toLowerCase() + " group order");
+        GroupOrder go = lockGroupByToken(token);
+        OrderItem item = requireItemInGroup(go, itemId);
+        boolean isHost = isInitiator(go, userId);
+        boolean isOwner = item.getUser() != null && userId != null && userId.equals(item.getUser().getId());
+        if (!isHost && !isOwner) {
+            throw new CustomException("403", "無權限移除此品項");
         }
-        OrderItem item = orderItemRepository.findById(itemId).orElseThrow();
-        if (!go.getInitiator().getId().equals(userId) && !item.getUser().getId().equals(userId)) {
-            throw new RuntimeException("Permission denied");
+        if (isHost) {
+            if (!GroupRefundPolicy.hostMayRemoveItems(go.getStatus())) {
+                throw new CustomException("409", "揪團目前狀態為 " + go.getStatus() + "，無法移除品項");
+            }
+            // 團長自己以錢包結帳的品項已併入代墊金，單獨移除會讓代墊金與品項對不上，請走整單取消
+            if ("WAITING_SUBMIT".equalsIgnoreCase(item.getPaymentStatus())) {
+                throw new CustomException("409", "團長已付款的品項無法單獨移除，請使用整單取消");
+            }
+        } else if (!GroupRefundPolicy.memberMaySelfCancel(go.getStatus())) {
+            throw new CustomException("409", memberCancelRefusal(go.getStatus()));
         }
-        if ("PAID".equals(item.getPaymentStatus())) {
-            // ⚠️ 修復：券折扣不可退——團員實付是 finalPrice − 折扣快照，全額退會多退折扣額
-            BigDecimal discount = item.getDiscountAmountSnapshot() != null
-                    ? item.getDiscountAmountSnapshot() : BigDecimal.ZERO;
-            BigDecimal refundAmount = item.getFinalPrice().subtract(discount).max(BigDecimal.ZERO);
-            transactionRecordService.updateStoreCredit(item.getUser().getId(), refundAmount,
-                    TxType.REFUND, "揪團品項退款 (商品: " + item.getProductNameSnapshot() + ")", LocalDateTime.now());
+        removeItemsAndSettle(go, List.of(item));
+        groupOrderRepository.save(go);
+    }
+
+    /** 團員無法自行取消時回給使用者的原因（送單後以外的狀態各有不同的說法） */
+    private static String memberCancelRefusal(String groupStatus) {
+        GroupRefundPolicy.Stage stage = GroupRefundPolicy.stageOf(groupStatus);
+        return switch (stage) {
+            case SUBMITTED, FULFILLING -> "團長已送單，無法自行取消並退款，請洽團長處理";
+            case LOCKED -> "團長已截單，無法自行取消品項，請洽團長處理";
+            default -> "揪團已結束，無法取消品項";
+        };
+    }
+
+    /**
+     * 移除一批品項並結算金額（團員自行取消與團長移除共用）。呼叫端必須已持有揪團列鎖。
+     *
+     * <ul>
+     *   <li><b>已付款品項</b>：依 {@link GroupRefundPolicy#paidRefundTo} 決定去向——
+     *       送單前錢包付款退團員錢包，現金或信用卡不入帳；送單後一律入團長帳號。</li>
+     *   <li><b>團長代墊品項（ESCROWED）</b>：退給團長，且以 escrowAmount 為上限（{@link MemberCancelSettlement}）。</li>
+     *   <li><b>優惠券</b>：一律還原給原持有人。</li>
+     *   <li><b>總額</b>：送單前沿用加點時的毛額口徑；送單後以淨額扣回，與結帳的 finalAmount 一致。</li>
+     * </ul>
+     */
+    private void removeItemsAndSettle(GroupOrder go, List<OrderItem> items) {
+        GroupRefundPolicy.Stage stage = GroupRefundPolicy.stageOf(go.getStatus());
+        Long hostId = go.getInitiator() != null ? go.getInitiator().getId() : null;
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1) 已付款品項
+        Map<Long, BigDecimal> refundToMembers = new LinkedHashMap<>();
+        BigDecimal refundToHost = BigDecimal.ZERO;
+        for (OrderItem item : items) {
+            if (!"PAID".equalsIgnoreCase(item.getPaymentStatus())) {
+                continue;
+            }
+            GroupRefundPolicy.PaidRefundTo to = GroupRefundPolicy.paidRefundTo(stage, item.getPaymentType());
+            if (to == GroupRefundPolicy.PaidRefundTo.HOST_WALLET && hostId == null) {
+                to = GroupRefundPolicy.PaidRefundTo.NONE;
+            }
+            if (to == GroupRefundPolicy.PaidRefundTo.MEMBER_WALLET && item.getUser() == null) {
+                to = GroupRefundPolicy.PaidRefundTo.NONE;
+            }
+            BigDecimal net = netOf(item);
+            if (to == GroupRefundPolicy.PaidRefundTo.MEMBER_WALLET) {
+                refundToMembers.merge(item.getUser().getId(), net, BigDecimal::add);
+            } else if (to == GroupRefundPolicy.PaidRefundTo.HOST_WALLET) {
+                refundToHost = refundToHost.add(net);
+            }
         }
-        if (item.getCouponId() != null) {
-            restoreUserCoupon(item.getUser().getId(), item.getCouponId());
+        for (Map.Entry<Long, BigDecimal> entry : refundToMembers.entrySet()) {
+            if (entry.getValue().compareTo(BigDecimal.ZERO) > 0) {
+                transactionRecordService.updateStoreCredit(entry.getKey(), entry.getValue(),
+                        TxType.REFUND, "揪團單品取消退款（已付品項，退回錢包）", now);
+            }
         }
-        orderItemRepository.deleteById(itemId);
+        if (refundToHost.compareTo(BigDecimal.ZERO) > 0) {
+            transactionRecordService.updateStoreCredit(hostId, refundToHost,
+                    TxType.REFUND, "揪團送單後品項退款（團員已付款，入團長帳號）", now);
+        }
+
+        // 2) 團長代墊品項：以 escrowAmount 為上限
+        List<MemberCancelSettlement.Item> settlementItems = items.stream()
+                .map(i -> MemberCancelSettlement.Item.of(i.getPaymentStatus(), i.getFinalPrice(),
+                        i.getDiscountAmountSnapshot()))
+                .toList();
+        MemberCancelSettlement.Result settlement = MemberCancelSettlement.settle(settlementItems, go.getEscrowAmount());
+        if (settlement.hostRefund().compareTo(BigDecimal.ZERO) > 0 && hostId != null) {
+            transactionRecordService.updateStoreCredit(hostId, settlement.hostRefund(),
+                    TxType.REFUND, "揪團團員取消品項退款代墊金", now);
+        }
+        go.setEscrowAmount(settlement.remainingEscrow());
+
+        // 3) 優惠券還原給原持有人（與有沒有退款無關）
+        for (OrderItem item : items) {
+            if (item.getCouponId() != null && item.getUser() != null) {
+                restoreUserCoupon(item.getUser().getId(), item.getCouponId());
+            }
+        }
+
+        // 4) 總額：送單後以淨額扣回（與結帳口徑一致）；送單前維持原本的毛額口徑
+        BigDecimal delta = BigDecimal.ZERO;
+        for (OrderItem item : items) {
+            BigDecimal amount = stage == GroupRefundPolicy.Stage.SUBMITTED
+                    ? netOf(item)
+                    : (item.getFinalPrice() != null ? item.getFinalPrice() : BigDecimal.ZERO);
+            delta = delta.add(amount);
+        }
+        BigDecimal currentTotal = go.getTotalAmount() != null ? go.getTotalAmount() : BigDecimal.ZERO;
+        go.setTotalAmount(currentTotal.subtract(delta).max(BigDecimal.ZERO));
+
+        orderItemRepository.deleteAll(items);
     }
 
     @Transactional
     public GroupOrder setStatus(String token, String status, Long hostId) {
-        GroupOrder go = getGroupOrderByToken(token);
-        if (!go.getInitiator().getId().equals(hostId)) {
+        GroupOrder go = lockGroupByToken(token);
+        if (!isInitiator(go, hostId)) {
             // ⚠️ H-3 修復：訊息改為 403 語意；呼叫端身分已由 JWT 保證，
             //    不再存在「帶上真團長 id 就能通過」的路徑
             throw new CustomException("403", "只有團長可以變更揪團狀態");
@@ -615,6 +790,11 @@ public class GroupOrderService {
         //    SUBMITTED 走 submitGroupOrder、CANCELLED 走 cancelGroupOrder。
         if (status == null || !Set.of("OPEN", "LOCKED").contains(status.toUpperCase())) {
             throw new CustomException("400", "不支援的狀態：" + status);
+        }
+        // ⚠️ N3：原本只檢查「要改成什麼」，沒看目前是什麼。送單後的揪團被改回 OPEN，
+        //    就能再結帳一次，同一批品項重複扣款。截單與重開只在送單前有意義。
+        if (!GroupRefundPolicy.mayToggleLock(go.getStatus())) {
+            throw new CustomException("409", "揪團目前狀態為 " + go.getStatus() + "，無法變更為 " + status.toUpperCase());
         }
         go.setStatus(status.toUpperCase());
         return groupOrderRepository.save(go);
@@ -633,7 +813,9 @@ public class GroupOrderService {
         if (!"OPEN".equalsIgnoreCase(go.getStatus()) && !"LOCKED".equalsIgnoreCase(go.getStatus())) {
             throw new CustomException("409", "此揪團已結帳，請勿重複送出");
         }
-        List<OrderItem> items = getItems(go.getId());
+        // 品項也要鎖住：團員同時付款時，若這裡讀到的仍是 UNPAID，團員的錢已扣、品項卻又被改成代墊，等於收了兩次
+        List<OrderItem> items = orderItemRepository.findByGroupOrderIdForUpdate(go.getId());
+        items.forEach(this::populateToppingIds);
         if (items.isEmpty()) {
             throw new RuntimeException("Cart is empty");
         }
@@ -822,9 +1004,13 @@ public class GroupOrderService {
         // 這道守衛是第二層保險：真正擋住重複退款的是上面的列鎖
         // （實測只拿掉列鎖、留著這道守衛，escrow 仍會退 140 而不是 35——
         //  因為沒有鎖時讀到的狀態本身就是舊的）。留著是為了讓意圖明確。
-        if ("CANCELLED".equalsIgnoreCase(go.getStatus()) || "REJECTED".equalsIgnoreCase(go.getStatus())) {
+        // ⚠️ 取得列鎖後必須再檢查狀態（CLAUDE.md 不變量）。只有開放中與已送單可整單取消；
+        //    店家接單（PREPARING 以後）之後退款會變成店家已在製作、款項卻已退回（N2）。
+        if (!GroupRefundPolicy.wholeGroupCancellable(go.getStatus())) {
             return false;
         }
+        GroupRefundPolicy.Stage stage = GroupRefundPolicy.stageOf(go.getStatus());
+        Long hostId = go.getInitiator() != null ? go.getInitiator().getId() : null;
         List<OrderItem> items = orderItemRepository.findByGroupOrderIdForUpdate(go.getId());
 
         // 1. 各品項退款、狀態鎖定與優惠券還原
@@ -838,13 +1024,30 @@ public class GroupOrderService {
             }
             // 只有 PAID 且未退款的品項才處理
             if ("PAID".equalsIgnoreCase(item.getPaymentStatus())) {
-                BigDecimal discount = item.getDiscountAmountSnapshot() != null
-                        ? item.getDiscountAmountSnapshot() : BigDecimal.ZERO;
-                BigDecimal refundAmount = item.getFinalPrice().subtract(discount).max(BigDecimal.ZERO);
+                // 退款去向依規則：送單前錢包付款退團員、現金與信用卡不入帳；送單後入團長帳號（見 GroupRefundPolicy）。
+                // 個人訂單（SOLO）的付款人就是發起人，維持原行為：退回付款人錢包。
+                BigDecimal refundAmount = netOf(item);
+                GroupRefundPolicy.PaidRefundTo to = "GROUP".equalsIgnoreCase(go.getType())
+                        ? GroupRefundPolicy.paidRefundTo(stage, item.getPaymentType())
+                        : GroupRefundPolicy.PaidRefundTo.MEMBER_WALLET;
+                if (to == GroupRefundPolicy.PaidRefundTo.HOST_WALLET && hostId == null) {
+                    to = GroupRefundPolicy.PaidRefundTo.NONE;
+                }
                 
-                transactionRecordService.updateStoreCredit(item.getUser().getId(), refundAmount,
-                        TxType.REFUND, "揪團取消退款 (品項: " + item.getProductNameSnapshot() + ")", LocalDateTime.now());
-                item.setPaymentStatus("REFUNDED");
+                switch (to) {
+                    case MEMBER_WALLET -> {
+                        transactionRecordService.updateStoreCredit(item.getUser().getId(), refundAmount,
+                                TxType.REFUND, "揪團取消退款 (品項: " + item.getProductNameSnapshot() + ")", LocalDateTime.now());
+                        item.setPaymentStatus("REFUNDED");
+                    }
+                    case HOST_WALLET -> {
+                        transactionRecordService.updateStoreCredit(hostId, refundAmount,
+                                TxType.REFUND, "揪團送單後取消退款，團員已付款金額入團長帳號 (品項: " + item.getProductNameSnapshot() + ")",
+                                LocalDateTime.now());
+                        item.setPaymentStatus("REFUNDED");
+                    }
+                    case NONE -> item.setPaymentStatus("CANCELLED"); // 現金或信用卡：不經錢包，線下處理
+                }
 
                 // 還原個人優惠券
                 if (item.getCouponId() != null) {
@@ -953,18 +1156,21 @@ public class GroupOrderService {
         }
     }
 
+    /**
+     * 團員取消自己的品項（PUT /api/orders/{orderId}/cancel/v2，非發起人才會走到這裡）。
+     *
+     * <p>只限送單前（OPEN）。送單後不論品項是否已付款，團員都不可自行取消並退款，
+     * 一律由團長操作，退款入團長帳號（2026-10-13 團長定案，見 {@link GroupRefundPolicy}）。
+     */
     @Transactional
     public void cancelMemberItems(Long realOrderId, Long userId) {
-        // ⚠️ M-2 修復：必須先鎖住揪團那一列再讀品項。
-        //    原本用 findById／findByGroupOrderId（無鎖），「讀出 PAID 品項 → 退款 → 刪品項」
-        //    在併發時每個交易都會讀到同一批品項並各退一次——與結帳／補款／整團取消同一個成因，
-        //    但這條路徑漏掉了。
+        // ⚠️ M-2 修復：必須先鎖住揪團那一列再讀品項（與結帳、整單取消同一把鎖），
+        //    否則「讀出已付款品項 → 退款 → 刪品項」在併發時會對同一批品項各退一次。
         GroupOrder go = groupOrderRepository.findByIdForUpdate(realOrderId)
                 .orElseThrow(() -> new RuntimeException("Group order not found"));
-        // ⚠️ 狀態守衛必須在鎖內再做一次：控制器的檢查發生在取得鎖之前，期間團長可能已結帳或進入備餐，
-        //    已送給門市的訂單內容不可再被刪改。
-        if (!OrderStatusGuard.isOpenOrSubmitted(go.getStatus())) {
-            throw new CustomException("409", "揪團已進入後續流程，無法再取消個別品項");
+        // ⚠️ 狀態守衛必須在鎖內再做一次：控制器的檢查發生在取得鎖之前，期間團長可能已結帳或送單。
+        if (!GroupRefundPolicy.memberMaySelfCancel(go.getStatus())) {
+            throw new CustomException("409", memberCancelRefusal(go.getStatus()));
         }
 
         List<OrderItem> allItems = orderItemRepository.findByGroupOrderIdForUpdate(go.getId());
@@ -976,42 +1182,7 @@ public class GroupOrderService {
             throw new RuntimeException("No items found for this user to cancel");
         }
 
-        // ⚠️ M-1 修復：金額一律交由 MemberCancelSettlement 決定。
-        //    原本「只要品項不是 PAID 就把金額退給團長」——揪團還在 OPEN（團長一毛未付）時，
-        //    成員取消等於讓團長錢包憑空多一筆錢，而且可無限重複（實測可自造餘額）。
-        //    現在只有 PAID 退團員、ESCROWED 退團長且以實際代墊的 escrowAmount 為上限。
-        MemberCancelSettlement.Result settlement = MemberCancelSettlement.settle(
-                memberItems.stream()
-                        .map(i -> MemberCancelSettlement.Item.of(i.getPaymentStatus(),
-                                i.getFinalPrice(), i.getDiscountAmountSnapshot()))
-                        .toList(),
-                go.getEscrowAmount());
-
-        if (settlement.memberRefund().compareTo(BigDecimal.ZERO) > 0) {
-            transactionRecordService.updateStoreCredit(userId, settlement.memberRefund(),
-                    TxType.REFUND, "揪團單品取消退款（已付品項）", LocalDateTime.now());
-        }
-        if (settlement.hostRefund().compareTo(BigDecimal.ZERO) > 0) {
-            transactionRecordService.updateStoreCredit(go.getInitiator().getId(), settlement.hostRefund(),
-                    TxType.REFUND, "揪團團員取消品項退款代墊金", LocalDateTime.now());
-        }
-
-        // 品項被移除就把券還給原持有人（與有沒有退款無關）
-        for (OrderItem mItem : memberItems) {
-            if (mItem.getCouponId() != null) {
-                restoreUserCoupon(mItem.getUser().getId(), mItem.getCouponId());
-            }
-        }
-        orderItemRepository.deleteAll(memberItems);
-
-        // totalAmount 是「這張團現在值多少」：OPEN 階段由 addItemsToOrder 累加毛額，
-        // 結帳後由 checkout 改寫為淨額。品項被移除就得把毛額扣回來，且不得為負。
-        BigDecimal grossRemoved = memberItems.stream()
-                .map(i -> i.getFinalPrice() != null ? i.getFinalPrice() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal currentTotal = go.getTotalAmount() != null ? go.getTotalAmount() : BigDecimal.ZERO;
-        go.setTotalAmount(currentTotal.subtract(grossRemoved).max(BigDecimal.ZERO));
-        go.setEscrowAmount(settlement.remainingEscrow());
+        removeItemsAndSettle(go, memberItems);
         groupOrderRepository.save(go);
     }
 
@@ -1095,12 +1266,12 @@ public class GroupOrderService {
 
     @Transactional
     public void applyCouponToItem(String token, Long itemId, Long userId, Long couponId) {
-        GroupOrder go = getGroupOrderByToken(token);
+        GroupOrder go = lockGroupByToken(token);
         if (!"OPEN".equals(go.getStatus()) && !"LOCKED".equals(go.getStatus())) {
             throw new RuntimeException("Group order is closed");
         }
-        OrderItem item = getItemById(itemId);
-        if (!item.getUser().getId().equals(userId)) {
+        OrderItem item = requireItemInGroup(go, itemId);
+        if (item.getUser() == null || !item.getUser().getId().equals(userId)) {
             throw new RuntimeException("Permission denied: You can only apply coupons to your own items");
         }
         CouponEligibility.requireUnpaid(item.getPaymentStatus());
@@ -1368,25 +1539,10 @@ public class GroupOrderService {
         return result;
     }
 
-    public Map<String, Object> getByToken(String token) {
-        GroupOrder order = groupOrderRepository.findByShareToken(token)
-                .orElseThrow(() -> new CustomException("404", "找不到此揪團，連結可能已失效"));
-        if (!"OPEN".equals(order.getStatus()))
-            throw new CustomException("409", "此揪團已結束，無法加入");
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("groupOrderId", order.getId());
-        result.put("storeName", order.getStore().getStoreName());
-        result.put("initiatorName", order.getInitiator().getName());
-        result.put("note", order.getNote());
-        result.put("status", order.getStatus());
-        result.put("createdAt", order.getCreatedAt());
-        return result;
-    }
-
     @Transactional
     public Map<String, Object> joinGroup(Long userId, Long groupOrderId, Map<String, Object> req) {
-        GroupOrder order = groupOrderRepository.findById(groupOrderId)
+        // 加點與結帳互斥（同 addItem）
+        GroupOrder order = groupOrderRepository.findByIdForUpdate(groupOrderId)
                 .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
         Object requestedToken = req != null ? req.get("shareToken") : null;
         if (!(requestedToken instanceof String token) || !token.equals(order.getShareToken())) {
