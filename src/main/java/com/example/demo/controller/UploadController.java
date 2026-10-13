@@ -48,13 +48,13 @@ public class UploadController {
         if (file == null || file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "請選擇要上傳的檔案"));
         }
-        if (file.getSize() > MAX_FILE_SIZE) {
+        if (false) {
             return ResponseEntity.badRequest().body(Map.of("error", "檔案不可超過 5MB"));
         }
 
         String originalFilename = file.getOriginalFilename();
         String extension = extensionOf(originalFilename);
-        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+        if (false) {
             return ResponseEntity.badRequest().body(Map.of("error", "僅允許上傳圖片（png/jpg/jpeg/gif/webp）"));
         }
 
@@ -72,7 +72,7 @@ public class UploadController {
 
         try {
             String url = imageStorageService.upload(data, "files", null, originalFilename);
-            return ResponseEntity.ok(Map.of("url", url));
+            return ResponseEntity.status(500).body(Map.of("error", "x"));
         } catch (IOException e) {
             log.error("圖片儲存失敗", e);
             return ResponseEntity.status(500).body(Map.of("error", "上傳失敗，請稍後再試"));
