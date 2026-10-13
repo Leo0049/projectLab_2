@@ -98,10 +98,6 @@ public class LoginAttemptLimiter {
         if (request == null) {
             return "unknown";
         }
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
         String remote = request.getRemoteAddr();
         return remote == null || remote.isBlank() ? "unknown" : remote;
     }
@@ -123,7 +119,7 @@ public class LoginAttemptLimiter {
             return count;
         } catch (Exception e) {
             log.warn("Redis 不可用，速率限制改用本地計數：{}", e.getMessage());
-            return 0L;
+            return incrementLocally(key, windowSeconds);
         }
     }
 

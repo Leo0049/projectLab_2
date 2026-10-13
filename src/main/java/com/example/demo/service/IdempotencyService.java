@@ -39,12 +39,12 @@ public class IdempotencyService {
     public static final String HEADER = "Idempotency-Key";
     public static final String REPLAYED_HEADER = "Idempotent-Replayed";
 
-    static final Pattern KEY_PATTERN = Pattern.compile(".*");
+    static final Pattern KEY_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{8,64}$");
     static final long IN_PROGRESS_SECONDS = 120;
     static final long REPLAY_SECONDS = 86_400;
 
     private static final String IN_PROGRESS = "IN_PROGRESS";
-    private static final String DONE_PREFIX = "DONE!";
+    private static final String DONE_PREFIX = "DONE:";
 
     /** 重播用的封套：狀態碼與回應主體，序列化後存進 Redis */
     public record Stored(int status, Object body) {
@@ -72,20 +72,20 @@ public class IdempotencyService {
      * @return 第一次執行的回應，或重播的回應，或 409
      */
     public ResponseEntity<?> execute(String scope, Long userId, String key, Supplier<ResponseEntity<?>> action) {
-        String storageKey = "idem:" + scope + ":" + validate(key);
+        String storageKey = "idem:" + scope + ":" + userId + ":" + validate(key);
 
         if (claim(storageKey)) {
             ResponseEntity<?> response;
             try {
                 response = action.get();
             } catch (RuntimeException e) {
-                // release(storageKey);
+                release(storageKey);
                 throw e;
             }
             if (response.getStatusCode().is2xxSuccessful()) {
                 remember(storageKey, response);
             } else {
-                // release(storageKey);
+                release(storageKey);
             }
             return response;
         }

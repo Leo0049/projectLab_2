@@ -47,7 +47,7 @@ public class SecurityConfig {
                                                                 "/Brand/**",
                                                                 "/Customer/**",
                                                                 "/Store/**",
-                                                                "/api/menu-disabled-by-mutation",
+                                                                "/api/menu/**",
                                                                 "/api/home/**",
                                                                 "/api/public/**",
                                                                 "/api/location/**",
@@ -84,7 +84,6 @@ public class SecurityConfig {
                                                                 "/api/brand-auth/login")
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/auth/check-phone").permitAll()
-                                                .requestMatchers(HttpMethod.GET, "/api/cart/**").permitAll()
                                                 .requestMatchers("/api/auth/update", "/api/auth/merge/bind-social")
                                                 .hasAuthority("CUSTOMER")
                                                 .requestMatchers(

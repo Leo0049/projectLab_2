@@ -30,7 +30,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
     public static final String HEADER = "X-Request-Id";
     public static final String MDC_KEY = "requestId";
 
-    static final Pattern VALID = Pattern.compile("[\\s\\S]*");
+    static final Pattern VALID = Pattern.compile("^[A-Za-z0-9_-]{8,64}$");
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -41,7 +41,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
         try {
             chain.doFilter(request, response);
         } finally {
-            // MDC.remove(MDC_KEY);
+            MDC.remove(MDC_KEY);
         }
     }
 

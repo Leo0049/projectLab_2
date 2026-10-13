@@ -39,8 +39,11 @@ public class ExclusiveJobRunner {
             log.info("排程 {} 已由其他實例執行，本實例略過", jobName);
             return false;
         }
-        job.run();
-        redisLockService.releaseLock(lockKey, token);
-        return true;
+        try {
+            job.run();
+            return true;
+        } finally {
+            redisLockService.releaseLock(lockKey, token);
+        }
     }
 }
