@@ -102,11 +102,12 @@ public class GroupOrderController {
     //    它位於 permitAll 的 /api/public/** 之下，可傳入任意 userId 查詢他人的進行中揪團，
     //    且發生例外時會把完整 stack trace 直接回傳給呼叫端。
 
-    @Operation(summary = "透過 token 取得揪團資訊", description = "取得揪團基本資訊與品項列表(視覺合併後)。")
+    @Operation(summary = "透過 token 取得揪團資訊",
+            description = "團內資料（品項、地址、備註、金額、團長、分享 token）只給團長與團員。其他人（含未登入）只看到店家、狀態與建立時間，須先加入揪團才能檢視。")
     @GetMapping({ "/api/group-orders/join/{token}", "/api/group-orders/{token}" })
-    public Result getByToken(@PathVariable String token) {
+    public Result getByToken(HttpServletRequest request, @PathVariable String token) {
         try {
-            GroupOrderDTO dto = groupOrderService.getGroupOrderDTOByToken(token);
+            GroupOrderDTO dto = groupOrderService.getGroupOrderDTOByToken(token, getUserId(request));
             return Result.success(dto);
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());

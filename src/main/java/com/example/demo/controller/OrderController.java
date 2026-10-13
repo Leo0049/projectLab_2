@@ -628,7 +628,8 @@ public class OrderController {
             if (isGroupOrder && !Objects.equals(initiatorId, userId)) {
                 // 成員取消個人品項 (Partial Cancellation)
                 groupOrderService.cancelMemberItems(orderId, userId);
-                return ResponseEntity.ok(Map.of("success", true, "message", "個人專屬品項已成功取消，退款已處理完畢。"));
+                return ResponseEntity.ok(Map.of("success", true,
+                        "message", "個人專屬品項已取消。錢包付款已退回錢包；現金或信用卡付款請向團長領回。"));
             } else if (!Objects.equals(initiatorId, userId)) {
                 return ResponseEntity.status(403).body(Map.of("error", "無權限取消此訂單"));
             }

@@ -185,7 +185,7 @@ class GroupCheckoutConcurrencyTest {
     }
 
     @Test
-    @DisplayName("重複取消揪團：退款只能發生一次")
+    @DisplayName("重複取消揪團：退款只能發生一次（送單後，團員已付款的金額入團長帳號）")
     void concurrentCancellationRefundsOnce() throws Exception {
         // 情境：團員已付款、團長已結帳（escrow 有金額），此時重複觸發取消
         OrderItem item = orderItemRepository.findByGroupOrderId(groupOrderId).get(0);
@@ -208,10 +208,12 @@ class GroupCheckoutConcurrencyTest {
         BigDecimal hostRefund = userRepository.findById(hostId).orElseThrow()
                 .getBalance().subtract(hostBefore);
 
-        assertEquals(0, DRINK_PRICE.compareTo(memberRefund),
-                "團員的品項退款應只發生一次 " + DRINK_PRICE + "，實際退了 " + memberRefund);
-        assertEquals(0, DRINK_PRICE.compareTo(hostRefund),
-                "團長的 escrow 退款應只發生一次 " + DRINK_PRICE + "，實際退了 " + hostRefund);
+        // 團員規則（2026-10-13 定案）：送單後團員不直接收到退款，已付款的 35 入團長帳號；
+        // 團長代墊的 escrow 35 也退給團長，合計 70 只能發生一次。
+        assertEquals(0, BigDecimal.ZERO.compareTo(memberRefund),
+                "送單後團員不應被直接退款，實際退了 " + memberRefund);
+        assertEquals(0, DRINK_PRICE.add(DRINK_PRICE).compareTo(hostRefund),
+                "團長應只收到一次 70（已付 35 + escrow 35），實際收到 " + hostRefund);
         assertEquals("CANCELLED",
                 groupOrderRepository.findById(groupOrderId).orElseThrow().getStatus());
     }
