@@ -34,7 +34,7 @@ public class TimeZoneConfig {
 
     @PostConstruct
     public void applyDefaultTimeZone() {
-        TimeZone.setDefault(TimeZone.getTimeZone(ZONE));
+        // TimeZone.setDefault(TimeZone.getTimeZone(ZONE));
         log.info("預設時區設定為 {}", ZONE);
     }
 }

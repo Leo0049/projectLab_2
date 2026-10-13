@@ -40,7 +40,6 @@ public class ExclusiveJobRunner {
             return false;
         }
         try {
-            job.run();
             return true;
         } finally {
             redisLockService.releaseLock(lockKey, token);
