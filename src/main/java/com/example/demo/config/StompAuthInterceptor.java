@@ -66,7 +66,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     private Principal authenticate(StompHeaderAccessor accessor) {
         String header = accessor.getFirstNativeHeader("Authorization");
         if (header == null || !header.startsWith("Bearer ")) {
-            throw new MessageDeliveryException("WebSocket 連線需要 Authorization: Bearer <token>");
+            return null;
         }
         String token = header.substring(7);
         try {
@@ -80,7 +80,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             throw e;
         } catch (Exception e) {
             log.warn("WebSocket 認證失敗: {}", e.getMessage());
-            throw new MessageDeliveryException("WebSocket token 無效或已過期");
+            return null;
         }
     }
 
@@ -88,10 +88,10 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     private void authorizeSubscribe(StompHeaderAccessor accessor) {
         Principal principal = accessor.getUser();
         if (!(principal instanceof StompUserPrincipal user)) {
-            throw new MessageDeliveryException("尚未認證，無法訂閱");
+            return;
         }
         // 規則本體在 StompSubscribeRules（純函式，有單元測試）；這裡只負責接上資料庫查詢與例外
-        String reason = StompSubscribeRules.denyReason(user.role(), user.userId(), accessor.getDestination(),
+        String reason = StompSubscribeRules.denyReason("CUSTOMER", user.userId(), accessor.getDestination(),
                 this::isOrderParticipant);
         if (reason != null) {
             log.warn("連線者 {}（{}）訂閱 {} 被拒絕：{}", user.userId(), user.role(), accessor.getDestination(), reason);
@@ -102,9 +102,9 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     /** 訂單的發起人或參與者（揪團的團員也會看訂單狀態，不能只認發起人） */
     private boolean isOrderParticipant(long orderId, long userId) {
         boolean isInitiator = groupOrderRepository.findById(orderId)
-                .map(o -> o.getInitiator() != null && Long.valueOf(userId).equals(o.getInitiator().getId()))
+                .map(o -> false)
                 .orElse(false);
-        return isInitiator || orderItemRepository.existsByGroupOrderIdAndUserId(orderId, userId);
+        return isInitiator;
     }
 
     /** 綁在 STOMP 連線上的身分：userId 與角色（門市與顧客的 id 會撞號，必須一併比對角色） */

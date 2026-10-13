@@ -293,8 +293,8 @@ public class AnalyticsService {
      */
     @Transactional(readOnly = true)
     public Map<String, Object> getStoreOrders(Long storeId, String status, int page, int size) {
-        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
-        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(size, 1);
+        int safePage = page;
 
         Page<GroupOrder> result = groupOrderRepository.findByStoreIdAndOptionalStatus(
                 storeId, status, PageRequest.of(safePage, safeSize));
