@@ -5,10 +5,11 @@ import java.util.Locale;
 /**
  * 揪團退款與取消權限的規則（純函式，可單獨測試）。
  *
- * <p>團長於 2026-10-13 定案，兩條規則：
+ * <p>團長於 2026-10-13 定案兩條規則；2026-10-14 補充現金與信用卡的去向，並確認截單後團員不可自行取消：
  * <ol>
- *   <li><b>送單前</b>（OPEN）：團員已付款（已結帳）的品項可自行取消並退款。退款回到該品項<b>當下的付款方式</b>：
- *       錢包付款退回錢包；現金、信用卡不經錢包，系統不入帳。品項在送單前已取消，因此無後續收款與對帳。</li>
+ *   <li><b>送單前</b>（OPEN）：團員已付款（已結帳）的品項可自行取消並退款。錢包付款退回團員錢包；
+ *       現金或信用卡付款的退款<b>入團長帳號</b>，團員再向團長領回。品項在送單前已取消，無後續收款與對帳。
+ *       截單（LOCKED）後團員不可自行取消，見 {@link #memberMaySelfCancel}。</li>
  *   <li><b>送單後</b>（SUBMITTED）：團員不可自行取消並退款。取消或退款一律由團長操作，且退款<b>入團長帳號</b>。</li>
  * </ol>
  *
@@ -24,7 +25,7 @@ public final class GroupRefundPolicy {
     public enum Stage {
         /** 開放中：可加點、可截單、團員可自行取消未送單的品項 */
         OPEN,
-        /** 截單中（團長鎖定）：不可加點，尚未送單 */
+        /** 截單中（團長鎖定）：不可加點、團員不可自行取消；團長仍可移除品項或整單取消，店家接單前皆可 */
         LOCKED,
         /** 已送單給店家：團員不可自行取消，團長操作退款入團長帳號 */
         SUBMITTED,
@@ -38,9 +39,9 @@ public final class GroupRefundPolicy {
     public enum PaidRefundTo {
         /** 退回團員錢包（送單前、錢包付款） */
         MEMBER_WALLET,
-        /** 入團長錢包（送單後，不論付款方式） */
+        /** 入團長帳號（送單後不論付款方式；送單前的現金與信用卡） */
         HOST_WALLET,
-        /** 不入帳：現金、信用卡或未記錄的付款方式，由線下處理，或本來就無需退款 */
+        /** 不入帳：付款方式未記錄，或製作中與已結束的訂單，本來就無需退款 */
         NONE
     }
 
@@ -59,7 +60,7 @@ public final class GroupRefundPolicy {
         };
     }
 
-    /** 團員可否自行取消自己的品項並退款：只有開放中（OPEN）。送單後一律由團長處理。 */
+    /** 團員可否自行取消自己的品項並退款：只有開放中（OPEN）。截單（LOCKED）與送單後一律由團長處理（團長 2026-10-14 確認）。 */
     public static boolean memberMaySelfCancel(String groupStatus) {
         return stageOf(groupStatus) == Stage.OPEN;
     }
@@ -70,10 +71,13 @@ public final class GroupRefundPolicy {
         return stage == Stage.OPEN || stage == Stage.LOCKED || stage == Stage.SUBMITTED;
     }
 
-    /** 整單可否取消（團長取消或刪除揪團）：只有 OPEN、SUBMITTED，與 {@link OrderStatusGuard#isOpenOrSubmitted} 一致。 */
+    /**
+     * 整單可否取消（團長取消或刪除揪團）：店家接單（PREPARING 以後）之前都可以，包含截單中（LOCKED）。
+     * 店家接單後退款會變成店家已在製作、款項卻已退回，因此不可。
+     */
     public static boolean wholeGroupCancellable(String groupStatus) {
         Stage stage = stageOf(groupStatus);
-        return stage == Stage.OPEN || stage == Stage.SUBMITTED;
+        return stage == Stage.OPEN || stage == Stage.LOCKED || stage == Stage.SUBMITTED;
     }
 
     /** 團長可否在截單（LOCKED）與重開（OPEN）之間切換：只有尚未送單的揪團。 */
@@ -93,10 +97,21 @@ public final class GroupRefundPolicy {
             return PaidRefundTo.NONE;
         }
         return switch (stage) {
-            case OPEN, LOCKED -> isWallet(paymentType) ? PaidRefundTo.MEMBER_WALLET : PaidRefundTo.NONE;
+            case OPEN, LOCKED -> {
+                if (isWallet(paymentType)) {
+                    yield PaidRefundTo.MEMBER_WALLET;
+                }
+                yield isHostCollected(paymentType) ? PaidRefundTo.HOST_WALLET : PaidRefundTo.NONE;
+            }
             case SUBMITTED -> PaidRefundTo.HOST_WALLET;
             case FULFILLING, CLOSED -> PaidRefundTo.NONE;
         };
+    }
+
+    /** 付款方式是否為線下收款（現金或信用卡）。這類款項不經團員錢包，送單前的退款入團長帳號（團長 2026-10-14 定案）。 */
+    public static boolean isHostCollected(String paymentType) {
+        String p = normalize(paymentType);
+        return "CASH".equals(p) || "CREDIT_CARD".equals(p);
     }
 
     /** 付款方式是否為錢包。只有明確記錄為 WALLET 才算；null 不視為錢包，避免無來源的入帳。 */

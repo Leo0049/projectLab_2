@@ -173,7 +173,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-13，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：217 個 `@Test`，分布在 42 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-14，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：245 個 `@Test`，分布在 44 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -202,7 +202,8 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 訂單規則 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
 | 訂單規則 | `MemberCancelSettlementTest`（9） | 團員取消品項的退款規則：只有真的付過（PAID／ESCROWED）才會退，且以 `escrowAmount` 為上限 |
 | 訂單規則 | `OrderStatusGuardTest`（5） | 顧客端狀態轉換白名單（`OPEN\|SUBMITTED → CANCELLED`、`SUBMITTED → PAID`） |
-| 訂單規則 | `CancellableStatusTest`（2） | 揪團品項可否取消：只有 OPEN、SUBMITTED（大小寫與空白不敏感） |
+| 訂單規則 | `GroupRefundPolicyTest`（9） | 揪團退款與權限（純函式）：送單前錢包退團員、現金與信用卡入團長帳號、送單後一律入團長、截單後團員不可自行取消、整單取消至店家接單前 |
+| 訂單規則 | `GroupItemRulesTest`（15） | 揪團品項規則（載入 Spring context）：跨團 token 回 404、送單前後的團員取消、團長移除與整單取消、截單中可刪除、接單後不可刪除、狀態切換 |
 | 訂單規則 | `PricingServiceTest`（5） | 定價：規格與加料取用伺服器價格；拒絕未設定的規格與加料；加料數量上限與重複選取 |
 | 訂單規則 | `QuantityLimitsTest`（1） | 數量只接受範圍內的整數 |
 | 訂單規則 | `CartServiceTest`（1） | 購物車小計 = 單價 × 數量 |
@@ -220,7 +221,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 `applyDefaultTimeZone()` 把 JVM 預設時區設為 Asia/Taipei，不經過 `main()` |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 9 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`）之外，其餘 33 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 34 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -302,13 +303,14 @@ SUBMITTED 進入 PREPARING。
 
 揪團流程：揪團主建立 → 產生 token → 其他人用 token 加入 → 揪團主統一提交
 
-### 揪團退款與可見性（團長 2026-10-13 定案）
+### 揪團退款與可見性（團長 2026-10-13 定案，2026-10-14 補充）
 
 判斷與退款去向集中在 `service/order/GroupRefundPolicy`（純函式，有單元測試）；`GroupOrderService` 只負責接上資料庫與列鎖。
 
-- **送單前（OPEN）**：團員已結帳的品項可自行取消並退款，退回該品項**當下的付款方式**。錢包付款退回錢包；現金、信用卡不經錢包、不入帳。品項在送單前已取消，因此無後續收款與對帳。
+- **送單前（OPEN）**：團員已結帳的品項可自行取消並退款，退回該品項**當下的付款方式**。錢包付款退回錢包；現金、信用卡的退款入團長帳號（2026-10-14 團長確認），團員再向團長領回；品項在送單前已取消，因此無後續收款與對帳。
 - **送單後（SUBMITTED）**：團員不可自行取消或退款，一律由團長操作，退款**入團長帳號**。團長整單取消時，送單後已付的金額同樣入團長帳號。
-- **截單（LOCKED）**：團員不可自行取消品項，由團長處理。團長定案未明載此狀態，這是暫定解讀，見 `GroupRefundPolicy.memberMaySelfCancel`。
+- **截單（LOCKED）**：團員不可自行取消（團長 2026-10-14 確認）。團長仍可移除品項或整單取消，直到店家接單為止（見 `GroupRefundPolicy.wholeGroupCancellable`）。
+- **店家接單後（PREPARING 以後）**：不可整單取消或刪除（409），不可移除品項，也不產生退款；已送單的揪團不可改回 OPEN 或 LOCKED。
 - **團內資料僅供成員檢視**：成員 = 團長，或已在團內有品項的團員。非成員（含未登入）持分享連結只拿到店家、狀態、建立時間等基本欄位（`getGroupOrderDTOByToken` 的 `outsiderView`；不含品項、地址、備註、金額、團長與分享 token），須先加入揪團才能看到團內資料。
 - **已知缺口**：`/topic/group/{token}` 的推播目前對持 token 的已登入顧客開放。事件內容是品項 id、成員 userId 與狀態（不含姓名與金額）。依上述規則應收斂到成員，尚未實作，因為前端需要同時改成「成員確認後才訂閱」。
 
@@ -613,7 +615,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 
 - **第三方登入的新帳號只能經 `POST /api/auth/social-signup` 建立**（先驗證手機 OTP，再建立帳號）。`socialLogin` 不得再以請求中未驗證的 `phone` 寫入使用者；全新手機會回 201，前端導向 `verify-phone.html?type=social-signup`。
 - **`PUT /api/auth/update` 不接受改手機**。手機是登入與重設密碼的依據，必須經 Firebase 手機驗證，不可在沒有 OTP 的端點直接改。`UserService.registerUser` 已移除（無呼叫者，且會接受未驗證手機）。
-- **取消揪團品項或整單時，取得列鎖後必須再用 `OrderStatusGuard.isOpenOrSubmitted` 檢查狀態**。控制器在鎖外做的檢查無法保證當下仍是 OPEN／SUBMITTED。
+- **取消揪團品項或整單時，取得列鎖後必須再用 `GroupRefundPolicy.memberMaySelfCancel`（團員）或 `wholeGroupCancellable`（整單）檢查狀態**。控制器在鎖外做的檢查無法保證當下的狀態。
 - **`POST /api/orders/{orderId}/cancel` 走 `GroupOrderService.cancelAsInitiator`**（列鎖、退款、還原券，與 `cancel/v2` 相同）。`OrderService.cancelOrder` 已移除，它不退款、也不還原優惠券。
 - **結帳通知所需的門市 id 與總額由 `GroupOrderService.getCheckoutNotifyInfo` 在交易內取得**，控制器不得拿 entity 出去再 `getStore()`。`paymentMethod` 不可為空，且只接受 `WALLET`／`CASH`／`CREDIT_CARD`（回 400；白名單為 `GroupOrderController.ALLOWED_PAYMENT_METHODS`，不可只留 `WALLET`／`CASH`，會擋下團購頁預設的 `CREDIT_CARD`，見 N-18）。團購頁的儲值金（`STORE_CREDIT`）在送出前映射為 `WALLET`（見 N-15）；`CREDIT_CARD` 後端視為門市付款（見 N-22）。
 - **使用者可控名稱的寫入規則在 `common/SafeText`**：自己送來的值用 `normalizeDisplayName`（不合規回 400）；第三方登入帶來的名稱用 `sanitizeDisplayName`（清理、截斷、不失敗）。

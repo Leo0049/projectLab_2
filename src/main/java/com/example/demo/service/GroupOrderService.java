@@ -6,7 +6,6 @@ import com.example.demo.service.order.GroupRefundPolicy;
 import com.example.demo.service.order.ItemHash;
 import com.example.demo.service.order.ItemSpecResolver;
 import com.example.demo.service.order.MemberCancelSettlement;
-import com.example.demo.service.order.OrderStatusGuard;
 import com.example.demo.dto.OrderItemDTO;
 import com.example.demo.dto.OrderItemToppingDTO;
 import com.example.demo.entity.*;
@@ -702,7 +701,7 @@ public class GroupOrderService {
      *
      * <ul>
      *   <li><b>已付款品項</b>：依 {@link GroupRefundPolicy#paidRefundTo} 決定去向——
-     *       送單前錢包付款退團員錢包，現金或信用卡不入帳；送單後一律入團長帳號。</li>
+     *       送單前錢包付款退團員錢包；現金、信用卡與送單後的款項一律入團長帳號。</li>
      *   <li><b>團長代墊品項（ESCROWED）</b>：退給團長，且以 escrowAmount 為上限（{@link MemberCancelSettlement}）。</li>
      *   <li><b>優惠券</b>：一律還原給原持有人。</li>
      *   <li><b>總額</b>：送單前沿用加點時的毛額口徑；送單後以淨額扣回，與結帳的 finalAmount 一致。</li>
@@ -742,7 +741,7 @@ public class GroupOrderService {
         }
         if (refundToHost.compareTo(BigDecimal.ZERO) > 0) {
             transactionRecordService.updateStoreCredit(hostId, refundToHost,
-                    TxType.REFUND, "揪團送單後品項退款（團員已付款，入團長帳號）", now);
+                    TxType.REFUND, "揪團品項退款（團員已付款，入團長帳號）", now);
         }
 
         // 2) 團長代墊品項：以 escrowAmount 為上限
@@ -1004,7 +1003,7 @@ public class GroupOrderService {
         // 這道守衛是第二層保險：真正擋住重複退款的是上面的列鎖
         // （實測只拿掉列鎖、留著這道守衛，escrow 仍會退 140 而不是 35——
         //  因為沒有鎖時讀到的狀態本身就是舊的）。留著是為了讓意圖明確。
-        // ⚠️ 取得列鎖後必須再檢查狀態（CLAUDE.md 不變量）。只有開放中與已送單可整單取消；
+        // ⚠️ 取得列鎖後必須再檢查狀態（CLAUDE.md 不變量）。只有開放中、截單中與已送單可整單取消；
         //    店家接單（PREPARING 以後）之後退款會變成店家已在製作、款項卻已退回（N2）。
         if (!GroupRefundPolicy.wholeGroupCancellable(go.getStatus())) {
             return false;
@@ -1042,11 +1041,11 @@ public class GroupOrderService {
                     }
                     case HOST_WALLET -> {
                         transactionRecordService.updateStoreCredit(hostId, refundAmount,
-                                TxType.REFUND, "揪團送單後取消退款，團員已付款金額入團長帳號 (品項: " + item.getProductNameSnapshot() + ")",
+                                TxType.REFUND, "揪團取消退款，團員已付款金額入團長帳號（送單後，或現金、信用卡） (品項: " + item.getProductNameSnapshot() + ")",
                                 LocalDateTime.now());
                         item.setPaymentStatus("REFUNDED");
                     }
-                    case NONE -> item.setPaymentStatus("CANCELLED"); // 現金或信用卡：不經錢包，線下處理
+                    case NONE -> item.setPaymentStatus("CANCELLED"); // 付款方式未記錄，無從判斷退款去向：不入帳（見 GroupRefundPolicy.paidRefundTo）
                 }
 
                 // 還原個人優惠券
@@ -1136,7 +1135,7 @@ public class GroupOrderService {
     }
 
     /**
-     * 團長從訂單頁取消整張 OPEN／SUBMITTED 訂單（舊端點 POST /api/orders/{orderId}/cancel 走這裡）。
+     * 團長從訂單頁取消整張揪團（店家接單前皆可，含截單中）（舊端點 POST /api/orders/{orderId}/cancel 走這裡）。
      * ⚠️ 原本 OrderService.cancelOrder 只把狀態改成 CANCELLED：不退款、不還原優惠券，也沒有列鎖。
      *    同一張單從 /cancel/v2 取消會退款，從這個入口取消卻沒退，等於錢與券都憑空消失。
      *    改為與 /cancel/v2 相同的 handleGroupOrderCancellation（列鎖、退款、券還原）。
@@ -1148,8 +1147,8 @@ public class GroupOrderService {
         if (go.getInitiator() == null || !java.util.Objects.equals(go.getInitiator().getId(), userId)) {
             throw new CustomException("403", "You cannot cancel this order");
         }
-        if (!OrderStatusGuard.isOpenOrSubmitted(go.getStatus())) {
-            throw new CustomException("409", "Only open or submitted orders can be cancelled");
+        if (!GroupRefundPolicy.wholeGroupCancellable(go.getStatus())) {
+            throw new CustomException("409", "Only groups the store has not accepted can be cancelled");
         }
         if (!handleGroupOrderCancellation(orderId)) {
             throw new CustomException("409", "取消失敗");

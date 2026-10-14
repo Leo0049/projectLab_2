@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <ul>
  *   <li>送單前（OPEN）：團員已付款的品項可自行取消；退款回到「當下的付款方式」——
- *       錢包付款退回錢包，現金與信用卡不經錢包，系統不入帳（品項在送單前取消，無後續收款與對帳）。</li>
+ *       錢包付款退回錢包，現金與信用卡不經團員錢包，退款入團長帳號（2026-10-14 補充）（品項在送單前取消，無後續收款與對帳）。</li>
  *   <li>送單後（SUBMITTED）：團員不可自行取消並退款；取消或退款一律由團長操作，且退款入團長帳號。</li>
  *   <li>製作中（PREPARING 以後）與已結束：品項不可再被移除，也不產生任何退款。</li>
  * </ul>
@@ -70,13 +70,16 @@ class GroupRefundPolicyTest {
     }
 
     @Test
-    @DisplayName("整單取消只允許 OPEN、SUBMITTED（與 OrderStatusGuard.isOpenOrSubmitted 一致）")
-    void wholeGroupCancelOnlyOpenOrSubmitted() {
+    @DisplayName("整單取消：店家接單前（OPEN、LOCKED、SUBMITTED）都可以；接單後與已結束不可（大小寫與空白不敏感）")
+    void wholeGroupCancelUntilStoreAccepts() {
         assertTrue(GroupRefundPolicy.wholeGroupCancellable("OPEN"));
-        assertTrue(GroupRefundPolicy.wholeGroupCancellable("SUBMITTED"));
-        assertFalse(GroupRefundPolicy.wholeGroupCancellable("LOCKED"));
+        assertTrue(GroupRefundPolicy.wholeGroupCancellable("LOCKED"));
+        assertTrue(GroupRefundPolicy.wholeGroupCancellable(" submitted "));
         assertFalse(GroupRefundPolicy.wholeGroupCancellable("PREPARING"));
+        assertFalse(GroupRefundPolicy.wholeGroupCancellable("READY"));
+        assertFalse(GroupRefundPolicy.wholeGroupCancellable("COMPLETED"));
         assertFalse(GroupRefundPolicy.wholeGroupCancellable("CANCELLED"));
+        assertFalse(GroupRefundPolicy.wholeGroupCancellable(null));
     }
 
     @Test
@@ -92,14 +95,24 @@ class GroupRefundPolicyTest {
     }
 
     @Test
-    @DisplayName("送單前已付款的錢包品項退回團員錢包；現金與信用卡不入錢包帳本")
+    @DisplayName("送單前已付款的錢包品項退回團員錢包；沒有記錄付款方式的舊資料不入帳，避免憑空生出餘額")
     void paidWalletItemsGoBackToMemberBeforeSubmission() {
         assertEquals(MEMBER_WALLET, GroupRefundPolicy.paidRefundTo(OPEN, "WALLET"));
         assertEquals(MEMBER_WALLET, GroupRefundPolicy.paidRefundTo(LOCKED, " wallet "));
-        assertEquals(NONE, GroupRefundPolicy.paidRefundTo(OPEN, "CASH"));
-        assertEquals(NONE, GroupRefundPolicy.paidRefundTo(OPEN, "CREDIT_CARD"));
-        // 沒有記錄付款方式的舊資料：不入帳，避免憑空生出餘額
         assertEquals(NONE, GroupRefundPolicy.paidRefundTo(OPEN, null));
+        assertEquals(NONE, GroupRefundPolicy.paidRefundTo(OPEN, "STORE_CREDIT"));
+    }
+
+    @Test
+    @DisplayName("送單前現金或信用卡的已付款品項，退款入團長帳號（線下收款，退款一律入團長）")
+    void paidCashOrCardBeforeSubmissionGoesToHost() {
+        assertEquals(HOST_WALLET, GroupRefundPolicy.paidRefundTo(OPEN, "CASH"));
+        assertEquals(HOST_WALLET, GroupRefundPolicy.paidRefundTo(OPEN, "credit_card"));
+        assertEquals(HOST_WALLET, GroupRefundPolicy.paidRefundTo(LOCKED, "CASH"));
+        assertTrue(GroupRefundPolicy.isHostCollected("CASH"));
+        assertTrue(GroupRefundPolicy.isHostCollected(" CREDIT_CARD "));
+        assertFalse(GroupRefundPolicy.isHostCollected("WALLET"));
+        assertFalse(GroupRefundPolicy.isHostCollected(null));
     }
 
     @Test
