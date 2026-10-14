@@ -59,15 +59,6 @@ public final class OrderStatusGuard {
         return to;
     }
 
-    /**
-     * 訂單是否仍處於「可取消品項／整單」的階段（OPEN、SUBMITTED）。
-     * PREPARING 之後，以及 LOCKED、已取消等狀態，內容都不可再被刪改。
-     */
-    public static boolean isOpenOrSubmitted(String status) {
-        String s = normalize(status);
-        return "OPEN".equals(s) || "SUBMITTED".equals(s);
-    }
-
     private static String normalize(String status) {
         if (status == null || status.isBlank()) {
             return null;

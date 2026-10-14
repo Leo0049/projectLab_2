@@ -77,7 +77,10 @@ class GroupItemRulesTest {
     void cleanUp() {
         for (Long gid : groupIds) {
             orderItemRepository.deleteAll(orderItemRepository.findByGroupOrderId(gid));
-            groupOrderRepository.deleteById(gid);
+            // 測試本身可能已刪除揪團（deleteGroupOrder），此時 deleteById 會拋 EmptyResultDataAccessException
+            if (groupOrderRepository.existsById(gid)) {
+                groupOrderRepository.deleteById(gid);
+            }
         }
         for (Long uid : userIds) {
             transactionRecordRepository.deleteAll(transactionRecordRepository.findByUserIdOrderByCreatedAtDesc(uid));
@@ -132,17 +135,21 @@ class GroupItemRulesTest {
     }
 
     @Test
-    @DisplayName("送單前：現金付款的品項取消時不入錢包帳本（避免憑空生出餘額）")
-    void memberCancelBeforeSubmitWithCashCreatesNoWalletCredit() {
+    @DisplayName("送單前：現金付款的品項取消，退款入團長帳號；團員錢包與帳本都不動")
+    void memberCancelBeforeSubmitWithCashRefundsHostNotMember() {
         GroupOrder go = newGroup(hostId, "OPEN", BigDecimal.ZERO);
         OrderItem paidInCash = newItem(go, memberId, "PAID", "CASH");
         BigDecimal memberBefore = balanceOf(memberId);
-        long ledgerBefore = ledgerCountOf(memberId);
+        BigDecimal hostBefore = balanceOf(hostId);
+        long memberLedgerBefore = ledgerCountOf(memberId);
+        long hostLedgerBefore = ledgerCountOf(hostId);
 
         groupOrderService.cancelMemberItems(go.getId(), memberId);
 
-        assertEquals(0, memberBefore.compareTo(balanceOf(memberId)), "現金付款不應增加錢包餘額");
-        assertEquals(ledgerBefore, ledgerCountOf(memberId), "現金付款不應寫入錢包帳本");
+        assertEquals(0, DRINK.compareTo(balanceOf(hostId).subtract(hostBefore)), "團長應收到 35 元");
+        assertEquals(0, memberBefore.compareTo(balanceOf(memberId)), "現金付款不應增加團員錢包餘額");
+        assertEquals(memberLedgerBefore, ledgerCountOf(memberId), "團員錢包帳本不應新增紀錄");
+        assertEquals(hostLedgerBefore + 1, ledgerCountOf(hostId), "團長帳本應新增一筆退款");
         assertTrue(orderItemRepository.findById(paidInCash.getId()).isEmpty(), "品項仍應被移除");
     }
 
@@ -266,6 +273,68 @@ class GroupItemRulesTest {
 
         groupOrderService.setStatus(go.getShareToken(), "OPEN", hostId);
         assertEquals("OPEN", groupOrderRepository.findById(go.getId()).orElseThrow().getStatus());
+    }
+
+    // ── 送單前：團長可移除團員未付款的品項（不涉及退款）────────
+
+    @Test
+    @DisplayName("送單前：團長可移除團員尚未付款的品項，不產生退款（未付款的款項本來就沒有扣）")
+    void hostMayRemoveMemberUnpaidItemBeforeSubmit() {
+        GroupOrder go = newGroup(hostId, "OPEN", BigDecimal.ZERO);
+        OrderItem unpaid = newItem(go, memberId, "UNPAID", "WALLET");
+        BigDecimal memberBefore = balanceOf(memberId);
+        BigDecimal hostBefore = balanceOf(hostId);
+
+        groupOrderService.removeItem(go.getShareToken(), unpaid.getId(), hostId);
+
+        assertTrue(orderItemRepository.findById(unpaid.getId()).isEmpty(), "品項應被移除");
+        assertEquals(0, memberBefore.compareTo(balanceOf(memberId)), "團員餘額不應變動");
+        assertEquals(0, hostBefore.compareTo(balanceOf(hostId)), "團長餘額不應變動");
+    }
+
+    // ── 送單後：團長自己的錢包品項已併入扣款，不可單獨移除 ─────
+
+    @Test
+    @DisplayName("送單後：團長自己以錢包結帳的品項（WAITING_SUBMIT）已併入扣款，不可單獨移除，須整單取消")
+    void hostCannotRemoveOwnWalletItemIndividuallyAfterSubmit() {
+        GroupOrder go = newGroup(hostId, "SUBMITTED", DRINK);
+        OrderItem own = newItem(go, hostId, "WAITING_SUBMIT", "WALLET");
+        BigDecimal hostBefore = balanceOf(hostId);
+
+        CustomException ex = assertThrows(CustomException.class,
+                () -> groupOrderService.removeItem(go.getShareToken(), own.getId(), hostId));
+        assertEquals("409", ex.getCode());
+        assertTrue(orderItemRepository.findById(own.getId()).isPresent(), "品項不應被移除");
+        assertEquals(0, hostBefore.compareTo(balanceOf(hostId)), "團長餘額不應變動");
+    }
+
+    // ── 截單：團員不可自行取消（團長 2026-10-14 確認）──────────
+
+    @Test
+    @DisplayName("截單（LOCKED）後團員不可自行取消，品項與餘額都不動")
+    void memberCannotSelfCancelWhileLocked() {
+        GroupOrder go = newGroup(hostId, "LOCKED", BigDecimal.ZERO);
+        OrderItem paid = newItem(go, memberId, "PAID", "WALLET");
+        BigDecimal memberBefore = balanceOf(memberId);
+
+        CustomException ex = assertThrows(CustomException.class,
+                () -> groupOrderService.cancelMemberItems(go.getId(), memberId));
+        assertEquals("409", ex.getCode());
+        assertEquals(0, memberBefore.compareTo(balanceOf(memberId)));
+        assertTrue(orderItemRepository.findById(paid.getId()).isPresent(), "品項不應被移除");
+    }
+
+    @Test
+    @DisplayName("截單中且店家尚未接單：團長可整單刪除，已付錢包金額退回團員")
+    void hostMayDeleteLockedGroupBeforeStoreAccepts() {
+        GroupOrder go = newGroup(hostId, "LOCKED", BigDecimal.ZERO);
+        newItem(go, memberId, "PAID", "WALLET");
+        BigDecimal memberBefore = balanceOf(memberId);
+
+        groupOrderService.deleteGroupOrder(go.getShareToken(), hostId);
+
+        assertTrue(groupOrderRepository.findById(go.getId()).isEmpty(), "揪團應被刪除");
+        assertEquals(0, DRINK.compareTo(balanceOf(memberId).subtract(memberBefore)), "團員應收回 35 元");
     }
 
     // ── fixtures ────────────────────────────────────────────
