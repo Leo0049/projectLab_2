@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.common.JwtUtils;
 import com.example.demo.common.SafeImageUrl;
+import com.example.demo.common.SafeText;
 import com.example.demo.dto.StoreDTO;
 import com.example.demo.dto.StoreRequest;
 import com.example.demo.entity.*;
@@ -165,7 +166,7 @@ public class StoreService {
         if (store.getBrand() == null || !store.getBrand().getId().equals(brandId))
             throw new CustomException("403", "無權限操作此分店");
         if (req.getStoreName() != null)
-            store.setStoreName(req.getStoreName());
+            store.setStoreName(SafeText.normalizeLabel(req.getStoreName(), 100));
         if (req.getCoverUrl() != null)
             // ⚠️ 封面會進顧客端 <img src="...">：不驗證＝店家可對所有顧客下 XSS
             store.setCoverUrl(SafeImageUrl.normalize(req.getCoverUrl()));
@@ -209,7 +210,7 @@ public class StoreService {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new CustomException("404", "店家不存在"));
         if (req.getStoreName() != null)
-            store.setStoreName(req.getStoreName());
+            store.setStoreName(SafeText.normalizeLabel(req.getStoreName(), 100));
         if (req.getCoverUrl() != null)
             // ⚠️ 封面會進顧客端 <img src="...">：不驗證＝店家可對所有顧客下 XSS
             store.setCoverUrl(SafeImageUrl.normalize(req.getCoverUrl()));
@@ -294,7 +295,7 @@ public class StoreService {
      */
     private void applyStoreRequest(Store store, StoreRequest req) {
         if (req.getStoreName() != null)
-            store.setStoreName(req.getStoreName());
+            store.setStoreName(SafeText.normalizeLabel(req.getStoreName(), 100));
         if (req.getCoverUrl() != null)
             // ⚠️ 封面會進顧客端 <img src="...">：不驗證＝店家可對所有顧客下 XSS
             store.setCoverUrl(SafeImageUrl.normalize(req.getCoverUrl()));

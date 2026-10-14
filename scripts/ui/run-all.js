@@ -14,6 +14,7 @@ const suites = [
   ['點餐流程', './flow-order'],
   ['轉盤流程', './flow-wheel'],
   ['揪團流程', './flow-group'],
+  ['輸出端跳逸', './check-output-escaping'],
 ];
 
 /**

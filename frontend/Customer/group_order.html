@@ -1031,7 +1031,7 @@
                         return;
                     }
                     list.innerHTML = filtered.map(opt =>
-                        `<div class="dropdown-item p-3 px-4 text-sm font-medium text-slate-700 hover:bg-orange-50 hover:text-primary cursor-pointer transition-colors" data-value="${opt}">${opt}</div>`
+                        `<div class="dropdown-item p-3 px-4 text-sm font-medium text-slate-700 hover:bg-orange-50 hover:text-primary cursor-pointer transition-colors" data-value="${esc(opt)}">${esc(opt)}</div>`
                     ).join('');
 
                     list.querySelectorAll('.dropdown-item').forEach(item => {
@@ -2692,10 +2692,10 @@
                             const isSelected = (item.toppings || []).some(it => it.name === t.name);
                             return `
                                 <button class="py-2.5 text-sm rounded-xl border ${isSelected ? 'border-2 border-primary bg-orange-50/20 text-primary font-bold active-topping' : 'border-slate-200 text-slate-600'} flex justify-between px-3 items-center"
-                                    data-price="${t.price}" data-id="${t.id}"
+                                    data-price="${esc(t.price)}" data-id="${esc(t.id)}"
                                     onclick="toggleEditTopping(this)">
                                     <span>${esc(t.name)}</span>
-                                    <span class="text-[10px] text-gray-400">+$${t.price}</span>
+                                    <span class="text-[10px] text-gray-400">+$${esc(t.price)}</span>
                                 </button>
                             `;
                         }).join('') || '<p class="text-xs text-gray-400 col-span-2 text-center py-2">無加料選項</p>';

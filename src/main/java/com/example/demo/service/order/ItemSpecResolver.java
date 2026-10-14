@@ -1,5 +1,6 @@
 package com.example.demo.service.order;
 
+import com.example.demo.common.SafeText;
 import com.example.demo.entity.ProductSpecRelation;
 
 import java.util.Collections;
@@ -59,14 +60,16 @@ public final class ItemSpecResolver {
      *
      * @param specType  SWEETNESS / ICE / SIZE
      * @param requested 用戶端送來的值（可為 null）
-     * @return 固定規格時回傳那個唯一選項的名稱；否則原樣回傳 requested
+     * @return 固定規格時回傳那個唯一選項的名稱；否則回傳 requested（去除前後空白，且不得含標籤字元）
+     * @throws com.example.demo.exception.CustomException 非固定規格且 requested 含 {@code < > " `}、控制字元或超過 50 字
      */
     public String resolve(String specType, String requested) {
         List<ProductSpecRelation> options = byType.get(normalize(specType));
         if (options != null && options.size() == 1) {
             return options.get(0).getBrandSpec().getCustomName();
         }
-        return requested;
+        // 多選項或無設定時用戶端的值會原樣落庫，這裡先擋掉標籤字元，避免門市後台收到可執行的字串
+        return SafeText.normalizeLabel(requested, 50);
     }
 
     /** 新增品項用：沒帶值時以空字串落下，與既有資料格式一致（欄位不可為 null） */

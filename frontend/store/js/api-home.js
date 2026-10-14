@@ -38,7 +38,7 @@ function escHtmlSafe(value) {
         const specsPart = specs ? ` <span style="color:#64748b;font-weight:500">(${escapeHtml(specs)})</span>` : '';
         const note  = i.note ? ` <span style="color:#ec5b13;font-weight:800">${escapeHtml(i.note)}</span>` : '';
         const user  = i.userName ? ` <span style="color:#0f172a;font-weight:700">【${escapeHtml(i.userName)}】</span>` : '';
-        return `<span style="font-weight:600;color:#64748b">【${i.qty||1}杯】${escapeHtml(name)}</span>${specsPart}${escHtmlSafe(note)}${user}`;
+        return `<span style="font-weight:600;color:#64748b">【${i.qty||1}杯】${escapeHtml(name)}</span>${specsPart}${note}${user}`;
     };
 
     const fmtItems = (items) => {

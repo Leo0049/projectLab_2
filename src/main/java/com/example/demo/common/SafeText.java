@@ -42,6 +42,30 @@ public final class SafeText {
         return s;
     }
 
+    /**
+     * 會變成頁面上「品牌、門市、分類、品項、規格、配料」顯示字串的寫入端規則。
+     *
+     * <p>與 {@link #normalizeDisplayName} 的差別只在上限：這裡的上限由呼叫端依欄位長度指定，
+     * 且空白不在此處拒絕（各端點已有自己的「必填」訊息）。null 維持 null；
+     * 超過上限或含有 {@code < > " `} 與控制字元一律 400。
+     *
+     * <p>顧客送來的規格快照（甜度、冰量、杯型、配料名稱）也走這條規則：商品只有一個選項時，
+     * 規格會被伺服器覆寫，但多選項時用戶端送來的字串會原樣落庫，不擋就會把標籤存進門市後台。
+     */
+    public static String normalizeLabel(String raw, int maxLength) {
+        if (raw == null) {
+            return null;
+        }
+        String s = raw.trim();
+        if (s.codePointCount(0, s.length()) > maxLength) {
+            throw new CustomException("400", "名稱不可超過 " + maxLength + " 字");
+        }
+        if (s.codePoints().anyMatch(SafeText::isForbidden)) {
+            throw new CustomException("400", "名稱含有不允許的字元（< > \" ` 或控制字元）");
+        }
+        return s;
+    }
+
     public static String sanitizeDisplayName(String raw, String fallback) {
         if (raw == null) {
             return fallback;

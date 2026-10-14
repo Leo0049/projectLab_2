@@ -827,7 +827,7 @@ function escHtmlSafe(value) {
                                 <div class="flex gap-3">
                                     <i data-lucide="${icon}" class="w-5 h-5 text-gray-400 mt-0.5 shrink-0"></i>
                                     <div>
-                                        <p class="font-bold text-sm mb-0.5">${addr.label || '其他'}</p>
+                                        <p class="font-bold text-sm mb-0.5">${escHtmlSafe(addr.label || '其他')}</p>
                                         <p class="text-sm text-gray-500">${escHtmlSafe(addr.address || '未填寫地址')}</p>
                                     </div>
                                 </div>
@@ -1103,7 +1103,7 @@ function escHtmlSafe(value) {
                         return `
                         <div class="flex justify-between items-center p-4 bg-white dark:bg-zinc-800 rounded-xl border border-gray-100 dark:border-zinc-700">
                             <div>
-                                <p class="font-bold">${label}</p>
+                                <p class="font-bold">${escHtmlSafe(label)}</p>
                                 <p class="text-xs text-gray-400">${new Date(r.createdAt).toLocaleString()}</p>
                                 <p class="text-[10px] text-gray-300 mt-1">${escHtmlSafe(subDesc || '')}</p>
                             </div>
