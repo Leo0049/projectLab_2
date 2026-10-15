@@ -665,8 +665,9 @@ public class UserController {
             return ResponseEntity.status(500).body("UserService not available");
         }
         try {
-            userService.changePassword(userId, request.getOldPassword(), request.getNewPassword());
-            return ResponseEntity.ok("Password changed successfully");
+            String token = userService.changePassword(userId, request.getOldPassword(), request.getNewPassword());
+            // 舊權杖已失效（N13）；回傳新權杖，讓目前這個瀏覽器維持登入
+            return ResponseEntity.ok(Map.of("message", "Password changed successfully", "token", token));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

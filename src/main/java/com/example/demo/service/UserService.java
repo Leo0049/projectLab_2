@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.common.JwtUtils;
 import com.example.demo.entity.User;
 import com.example.demo.repository.UserRepository;
 
@@ -17,6 +18,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtUtils jwtUtils;
 
     public Optional<User> findById(Long userId) {
         return userRepository.findById(userId);
@@ -57,16 +59,22 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    /**
+     * 修改密碼，回傳新權杖。改密碼會遞增 tokenVersion，之前簽發的權杖全部失效（N13）；
+     * 目前這個瀏覽器拿到新權杖即可維持登入。
+     */
     @Transactional
-    public void changePassword(Long userId, String oldPassword, String newPassword) {
-        User user = userRepository.findById(userId)
+    public String changePassword(Long userId, String oldPassword, String newPassword) {
+        // 列鎖：同一帳號併發改密碼時，版本遞增不會互相覆蓋
+        User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
             throw new RuntimeException("舊密碼不正確");
         }
 
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        return jwtUtils.generateToken(user.getId(), user.getRole(), user.getPhone(), user.getTokenVersion());
     }
 }

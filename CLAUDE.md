@@ -173,7 +173,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-15，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：285 個 `@Test`，分布在 50 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-15，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：303 個 `@Test`，分布在 52 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -182,15 +182,17 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `GroupOrderSecurityTest`（5） | 揪團 H-1～H-3：伺服器重算價格與歸屬；他人的 couponId 被拒；非團長不可改他人揪團狀態；團長本人的截單與重開可行，亂打的狀態被白名單擋下 |
 | 授權與路由 | `GroupOrderServiceAuthorizationTest`（6） | 揪團讀取與加入：只有發起人能取得分享 token；非成員不可讀數字 id 的明細；舊版加入必須帶正確的 token；拒絕他品牌的商品與門市停售的商品 |
 | 授權與路由 | `StompSubscribeRulesTest`（11） | WebSocket 訂閱授權的純規則：顧客只能訂閱自己參與的訂單；揪團推播只開放成員（團長，或已在團內有品項的團員），持分享連結但未加入者不可訂閱（N12）；門市只能訂閱自己的頻道；角色必須相符（id 會撞號）；未知目的地與超大數字 id 一律拒絕 |
-| 授權與路由 | `StompAuthInterceptorTest`（23） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團推播的發起人（即使沒有品項）與已在團內有品項的團員可訂閱，只持分享連結者不可訂閱（N12）；門市不可訂閱揪團推播；已刪除或不存在的帳號、連線後 token 過期者不可連線或訂閱（N7）；客戶端直接 SEND 一律拒絕（N5） |
+| 授權與路由 | `StompAuthInterceptorTest`（26） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團推播的發起人（即使沒有品項）與已在團內有品項的團員可訂閱，只持分享連結者不可訂閱（N12）；門市不可訂閱揪團推播；已刪除或不存在的帳號、連線後 token 過期者不可連線或訂閱（N7）；客戶端直接 SEND 一律拒絕（N5）；權杖版本與帳號目前版本不符（改過密碼前簽發）者不可連線，連線後改密碼，之後的 SUBSCRIBE 一律拒絕（N13） |
 | 授權與路由 | `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
-| 授權與路由 | `AccountStatusTest`（6） | 帳號可用性規則（N7）：未刪除的顧客、存在的品牌與門市可用；已刪除、不存在、未知角色或缺少 id 一律不可用；HTTP 與 STOMP 共用此規則 |
-| 授權與路由 | `JwtAuthenticationFilterTest`（7） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒 |
+| 授權與路由 | `AccountStatusTest`（10） | 帳號可用性規則（N7）：未刪除的顧客、存在的品牌與門市可用；已刪除、不存在、未知角色或缺少 id 一律不可用；HTTP 與 STOMP 共用此規則；權杖版本不符（改過密碼前簽發）或角色已改變者一律不可用（N13）；顧客 token 不比對門市資料列（id 會撞號） |
+| 授權與路由 | `JwtAuthenticationFilterTest`（11） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒；改密碼前簽發的顧客或門市 token 被拒、改密碼後簽發的通過（N13）；角色已改變的顧客 token 被拒（N13） |
 | 帳號與登入 | `AuthServiceSecurityTest`（7） | 帳號安全：mock Firebase token 只在 mock 模式可用；已刪除帳號不可經社群登入；手機證明不可與他人的社群 UID 併用；合併帳號時拒絕其他號碼的 token；社群 provider 不符時在設定密碼前拒絕 |
 | 帳號與登入 | `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策：已綁定、手機衝突、建立新帳號；不變量：手機已被使用就絕不另建帳號 |
 | 帳號與登入 | `SmsModeDefaultTest`（3） | sms.mode 預設必須是 firebase（fail-closed，N15）；application.yml 不得把 mock 設為未設定 SMS_MODE 時的預設；prod 與 local 範本各自明確指定 |
 | 帳號與登入 | `AuthServiceSmsModeGuardTest`（6） | prod profile 下 `sms.mode` 不是 firebase 就拒絕（含 `MOCK_TOKEN` 分支） |
 | 帳號與登入 | `JwtUtilsProdGuardTest`（4） | JWT 密鑰：dev 可用預設值；prod 拒絕預設值與空白密鑰；prod 接受隨機密鑰 |
+| 帳號與登入 | `JwtTokenVersionTest`（3） | 權杖的帳號版本聲明（N13）：簽發時的版本可原樣解析；沒有版本聲明的舊權杖視為版本 0，部署後既有登入不被強制登出。需要 jjwt，只在 CI 執行 |
+| 帳號與登入 | `UserTokenVersionTest`（4） | 改密碼與撤銷權杖會遞增帳號版本（N13）；撤銷只動版本、不動密碼；新帳號從版本 0 開始 |
 | 帳號與登入 | `DemoDataSeederProdGuardTest`（2） | prod profile 不植入示範帳號，即使 `DEMO_DATA_ENABLED=true` |
 | 帳號與登入 | `LoginAttemptLimiterTest`（10） | 登入／OTP 固定視窗限流（ADR-0004）；偽造的 `X-Forwarded-For` 不改變識別；Redis 不可用時退回本地計數；Redis 拋例外時仍以本地計數擋下第三次 |
 | 金流與併發 | `WalletConcurrencyTest`（3） | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支、列鎖不被一級快取架空 |
@@ -227,12 +229,13 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 `applyDefaultTimeZone()` 把 JVM 預設時區設為 Asia/Taipei，不經過 `main()` |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 40 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 42 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
 > 新增測試時請照做，在修補前後各跑一次，確認它真的抓得到回歸，否則只是裝飾。
 > 2026-10-12 與本輪新增的測試（`IdempotencyServiceTest`、`ExclusiveJobRunnerTest`、`GeoBoundsTest`、`RequestIdFilterTest`、`AuthorizationRouteInventoryTest`、`BrandSummaryJsonTest`、`StompAuthInterceptorTest`、`WebSocketWiringTest`、`PageSizeClampTest`、`UploadControllerTest`、`OrderNoFormatTest`、`TimeZoneConfigTest`，以及 `LoginAttemptLimiterTest` 的新增案例）已於 2026-10-13 做過還原驗證：共 39 組故意破壞（把修補改回舊寫法，或改壞規則），每一組都讓至少一支對應的測試轉紅，對照表見 README「還原驗證」。這些類別並非每個測試都被破壞過：GeoBoundsTest、RequestIdFilterTest、AuthorizationRouteInventoryTest 各有未破壞的案例，LoginAttemptLimiterTest 只破壞了新增的 2 個案例，確切範圍以 README 為準。同一次 CI 內若同時破壞會互相遮蔽的兩處，必須單獨再跑一次，否則看不出各自是否被抓到。破壞用的 commit 標題以 `scratch:` 開頭，只存在於暫存分支 `main-cbduag`（可刪除），不屬於 PR 分支。
+> 2026-10-15 的 N13（權杖版本）已在本機還原驗證：`AccountStatus` 的 8 組破壞（版本、角色、已刪除、品牌與門市、大小寫、顧客比對到門市列）與 `User` 改密碼／撤銷的 3 組破壞，都讓至少一支對應的測試轉紅。本機以真實的 `AccountStatus` 搭配 stub 執行，stub 中的兩個 `User` 方法逐字取自 `User.java`。`JwtAuthenticationFilterTest`、`StompAuthInterceptorTest`、`JwtTokenVersionTest` 的新案例需要 Spring、Mockito 或 jjwt，本機無法執行，尚待 CI 確認；README 的「還原驗證」表尚未更新。
 
 ### 另外兩層驗證（都在 CI 上跑）
 
@@ -532,8 +535,8 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
 `/ws-cart` 的 SockJS handshake 走 CORS 白名單；STOMP 層由
 `WebSocketConfig.configureClientInboundChannel` 掛上 `StompAuthInterceptor`，攔截：
 
-- **CONNECT**：必須帶 `Authorization: Bearer <jwt>`，驗證簽章與到期時間後，帳號仍須存在且未刪除（N7），才綁為連線的 Principal
-- **SUBSCRIBE**：每次都重新檢查 token 是否仍在有效期內、帳號是否仍存在（N7）；`/topic/order/{id}` 僅限該訂單的**發起人或參與者**
+- **CONNECT**：必須帶 `Authorization: Bearer <jwt>`，驗證簽章與到期時間後，帳號仍須存在且未刪除（N7）、權杖版本須為帳號目前版本（N13），才綁為連線的 Principal
+- **SUBSCRIBE**：每次都重新檢查 token 是否仍在有效期內、帳號是否仍存在（N7）、權杖版本是否仍為帳號目前版本（N13）；`/topic/order/{id}` 僅限該訂單的**發起人或參與者**
   （參與者以 `order_items` 判定，揪團成員才看得到自己團的狀態）；
   `/topic/group/{token}` 僅限該揪團的**成員**（團長，或已在團內有品項的團員；N12），持分享連結者不可訂閱
 - **SEND**：客戶端直接送出的 SEND 一律拒絕（N5）。SimpleBroker 會把它轉給訂閱者，放行就能偽造推播
@@ -629,7 +632,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **前端含 HTML 的模板字串中插入名稱類欄位，一律以頁面內的轉義函式包住**（自動規則注入的是 `escHtmlSafe`，既有頁面用 `esc`／`escapeHtml`）。**不要對已在來源處轉義的變數再轉義一次**，否則會顯示成 `&amp;`。
 - **`onclick="…${值}…"` 的 JS 字串內不得插入名稱類資料**：HTML 轉義不能防止字串跳脫。改用 `data-*` 屬性，由事件函式讀取 `dataset`（見 `profile.html` 的 `editExtraAddressFromEl`）。
 - **`permitAll` 一律指定 HTTP method**（`SecurityConfig`）。`/api/stores/auth/**` 只開放 POST，`/api/menu/**`、`/api/home/**`、`/api/location/**`、`/api/group-orders/join/**` 等只開放 GET；WebSocket 的 `/ws/**`、`/ws-cart/**` 例外，因為 SockJS 會用到多種方法。
-- **WebSocket 的 SUBSCRIBE 依角色授權**（`StompAuthInterceptor.authorizeSubscribe`，規則本體在 `StompSubscribeRules`）：`/topic/order/{id}` 限顧客且須為參與者；`/topic/group/{token}` 限該揪團的成員（N12）；`/topic/store/{id}` 只允許該門市本人（角色為 `STORE` 且 id 相符）；其餘目的地一律拒絕。principal 必須帶 `role`，因為門市與顧客的 id 會撞號。CONNECT 與每次 SUBSCRIBE 都重新檢查帳號與 token 期限（N7）；客戶端 SEND 一律拒絕（N5）。
+- **WebSocket 的 SUBSCRIBE 依角色授權**（`StompAuthInterceptor.authorizeSubscribe`，規則本體在 `StompSubscribeRules`）：`/topic/order/{id}` 限顧客且須為參與者；`/topic/group/{token}` 限該揪團的成員（N12）；`/topic/store/{id}` 只允許該門市本人（角色為 `STORE` 且 id 相符）；其餘目的地一律拒絕。principal 必須帶 `role`，因為門市與顧客的 id 會撞號。CONNECT 與每次 SUBSCRIBE 都重新檢查帳號、權杖版本（N13）與 token 期限（N7）；客戶端 SEND 一律拒絕（N5）。
 - **`docker-compose.yml` 的 MySQL 與 Redis 埠口只綁 `127.0.0.1`**；正式環境範本關閉 springdoc（`application-prod.yml.example`）。
 - **分店回應不含店長手機（N6）**：`StoreService.toMap` 只回 `storePhone`；`phone` 鍵（店長手機）只由 `getProfile`（店家後台本人）加回。公開端點（`/api/stores/{id}/v2`、`/api/stores/brand/{id}`）共用 `toMap`，不得再放進去。
 - **記錄檔不寫原始手機號碼（N17）**：`AuthService` 的記錄改用 `common/PhoneMask.mask()`（只留末三碼），並附上 `userId` 以便對應。`LogPhoneGuardTest` 掃描 `src/main/java` 內所有 `log.*(` 呼叫，之後新增的記錄若提到手機卻未遮罩，測試會紅。
@@ -645,3 +648,13 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **Actuator 只開放 `health`，且 `show-details` 為 `never`**。不要為了除錯暴露更多端點；需要的資訊走 log，並以 `X-Request-Id` 串接。
 - **`X-Request-Id`**：每個回應都帶此標頭。合規的傳入值會沿用（`^[A-Za-z0-9_-]{8,64}$`），否則產生新的 32 位十六進位 id；它同時被寫進每一行 log 的 MDC。
 - **靜態頁面由後端的 `common/WebConfig` 以 `file:frontend/…` 提供**，Docker 映像的工作目錄因此必須有 `frontend/`（見 `Dockerfile`）。新增執行期需要的頂層目錄時，要同步更新 Dockerfile；`.dockerignore` 排除了 `docs/`、`scripts/`、`.github/`。
+
+## 2026-10-15 新增的不變量與約定
+
+- **權杖在改密碼與刪除帳號後失效（N13）**：權杖帶 `tokenVersion` 聲明（`JwtUtils.generateToken` 的四參數版本）。`AccountStatus.isActive` 比對資料庫目前的版本與角色，HTTP 與 STOMP（CONNECT、每次 SUBSCRIBE）共用這一條規則。
+- **改密碼一律呼叫 `User.changePasswordHash()`**，它會換掉雜湊並遞增版本。`setPasswordHash` 只用於建立新帳號（註冊、新增分店）與示範資料。需要強制登出的路徑（如刪除帳號）呼叫 `revokeIssuedTokens()`。
+- **改密碼 API 回傳新權杖**（`POST /api/users/{userId}/change-password` 回傳 `{ message, token }`）。前端必須換上（`profile.html` 已處理）；其他裝置上的舊權杖在下一次需要登入的請求即被拒絕。
+- **品牌與門市目前沒有改密碼或停用路徑**，`token_version` 欄位存在但尚未使用。日後新增這兩條路徑時，必須遞增版本，否則舊權杖不會失效。
+- **沒有版本聲明的舊權杖視為版本 0**，欄位預設 0，部署時既有登入不會被強制登出。
+- **部署前必須先手動加欄位**：`users`、`brands`、`stores` 新增 `token_version INT NOT NULL DEFAULT 0`。prod 為 `ddl-auto: validate`，欄位不存在時啟動會失敗（SQL 見 `DATABASE.md`「結構變更方式」）。
+- **登出仍只在前端清除 token**，伺服器端不撤銷；「登出所有裝置」尚未實作，待產品決定。已建立的 STOMP 訂閱不會因版本改變而即時中斷，直到連線結束（與 N12 同一缺口）；新的 SUBSCRIBE 會被拒絕。

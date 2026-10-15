@@ -117,7 +117,7 @@ class AuthServiceSecurityTest {
         when(userAuthProviderRepository.findByProviderAndProviderUid("GOOGLE", "google-uid"))
                 .thenReturn(Optional.empty());
         when(passwordEncoder.encode("newpass123")).thenReturn("hashed-password");
-        when(jwtUtils.generateToken(9L, "CUSTOMER", phone)).thenReturn("session-token");
+        when(jwtUtils.generateToken(9L, "CUSTOMER", phone, 0)).thenReturn("session-token");
 
         FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
         FirebaseToken phoneToken = mock(FirebaseToken.class);

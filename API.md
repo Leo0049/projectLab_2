@@ -153,7 +153,7 @@
 | GET | `/api/users/{userId}` | 取得使用者資料 |
 | PUT | `/api/users/{userId}/avatar` | 更新頭像 URL |
 | PUT | `/api/users/{userId}/profile` | 更新個人資料 |
-| POST | `/api/users/{userId}/change-password` | 修改密碼 |
+| POST | `/api/users/{userId}/change-password` | 修改密碼；回傳 `{ message, token }`。改密碼後其他裝置的舊權杖失效，前端須換上新 token（N13） |
 | GET | `/api/users/{userId}/address` | 取得使用者常用地址列表 |
 | POST | `/api/users/{userId}/addresses` | 新增常用地址 Body: `{ city, district, street, label?, latitude?, longitude? }` |
 | PUT | `/api/users/{userId}/addresses/{addressId}` | 更新指定地址 |

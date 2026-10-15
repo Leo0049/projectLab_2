@@ -2,6 +2,7 @@ package com.example.demo.config;
 
 import com.example.demo.common.JwtUtils;
 import com.example.demo.entity.GroupOrder;
+import com.example.demo.entity.Store;
 import com.example.demo.entity.User;
 import com.example.demo.repository.BrandRepository;
 import com.example.demo.repository.GroupOrderRepository;
@@ -76,7 +77,7 @@ class StompAuthInterceptorTest {
         stores = mock(StoreRepository.class);
         // 預設所有帳號都是啟用中的；需要停用或刪除的案例再個別覆寫
         when(users.findById(anyLong())).thenAnswer(inv -> Optional.of(customer(inv.getArgument(0))));
-        when(stores.existsById(anyLong())).thenReturn(true);
+        when(stores.findById(anyLong())).thenAnswer(inv -> Optional.of(store(inv.getArgument(0))));
         clock = new ShiftableClock();
         channel = new ExecutorSubscribableChannel();
         channel.addInterceptor(new StompAuthInterceptor(jwt, groupOrders, orderItems, users, brands, stores, clock));
@@ -149,7 +150,7 @@ class StompAuthInterceptorTest {
     @Test
     @DisplayName("資料庫中已不存在的門市 token 無法連線（N7）")
     void storeMissingFromDatabaseCannotConnect() {
-        when(stores.existsById(7L)).thenReturn(false);
+        when(stores.findById(7L)).thenReturn(Optional.empty());
 
         assertThrows(MessageDeliveryException.class,
                 () -> connect("Bearer " + jwt.generateToken(7L, "STORE", "0912345678")));
@@ -294,6 +295,38 @@ class StompAuthInterceptorTest {
         assertEquals(1, delivered.size());
     }
 
+    // ── 帳號版本（N13）──────────────────────────────────────
+
+    @Test
+    @DisplayName("改密碼之前簽發的 token 無法連線（N13）")
+    void connectWithTokenIssuedBeforePasswordChangeIsRejected() {
+        when(users.findById(7L)).thenReturn(Optional.of(customerWithTokenVersion(7L, 1)));
+
+        assertThrows(MessageDeliveryException.class,
+                () -> connect("Bearer " + jwt.generateToken(7L, "CUSTOMER", "0912345678")));
+        assertTrue(delivered.isEmpty());
+    }
+
+    @Test
+    @DisplayName("改密碼之後重新登入取得的 token 可以連線（N13）")
+    void connectWithTokenIssuedAfterPasswordChangeSucceeds() {
+        when(users.findById(7L)).thenReturn(Optional.of(customerWithTokenVersion(7L, 1)));
+
+        assertNotNull(connect("Bearer " + jwt.generateToken(7L, "CUSTOMER", "0912345678", 1)));
+        assertEquals(1, delivered.size());
+    }
+
+    @Test
+    @DisplayName("連線後才改密碼，之後的 SUBSCRIBE 一律拒絕（N13）")
+    void passwordChangedAfterConnectCannotSubscribe() {
+        when(orderItems.existsByGroupOrderIdAndUserId(10L, 1L)).thenReturn(true);
+        Principal customer = connect("Bearer " + jwt.generateToken(1L, "CUSTOMER", "0912345678"));
+        when(users.findById(1L)).thenReturn(Optional.of(customerWithTokenVersion(1L, 1)));
+
+        assertThrows(MessageDeliveryException.class, () -> subscribe(customer, "/topic/order/10"));
+        assertEquals(1, delivered.size());
+    }
+
     // ── 客戶端 SEND（N5）─────────────────────────────────────
 
     @Test
@@ -368,6 +401,18 @@ class StompAuthInterceptorTest {
         User user = customer(id);
         user.setIsDeleted(true);
         return user;
+    }
+
+    private static User customerWithTokenVersion(long id, int tokenVersion) {
+        User user = customer(id);
+        user.setTokenVersion(tokenVersion);
+        return user;
+    }
+
+    private static Store store(Long id) {
+        Store store = new Store();
+        store.setId(id);
+        return store;
     }
 
     private static GroupOrder orderInitiatedBy(long userId) {

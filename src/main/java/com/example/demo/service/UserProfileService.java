@@ -65,6 +65,8 @@ public class UserProfileService {
                 .orElseThrow(() -> new CustomException("404", "找不到使用者"));
         user.setIsDeleted(true);
         user.setDeletedAt(LocalDateTime.now());
+        // 邏輯刪除後，既有權杖即使日後帳號被還原也不再有效（N13）
+        user.revokeIssuedTokens();
         userRepository.save(user);
     }
 

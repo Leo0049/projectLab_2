@@ -31,7 +31,7 @@ import java.util.Date;
  * <ul>
  *   <li>CONNECT：必須帶 Authorization: Bearer &lt;jwt&gt;。驗證簽章與到期時間後，還要確認帳號仍可使用
  *       （已刪除或不存在的帳號不得連線），才綁定為該連線的 Principal。</li>
- *   <li>SUBSCRIBE：每次都重新檢查 token 是否仍在有效期內、帳號是否仍可使用（連線可能維持很久，期間帳號可能被刪除），
+ *   <li>SUBSCRIBE：每次都重新檢查 token 是否仍在有效期內、帳號是否仍可使用、token 是否仍是帳號目前的版本（連線可能維持很久，期間帳號可能被刪除或改過密碼），
  *       再依目的地授權：/topic/order/{id} 僅限該訂單的發起人或參與者；
  *       /topic/group/{token} 僅限該揪團的成員（團長，或已在團內有品項的團員）。
  *       token 本身只是分享連結，持有它的人不一定是成員，不能據此推播團內的品項異動。
@@ -113,11 +113,12 @@ public class StompAuthInterceptor implements ChannelInterceptor {
                 throw new MessageDeliveryException("WebSocket token 無法解析出使用者");
             }
             String role = jwtUtils.getRoleFromToken(token);
+            int tokenVersion = jwtUtils.getTokenVersionFromToken(token);
             Date expiration = jwtUtils.getExpirationFromToken(token);
             if (expiration == null) {
                 throw new MessageDeliveryException("WebSocket token 缺少到期時間");
             }
-            StompUserPrincipal principal = new StompUserPrincipal(userId, role, expiration.toInstant());
+            StompUserPrincipal principal = new StompUserPrincipal(userId, role, tokenVersion, expiration.toInstant());
             if (!isActiveAccount(principal)) {
                 log.warn("已停用或不存在的帳號嘗試建立 WebSocket 連線 - UID: {}, Role: {}", userId, role);
                 throw new MessageDeliveryException("帳號已停用或不存在，無法連線");
@@ -170,7 +171,8 @@ public class StompAuthInterceptor implements ChannelInterceptor {
 
     /** 帳號目前是否仍可使用；與 HTTP 的 JwtAuthenticationFilter 共用同一條規則（{@link AccountStatus}） */
     private boolean isActiveAccount(StompUserPrincipal user) {
-        return AccountStatus.isActive(user.userId(), user.role(), userRepository, brandRepository, storeRepository);
+        return AccountStatus.isActive(user.userId(), user.role(), user.tokenVersion(),
+                userRepository, brandRepository, storeRepository);
     }
 
     /** 訂單的發起人或參與者（揪團的團員也會看訂單狀態，不能只認發起人） */
@@ -194,9 +196,11 @@ public class StompAuthInterceptor implements ChannelInterceptor {
 
     /**
      * 綁在 STOMP 連線上的身分：userId、角色（門市與顧客的 id 會撞號，必須一併比對角色），
+     * token 簽發時的帳號版本（改密碼後，舊連線的 SUBSCRIBE 會被拒絕，N13），
      * 以及 token 的到期時間（SUBSCRIBE 時據此拒絕已過期的連線）。
      */
-    public record StompUserPrincipal(Long userId, String role, Instant expiresAt) implements Principal {
+    public record StompUserPrincipal(Long userId, String role, int tokenVersion, Instant expiresAt)
+            implements Principal {
         @Override
         public String getName() {
             return String.valueOf(userId);

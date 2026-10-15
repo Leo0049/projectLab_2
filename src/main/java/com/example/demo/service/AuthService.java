@@ -203,7 +203,7 @@ public class AuthService {
         User user = userRepository.findByPhone(phone).orElseThrow(() -> new CustomException("404", "帳號不存在"));
         ensureActiveUser(user);
 
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
         log.info("帳號整合成功（三方帳號設定密碼）：userId={} phone={}", user.getId(), PhoneMask.mask(phone));
@@ -305,7 +305,7 @@ public class AuthService {
         User user = userRepository.findByPhone(phone).orElseThrow(() -> new CustomException("404", "帳號不存在"));
         ensureActiveUser(user);
         bindVerifiedSocialProvider(user, socialIdToken, providerUid, provider);
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         return Result.success(generateLoginResponse(user));
     }
@@ -318,7 +318,7 @@ public class AuthService {
         User user = userRepository.findByPhone(phoneNumber)
                 .orElseThrow(() -> new CustomException("404", "帳號不存在"));
         ensureActiveUser(user);
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         log.info("密碼重設成功：userId={} phone={}", user.getId(), PhoneMask.mask(phoneNumber));
     }
@@ -439,7 +439,7 @@ public class AuthService {
     }
 
     private Map<String, Object> generateLoginResponse(User user) {
-        String token = jwtUtils.generateToken(user.getId(), user.getRole(), user.getPhone());
+        String token = jwtUtils.generateToken(user.getId(), user.getRole(), user.getPhone(), user.getTokenVersion());
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("userId", user.getId());

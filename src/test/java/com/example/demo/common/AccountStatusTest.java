@@ -1,5 +1,7 @@
 package com.example.demo.common;
 
+import com.example.demo.entity.Brand;
+import com.example.demo.entity.Store;
 import com.example.demo.entity.User;
 import com.example.demo.repository.BrandRepository;
 import com.example.demo.repository.StoreRepository;
@@ -11,7 +13,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -19,64 +20,129 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 帳號可用性規則（純函式，不載入 Spring context）。
  *
- * <p>HTTP 的 {@link JwtAuthenticationFilter} 與 WebSocket 的 StompAuthInterceptor 共用這一條規則（N7），
- * 因此這裡只測規則本身；兩端是否確實呼叫它，由各自的測試負責。
+ * <p>HTTP 的 {@link JwtAuthenticationFilter} 與 WebSocket 的 StompAuthInterceptor 共用這一條規則（N7、N13），
+ * 因此這裡只測規則本身；兩端是否確實帶入權杖版本，由各自的測試負責。
  * 儲存庫以 {@link Proxy} 代替，只允許規則會呼叫到的方法，不需要 mock 框架。
  */
 class AccountStatusTest {
 
     @Test
-    @DisplayName("未刪除的顧客可使用")
+    @DisplayName("未刪除、角色相符、版本相符的顧客可使用")
     void activeCustomerIsUsable() {
-        assertTrue(AccountStatus.isActive(1L, "CUSTOMER",
-                users(Map.of(1L, user(false))), noBrands(), noStores()));
+        assertTrue(AccountStatus.isActive(1L, "CUSTOMER", 0,
+                users(Map.of(1L, customer(false, 0))), noBrands(), noStores()));
     }
 
     @Test
     @DisplayName("已刪除的顧客不可使用，即使 token 仍在有效期內（N7）")
     void deletedCustomerIsNotUsable() {
-        assertFalse(AccountStatus.isActive(1L, "CUSTOMER",
-                users(Map.of(1L, user(true))), noBrands(), noStores()));
+        assertFalse(AccountStatus.isActive(1L, "CUSTOMER", 0,
+                users(Map.of(1L, customer(true, 0))), noBrands(), noStores()));
     }
 
     @Test
     @DisplayName("資料庫中不存在的顧客不可使用")
     void missingCustomerIsNotUsable() {
-        assertFalse(AccountStatus.isActive(9L, "CUSTOMER", users(Map.of()), noBrands(), noStores()));
+        assertFalse(AccountStatus.isActive(9L, "CUSTOMER", 0, users(Map.of()), noBrands(), noStores()));
     }
 
     @Test
     @DisplayName("品牌與門市帳號只在資料列存在時可使用（N7）")
     void brandAndStoreAreUsableOnlyWhileTheyExist() {
         UserRepository users = users(Map.of());
-        assertTrue(AccountStatus.isActive(10L, "BRAND", users, brands(Set.of(10L)), noStores()));
-        assertFalse(AccountStatus.isActive(11L, "BRAND", users, brands(Set.of(10L)), noStores()));
-        assertTrue(AccountStatus.isActive(20L, "STORE", users, noBrands(), stores(Set.of(20L))));
-        assertFalse(AccountStatus.isActive(21L, "STORE", users, noBrands(), stores(Set.of(20L))));
+        assertTrue(AccountStatus.isActive(10L, "BRAND", 0,
+                users, brands(Map.of(10L, brand("BRAND", 0))), noStores()));
+        assertFalse(AccountStatus.isActive(11L, "BRAND", 0,
+                users, brands(Map.of(10L, brand("BRAND", 0))), noStores()));
+        assertTrue(AccountStatus.isActive(20L, "STORE", 0,
+                users, noBrands(), stores(Map.of(20L, store("STORE", 0)))));
+        assertFalse(AccountStatus.isActive(21L, "STORE", 0,
+                users, noBrands(), stores(Map.of(20L, store("STORE", 0)))));
     }
 
     @Test
     @DisplayName("角色比對不分大小寫")
     void roleMatchIgnoresCase() {
-        assertTrue(AccountStatus.isActive(1L, "customer",
-                users(Map.of(1L, user(false))), noBrands(), noStores()));
+        assertTrue(AccountStatus.isActive(1L, "customer", 0,
+                users(Map.of(1L, customer(false, 0))), noBrands(), noStores()));
     }
 
     @Test
     @DisplayName("未知角色、缺少角色或缺少 id 一律不可使用")
     void unknownOrIncompleteIdentityIsNotUsable() {
-        UserRepository users = users(Map.of(1L, user(false)));
-        assertFalse(AccountStatus.isActive(1L, "ADMIN", users, noBrands(), noStores()));
-        assertFalse(AccountStatus.isActive(1L, null, users, noBrands(), noStores()));
-        assertFalse(AccountStatus.isActive(null, "CUSTOMER", users, noBrands(), noStores()));
+        UserRepository users = users(Map.of(1L, customer(false, 0)));
+        assertFalse(AccountStatus.isActive(1L, "ADMIN", 0, users, noBrands(), noStores()));
+        assertFalse(AccountStatus.isActive(1L, null, 0, users, noBrands(), noStores()));
+        assertFalse(AccountStatus.isActive(null, "CUSTOMER", 0, users, noBrands(), noStores()));
+    }
+
+    @Test
+    @DisplayName("改密碼之前簽發的權杖不可使用，三種帳號皆然（N13）")
+    void staleTokenVersionIsRejectedForEveryAccountType() {
+        assertFalse(AccountStatus.isActive(1L, "CUSTOMER", 0,
+                users(Map.of(1L, customer(false, 1))), noBrands(), noStores()));
+        assertFalse(AccountStatus.isActive(10L, "BRAND", 0,
+                users(Map.of()), brands(Map.of(10L, brand("BRAND", 1))), noStores()));
+        assertFalse(AccountStatus.isActive(20L, "STORE", 0,
+                users(Map.of()), noBrands(), stores(Map.of(20L, store("STORE", 1)))));
+    }
+
+    @Test
+    @DisplayName("版本相符（含改密碼後重新登入取得的新權杖）時可使用（N13）")
+    void currentTokenVersionIsAccepted() {
+        assertTrue(AccountStatus.isActive(1L, "CUSTOMER", 3,
+                users(Map.of(1L, customer(false, 3))), noBrands(), noStores()));
+        assertTrue(AccountStatus.isActive(10L, "BRAND", 2,
+                users(Map.of()), brands(Map.of(10L, brand("BRAND", 2))), noStores()));
+        assertTrue(AccountStatus.isActive(20L, "STORE", 5,
+                users(Map.of()), noBrands(), stores(Map.of(20L, store("STORE", 5)))));
+    }
+
+    @Test
+    @DisplayName("帳號的角色被改成其他值後，舊權杖不可使用（N13）")
+    void roleChangeInvalidatesTheOldToken() {
+        assertFalse(AccountStatus.isActive(1L, "CUSTOMER", 0,
+                users(Map.of(1L, customerWithRole("BRAND"))), noBrands(), noStores()));
+        assertFalse(AccountStatus.isActive(10L, "BRAND", 0,
+                users(Map.of()), brands(Map.of(10L, brand("STORE", 0))), noStores()));
+        assertFalse(AccountStatus.isActive(20L, "STORE", 0,
+                users(Map.of()), noBrands(), stores(Map.of(20L, store("BRAND", 0)))));
+    }
+
+    @Test
+    @DisplayName("顧客 token 不會去比對門市資料列，即使 id 相同（門市與顧客的 id 會撞號，N13）")
+    void customerTokenNeverMatchesAStoreRowWithTheSameId() {
+        assertFalse(AccountStatus.isActive(7L, "CUSTOMER", 0,
+                users(Map.of()), noBrands(), stores(Map.of(7L, store("STORE", 0)))));
     }
 
     // ── 測試用的儲存庫與資料 ─────────────────────────────────
 
-    private static User user(boolean deleted) {
+    private static User customer(boolean deleted, int tokenVersion) {
         User user = new User();
         user.setIsDeleted(deleted);
+        user.setTokenVersion(tokenVersion);
         return user;
+    }
+
+    private static User customerWithRole(String role) {
+        User user = customer(false, 0);
+        user.setRole(role);
+        return user;
+    }
+
+    private static Brand brand(String role, int tokenVersion) {
+        Brand brand = new Brand();
+        brand.setRole(role);
+        brand.setTokenVersion(tokenVersion);
+        return brand;
+    }
+
+    private static Store store(String role, int tokenVersion) {
+        Store store = new Store();
+        store.setRole(role);
+        store.setTokenVersion(tokenVersion);
+        return store;
     }
 
     private static UserRepository users(Map<Long, User> rows) {
@@ -86,26 +152,26 @@ class AccountStatusTest {
         });
     }
 
-    private static BrandRepository brands(Set<Long> ids) {
+    private static BrandRepository brands(Map<Long, Brand> rows) {
         return proxy(BrandRepository.class, (method, args) -> {
-            expect(method, "existsById");
-            return ids.contains((Long) args[0]);
+            expect(method, "findById");
+            return Optional.ofNullable(rows.get((Long) args[0]));
         });
     }
 
-    private static StoreRepository stores(Set<Long> ids) {
+    private static StoreRepository stores(Map<Long, Store> rows) {
         return proxy(StoreRepository.class, (method, args) -> {
-            expect(method, "existsById");
-            return ids.contains((Long) args[0]);
+            expect(method, "findById");
+            return Optional.ofNullable(rows.get((Long) args[0]));
         });
     }
 
     private static BrandRepository noBrands() {
-        return brands(Set.of());
+        return brands(Map.of());
     }
 
     private static StoreRepository noStores() {
-        return stores(Set.of());
+        return stores(Map.of());
     }
 
     @FunctionalInterface

@@ -126,7 +126,7 @@ public class BrandService {
                 .orElseThrow(() -> new CustomException("404", "帳號不存在"));
         if (!passwordEncoder.matches(password, brand.getPasswordHash()))
             throw new CustomException("401", "密碼錯誤");
-        String token = jwtUtils.generateToken(brand.getId(), brand.getRole(), brand.getAccount());
+        String token = jwtUtils.generateToken(brand.getId(), brand.getRole(), brand.getAccount(), brand.getTokenVersion());
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("brandId", brand.getId());

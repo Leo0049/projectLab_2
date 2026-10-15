@@ -54,7 +54,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Long userId = jwtUtils.getUserIdFromToken(token);
                 String role = jwtUtils.getRoleFromToken(token);
-                boolean activeIdentity = isActiveIdentity(userId, role);
+                int tokenVersion = jwtUtils.getTokenVersionFromToken(token);
+                boolean activeIdentity = isActiveIdentity(userId, role, tokenVersion);
 
                 if (userId != null && activeIdentity
                         && SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -82,8 +83,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    /** 帳號是否仍可使用；規則本體在 {@link AccountStatus}，與 WebSocket 認證共用（N7）。 */
-    private boolean isActiveIdentity(Long userId, String role) {
-        return AccountStatus.isActive(userId, role, userRepository, brandRepository, storeRepository);
+    /** 帳號與權杖是否仍有效；規則本體在 {@link AccountStatus}，與 WebSocket 認證共用（N7、N13）。 */
+    private boolean isActiveIdentity(Long userId, String role, int tokenVersion) {
+        return AccountStatus.isActive(userId, role, tokenVersion, userRepository, brandRepository, storeRepository);
     }
 }

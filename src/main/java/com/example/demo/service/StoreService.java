@@ -140,7 +140,7 @@ public class StoreService {
                 .orElseThrow(() -> new CustomException("404", "帳號不存在"));
         if (!passwordEncoder.matches(password, store.getPasswordHash()))
             throw new CustomException("401", "密碼錯誤");
-        String token = jwtUtils.generateToken(store.getId(), store.getRole(), store.getAccount());
+        String token = jwtUtils.generateToken(store.getId(), store.getRole(), store.getAccount(), store.getTokenVersion());
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("storeId", store.getId());

@@ -25,6 +25,9 @@ public class JwtUtils {
     /** application.yml 內建的開發預設金鑰前綴；prod profile 下出現即拒絕啟動 */
     static final String DEV_DEFAULT_SECRET_PREFIX = "LocalDevOnlySecretForJoinDrink";
 
+    /** 權杖中記錄簽發時帳號版本的聲明名稱（N13） */
+    static final String TOKEN_VERSION_CLAIM = "tokenVersion";
+
     @Autowired(required = false)
     private Environment environment;
 
@@ -75,11 +78,24 @@ public class JwtUtils {
         }
     }
 
+    /**
+     * 簽發權杖，tokenVersion 為 0。只給沒有版本概念的呼叫端使用；登入與改密碼後的路徑一律用四參數版本，
+     * 否則帳號版本不為 0 時，剛簽出的權杖會被 {@code AccountStatus} 拒絕（N13）。
+     */
     public String generateToken(Long userId, String role, String phoneNumber) {
+        return generateToken(userId, role, phoneNumber, 0);
+    }
+
+    /**
+     * 簽發權杖。tokenVersion 必須是帳號目前的版本（N13）：改密碼、刪除帳號後會遞增，
+     * 之前簽發的權杖就不再符合 {@code AccountStatus}。
+     */
+    public String generateToken(Long userId, String role, String phoneNumber, int tokenVersion) {
         Date now = new Date();
         return Jwts.builder()
                 .claim("userId", userId)
                 .claim("role", role)
+                .claim(TOKEN_VERSION_CLAIM, tokenVersion)
                 .setSubject(phoneNumber)
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + expiration))
@@ -121,5 +137,19 @@ public class JwtUtils {
                 .parseClaimsJws(token)
                 .getBody()
                 .getExpiration();
+    }
+
+    /**
+     * 權杖簽發時帳號的 tokenVersion（N13）。沒有此聲明的舊權杖視為 0，
+     * 因此部署後既有登入不會被強制登出；只有之後改過密碼的帳號，舊權杖才會失效。
+     */
+    public int getTokenVersionFromToken(String token) {
+        Object version = Jwts.parserBuilder()
+                .setSigningKey(signingKey)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get(TOKEN_VERSION_CLAIM);
+        return version instanceof Number ? ((Number) version).intValue() : 0;
     }
 }
