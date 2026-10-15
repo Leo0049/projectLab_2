@@ -567,7 +567,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 | `src/main/resources/serviceAccountKey.json` | Firebase 金鑰 | ✗（已 gitignore） |
 | `.env.example` / `.env.prod.example` / `application-*.yml.example` | 範本 | ✓ |
 
-本機預設 `SMS_MODE=mock`，跳過 Firebase 手機驗證，**不需要金鑰即可註冊登入**。
+本機需設定 `SMS_MODE=mock`（`sms.mode` 的預設是 `firebase`，未設定時不會進入 mock），跳過 Firebase 手機驗證，**不需要金鑰即可註冊登入**。
 
 圖片上傳同理：有設定 Cloudinary 憑證就上傳雲端，沒有就自動存到本機 `uploads/`
 並以 `/uploads/**` 提供。**整個專案不需要任何第三方帳號即可完整運作。**

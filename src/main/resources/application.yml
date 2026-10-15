@@ -3,7 +3,8 @@
 # 原則：不放明文密鑰。所有敏感值改由環境變數注入，冒號後的預設值僅供
 #       「本機 docker compose up」開箱即用，正式環境請務必以環境變數覆寫。
 #
-# 本機啟動：docker compose up -d 之後直接跑，不需額外設定。
+# 本機啟動：docker compose up -d 之後，另設 SMS_MODE=mock（或在 application-local.yml 設 sms.mode: mock）即可跑。
+#          sms.mode 的預設是 firebase（fail-closed），漏設時不會進入 mock。
 
 server:
   port: ${SERVER_PORT:8082}
@@ -74,10 +75,11 @@ firebase:
 #
 # mock 模式會把 MOCK_TOKEN 視為「手機已驗證」，公開的 /api/auth/reset-password-firebase
 # 因此能對任何號碼重設密碼（＝帳號接管）。因此：
-#   1. 預設值僅供本機開發；
+#   1. 預設為 firebase（fail-closed）：沒有明確設定 SMS_MODE 時，MOCK_TOKEN 一律不被接受；
+#      本機與 CI 必須自行設定 SMS_MODE=mock（見 application-local.yml.example 與 .github/workflows/ci.yml）；
 #   2. prod profile 下 AuthService 啟動时就檢查本值必須為 firebase，不符即啟動失敗。
 sms:
-  mode: ${SMS_MODE:mock}          # mock：跳過 Firebase 手機驗證 / firebase：實際驗證（prod 必須）
+  mode: ${SMS_MODE:firebase}      # firebase：實際驗證（預設，正式環境必須）／mock：跳過 Firebase 手機驗證，僅供本機與 CI
 
 app:
   reset_password_url: ${RESET_PASSWORD_URL:http://localhost:5173/Resetpassword}

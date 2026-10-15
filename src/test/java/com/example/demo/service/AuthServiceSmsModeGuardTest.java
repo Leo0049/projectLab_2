@@ -14,7 +14,7 @@ import static org.mockito.Mockito.when;
 /**
  * sms.mode 的 prod 防呆（純單元測試，不載入 Spring context）。
  *
- * <p>守住的是本輪 A-1：`sms.mode` 的預設值是 mock，而 mock 模式下 MOCK_TOKEN 就等於
+ * <p>守住的是本輪 A-1：`sms.mode` 若被設為 mock，而 mock 模式下 MOCK_TOKEN 就等於
  * 「手機已驗證」——公開的重設密碼端點因此能接管任何帳號。修補前這裡兩支都會失敗。
  */
 class AuthServiceSmsModeGuardTest {

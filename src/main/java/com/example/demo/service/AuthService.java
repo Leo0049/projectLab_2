@@ -54,7 +54,7 @@ public class AuthService {
     /**
      * 啟動時就檢查「正式環境不得使用 mock 手機驗證」。
      *
-     * <p>⚠️ 為什麼要 fail-fast：{@code sms.mode} 的預設值是 mock，而 mock 模式下
+     * <p>⚠️ 為什麼要 fail-fast：{@code sms.mode} 若被誤設為 mock，而 mock 模式下
      * {@link #MOCK_TOKEN} 會被視為已完成手機驗證——公開的
      * {@code POST /api/auth/reset-password-firebase} 因此可以對任何手機號碼重設密碼，
      * 等同任意顧客帳號接管。專案裡另外兩個同等敏感的開關
