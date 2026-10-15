@@ -120,8 +120,9 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             }
             StompUserPrincipal principal = new StompUserPrincipal(userId, role, tokenVersion, expiration.toInstant());
             if (!isActiveAccount(principal)) {
-                log.warn("已停用或不存在的帳號嘗試建立 WebSocket 連線 - UID: {}, Role: {}", userId, role);
-                throw new MessageDeliveryException("帳號已停用或不存在，無法連線");
+                // 權杖的版本已過期（改過密碼）或帳號已刪除，對使用者而言都是「登入已失效」
+                log.warn("權杖已失效或帳號無法使用，拒絕建立 WebSocket 連線 - UID: {}, Role: {}", userId, role);
+                throw new MessageDeliveryException("登入已失效或帳號無法使用，請重新登入");
             }
             return principal;
         } catch (MessageDeliveryException e) {
@@ -145,8 +146,8 @@ public class StompAuthInterceptor implements ChannelInterceptor {
             throw new MessageDeliveryException("連線憑證已過期，請重新登入");
         }
         if (!isActiveAccount(user)) {
-            log.warn("帳號 {}（{}）已停用或不存在，拒絕訂閱 {}", user.userId(), user.role(), accessor.getDestination());
-            throw new MessageDeliveryException("帳號已停用或不存在，無法訂閱");
+            log.warn("連線 {}（{}）的權杖已失效或帳號無法使用，拒絕訂閱 {}", user.userId(), user.role(), accessor.getDestination());
+            throw new MessageDeliveryException("登入已失效或帳號無法使用，請重新登入");
         }
         // 規則本體在 StompSubscribeRules（純函式，有單元測試）；這裡只負責接上資料庫查詢與例外
         String reason = StompSubscribeRules.denyReason(user.role(), user.userId(), accessor.getDestination(),
