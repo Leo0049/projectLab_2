@@ -210,7 +210,10 @@ public class UserController {
 
     @Operation(summary = "帳號整合：設定密碼", description = "情境：傳統登入收到 202（此手機是三方帳號）。\n\n流程：簡訊驗證 → 呼叫此 API 設定密碼 → 回傳 JWT\n\nBody: { idToken, phone, newPassword }")
     @PostMapping("/api/auth/merge/set-password")
-    public Result mergeSetPassword(@RequestBody Map<String, String> body) throws Exception {
+    public Result mergeSetPassword(@RequestBody Map<String, String> body, HttpServletRequest httpRequest) throws Exception {
+        // ⚠️ 以手機驗證 token 設定密碼等同重設密碼，與 reset-password-firebase 同樣限流（見 PhoneProofRateLimitGuardTest）
+        loginAttemptLimiter.check("auth-phone-proof", LoginAttemptLimiter.identity(
+                LoginAttemptLimiter.clientIp(httpRequest), body.get("phone")));
         String idToken = body.get("idToken");
         String phone = body.get("phone");
         String newPassword = body.get("newPassword");
@@ -223,7 +226,10 @@ public class UserController {
 
     @Operation(summary = "帳號整合：設定密碼並綁定三方", description = "以手機 OTP 驗證會員身分，同時設定密碼及綁定已驗證的社群帳號。")
     @PostMapping("/api/auth/merge/complete")
-    public Result completeAccountMerge(@RequestBody Map<String, String> body) throws Exception {
+    public Result completeAccountMerge(@RequestBody Map<String, String> body, HttpServletRequest httpRequest) throws Exception {
+        // ⚠️ 手機驗證 token ＋ 新密碼 ＝ 接管帳號，必須限流（見 PhoneProofRateLimitGuardTest）
+        loginAttemptLimiter.check("auth-phone-proof", LoginAttemptLimiter.identity(
+                LoginAttemptLimiter.clientIp(httpRequest), body.get("phone")));
         String phoneIdToken = body.get("phoneIdToken");
         String phone = body.get("phone");
         String newPassword = body.get("newPassword");
@@ -255,7 +261,10 @@ public class UserController {
 
     @Operation(summary = "帳號整合：以手機驗證綁定三方", description = "需同時提供 Firebase 手機驗證 token 與社群登入 token。Body: { phoneIdToken, phone, idToken, providerUid, provider }")
     @PostMapping("/api/auth/merge/bind-social-phone")
-    public Result mergeBindSocialByPhone(@RequestBody Map<String, String> body) throws Exception {
+    public Result mergeBindSocialByPhone(@RequestBody Map<String, String> body, HttpServletRequest httpRequest) throws Exception {
+        // ⚠️ 以手機驗證 token 綁定社群帳號，同樣以 IP＋手機限流（見 PhoneProofRateLimitGuardTest）
+        loginAttemptLimiter.check("auth-phone-proof", LoginAttemptLimiter.identity(
+                LoginAttemptLimiter.clientIp(httpRequest), body.get("phone")));
         String phoneIdToken = body.get("phoneIdToken");
         String phone = body.get("phone");
         String socialIdToken = body.get("idToken");
@@ -267,7 +276,10 @@ public class UserController {
     }
 
     @PostMapping("/api/auth/social-signup")
-    public Result socialSignup(@RequestBody Map<String, String> body) throws Exception {
+    public Result socialSignup(@RequestBody Map<String, String> body, HttpServletRequest httpRequest) throws Exception {
+        // ⚠️ 新帳號以手機驗證 token 建立，同樣以 IP＋手機限流（見 PhoneProofRateLimitGuardTest）
+        loginAttemptLimiter.check("auth-phone-proof", LoginAttemptLimiter.identity(
+                LoginAttemptLimiter.clientIp(httpRequest), body.get("phone")));
         String phoneIdToken = body.get("phoneIdToken");
         String phone = body.get("phone");
         String socialIdToken = body.get("idToken");
