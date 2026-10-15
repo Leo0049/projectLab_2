@@ -259,7 +259,10 @@ public class StoreService {
     public Map<String, Object> getProfile(Long storeId) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new CustomException("404", "店家不存在"));
-        return toMap(store);
+        Map<String, Object> profile = toMap(store);
+        // 店家後台本人的表單沿用 phone 鍵（店長手機）；公開端點不會有這個鍵（N6）
+        profile.put("phone", store.getManagerPhone());
+        return profile;
     }
 
     @Transactional
@@ -329,7 +332,7 @@ public class StoreService {
         Map<String, Object> m = new HashMap<>();
         m.put("id", store.getId());
         m.put("name", store.getStoreName());
-        m.put("phone", store.getManagerPhone());
+        // 公開回應只帶店家電話；店長手機只在 getProfile（店家後台本人）加回（N6）
         m.put("storePhone", store.getStorePhone());
         m.put("address", store.getAddress());
         m.put("coverUrl", store.getCoverUrl());
