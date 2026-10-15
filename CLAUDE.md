@@ -173,7 +173,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-15，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：256 個 `@Test`，分布在 44 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-15，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：268 個 `@Test`，分布在 45 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -182,8 +182,9 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `GroupOrderSecurityTest`（5） | 揪團 H-1～H-3：伺服器重算價格與歸屬；他人的 couponId 被拒；非團長不可改他人揪團狀態；團長本人的截單與重開可行，亂打的狀態被白名單擋下 |
 | 授權與路由 | `GroupOrderServiceAuthorizationTest`（6） | 揪團讀取與加入：只有發起人能取得分享 token；非成員不可讀數字 id 的明細；舊版加入必須帶正確的 token；拒絕他品牌的商品與門市停售的商品 |
 | 授權與路由 | `StompSubscribeRulesTest`（11） | WebSocket 訂閱授權的純規則：顧客只能訂閱自己參與的訂單；揪團推播只開放成員（團長，或已在團內有品項的團員），持分享連結但未加入者不可訂閱（N12）；門市只能訂閱自己的頻道；角色必須相符（id 會撞號）；未知目的地與超大數字 id 一律拒絕 |
-| 授權與路由 | `StompAuthInterceptorTest`（17） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團推播的發起人（即使沒有品項）與已在團內有品項的團員可訂閱，只持分享連結者不可訂閱（N12）；門市不可訂閱揪團推播 |
+| 授權與路由 | `StompAuthInterceptorTest`（23） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團推播的發起人（即使沒有品項）與已在團內有品項的團員可訂閱，只持分享連結者不可訂閱（N12）；門市不可訂閱揪團推播；已刪除或不存在的帳號、連線後 token 過期者不可連線或訂閱（N7）；客戶端直接 SEND 一律拒絕（N5） |
 | 授權與路由 | `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
+| 授權與路由 | `AccountStatusTest`（6） | 帳號可用性規則（N7）：未刪除的顧客、存在的品牌與門市可用；已刪除、不存在、未知角色或缺少 id 一律不可用；HTTP 與 STOMP 共用此規則 |
 | 授權與路由 | `JwtAuthenticationFilterTest`（7） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒 |
 | 帳號與登入 | `AuthServiceSecurityTest`（7） | 帳號安全：mock Firebase token 只在 mock 模式可用；已刪除帳號不可經社群登入；手機證明不可與他人的社群 UID 併用；合併帳號時拒絕其他號碼的 token；社群 provider 不符時在設定密碼前拒絕 |
 | 帳號與登入 | `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策：已綁定、手機衝突、建立新帳號；不變量：手機已被使用就絕不另建帳號 |
@@ -221,7 +222,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 `applyDefaultTimeZone()` 把 JVM 預設時區設為 Asia/Taipei，不經過 `main()` |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 34 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 35 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -526,10 +527,11 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
 `/ws-cart` 的 SockJS handshake 走 CORS 白名單；STOMP 層由
 `WebSocketConfig.configureClientInboundChannel` 掛上 `StompAuthInterceptor`，攔截：
 
-- **CONNECT**：必須帶 `Authorization: Bearer <jwt>`，驗證後綁為連線的 Principal
-- **SUBSCRIBE**：`/topic/order/{id}` 僅限該訂單的**發起人或參與者**
+- **CONNECT**：必須帶 `Authorization: Bearer <jwt>`，驗證簽章與到期時間後，帳號仍須存在且未刪除（N7），才綁為連線的 Principal
+- **SUBSCRIBE**：每次都重新檢查 token 是否仍在有效期內、帳號是否仍存在（N7）；`/topic/order/{id}` 僅限該訂單的**發起人或參與者**
   （參與者以 `order_items` 判定，揪團成員才看得到自己團的狀態）；
-  `/topic/group/{token}` 的 token 本身即分享憑證，已認證即可訂閱
+  `/topic/group/{token}` 僅限該揪團的**成員**（團長，或已在團內有品項的團員；N12），持分享連結者不可訂閱
+- **SEND**：客戶端直接送出的 SEND 一律拒絕（N5）。SimpleBroker 會把它轉給訂閱者，放行就能偽造推播
 
 ⚠️ 先前完全沒有攔截器，且 `orderId` 是連續整數可直接列舉，任何人都能旁觀他人訂單狀態。
 前端（`group_order.html`、`order_details.html`、`order_confirm.html`）已改為在
@@ -622,7 +624,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **前端含 HTML 的模板字串中插入名稱類欄位，一律以頁面內的轉義函式包住**（自動規則注入的是 `escHtmlSafe`，既有頁面用 `esc`／`escapeHtml`）。**不要對已在來源處轉義的變數再轉義一次**，否則會顯示成 `&amp;`。
 - **`onclick="…${值}…"` 的 JS 字串內不得插入名稱類資料**：HTML 轉義不能防止字串跳脫。改用 `data-*` 屬性，由事件函式讀取 `dataset`（見 `profile.html` 的 `editExtraAddressFromEl`）。
 - **`permitAll` 一律指定 HTTP method**（`SecurityConfig`）。`/api/stores/auth/**` 只開放 POST，`/api/menu/**`、`/api/home/**`、`/api/location/**`、`/api/group-orders/join/**` 等只開放 GET；WebSocket 的 `/ws/**`、`/ws-cart/**` 例外，因為 SockJS 會用到多種方法。
-- **WebSocket 的 SUBSCRIBE 依角色授權**（`StompAuthInterceptor.authorizeSubscribe`，規則本體在 `StompSubscribeRules`）：`/topic/order/{id}` 限顧客且須為參與者；`/topic/group/{token}` 限顧客；`/topic/store/{id}` 只允許該門市本人（角色為 `STORE` 且 id 相符）；其餘目的地一律拒絕。principal 必須帶 `role`，因為門市與顧客的 id 會撞號。
+- **WebSocket 的 SUBSCRIBE 依角色授權**（`StompAuthInterceptor.authorizeSubscribe`，規則本體在 `StompSubscribeRules`）：`/topic/order/{id}` 限顧客且須為參與者；`/topic/group/{token}` 限該揪團的成員（N12）；`/topic/store/{id}` 只允許該門市本人（角色為 `STORE` 且 id 相符）；其餘目的地一律拒絕。principal 必須帶 `role`，因為門市與顧客的 id 會撞號。CONNECT 與每次 SUBSCRIBE 都重新檢查帳號與 token 期限（N7）；客戶端 SEND 一律拒絕（N5）。
 - **`docker-compose.yml` 的 MySQL 與 Redis 埠口只綁 `127.0.0.1`**；正式環境範本關閉 springdoc（`application-prod.yml.example`）。
 
 ## 2026-10-12 新增的不變量與約定

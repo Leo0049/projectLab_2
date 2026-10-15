@@ -109,4 +109,17 @@ public class JwtUtils {
                 .getBody()
                 .get("role", String.class);
     }
+
+    /**
+     * 權杖的到期時間（exp）。WebSocket 的 CONNECT 與 SUBSCRIBE 用它判斷連線憑證是否仍有效（N7）。
+     * 沒有 exp 聲明時回傳 null，呼叫端應視為無效。
+     */
+    public Date getExpirationFromToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(signingKey)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getExpiration();
+    }
 }

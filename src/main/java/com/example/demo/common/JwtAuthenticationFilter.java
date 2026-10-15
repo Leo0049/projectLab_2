@@ -82,21 +82,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    /** 帳號是否仍可使用；規則本體在 {@link AccountStatus}，與 WebSocket 認證共用（N7）。 */
     private boolean isActiveIdentity(Long userId, String role) {
-        if (userId == null || role == null) {
-            return false;
-        }
-        if ("CUSTOMER".equalsIgnoreCase(role)) {
-            return userRepository.findById(userId)
-                    .map(user -> !Boolean.TRUE.equals(user.getIsDeleted()))
-                    .orElse(false);
-        }
-        if ("BRAND".equalsIgnoreCase(role)) {
-            return brandRepository.existsById(userId);
-        }
-        if ("STORE".equalsIgnoreCase(role)) {
-            return storeRepository.existsById(userId);
-        }
-        return false;
+        return AccountStatus.isActive(userId, role, userRepository, brandRepository, storeRepository);
     }
 }
