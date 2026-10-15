@@ -1,5 +1,7 @@
 package com.example.demo.common;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
@@ -105,12 +107,7 @@ public class JwtUtils {
 
     // 新增：解析 Token 拿回 userId
     public Long getUserIdFromToken(String token) {
-        Object userIdObj = Jwts.parserBuilder()
-                .setSigningKey(signingKey)
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .get("userId");
+        Object userIdObj = parseClaims(token).get("userId");
         if (userIdObj instanceof Number) {
             return ((Number) userIdObj).longValue();
         }
@@ -118,12 +115,7 @@ public class JwtUtils {
     }
 
     public String getRoleFromToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(signingKey)
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .get("role", String.class);
+        return parseClaims(token).get("role", String.class);
     }
 
     /**
@@ -131,12 +123,7 @@ public class JwtUtils {
      * 沒有 exp 聲明時回傳 null，呼叫端應視為無效。
      */
     public Date getExpirationFromToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(signingKey)
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .getExpiration();
+        return parseClaims(token).getExpiration();
     }
 
     /**
@@ -144,12 +131,22 @@ public class JwtUtils {
      * 因此部署後既有登入不會被強制登出；只有之後改過密碼的帳號，舊權杖才會失效。
      */
     public int getTokenVersionFromToken(String token) {
-        Object version = Jwts.parserBuilder()
+        Object version = parseClaims(token).get(TOKEN_VERSION_CLAIM);
+        return version instanceof Number ? ((Number) version).intValue() : 0;
+    }
+
+    /**
+     * 驗證並解析權杖。先檢查演算法白名單（只接受 HS512），再交給 jjwt 驗簽與檢查到期。
+     * jjwt 本身會接受同一把金鑰簽的 HS256，白名單必須在解析前擋下（見 {@link JwtAlgorithm}）。
+     */
+    private Claims parseClaims(String token) {
+        if (!JwtAlgorithm.isAllowed(token)) {
+            throw new JwtException("權杖演算法不在白名單內");
+        }
+        return Jwts.parserBuilder()
                 .setSigningKey(signingKey)
                 .build()
                 .parseClaimsJws(token)
-                .getBody()
-                .get(TOKEN_VERSION_CLAIM);
-        return version instanceof Number ? ((Number) version).intValue() : 0;
+                .getBody();
     }
 }
