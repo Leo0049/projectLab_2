@@ -38,6 +38,8 @@ public class AuthService {
     @Autowired private JwtUtils jwtUtils;
     @Autowired private BrandService brandService;
     @Autowired private StoreService storeService;
+    /** 手機驗證權杖只能成功使用一次（見 FirebaseTokenReplayGuard） */
+    @Autowired private FirebaseTokenReplayGuard firebaseTokenReplayGuard;
 
     @Value("${sms.mode:firebase}")
     private String smsMode;
@@ -368,12 +370,17 @@ public class AuthService {
     }
 
     // 驗證 Firebase Phone Auth token 的手機號碼；本機 mock token 僅在 sms.mode=mock 可用。
+    // ⚠️ 真實的 token 只能成功使用一次：號碼比對通過後才記錄，號碼不符的嘗試不會燒掉 token。
+    //    MOCK_TOKEN 不記錄（固定字串，本機模擬用）。verifyOnly 不呼叫此方法，故預先檢查不消耗。
     private String verifyFirebasePhone(String idToken, String phoneNumber) throws Exception {
         FirebaseToken decodedToken = verifyFirebaseToken(idToken);
         if (decodedToken == null) return phoneNumber;
         String verifiedPhone = Objects.toString(decodedToken.getClaims().get("phone_number"), null);
         if (verifiedPhone == null || !normalizePhone(verifiedPhone).equals(normalizePhone(phoneNumber))) {
             throw new CustomException("401", "驗證的手機號碼與輸入不符");
+        }
+        if (!firebaseTokenReplayGuard.claimOnce(idToken)) {
+            throw new CustomException("401", "此手機驗證已使用，請重新取得驗證碼");
         }
         return verifiedPhone;
     }
