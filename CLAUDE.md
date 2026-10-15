@@ -173,7 +173,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-15，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：303 個 `@Test`，分布在 52 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-15，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：339 個 `@Test`，分布在 60 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -186,7 +186,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
 | 授權與路由 | `AccountStatusTest`（10） | 帳號可用性規則（N7）：未刪除的顧客、存在的品牌與門市可用；已刪除、不存在、未知角色或缺少 id 一律不可用；HTTP 與 STOMP 共用此規則；權杖版本不符（改過密碼前簽發）或角色已改變者一律不可用（N13）；顧客 token 不比對門市資料列（id 會撞號） |
 | 授權與路由 | `JwtAuthenticationFilterTest`（11） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒；改密碼前簽發的顧客或門市 token 被拒、改密碼後簽發的通過（N13）；角色已改變的顧客 token 被拒（N13） |
-| 帳號與登入 | `AuthServiceSecurityTest`（7） | 帳號安全：mock Firebase token 只在 mock 模式可用；已刪除帳號不可經社群登入；手機證明不可與他人的社群 UID 併用；合併帳號時拒絕其他號碼的 token；社群 provider 不符時在設定密碼前拒絕 |
+| 帳號與登入 | `AuthServiceSecurityTest`（9） | 帳號安全：mock Firebase token 只在 mock 模式可用；已刪除帳號不可經社群登入；手機證明不可與他人的社群 UID 併用；合併帳號時拒絕其他號碼的 token；社群 provider 不符時在設定密碼前拒絕；手機驗證權杖只能使用一次（ADR-0009）；預先檢查 `verifyOnly` 不消耗權杖。行為層需要 Mockito，只在 CI 執行 |
 | 帳號與登入 | `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策：已綁定、手機衝突、建立新帳號；不變量：手機已被使用就絕不另建帳號 |
 | 帳號與登入 | `SmsModeDefaultTest`（3） | sms.mode 預設必須是 firebase（fail-closed，N15）；application.yml 不得把 mock 設為未設定 SMS_MODE 時的預設；prod 與 local 範本各自明確指定 |
 | 帳號與登入 | `AuthServiceSmsModeGuardTest`（6） | prod profile 下 `sms.mode` 不是 firebase 就拒絕（含 `MOCK_TOKEN` 分支） |
@@ -195,6 +195,14 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 帳號與登入 | `UserTokenVersionTest`（4） | 改密碼與撤銷權杖會遞增帳號版本（N13）；撤銷只動版本、不動密碼；新帳號從版本 0 開始 |
 | 帳號與登入 | `DemoDataSeederProdGuardTest`（2） | prod profile 不植入示範帳號，即使 `DEMO_DATA_ENABLED=true` |
 | 帳號與登入 | `LoginAttemptLimiterTest`（10） | 登入／OTP 固定視窗限流（ADR-0004）；偽造的 `X-Forwarded-For` 不改變識別；Redis 不可用時退回本地計數；Redis 拋例外時仍以本地計數擋下第三次 |
+| 帳號與登入 | `PhoneProofRateLimitGuardTest`（1） | 手機驗證端點全部限流（文字掃描）：重設密碼、設定密碼、綁定、建立帳號共五條路由都必須呼叫 `loginAttemptLimiter.check` |
+| 帳號與登入 | `JwtAlgorithmTest`（7） | JWT 演算法白名單（純邏輯）：只接受 HS512；HS256、none、非對稱演算法一律拒絕；header 重複或以跳脫字元寫 `alg` 也拒絕 |
+| 帳號與登入 | `JwtAlgorithmEnforcementTest`（3） | 白名單接上 jjwt：HS512 權杖仍可解析；同一把金鑰簽的 HS256 被拒；未簽章權杖被拒。需要 jjwt，只在 CI 執行 |
+| 帳號與登入 | `ClaimStoreTest`（7） | 「只記一次」儲存（純邏輯）：本地一定記錄；遠端說已記過即拒絕；遠端失敗退回本地並通知；遠端回 null 視為已記過；Redis 恢復後本地紀錄仍擋重放；有效期過後可再記 |
+| 帳號與登入 | `FirebaseTokenReplayGuardTest`（5） | 手機驗證權杖只能使用一次：同一張第一次通過、之後拒絕；不同權杖互不影響；遠端鍵是前綴加 SHA-256 指紋、不含權杖；保留時間長於 ID token 的 1 小時有效期 |
+| 帳號與登入 | `TokenFingerprintTest`（5） | 權杖指紋為標準 SHA-256（已知答案）、穩定、64 位小寫十六進位，且不含原始權杖；空白或 null 拒絕 |
+| 帳號與登入 | `LocalClaimStoreTest`（4） | JVM 內的「只記一次」：同一 key 第二次失敗；不同 key 獨立；有效期過後可再記；過期紀錄會被清除 |
+| 帳號與登入 | `PhoneTokenSingleUseGuardTest`（2） | 文字掃描：`verifyFirebasePhone` 必須記錄權杖；預先檢查 `verifyOnly` 不得記錄（否則註冊頁的預先檢查會讓真正的請求失效） |
 | 金流與併發 | `WalletConcurrencyTest`（3） | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支、列鎖不被一級快取架空 |
 | 金流與併發 | `GroupCheckoutConcurrencyTest`（6） | 揪團四條金流路徑重複觸發時只能發生一次；同一張券不可用兩次 |
 | 金流與併發 | `UserCouponUseTest`（4） | 優惠券使用（N10）：消耗是條件式原子更新，同一張券第二次使用回 400（即使讀取時仍為 unused）；非擁有者與已過期的券不嘗試消耗 |
@@ -229,13 +237,13 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 `applyDefaultTimeZone()` 把 JVM 預設時區設為 Asia/Taipei，不經過 `main()` |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 42 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 50 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
 > 新增測試時請照做，在修補前後各跑一次，確認它真的抓得到回歸，否則只是裝飾。
 > 2026-10-12 與本輪新增的測試（`IdempotencyServiceTest`、`ExclusiveJobRunnerTest`、`GeoBoundsTest`、`RequestIdFilterTest`、`AuthorizationRouteInventoryTest`、`BrandSummaryJsonTest`、`StompAuthInterceptorTest`、`WebSocketWiringTest`、`PageSizeClampTest`、`UploadControllerTest`、`OrderNoFormatTest`、`TimeZoneConfigTest`，以及 `LoginAttemptLimiterTest` 的新增案例）已於 2026-10-13 做過還原驗證：共 39 組故意破壞（把修補改回舊寫法，或改壞規則），每一組都讓至少一支對應的測試轉紅，對照表見 README「還原驗證」。這些類別並非每個測試都被破壞過：GeoBoundsTest、RequestIdFilterTest、AuthorizationRouteInventoryTest 各有未破壞的案例，LoginAttemptLimiterTest 只破壞了新增的 2 個案例，確切範圍以 README 為準。同一次 CI 內若同時破壞會互相遮蔽的兩處，必須單獨再跑一次，否則看不出各自是否被抓到。破壞用的 commit 標題以 `scratch:` 開頭，只存在於暫存分支 `main-cbduag`（可刪除），不屬於 PR 分支。
-> 2026-10-15 的 N13（權杖版本）已在本機還原驗證：`AccountStatus` 的 8 組破壞（版本、角色、已刪除、品牌與門市、大小寫、顧客比對到門市列）與 `User` 改密碼／撤銷的 3 組破壞，都讓至少一支對應的測試轉紅。本機以真實的 `AccountStatus` 搭配 stub 執行，stub 中的兩個 `User` 方法逐字取自 `User.java`。`JwtAuthenticationFilterTest`、`StompAuthInterceptorTest`、`JwtTokenVersionTest` 的新案例需要 Spring、Mockito 或 jjwt，本機無法執行，尚待 CI 確認；README 的「還原驗證」表尚未更新。
+> 2026-10-15 的 N13（權杖版本）已在本機還原驗證：`AccountStatus` 的 8 組破壞（版本、角色、已刪除、品牌與門市、大小寫、顧客比對到門市列）與 `User` 改密碼／撤銷的 3 組破壞，都讓至少一支對應的測試轉紅。本機以真實的 `AccountStatus` 搭配 stub 執行，stub 中的兩個 `User` 方法逐字取自 `User.java`。`JwtAuthenticationFilterTest`、`StompAuthInterceptorTest`、`JwtTokenVersionTest` 的新案例需要 Spring、Mockito 或 jjwt，本機無法執行，尚待 CI 確認；README 的「還原驗證」表已於 2026-10-15 補入本機結果（見「2026-10-15 還原驗證」）。
 
 ### 另外兩層驗證（都在 CI 上跑）
 
@@ -658,3 +666,11 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **沒有版本聲明的舊權杖視為版本 0**，欄位預設 0，部署時既有登入不會被強制登出。
 - **部署前必須先手動加欄位**：`users`、`brands`、`stores` 新增 `token_version INT NOT NULL DEFAULT 0`。prod 為 `ddl-auto: validate`，欄位不存在時啟動會失敗（SQL 見 `DATABASE.md`「結構變更方式」）。
 - **登出仍只在前端清除 token**，伺服器端不撤銷；「登出所有裝置」尚未實作，待產品決定。已建立的 STOMP 訂閱不會因版本改變而即時中斷，直到連線結束（與 N12 同一缺口）；新的 SUBSCRIBE 會被拒絕。
+- **手機驗證權杖只能成功使用一次**（`FirebaseTokenReplayGuard`，見 ADR-0009）：`verifyFirebasePhone` 在號碼比對通過後呼叫 `claimOnce`，同一張在 2 小時內再用一律 401。`verifyOnly`（前端註冊頁的 `firebase-verify`）與 `MOCK_TOKEN` 都不記錄。Redis 鍵是 `fbtoken:<SHA-256>`，權杖本身不入庫。新增手機驗證端點時必須走 `verifyFirebasePhone`，不要另寫比對。
+- **社群權杖不在此規則內**（已知缺口）：Google、Facebook 權杖在整合流程的多個步驟中重複使用。通過號碼比對之後的失敗（例如第三方與權杖不符）也會燒掉手機驗證權杖，使用者需要重新取得驗證碼；這是刻意的取捨。
+- **Redis 故障期間只保證單一實例內正確**：`ClaimStore` 一律先寫本地，有 Redis 時再寫遠端；遠端拋例外時退回本地並寫警告。多實例之間不共享，與限流相同的退避策略。
+- **手機驗證端點共用限流範圍 `auth-phone-proof`**（IP＋手機）：重設密碼、設定密碼、綁定、建立帳號共五條路由都必須呼叫 `loginAttemptLimiter.check`，由 `PhoneProofRateLimitGuardTest` 文字掃描守住。
+- **JWT 只接受 HS512**：`common/JwtAlgorithm.isAllowed` 在 jjwt 解析前檢查 header，只接受 `{"alg":"HS512"}`（可加 `"typ":"JWT"`）。要放寬演算法，必須同時改 `JwtAlgorithmTest` 的負向案例並寫明理由。
+- **前端登入權杖只讀 `JOIN_TOKEN`**：`userToken` 已無任何程式寫入。`cart.js` 曾同時讀兩者，殘留值會讓登出後的購物車仍視為已登入。
+- **WebSocket 拒絕訊息**：權杖版本失效或帳號無法使用時回「登入已失效或帳號無法使用，請重新登入」。版本失效的帳號仍存在，因此不再沿用「帳號已停用或不存在」。
+- **2026-10-15 新增測試的驗證狀態**：手機驗證權杖、JWT 白名單與 `ClaimStore` 的純邏輯測試已在本機還原驗證（README「2026-10-15 還原驗證」）。需要 Spring、Mockito 或 jjwt 的案例（`AuthServiceSecurityTest` 新增的 2 支、`JwtAlgorithmEnforcementTest`、`StompAuthInterceptorTest` 與 `JwtAuthenticationFilterTest` 的新案例）本機無法執行，尚待 CI 確認。

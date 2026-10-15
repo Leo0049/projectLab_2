@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：217 個 `@Test`，42 個測試類別（JUnit 5 + Mockito；9 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：339 個 `@Test`，60 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：39 個 HTML 頁面全數普掃（共 51 次載入，顧客主頁有資料與空狀態各掃一次），加上點餐、轉盤、揪團三條主線 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -329,7 +329,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 217 個 `@Test`（42 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 339 個 `@Test`（60 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -357,7 +357,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（217 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（339 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 39 個頁面全頁面普掃（51 次載入）＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -444,6 +444,57 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 - `LoginAttemptLimiterTest`：其餘 8 個既有案例
 
 排程任務的正向路徑（取得鎖時執行一次、並以同一個 token 釋放）已由第 26、27 組覆蓋，破壞它就會紅。
+
+### 2026-10-15 還原驗證
+
+本輪的故意破壞全部在本機執行，沒有等 CI。每一組都單獨執行，沒有同時破壞兩處，因此不會互相遮蔽。「執行」欄標明方式：
+
+- **本機（純邏輯）**：編譯真實的被測類別，搭配本機的 JUnit 替身執行。不載入 Spring context，也不需要 Mockito。
+- **本機（stub）**：被測的仍是真實原始碼；Spring、Redis、Lombok 與 repository 以 stub 取代。`AccountStatus` 與 `User` 的方法取自真實原始碼，`User` 的兩個方法逐字取自 `User.java`。`FirebaseTokenReplayGuard` 的編譯副本把 `@Slf4j` 換成等價的 logger 欄位，因為 Lombok 不在本機。
+- **文字掃描**：讀取原始檔的文字，確認接線，例如某個方法有沒有呼叫記錄。
+
+| # | 執行 | 故意破壞的行為 | 轉紅的測試 |
+|---|---|---|---|
+| N13-1 | 本機（stub） | 顧客 token 不比對版本 | `AccountStatusTest.staleTokenVersionIsRejectedForEveryAccountType`、`roleChangeInvalidatesTheOldToken` |
+| N13-2 | 本機（stub） | 已刪除的顧客仍可使用 | `AccountStatusTest.deletedCustomerIsNotUsable` |
+| N13-3 | 本機（stub） | 角色不比對 | `AccountStatusTest.roleChangeInvalidatesTheOldToken` |
+| N13-4 | 本機（stub） | 版本不比對 | `AccountStatusTest.staleTokenVersionIsRejectedForEveryAccountType` |
+| N13-5 | 本機（stub） | 門市的版本不比對 | `AccountStatusTest.staleTokenVersionIsRejectedForEveryAccountType` |
+| N13-6 | 本機（stub） | 角色比對區分大小寫 | `AccountStatusTest.roleMatchIgnoresCase` |
+| N13-7 | 本機（stub） | 品牌只看資料列存在，不看角色與版本 | `AccountStatusTest.staleTokenVersionIsRejectedForEveryAccountType`、`roleChangeInvalidatesTheOldToken` |
+| N13-8 | 本機（stub） | 顧客 token 在找不到顧客列時，改以 id 相同的門市列判定（不比角色與版本） | `AccountStatusTest.customerTokenNeverMatchesAStoreRowWithTheSameId` |
+| N13-9 | 本機（stub） | 改密碼不遞增版本 | `UserTokenVersionTest.changingThePasswordBumpsTheVersion`、`everyPasswordChangeGetsAFreshVersion` |
+| N13-10 | 本機（stub） | 撤銷權杖不遞增版本 | `UserTokenVersionTest.changingThePasswordBumpsTheVersion`、`everyPasswordChangeGetsAFreshVersion`、`revokingTokensLeavesThePasswordAlone` |
+| N13-11 | 本機（stub） | 撤銷權杖時順便清空密碼雜湊 | `UserTokenVersionTest.changingThePasswordBumpsTheVersion`、`revokingTokensLeavesThePasswordAlone` |
+| J-1 | 本機（純邏輯） | JWT 不檢查 header，任何演算法都接受 | `JwtAlgorithmTest.hs256IsRejected`、`noneAndAsymmetricAreRejected`、`duplicateAlgIsRejected`、`escapedAlgKeyIsRejected` |
+| J-2 | 本機（純邏輯） | JWT 多接受 HS256 | `JwtAlgorithmTest.hs256IsRejected` |
+| P-1 | 本機（文字掃描） | `/api/auth/social-signup` 拿掉限流 | `PhoneProofRateLimitGuardTest.phoneProofRoutesAreRateLimited`，失敗訊息點名該路由 |
+| R-1 | 本機（純邏輯） | `ClaimStore` 不寫本地紀錄，只看遠端 | `ClaimStoreTest.localOnlyClaimsOnce`、`remoteFailureFallsBackToLocal`、`localRecordSurvivesRemoteRecovery`、`claimExpiresAfterTheTtl` |
+| R-2 | 本機（純邏輯） | `ClaimStore` 改成先問遠端、本地只當退路 | `ClaimStoreTest.remoteFailureFallsBackToLocal`、`localRecordSurvivesRemoteRecovery`、`claimExpiresAfterTheTtl` |
+| R-3 | 本機（純邏輯） | `ClaimStore` 不捕捉遠端例外 | `ClaimStoreTest.remoteFailureFallsBackToLocal`、`localRecordSurvivesRemoteRecovery` |
+| R-4 | 本機（純邏輯） | 遠端回傳 null 視為未記過 | `ClaimStoreTest.nullFromRemoteIsRejected` |
+| R-5 | 本機（純邏輯） | `ClaimStore` 一律接受 | `ClaimStoreTest` 全部 7 支 |
+| R-6 | 本機（純邏輯） | `ClaimStore` 寫入本地時忽略 TTL | `ClaimStoreTest.localOnlyClaimsOnce`、`remoteFailureFallsBackToLocal`、`localRecordSurvivesRemoteRecovery`、`claimExpiresAfterTheTtl` |
+| R-7 | 本機（純邏輯） | `LocalClaimStore` 一律回 true | `LocalClaimStoreTest.secondClaimOfTheSameKeyFails`、`claimExpiresAfterTheTtl`，以及 `ClaimStoreTest` 的 4 支 |
+| R-8 | 本機（純邏輯） | 權杖指紋直接回傳原始權杖（Redis 會存權杖本身） | `TokenFingerprintTest.matchesKnownSha256Vector`、`fingerprintIsHexAndHidesTheToken` |
+| R-9 | 本機（純邏輯） | 權杖指紋改用 SHA-1 | `TokenFingerprintTest.matchesKnownSha256Vector`、`fingerprintIsHexAndHidesTheToken` |
+| R-10 | 本機（stub） | Redis 鍵直接用原始權杖 | `FirebaseTokenReplayGuardTest.remoteKeyIsFingerprintNotToken`、`blankTokenIsRejected` |
+| R-11 | 本機（stub） | 保留時間改為 30 分鐘（短於 ID token 的 1 小時有效期） | `FirebaseTokenReplayGuardTest.retentionOutlivesTheIdTokenLifetime` |
+| R-12 | 本機（stub） | `claimOnce` 一律回 true | `FirebaseTokenReplayGuardTest.sameTokenIsAcceptedOnlyOnce` |
+| W-1 | 本機（文字掃描） | `verifyFirebasePhone` 不記錄權杖 | `PhoneTokenSingleUseGuardTest.phoneVerificationConsumesTheToken` |
+| W-2 | 本機（文字掃描） | 預先檢查 `verifyOnly` 也記錄權杖 | `PhoneTokenSingleUseGuardTest.preCheckDoesNotConsumeTheToken` |
+
+兩點需要說明：
+
+- N13-8 的第一次重建是「找不到顧客列時改比對 id 相同的門市列，但仍比角色」。角色比對擋住了這條路徑，這個變體與原始碼等價，測試沒有轉紅是正確的。改成真正的漏洞形狀（不比角色，只比 id 與版本）後，`customerTokenNeverMatchesAStoreRowWithTheSameId` 轉紅。
+- R-10 同時讓 `blankTokenIsRejected` 轉紅，因為空白權杖不再經過指紋函式，不會拋出例外。
+
+尚未做或尚待 CI 的項目：
+
+- `AuthServiceSecurityTest` 的 `verifiedPhoneTokenCanOnlyBeUsedOnce` 與 `preCheckDoesNotConsumeThePhoneToken` 需要 Mockito 與 Spring 相依，本機無法執行。W-1 與 W-2 的文字掃描是本機的接線守門，不能取代行為層測試。
+- `JwtAlgorithmEnforcementTest`（jjwt）、`StompAuthInterceptorTest` 與 `JwtAuthenticationFilterTest` 的新案例需要 Spring 或 jjwt，尚無還原驗證紀錄。
+- `cart.js` 的登入權杖來源（`TOKEN_KEYS`）與 STOMP 拒絕訊息的文字改動，沒有對應的自動化斷言，也沒有做還原驗證。
+- 本機無法取得 Maven 相依（Maven Central 連線失敗），`mvn test` 只能在 CI 執行。
 
 ### 這兩層實際抓到什麼
 

@@ -453,8 +453,8 @@ OPEN（待處理）→ SUBMITTED（已送出）→ PREPARING（製作中）→ R
 | size_snapshot | VARCHAR | 杯型快照（M / L）|
 | item_hash | VARCHAR(32) | 客製化組合的雜湊，用於判斷「同品項」可否合併數量 |
 | qty | INT NOT NULL DEFAULT 1 | 數量（Java 欄位名為 `quantity`，DB 欄位名為 `qty`）|
-| payment_status | VARCHAR DEFAULT 'WAITING_SUBMIT' | WAITING_SUBMIT / PENDING / PAID / REFUNDED |
-| payment_type | VARCHAR | WALLET（錢包）/ CASH（現金）|
+| payment_status | VARCHAR DEFAULT 'WAITING_SUBMIT' | WAITING_SUBMIT / UNPAID / ESCROWED / PAID / REFUNDED / CANCELLED |
+| payment_type | VARCHAR | WALLET（錢包）/ CASH（現金）/ CREDIT_CARD（信用卡；後端視為門市付款）|
 | coupon_id | BIGINT | 套用的優惠券 ID |
 | discount_amount_snapshot | DECIMAL(10,2) DEFAULT 0 | 優惠券折扣金額快照 |
 
