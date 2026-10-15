@@ -162,12 +162,49 @@ class StompAuthInterceptorTest {
     }
 
     @Test
-    @DisplayName("揪團推播只開放顧客；門市不可訂閱")
-    void groupChannelIsCustomerOnly() {
+    @DisplayName("揪團團長即使還沒有任何品項，也可訂閱揪團推播")
+    void groupInitiatorCanSubscribeWithoutItems() {
+        when(groupOrders.findByShareToken("AbC123")).thenReturn(Optional.of(groupWithId(5L, 1L)));
+        Principal initiator = connect("Bearer " + jwt.generateToken(1L, "CUSTOMER", "0912345678"));
+
+        assertDoesNotThrow(() -> subscribe(initiator, "/topic/group/AbC123"));
+        assertEquals(2, delivered.size());
+    }
+
+    @Test
+    @DisplayName("已在團內有品項的團員可訂閱揪團推播")
+    void groupMemberWithItemCanSubscribe() {
+        when(groupOrders.findByShareToken("AbC123")).thenReturn(Optional.of(groupWithId(5L, 2L)));
+        when(orderItems.existsByGroupOrderIdAndUserId(5L, 1L)).thenReturn(true);
+        Principal member = connect("Bearer " + jwt.generateToken(1L, "CUSTOMER", "0912345678"));
+
+        assertDoesNotThrow(() -> subscribe(member, "/topic/group/AbC123"));
+    }
+
+    @Test
+    @DisplayName("只持有分享連結、還沒加入（沒有品項）的顧客不可訂閱揪團推播（N12）")
+    void shareLinkHolderWithoutItemsCannotSubscribe() {
+        when(groupOrders.findByShareToken("AbC123")).thenReturn(Optional.of(groupWithId(5L, 2L)));
+        Principal outsider = connect("Bearer " + jwt.generateToken(3L, "CUSTOMER", "0912345678"));
+
+        assertThrows(MessageDeliveryException.class, () -> subscribe(outsider, "/topic/group/AbC123"));
+        assertEquals(1, delivered.size());
+    }
+
+    @Test
+    @DisplayName("不存在的揪團 token 一律拒絕")
+    void unknownGroupTokenIsDenied() {
         Principal customer = connect("Bearer " + jwt.generateToken(1L, "CUSTOMER", "0912345678"));
+
+        assertThrows(MessageDeliveryException.class, () -> subscribe(customer, "/topic/group/NoSuchTok"));
+    }
+
+    @Test
+    @DisplayName("揪團推播不開放門市，即使門市 id 與團長相同")
+    void storeCannotSubscribeToGroup() {
+        when(groupOrders.findByShareToken("AbC123")).thenReturn(Optional.of(groupWithId(5L, 7L)));
         Principal store = connect("Bearer " + jwt.generateToken(7L, "STORE", "0912345678"));
 
-        assertDoesNotThrow(() -> subscribe(customer, "/topic/group/AbC123"));
         assertThrows(MessageDeliveryException.class, () -> subscribe(store, "/topic/group/AbC123"));
     }
 
@@ -225,6 +262,12 @@ class StompAuthInterceptorTest {
         initiator.setId(userId);
         GroupOrder order = new GroupOrder();
         order.setInitiator(initiator);
+        return order;
+    }
+
+    private static GroupOrder groupWithId(long id, long initiatorId) {
+        GroupOrder order = orderInitiatedBy(initiatorId);
+        order.setId(id);
         return order;
     }
 }

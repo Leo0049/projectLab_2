@@ -24,8 +24,9 @@ import java.security.Principal;
  * <ul>
  *   <li>CONNECT：必須帶 Authorization: Bearer &lt;jwt&gt;，驗證後綁定為該連線的 Principal。</li>
  *   <li>SUBSCRIBE：/topic/order/{id} 僅限該訂單的發起人或參與者；
- *       /topic/group/{token} 的 token 本身即為分享憑證（知道 token 才能加入揪團），
- *       故只要求已通過認證。規則本體在 {@link StompSubscribeRules}。</li>
+ *       /topic/group/{token} 僅限該揪團的成員（團長，或已在團內有品項的團員）。
+ *       token 本身只是分享連結，持有它的人不一定是成員，不能據此推播團內的品項異動。
+ *       規則本體在 {@link StompSubscribeRules}。</li>
  * </ul>
  *
  * <p>獨立成類別（而不是 WebSocketConfig 裡的匿名類別），是為了讓測試能以真實的通道與真實的 JWT 走一遍，
@@ -92,7 +93,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         }
         // 規則本體在 StompSubscribeRules（純函式，有單元測試）；這裡只負責接上資料庫查詢與例外
         String reason = StompSubscribeRules.denyReason(user.role(), user.userId(), accessor.getDestination(),
-                this::isOrderParticipant);
+                this::isOrderParticipant, this::isGroupMember);
         if (reason != null) {
             log.warn("連線者 {}（{}）訂閱 {} 被拒絕：{}", user.userId(), user.role(), accessor.getDestination(), reason);
             throw new MessageDeliveryException(reason);
@@ -105,6 +106,17 @@ public class StompAuthInterceptor implements ChannelInterceptor {
                 .map(o -> o.getInitiator() != null && Long.valueOf(userId).equals(o.getInitiator().getId()))
                 .orElse(false);
         return isInitiator || orderItemRepository.existsByGroupOrderIdAndUserId(orderId, userId);
+    }
+
+    /**
+     * 揪團的成員：團長，或已在團內有品項的團員。與 GroupOrderService 的 isParticipant 採同一條規則
+     * （持分享連結但還沒加入的人不是成員，見 N12）。
+     */
+    private boolean isGroupMember(String shareToken, long userId) {
+        return groupOrderRepository.findByShareToken(shareToken)
+                .map(go -> (go.getInitiator() != null && Long.valueOf(userId).equals(go.getInitiator().getId()))
+                        || orderItemRepository.existsByGroupOrderIdAndUserId(go.getId(), userId))
+                .orElse(false);
     }
 
     /** 綁在 STOMP 連線上的身分：userId 與角色（門市與顧客的 id 會撞號，必須一併比對角色） */

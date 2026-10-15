@@ -154,7 +154,9 @@ public class GroupOrderService {
     public GroupOrderDTO getGroupOrderDTOByToken(String token, Long viewerId) {
         GroupOrder go = getGroupOrderByToken(token);
         if (isParticipant(go, viewerId)) {
-            return convertToDTO(go);
+            GroupOrderDTO dto = convertToDTO(go);
+            dto.setViewerIsMember(true);
+            return dto;
         }
         return outsiderView(go);
     }
@@ -183,6 +185,7 @@ public class GroupOrderService {
                 .items(new ArrayList<>())
                 .address("")
                 .note("")
+                .viewerIsMember(false)
                 .build();
     }
 

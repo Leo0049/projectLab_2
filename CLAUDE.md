@@ -173,7 +173,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-14，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：245 個 `@Test`，分布在 44 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-15，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：256 個 `@Test`，分布在 44 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -181,8 +181,8 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `AuthorizationRouteInventoryTest`（3） | 列舉全部路由：非公開路由匿名呼叫必須回 401／403；公開清單的每一條都必須真的存在（ADR-0003） |
 | 授權與路由 | `GroupOrderSecurityTest`（5） | 揪團 H-1～H-3：伺服器重算價格與歸屬；他人的 couponId 被拒；非團長不可改他人揪團狀態；團長本人的截單與重開可行，亂打的狀態被白名單擋下 |
 | 授權與路由 | `GroupOrderServiceAuthorizationTest`（6） | 揪團讀取與加入：只有發起人能取得分享 token；非成員不可讀數字 id 的明細；舊版加入必須帶正確的 token；拒絕他品牌的商品與門市停售的商品 |
-| 授權與路由 | `StompSubscribeRulesTest`（9） | WebSocket 訂閱授權的純規則：顧客只能訂閱自己參與的訂單與揪團；門市只能訂閱自己的頻道；角色必須相符（id 會撞號）；未知目的地與超大數字 id 一律拒絕 |
-| 授權與路由 | `StompAuthInterceptorTest`（13） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團頻道只開放顧客 |
+| 授權與路由 | `StompSubscribeRulesTest`（11） | WebSocket 訂閱授權的純規則：顧客只能訂閱自己參與的訂單；揪團推播只開放成員（團長，或已在團內有品項的團員），持分享連結但未加入者不可訂閱（N12）；門市只能訂閱自己的頻道；角色必須相符（id 會撞號）；未知目的地與超大數字 id 一律拒絕 |
+| 授權與路由 | `StompAuthInterceptorTest`（17） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團推播的發起人（即使沒有品項）與已在團內有品項的團員可訂閱，只持分享連結者不可訂閱（N12）；門市不可訂閱揪團推播 |
 | 授權與路由 | `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
 | 授權與路由 | `JwtAuthenticationFilterTest`（7） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒 |
 | 帳號與登入 | `AuthServiceSecurityTest`（7） | 帳號安全：mock Firebase token 只在 mock 模式可用；已刪除帳號不可經社群登入；手機證明不可與他人的社群 UID 併用；合併帳號時拒絕其他號碼的 token；社群 provider 不符時在設定密碼前拒絕 |
@@ -197,7 +197,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 金流與併發 | `IdempotencyServiceTest`（9） | 結帳冪等（ADR-0005）：格式檢查、重送回放、進行中衝突、失敗與例外釋放、使用者之間互不影響；Redis 與本地兩條路徑 |
 | 金流與併發 | `ExclusiveJobRunnerTest`（3） | 排程互斥（ADR-0006）：他人持鎖時略過；取得鎖時執行並以同一 token 釋放；任務拋出例外仍釋放 |
 | 金流與併發 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要能拆回兩欄、補款靠正負號分辨收付方 |
-| 訂單規則 | `ItemSpecResolverTest`（7） | 固定規格防竄改（見下方「品項規則抽在 service/order/」） |
+| 訂單規則 | `ItemSpecResolverTest`（9） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）；非固定規格的自訂值拒絕標籤字元、控制字元與超過 50 字 |
 | 訂單規則 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
 | 訂單規則 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
 | 訂單規則 | `MemberCancelSettlementTest`（9） | 團員取消品項的退款規則：只有真的付過（PAID／ESCROWED）才會退，且以 `escrowAmount` 為上限 |
@@ -211,7 +211,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 訂單規則 | `BrandServiceReferenceTest`（2） | 品牌參照：拒絕引用他品牌的分類、規格與加料 id |
 | 訂單規則 | `OrderNoFormatTest`（2） | 訂單編號格式為 ORD＋MMdd＋10 位十六進位；同一天 300 張單不重複 |
 | 輸入與輸出安全 | `SafeImageUrlTest`（7） | 圖片網址白名單：擋 `x" onerror=…`、`javascript:`、`../`、控制字元 |
-| 輸入與輸出安全 | `SafeTextTest`（6） | 會顯示給他人看的名稱：拒絕 `< > " \`` 與控制字元、上限 30 字；第三方登入名稱只清理、不拒絕 |
+| 輸入與輸出安全 | `SafeTextTest`（9） | 會顯示給他人看的名稱：拒絕 `< > " \`` 與控制字元、上限 30 字；第三方登入名稱只清理、不拒絕；標籤型欄位（規格、分類、商品等）另有 50／100 字上限，並同樣拒絕標籤字元（`normalizeLabel`） |
 | 輸入與輸出安全 | `UploadControllerTest`（4） | 通用圖片上傳以檔案內容（magic bytes）判斷，副檔名改成 .png 的 HTML 被拒；副檔名白名單；5 MB 上限；內容為 PNG 時成功並交給儲存服務 |
 | 其他 | `GeoBoundsTest`（5） | 附近店家的矩形預篩必為 50 km 圓的超集（取樣驗證） |
 | 其他 | `RequestIdFilterTest`（5） | `X-Request-Id` 的沿用與替換規則；請求結束後 MDC 清空 |
@@ -312,7 +312,7 @@ SUBMITTED 進入 PREPARING。
 - **截單（LOCKED）**：團員不可自行取消（團長 2026-10-14 確認）。團長仍可移除品項或整單取消，直到店家接單為止（見 `GroupRefundPolicy.wholeGroupCancellable`）。
 - **店家接單後（PREPARING 以後）**：不可整單取消或刪除（409），不可移除品項，也不產生退款；已送單的揪團不可改回 OPEN 或 LOCKED。
 - **團內資料僅供成員檢視**：成員 = 團長，或已在團內有品項的團員。非成員（含未登入）持分享連結只拿到店家、狀態、建立時間等基本欄位（`getGroupOrderDTOByToken` 的 `outsiderView`；不含品項、地址、備註、金額、團長與分享 token），須先加入揪團才能看到團內資料。
-- **已知缺口**：`/topic/group/{token}` 的推播目前對持 token 的已登入顧客開放。事件內容是品項 id、成員 userId 與狀態（不含姓名與金額）。依上述規則應收斂到成員，尚未實作，因為前端需要同時改成「成員確認後才訂閱」。
+- **已知缺口（已收斂）**：`/topic/group/{token}` 的 SUBSCRIBE 已限定為成員（團長，或已在團內有品項的團員；N12），持分享連結但未加入者無法訂閱，前端也改為確認成員身分後才訂閱。事件內容仍是品項 id、成員 userId 與狀態（不含姓名與金額）。尚未處理：已建立的訂閱不會因成員身分改變、帳號停用或 token 過期而即時中斷，直到連線結束。
 
 ⚠️ **顧客只能走 `service/order/OrderStatusGuard` 允許的轉換**（`OPEN\|SUBMITTED → CANCELLED`、
 `SUBMITTED → PAID`，後者是舊前端「已付款」通知）。`OrderController` 的狀態端點原本只驗

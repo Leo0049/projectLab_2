@@ -1414,6 +1414,13 @@
                     isHost = groupOrder.initiatorId ? String(groupOrder.initiatorId) === String(userId) : false;
                     storeDataForLink = groupOrder.storeId || storeId;
 
+                    // 是否為團內成員：以伺服器的 viewerIsMember 為準；舊路徑沒有這個欄位時，以團長身分或本人有品項推定
+                    const viewerIsMember = typeof groupOrder.viewerIsMember === 'boolean'
+                        ? groupOrder.viewerIsMember
+                        : (isHost || items.some(it => String(it.userId) === String(userId)));
+                    groupSubscriptionWanted = viewerIsMember;
+                    subscribeGroupTopicIfMember();
+
                     // 更新發起人名稱顯示
                     const initiatorDisplay = document.getElementById('initiator-name-display');
                     if (initiatorDisplay) {
@@ -2919,36 +2926,53 @@
             // WebSocket (Real-time updates)
             // ==========================================
             let stompClient = null;
+            // 團內推播只給成員（N12）：連線成功後先不訂閱，等 loadGroupOrder 確認本人是成員才訂閱。
+            // 持分享連結但還沒加入的人訂閱會被伺服器拒絕，所以不能一進頁面就訂閱。
+            let groupStompConnected = false;
+            let groupSubscriptionWanted = false;
+            let groupTopicSubscription = null;
+
+            function handleGroupTopicMessage(message) {
+                const data = JSON.parse(message.body);
+
+                if (data.type === 'GROUP_DELETED') {
+                    showToast('此揪團已被團長取消或解散。', 'warning');
+                    navigateTo('index.html');
+                } else if (data.orderId) {
+                    // GROUP_CHECKOUT
+                    if (!isHost) {
+                        showToast('團長已完成結帳！即將前往訂單詳情。', 'info');
+                        navigateTo(`order_details.html?id=${data.orderId}`);
+                    }
+                } else {
+                    // CART_UPDATED, STATUS_CHANGED, etc.
+                    loadGroupOrder();
+                }
+            }
+
+            function subscribeGroupTopicIfMember() {
+                if (!groupStompConnected || !groupSubscriptionWanted || groupTopicSubscription) return;
+                groupTopicSubscription = stompClient.subscribe('/topic/group/' + groupOrderToken, handleGroupTopicMessage);
+            }
 
             function setupWebSocket() {
                 if (stompClient !== null) {
                     try { stompClient.disconnect(); } catch (e) { }
                 }
+                groupStompConnected = false;
+                groupTopicSubscription = null;
 
                 const socket = new SockJS(NavAuth.getApiUrl('/ws-cart'));
                 stompClient = Stomp.over(socket);
                 stompClient.debug = null;
 
                 // WebSocket 已改為需認證：CONNECT 必須帶 JWT，否則後端會拒絕連線
-                stompClient.connect({ Authorization: `Bearer ${localStorage.getItem('JOIN_TOKEN')}` }, (frame) => {
-                    stompClient.subscribe('/topic/group/' + groupOrderToken, (message) => {
-                        const data = JSON.parse(message.body);
-
-                        if (data.type === 'GROUP_DELETED') {
-                            showToast('此揪團已被團長取消或解散。', 'warning');
-                            navigateTo('index.html');
-                        } else if (data.orderId) {
-                            // GROUP_CHECKOUT
-                            if (!isHost) {
-                                showToast('團長已完成結帳！即將前往訂單詳情。', 'info');
-                                navigateTo(`order_details.html?id=${data.orderId}`);
-                            }
-                        } else {
-                            // CART_UPDATED, STATUS_CHANGED, etc.
-                            loadGroupOrder();
-                        }
-                    });
+                stompClient.connect({ Authorization: `Bearer ${localStorage.getItem('JOIN_TOKEN')}` }, () => {
+                    groupStompConnected = true;
+                    subscribeGroupTopicIfMember();
                 }, (error) => {
+                    groupStompConnected = false;
+                    groupTopicSubscription = null;
                     console.warn('WebSocket connection error, retrying in 5s...', error);
                     setTimeout(setupWebSocket, 5000);
                 });

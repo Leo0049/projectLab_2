@@ -35,6 +35,12 @@ public class GroupOrderDTO {
     private String note; // 總體備註 (結帳時填寫)
     
     private LocalDateTime createdAt;
+
+    /**
+     * 觀看者是否為團內成員（團長，或已在團內有品項的團員）。
+     * 前端只有在這個值為 true 時才訂閱 /topic/group/{token}；非成員拿到的是精簡版（見 GroupOrderService.outsiderView）。
+     */
+    private Boolean viewerIsMember;
     
     @Builder.Default
     private List<OrderItemDTO> items = new ArrayList<>();
