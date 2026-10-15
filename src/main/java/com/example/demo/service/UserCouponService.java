@@ -131,9 +131,12 @@ public class UserCouponService {
             throw new CustomException("400", "此優惠券已過期");
         }
 
-        userCoupon.setStatus("used");
-        userCoupon.setUsedAt(LocalDateTime.now());
-        userCouponRepository.save(userCoupon);
+        // 原子消耗（N10）：條件式更新 WHERE status = 'unused'，受影響列數為 0 代表另一個請求已先用掉。
+        // 上面的 status 檢查只是讀取時的快照，兩個請求同時讀到 unused 時，只能靠這一行決定誰成功。
+        // 不可改回「setStatus 再 save」：那會把讀取時的舊實例寫回去，兩次都會成功。
+        if (userCouponRepository.markUsedIfUnused(userCouponId, userId, LocalDateTime.now()) == 0) {
+            throw new CustomException("400", "此優惠券已使用或已過期");
+        }
     }
 
     public Map<String, Object> getSpinStatus(Long userId) {
