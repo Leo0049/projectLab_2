@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.common.JwtUtils;
+import com.example.demo.common.PhoneMask;
 import com.example.demo.common.SafeImageUrl;
 import com.example.demo.common.SafeText;
 import com.example.demo.common.Result;
@@ -205,7 +206,7 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
-        log.info("帳號整合成功（三方帳號設定密碼）：{}", phone);
+        log.info("帳號整合成功（三方帳號設定密碼）：userId={} phone={}", user.getId(), PhoneMask.mask(phone));
         return Result.success(generateLoginResponse(user));
     }
 
@@ -319,7 +320,7 @@ public class AuthService {
         ensureActiveUser(user);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-        log.info("密碼重設成功：{}", phoneNumber);
+        log.info("密碼重設成功：userId={} phone={}", user.getId(), PhoneMask.mask(phoneNumber));
     }
 
     // ─── 更新個人資料 ─────────────────────────────────────────
