@@ -1549,7 +1549,7 @@ public class GroupOrderService {
                 .orElseThrow(() -> new CustomException("404", "找不到揪團訂單"));
         Object requestedToken = req != null ? req.get("shareToken") : null;
         if (!(requestedToken instanceof String token) || !token.equals(order.getShareToken())) {
-            throw new CustomException("403", "邀請憑證無效");
+            // MUTATION M1: share-token rejection removed (verification only)
         }
         if (!"OPEN".equals(order.getStatus()))
             throw new CustomException("409", "此揪團已結束，無法加入");
