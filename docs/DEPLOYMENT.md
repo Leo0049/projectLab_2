@@ -139,3 +139,20 @@ curl -fsS 'http://127.0.0.1:8082/api/stores/nearby?lat=25&lng=121' >/dev/null
 12. **正式環境不公開 API 文件**：`application-prod.yml.example` 已關閉 springdoc。若要在正式環境查看 API，請在內部環境使用另一份設定。
 13. **靜態資源大小寫**：`WebConfig` 的 `/Store/**` 已改為對應 `frontend/store/`（實際目錄），Linux 上不再 404。`/auth/**` 的遺留映射已移除。
 14. **品牌自助註冊是公開的**：`/api/brand-auth/register` 為 permitAll，任何人都能註冊品牌並建立門市。上線前請業務決定是否要審核制（PENDING 狀態、後台核准）或邀請碼；在決定前，建議由營運團隊定期檢視新註冊的品牌與門市。
+
+## 2026-10-15 權杖版本（N13）的上線檢查
+
+部署前必須先完成資料庫變更；順序錯誤會讓應用程式在啟動時失敗（prod 為 `ddl-auto: validate`）。
+
+15. **先加欄位，再部署程式**：`users`、`brands`、`stores` 各需新增 `token_version INT NOT NULL DEFAULT 0`。SQL 與原因見 `DATABASE.md`「結構變更方式」：
+
+    ```sql
+    ALTER TABLE users  ADD COLUMN token_version INT NOT NULL DEFAULT 0;
+    ALTER TABLE brands ADD COLUMN token_version INT NOT NULL DEFAULT 0;
+    ALTER TABLE stores ADD COLUMN token_version INT NOT NULL DEFAULT 0;
+    ```
+
+16. **部署時既有登入不會被強制登出**：部署前簽發的權杖沒有版本聲明，視為版本 0；資料庫的 `DEFAULT 0` 讓既有帳號同為版本 0，因此仍然有效。
+17. **改密碼後，同一帳號在其他裝置上的舊權杖會失效**：`POST /api/users/{userId}/change-password` 回傳新權杖，前端（`profile.html`）會換上。其他裝置的舊權杖在下一次需要登入的請求時被拒絕（HTTP 與 STOMP 皆然）。客服與使用者需要知道這件事。
+18. **品牌與門市目前沒有改密碼或停用的路徑**：`token_version` 欄位存在但未使用。日後新增這兩條路徑時必須遞增版本，否則舊權杖不會失效（見 `CLAUDE.md` 的 N13 約定）。
+19. **登出仍只在前端清除權杖**：伺服器不撤銷，「登出所有裝置」尚未實作。

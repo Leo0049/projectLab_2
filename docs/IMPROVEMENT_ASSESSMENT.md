@@ -76,17 +76,19 @@
 9. **`run-all.js` 的失敗名稱靠攔截 `console.log` 取得**：這是脆弱的做法，之後應改為由 harness 直接記錄檢查結果。
 10. **上傳目錄 `/uploads/**` 維持 `permitAll`**：上傳端已限制為 png／jpg／jpeg／gif／webp 並以 magic bytes 驗證（M-1 修補），圖片可直接顯示。若將來允許 SVG 或 HTML，必須重新評估儲存型 XSS 風險。
 
+2026-10-16 起，所有未完成事項的狀態（包括本文件以外的項目）統一記在 [`REVIEW_2026-10-13.md`](REVIEW_2026-10-13.md) 的「未完成事項」。
+
 ## 未能在本環境驗證的項目
 
 本環境沒有 Maven Central，也沒有 Docker daemon，因此 Java 編譯、`mvn test`、Docker 建置與 UI 流程都只能由 CI 驗證。
-程式與測試最後一次變更（commit `15c2a7d`）上的完整 CI 執行是 [run 38352055664](https://github.com/Leo0049/projectLab_2/actions/runs/38352055664)：`mvn test`（217 個測試、略過 0）、API 端對端、UI 普掃與三條主線、Docker 建置全部步驟成功，摘要見 README「程式與測試的最後一次 CI 驗證」。CI 失敗的原因與修正歷程仍寫在 PR 說明中。
+程式與測試最後一次變更（commit `ba80640`）；PR 頭 `685864d` 上的完整 CI 執行是 [run 38837313131](https://github.com/Leo0049/projectLab_2/actions/runs/38837313131)：`mvn test`（339 個測試、60 個類別、略過 0）、API 端對端、UI 普掃與三條主線、Docker 建置全部步驟成功，摘要見 README「程式與測試的最後一次 CI 驗證」。CI 失敗的原因與修正歷程仍寫在 PR 說明中。
 
 CI 已執行並通過的項目（不再列為未驗證）：
 
 - Java 編譯與 `mvn test`，包括 `AuthorizationRouteInventoryTest`：白名單與 `SecurityConfig` 的比對在 CI 中一致。
 - API 端對端驗證，以及 UI 普掃與三條主線（點餐、轉盤、揪團）。
 - Docker 映像建置（只建置，不推送、不啟動容器）。
-- 還原驗證（2026-10-13）：39 組故意破壞，每一組都讓對應的測試轉紅，對照表見 README「還原驗證」。
+- 還原驗證（2026-10-13）：39 組故意破壞，每一組都讓對應的測試轉紅，對照表見 README「還原驗證」。2026-10-16 另有四組（M1–M4），見 README「2026-10-16 還原驗證（CI）」。
 
 仍然只能在 CI 或線上環境驗證，目前沒有覆蓋的項目：
 
