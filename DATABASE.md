@@ -89,6 +89,7 @@
 | account | VARCHAR UNIQUE NOT NULL | 品牌登入帳號 |
 | password_hash | VARCHAR NOT NULL | BCrypt 密碼雜湊 |
 | role | VARCHAR DEFAULT 'BRAND' | 固定為 BRAND |
+| token_version | INT NOT NULL DEFAULT 0 | 權杖版本（N13）：權杖必須帶著相符的版本才會被接受；目前品牌沒有改密碼或停用路徑，日後新增時須遞增 |
 | logo_url | VARCHAR(255) | 品牌 Logo URL（Cloudinary）|
 | created_at | DATETIME | 建立時間 |
 
@@ -209,6 +210,7 @@
 | account | VARCHAR UNIQUE | 登入帳號 |
 | password_hash | VARCHAR | BCrypt 密碼雜湊 |
 | role | VARCHAR(20) DEFAULT 'STORE' | 固定為 STORE |
+| token_version | INT NOT NULL DEFAULT 0 | 權杖版本（N13）：同 brands；目前分店沒有改密碼或停用路徑，日後新增時須遞增 |
 | address | VARCHAR | 門市地址 |
 | latitude / longitude | DECIMAL(10,8) / DECIMAL(11,8) | 地理座標（用於地圖與附近搜尋）|
 | is_delivery_available | BOOLEAN DEFAULT true | 是否提供外送服務 |
@@ -280,6 +282,7 @@
 | created_at | DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) | 建立時間 |
 | is_deleted | BOOLEAN NOT NULL DEFAULT false | 邏輯刪除（不實際刪除資料）|
 | deleted_at | DATETIME(6) DEFAULT NULL | 邏輯刪除時間 |
+| token_version | INT NOT NULL DEFAULT 0 | 權杖版本（N13）：改密碼與刪除帳號時遞增，之前簽發的權杖因此失效 |
 
 ---
 
@@ -450,8 +453,8 @@ OPEN（待處理）→ SUBMITTED（已送出）→ PREPARING（製作中）→ R
 | size_snapshot | VARCHAR | 杯型快照（M / L）|
 | item_hash | VARCHAR(32) | 客製化組合的雜湊，用於判斷「同品項」可否合併數量 |
 | qty | INT NOT NULL DEFAULT 1 | 數量（Java 欄位名為 `quantity`，DB 欄位名為 `qty`）|
-| payment_status | VARCHAR DEFAULT 'WAITING_SUBMIT' | WAITING_SUBMIT / PENDING / PAID / REFUNDED |
-| payment_type | VARCHAR | WALLET（錢包）/ CASH（現金）|
+| payment_status | VARCHAR DEFAULT 'WAITING_SUBMIT' | WAITING_SUBMIT / UNPAID / ESCROWED / PAID / REFUNDED / CANCELLED |
+| payment_type | VARCHAR | WALLET（錢包）/ CASH（現金）/ CREDIT_CARD（信用卡；後端視為門市付款）|
 | coupon_id | BIGINT | 套用的優惠券 ID |
 | discount_amount_snapshot | DECIMAL(10,2) DEFAULT 0 | 優惠券折扣金額快照 |
 
@@ -540,6 +543,14 @@ Redis 7.4（見 `docker-compose.yml`）。下表是程式中實際寫入的鍵�
 
 - 目前 schema 由 Hibernate 的 `spring.jpa.hibernate.ddl-auto: update` 管理（見 `application.yml`）。`update` 只會新增資料表與欄位，**不會**刪除、改名或改型別，也不做資料遷移。
 - 本專案**沒有遷移工具**。正式上線前導入 Flyway 的做法與驗收條件，見 [`docs/adr/0008-schema-migrations.md`](docs/adr/0008-schema-migrations.md)。
+- **N13（2026-10-15）**：`users`、`brands`、`stores` 各新增 `token_version INT NOT NULL DEFAULT 0`。本機 `update` 會自動加欄位；正式環境（`validate`）須先人工執行下列 SQL，否則啟動會失敗。`DEFAULT 0` 讓既有帳號從版本 0 開始，部署前簽發的權杖（沒有版本聲明，視為 0）仍然有效。
+
+  ```sql
+  ALTER TABLE users  ADD COLUMN token_version INT NOT NULL DEFAULT 0;
+  ALTER TABLE brands ADD COLUMN token_version INT NOT NULL DEFAULT 0;
+  ALTER TABLE stores ADD COLUMN token_version INT NOT NULL DEFAULT 0;
+  ```
+
 - 本文件是手寫的對照說明；Entity 才是唯一事實來源。修改 Entity 時請同步更新本文件，並注意上方 `user_coupons` 一節提到的 generated column。
 
 ---

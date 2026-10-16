@@ -77,10 +77,13 @@ class GroupOrderServiceAuthorizationTest {
 
     @Test
     void legacyJoinRequiresTheMatchingShareToken() {
-        when(groupOrderRepository.findById(10L)).thenReturn(Optional.of(groupOrder(10L, 3L)));
+        // joinGroup 以列鎖讀取（與加點、結帳互斥）：stub 必須對準同一個方法，否則查無揪團會假性以 404 通過
+        when(groupOrderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(groupOrder(10L, 3L)));
 
-        assertThrows(CustomException.class,
+        CustomException ex = assertThrows(CustomException.class,
                 () -> groupOrderService.joinGroup(4L, 10L, Map.of("items", java.util.List.of())));
+        assertEquals("403", ex.getCode());
+        assertEquals("邀請憑證無效", ex.getMsg());
     }
 
     @Test
@@ -88,7 +91,7 @@ class GroupOrderServiceAuthorizationTest {
         GroupOrder order = groupOrder(10L, 3L);
         User member = new User();
         member.setId(4L);
-        when(groupOrderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(groupOrderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
         when(userRepository.findById(4L)).thenReturn(Optional.of(member));
 
         Brand otherBrand = new Brand();
@@ -100,7 +103,9 @@ class GroupOrderServiceAuthorizationTest {
         Map<String, Object> item = Map.of("productId", 20L);
         Map<String, Object> request = Map.of("shareToken", "TOKEN123", "items", List.of(item));
 
-        assertThrows(CustomException.class, () -> groupOrderService.joinGroup(4L, 10L, request));
+        CustomException ex = assertThrows(CustomException.class, () -> groupOrderService.joinGroup(4L, 10L, request));
+        assertEquals("400", ex.getCode());
+        assertEquals("商品不屬於該分店品牌", ex.getMsg());
     }
 
     @Test
@@ -108,7 +113,7 @@ class GroupOrderServiceAuthorizationTest {
         GroupOrder order = groupOrder(10L, 3L);
         User member = new User();
         member.setId(4L);
-        when(groupOrderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(groupOrderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
         when(userRepository.findById(4L)).thenReturn(Optional.of(member));
 
         ProductTemplate product = new ProductTemplate();
@@ -126,7 +131,9 @@ class GroupOrderServiceAuthorizationTest {
 
         Map<String, Object> item = Map.of("productId", 20L);
         Map<String, Object> request = Map.of("shareToken", "TOKEN123", "items", List.of(item));
-        assertThrows(CustomException.class, () -> groupOrderService.joinGroup(4L, 10L, request));
+        CustomException ex = assertThrows(CustomException.class, () -> groupOrderService.joinGroup(4L, 10L, request));
+        assertEquals("400", ex.getCode());
+        assertEquals("此商品目前未在該分店供應", ex.getMsg());
     }
 
     // N12（2026-10-13 團長定案）：團內資料僅供成員檢視，如需檢視需入團。

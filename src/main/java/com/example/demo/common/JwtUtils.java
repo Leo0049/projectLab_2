@@ -1,5 +1,7 @@
 package com.example.demo.common;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
@@ -24,6 +26,9 @@ public class JwtUtils {
 
     /** application.yml 內建的開發預設金鑰前綴；prod profile 下出現即拒絕啟動 */
     static final String DEV_DEFAULT_SECRET_PREFIX = "LocalDevOnlySecretForJoinDrink";
+
+    /** 權杖中記錄簽發時帳號版本的聲明名稱（N13） */
+    static final String TOKEN_VERSION_CLAIM = "tokenVersion";
 
     @Autowired(required = false)
     private Environment environment;
@@ -75,11 +80,24 @@ public class JwtUtils {
         }
     }
 
+    /**
+     * 簽發權杖，tokenVersion 為 0。只給沒有版本概念的呼叫端使用；登入與改密碼後的路徑一律用四參數版本，
+     * 否則帳號版本不為 0 時，剛簽出的權杖會被 {@code AccountStatus} 拒絕（N13）。
+     */
     public String generateToken(Long userId, String role, String phoneNumber) {
+        return generateToken(userId, role, phoneNumber, 0);
+    }
+
+    /**
+     * 簽發權杖。tokenVersion 必須是帳號目前的版本（N13）：改密碼、刪除帳號後會遞增，
+     * 之前簽發的權杖就不再符合 {@code AccountStatus}。
+     */
+    public String generateToken(Long userId, String role, String phoneNumber, int tokenVersion) {
         Date now = new Date();
         return Jwts.builder()
                 .claim("userId", userId)
                 .claim("role", role)
+                .claim(TOKEN_VERSION_CLAIM, tokenVersion)
                 .setSubject(phoneNumber)
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + expiration))
@@ -89,12 +107,7 @@ public class JwtUtils {
 
     // 新增：解析 Token 拿回 userId
     public Long getUserIdFromToken(String token) {
-        Object userIdObj = Jwts.parserBuilder()
-                .setSigningKey(signingKey)
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .get("userId");
+        Object userIdObj = parseClaims(token).get("userId");
         if (userIdObj instanceof Number) {
             return ((Number) userIdObj).longValue();
         }
@@ -102,11 +115,38 @@ public class JwtUtils {
     }
 
     public String getRoleFromToken(String token) {
+        return parseClaims(token).get("role", String.class);
+    }
+
+    /**
+     * 權杖的到期時間（exp）。WebSocket 的 CONNECT 與 SUBSCRIBE 用它判斷連線憑證是否仍有效（N7）。
+     * 沒有 exp 聲明時回傳 null，呼叫端應視為無效。
+     */
+    public Date getExpirationFromToken(String token) {
+        return parseClaims(token).getExpiration();
+    }
+
+    /**
+     * 權杖簽發時帳號的 tokenVersion（N13）。沒有此聲明的舊權杖視為 0，
+     * 因此部署後既有登入不會被強制登出；只有之後改過密碼的帳號，舊權杖才會失效。
+     */
+    public int getTokenVersionFromToken(String token) {
+        Object version = parseClaims(token).get(TOKEN_VERSION_CLAIM);
+        return version instanceof Number ? ((Number) version).intValue() : 0;
+    }
+
+    /**
+     * 驗證並解析權杖。先檢查演算法白名單（只接受 HS512），再交給 jjwt 驗簽與檢查到期。
+     * jjwt 本身會接受同一把金鑰簽的 HS256，白名單必須在解析前擋下（見 {@link JwtAlgorithm}）。
+     */
+    private Claims parseClaims(String token) {
+        if (!JwtAlgorithm.isAllowed(token)) {
+            throw new JwtException("權杖演算法不在白名單內");
+        }
         return Jwts.parserBuilder()
                 .setSigningKey(signingKey)
                 .build()
                 .parseClaimsJws(token)
-                .getBody()
-                .get("role", String.class);
+                .getBody();
     }
 }

@@ -2,6 +2,7 @@ package com.example.demo.service.order;
 
 import com.example.demo.entity.BrandSpecSetting;
 import com.example.demo.entity.ProductSpecRelation;
+import com.example.demo.exception.CustomException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -9,6 +10,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -94,5 +96,24 @@ class ItemSpecResolverTest {
         ItemSpecResolver resolver = ItemSpecResolver.of(List.of());
         assertNull(resolver.resolve(ItemSpecResolver.SIZE, null));
         assertEquals("", resolver.resolveOrEmpty(ItemSpecResolver.SIZE, null));
+    }
+
+    @Test
+    @DisplayName("多選項或無設定時，用戶端送來的規格含標籤字元一律 400（實測：規格快照會原樣落庫）")
+    void clientValueWithMarkupIsRejected() {
+        ItemSpecResolver multi = ItemSpecResolver.of(List.of(spec("ICE", "去冰"), spec("ICE", "少冰")));
+        assertThrows(CustomException.class,
+                () -> multi.resolve(ItemSpecResolver.ICE, "<img src=x onerror=alert(1)>"));
+
+        ItemSpecResolver none = ItemSpecResolver.of(List.of());
+        assertThrows(CustomException.class,
+                () -> none.resolve(ItemSpecResolver.SWEETNESS, "半糖\" onmouseover=\"x"));
+    }
+
+    @Test
+    @DisplayName("固定規格時，用戶端送什麼都不會被讀取，回傳的是品牌設定的名稱")
+    void fixedSpecIgnoresMarkupFromClient() {
+        ItemSpecResolver resolver = ItemSpecResolver.of(List.of(spec("ICE", "熱飲")));
+        assertEquals("熱飲", resolver.resolve(ItemSpecResolver.ICE, "<img src=x onerror=alert(1)>"));
     }
 }

@@ -784,7 +784,7 @@
             // 動態填入電話
             const phoneEl = document.getElementById('store-phone');
             if (phoneEl) {
-              const phoneNumber = s.storePhone || s.phone;
+              const phoneNumber = s.storePhone;
               phoneEl.textContent = phoneNumber || '-';
               if (phoneNumber) phoneEl.href = `tel:${phoneNumber}`;
             }

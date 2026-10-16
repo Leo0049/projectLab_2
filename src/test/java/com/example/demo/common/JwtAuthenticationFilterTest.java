@@ -1,5 +1,7 @@
 package com.example.demo.common;
 
+import com.example.demo.entity.Brand;
+import com.example.demo.entity.Store;
 import com.example.demo.entity.User;
 import com.example.demo.repository.BrandRepository;
 import com.example.demo.repository.StoreRepository;
@@ -25,9 +27,10 @@ class JwtAuthenticationFilterTest {
     private static final Long ACCOUNT_ID = 42L;
 
     private String role;
+    private int tokenVersion;
     private Optional<User> customer = Optional.empty();
-    private boolean brandExists;
-    private boolean storeExists;
+    private Optional<Brand> brand = Optional.empty();
+    private Optional<Store> store = Optional.empty();
     private JwtAuthenticationFilter filter;
 
     private final JwtUtils jwtUtils = new JwtUtils() {
@@ -40,13 +43,19 @@ class JwtAuthenticationFilterTest {
         public String getRoleFromToken(String token) {
             return role;
         }
+
+        @Override
+        public int getTokenVersionFromToken(String token) {
+            return tokenVersion;
+        }
     };
 
     @BeforeEach
     void setUp() {
         customer = Optional.empty();
-        brandExists = false;
-        storeExists = false;
+        brand = Optional.empty();
+        store = Optional.empty();
+        tokenVersion = 0;
         SecurityContextHolder.clearContext();
         filter = new JwtAuthenticationFilter(jwtUtils, repository(UserRepository.class),
                 repository(BrandRepository.class), repository(StoreRepository.class));
@@ -88,7 +97,7 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void acceptsBrandTokenWhenAccountExists() throws Exception {
-        brandExists = true;
+        brand = Optional.of(new Brand());
 
         runFilter("BRAND");
 
@@ -104,11 +113,58 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void acceptsStoreTokenWhenAccountExists() throws Exception {
-        storeExists = true;
+        store = Optional.of(new Store());
 
         runFilter("STORE");
 
         assertAuthority("STORE");
+    }
+
+    @Test
+    void rejectsCustomerTokenIssuedBeforeAPasswordChange() throws Exception {
+        User changed = new User();
+        changed.setTokenVersion(1);
+        customer = Optional.of(changed);
+        tokenVersion = 0;
+
+        runFilter("CUSTOMER");
+
+        assertNull(authentication());
+    }
+
+    @Test
+    void acceptsCustomerTokenIssuedAfterAPasswordChange() throws Exception {
+        User changed = new User();
+        changed.setTokenVersion(1);
+        customer = Optional.of(changed);
+        tokenVersion = 1;
+
+        runFilter("CUSTOMER");
+
+        assertAuthority("CUSTOMER");
+    }
+
+    @Test
+    void rejectsCustomerTokenWhenTheAccountRoleHasChanged() throws Exception {
+        User reassigned = new User();
+        reassigned.setRole("BRAND");
+        customer = Optional.of(reassigned);
+
+        runFilter("CUSTOMER");
+
+        assertNull(authentication());
+    }
+
+    @Test
+    void rejectsStoreTokenIssuedBeforeAPasswordChange() throws Exception {
+        Store changed = new Store();
+        changed.setTokenVersion(1);
+        store = Optional.of(changed);
+        tokenVersion = 0;
+
+        runFilter("STORE");
+
+        assertNull(authentication());
     }
 
     @Test
@@ -143,8 +199,8 @@ class JwtAuthenticationFilterTest {
                         };
                     }
                     return switch (method.getName()) {
-                        case "findById" -> customer;
-                        case "existsById" -> repositoryType == BrandRepository.class ? brandExists : storeExists;
+                        case "findById" -> repositoryType == UserRepository.class ? customer
+                                : repositoryType == BrandRepository.class ? brand : store;
                         default -> defaultValue(method.getReturnType());
                     };
                 }));

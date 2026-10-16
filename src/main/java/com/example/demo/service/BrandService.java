@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.common.JwtUtils;
 import com.example.demo.common.SafeImageUrl;
+import com.example.demo.common.SafeText;
 import com.example.demo.dto.BrandSpecReorderRequest;
 import com.example.demo.dto.CreateCategoryRequest;
 import com.example.demo.dto.CreateProductRequest;
@@ -85,12 +86,14 @@ public class BrandService {
     // ─── 認證 ──────────────────────────────────────────
     @Transactional
     public void register(String name, String account, String password) {
+        // 品牌名會顯示在所有顧客頁面（首頁、轉盤、收藏），寫入前先擋掉標籤字元
+        String safeName = SafeText.normalizeLabel(name, 100);
         if (brandRepository.existsByAccount(account))
             throw new CustomException("409", "帳號已被使用");
-        if (brandRepository.existsByName(name))
+        if (brandRepository.existsByName(safeName))
             throw new CustomException("409", "品牌名稱已被使用");
         Brand brand = new Brand();
-        brand.setName(name);
+        brand.setName(safeName);
         brand.setAccount(account);
         brand.setPasswordHash(passwordEncoder.encode(password));
         brandRepository.save(brand);
@@ -123,7 +126,7 @@ public class BrandService {
                 .orElseThrow(() -> new CustomException("404", "帳號不存在"));
         if (!passwordEncoder.matches(password, brand.getPasswordHash()))
             throw new CustomException("401", "密碼錯誤");
-        String token = jwtUtils.generateToken(brand.getId(), brand.getRole(), brand.getAccount());
+        String token = jwtUtils.generateToken(brand.getId(), brand.getRole(), brand.getAccount(), brand.getTokenVersion());
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("brandId", brand.getId());
@@ -156,7 +159,7 @@ public class BrandService {
                 .orElseThrow(() -> new CustomException("404", "品牌不存在"));
         Store store = new Store();
         store.setBrand(brand);
-        store.setStoreName(storeName);
+        store.setStoreName(SafeText.normalizeLabel(storeName, 100));
         store.setAccount(account);
         store.setPasswordHash(passwordEncoder.encode(password));
         if (regionId != null) {
@@ -207,7 +210,8 @@ public class BrandService {
                 .orElseThrow(() -> new CustomException("404", "品牌不存在"));
         List<MenuCategoryResponse> result = new ArrayList<>();
         int nextSortOrder = Optional.ofNullable(menuCategoryRepository.findMaxSortOrderByBrandId(brandId)).orElse(-1) + 1;
-        for (String name : req.getNames()) {
+        for (String rawName : req.getNames()) {
+            String name = SafeText.normalizeLabel(rawName, 50);
             if (menuCategoryRepository.existsByBrandIdAndName(brandId, name))
                 continue;
             MenuCategory cat = new MenuCategory();
@@ -244,7 +248,7 @@ public class BrandService {
                 .orElseThrow(() -> new CustomException("404", "分類不存在"));
         if (!cat.getBrand().getId().equals(brandId))
             throw new CustomException("403", "無權限");
-        String trimmed = newName == null ? "" : newName.trim();
+        String trimmed = newName == null ? "" : SafeText.normalizeLabel(newName, 50);
         if (trimmed.isEmpty())
             throw new CustomException("400", "分類名稱不可為空");
         if (trimmed.equals("全部"))
@@ -340,7 +344,7 @@ public class BrandService {
         }
         validateProductReferences(brandId, req.getBrandSpecIds(), req.getSpecPrices(), req.getBrandToppingIds());
         p.setSortOrder(nextProductSortOrder(brandId, categoryId));
-        p.setName(req.getName());
+        p.setName(SafeText.normalizeLabel(req.getName(), 100));
         p.setBasePrice(deriveBasePrice(req.getBasePrice(), req.getSpecPrices()));
         if (req.getDescription() != null)
             p.setDescription(req.getDescription());
@@ -388,7 +392,7 @@ public class BrandService {
                 p.setSortOrder(nextProductSortOrder(brandId, nextCategoryId));
         }
         if (req.getName() != null)
-            p.setName(req.getName());
+            p.setName(SafeText.normalizeLabel(req.getName(), 100));
         if (req.getDescription() != null)
             p.setDescription(req.getDescription());
         p.setBasePrice(deriveBasePrice(req.getBasePrice(), req.getSpecPrices()));
@@ -875,7 +879,7 @@ public class BrandService {
     }
 
     private String normalizeSpecCustomName(BrandSpecSetting setting, String customName) {
-        String trimmed = customName == null ? null : customName.trim();
+        String trimmed = customName == null ? null : SafeText.normalizeLabel(customName, 50);
         if (trimmed == null || trimmed.isBlank()) {
             return null;
         }
@@ -899,7 +903,7 @@ public class BrandService {
         Brand brand = brandRepository.findById(brandId)
                 .orElseThrow(() -> new CustomException("404", "品牌不存在"));
         String upperType = type.toUpperCase();
-        String trimmed = name == null ? "" : name.trim();
+        String trimmed = name == null ? "" : SafeText.normalizeLabel(name, 50);
         if (!List.of("ICE", "SWEETNESS", "SIZE").contains(upperType))
             throw new CustomException("400", "type 必須是 ICE / SWEETNESS / SIZE");
         if (trimmed.isEmpty())
@@ -1088,7 +1092,7 @@ public class BrandService {
     }
 
     private String normalizeToppingCustomName(BrandToppingSetting setting, String customName) {
-        String trimmed = customName == null ? null : customName.trim();
+        String trimmed = customName == null ? null : SafeText.normalizeLabel(customName, 50);
         if (trimmed == null || trimmed.isBlank()) {
             return null;
         }
@@ -1110,7 +1114,7 @@ public class BrandService {
     public Map<String, Object> addBrandTopping(Long brandId, String name, BigDecimal price) {
         Brand brand = brandRepository.findById(brandId)
                 .orElseThrow(() -> new CustomException("404", "品牌不存在"));
-        String trimmed = name == null ? "" : name.trim();
+        String trimmed = name == null ? "" : SafeText.normalizeLabel(name, 50);
         long current = brandToppingSettingRepository.countByBrandId(brandId);
         if (current >= 10)
             throw new CustomException("400", "配料已達上限（最多 20 個）");

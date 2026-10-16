@@ -1,8 +1,11 @@
 package com.example.demo.config;
 
 import com.example.demo.common.JwtUtils;
+import com.example.demo.repository.BrandRepository;
 import com.example.demo.repository.GroupOrderRepository;
 import com.example.demo.repository.OrderItemRepository;
+import com.example.demo.repository.StoreRepository;
+import com.example.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +23,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final JwtUtils jwtUtils;
     private final GroupOrderRepository groupOrderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final UserRepository userRepository;
+    private final BrandRepository brandRepository;
+    private final StoreRepository storeRepository;
 
     /** 與 SecurityConfig 共用同一份白名單，避免兩邊漂移 */
     @Value("${app.cors.allowed-origins}")
@@ -46,11 +52,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     /**
      * 把 STOMP 認證與訂閱授權掛到入站通道上。
      *
-     * <p>攔截邏輯在 {@link StompAuthInterceptor}：CONNECT 必須帶有效的 JWT，
-     * SUBSCRIBE 依角色與訂單參與關係授權。
+     * <p>攔截邏輯在 {@link StompAuthInterceptor}：CONNECT 必須帶有效的 JWT 且帳號仍可使用；
+     * SUBSCRIBE 依角色與參與關係授權，並重新檢查 token 期限與帳號狀態；客戶端的 SEND 一律拒絕。
      */
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(new StompAuthInterceptor(jwtUtils, groupOrderRepository, orderItemRepository));
+        registration.interceptors(new StompAuthInterceptor(jwtUtils, groupOrderRepository, orderItemRepository,
+                userRepository, brandRepository, storeRepository));
     }
 }

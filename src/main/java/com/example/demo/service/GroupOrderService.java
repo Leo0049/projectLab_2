@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.common.SafeText;
 import com.example.demo.dto.GroupOrderDTO;
 import com.example.demo.service.order.CouponEligibility;
 import com.example.demo.service.order.GroupRefundPolicy;
@@ -153,7 +154,9 @@ public class GroupOrderService {
     public GroupOrderDTO getGroupOrderDTOByToken(String token, Long viewerId) {
         GroupOrder go = getGroupOrderByToken(token);
         if (isParticipant(go, viewerId)) {
-            return convertToDTO(go);
+            GroupOrderDTO dto = convertToDTO(go);
+            dto.setViewerIsMember(true);
+            return dto;
         }
         return outsiderView(go);
     }
@@ -182,6 +185,7 @@ public class GroupOrderService {
                 .items(new ArrayList<>())
                 .address("")
                 .note("")
+                .viewerIsMember(false)
                 .build();
     }
 
@@ -1714,7 +1718,8 @@ public class GroupOrderService {
             validateStoreProduct(order.getStore(), product, unavailableProductIds);
 
             int qty = QuantityLimits.parse(req.getOrDefault("qty", "1"));
-            String size = pricingService.resolveSizeName(product, (String) req.get("size"));
+            String size = pricingService.resolveSizeName(product,
+                    SafeText.normalizeLabel((String) req.get("size"), 50));
             List<String> toppingNames = new ArrayList<>();
             Object requestedToppings = req.get("toppingNames");
             if (requestedToppings instanceof List<?> values) {
@@ -1731,8 +1736,8 @@ public class GroupOrderService {
             item.setGroupOrder(order);
             item.setUser(user);
             item.setProduct(product);
-            item.setSugarSnapshot((String) req.getOrDefault("sugar", ""));
-            item.setIceSnapshot((String) req.getOrDefault("ice", ""));
+            item.setSugarSnapshot(SafeText.normalizeLabel((String) req.getOrDefault("sugar", ""), 50));
+            item.setIceSnapshot(SafeText.normalizeLabel((String) req.getOrDefault("ice", ""), 50));
             item.setSizeSnapshot(size);
             item.setQty(qty);
             item.setPaymentStatus("UNPAID");

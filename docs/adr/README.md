@@ -12,6 +12,7 @@
 | [0006](0006-redis-shared-state-and-job-exclusion.md) | Redis 承載共享狀態；排程互斥 | Accepted | 多實例、併發 |
 | [0007](0007-deferred-decisions.md) | 延後決策登記冊 | Deferred | 治理 |
 | [0008](0008-schema-migrations.md) | 結構變更改用 Flyway（上線前） | Deferred | 資料庫、部署 |
+| [0009](0009-phone-proof-single-use.md) | 手機驗證權杖只能成功使用一次 | Accepted（社群權杖未納入） | 安全、帳號 |
 
 ## 格式
 

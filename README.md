@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：217 個 `@Test`，42 個測試類別（JUnit 5 + Mockito；9 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：339 個 `@Test`，60 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：39 個 HTML 頁面全數普掃（共 51 次載入，顧客主頁有資料與空狀態各掃一次），加上點餐、轉盤、揪團三條主線 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -289,15 +289,15 @@ docker compose up -d && mvn test
 | `AuthorizationTest`（19） | 未認證寫商品、跨帳號讀寫個資／錢包／訂單／收藏、偽造參數與「不帶參數」兩種繞過、拿他人 `userId` 結帳、竄改 `finalPrice`、消耗他人優惠券、debug 與傾印端點已移除、本人存取仍正常 |
 | `AuthorizationRouteInventoryTest`（3） | 路由清單全數列舉：白名單以外的每一條路由，匿名請求都必須回 401／403；白名單中的路由都真實存在；新增端點忘了加授權時 CI 會紅 |
 | `GroupOrderSecurityTest`（5） | 揪團數字 ID 查詢的團主／團員權限、邀請 token 與跨品牌商品限制 |
-| `AuthServiceSecurityTest`（7） | 手機 token 與社群 UID 驗證、帳號合併證明、已刪除帳號登入防護 |
+| `AuthServiceSecurityTest`（9） | 手機 token 與社群 UID 驗證、帳號合併證明、已刪除帳號登入防護 |
 | `JwtUtilsProdGuardTest`（4） | JWT 金鑰長度與正式環境禁止使用內建預設值 |
-| `GroupOrderServiceAuthorizationTest`（6） | 揪團建立、加品項與結帳時的門市及商品供應狀態 |
+| `GroupOrderServiceAuthorizationTest`（10） | 揪團建立、加品項與結帳時的門市及商品供應狀態 |
 | `PricingServiceTest`（5） | 商品尺寸定價、商品專屬配料規則、重複與超量配料拒絕 |
 | `BrandServiceReferenceTest`（2） | 品牌不能引用其他租戶的分類、規格或配料 |
 | `CartServiceTest`（1） | 購物車品項變更後重算單價與總額 |
 | `QuantityLimitsTest`（1） | 訂單數量邊界 1–99 |
 | `RedisCartServiceTest`（2） | Redis 購物車品項與數量更新 |
-| `ItemSpecResolverTest`（7） | 固定規格防竄改：商品只有唯一規格選項時不採信用戶端送來的值 |
+| `ItemSpecResolverTest`（9） | 固定規格防竄改：商品只有唯一規格選項時不採信用戶端送來的值 |
 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、任一規格不同即分開、套券的那杯要拆出來 |
 | `CouponEligibilityTest`（6） | 優惠券適用範圍：跨品牌／跨商品要擋、已付款不可再套 |
 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要拆回 type／description、補款靠正負號分辨收付方 |
@@ -307,29 +307,28 @@ docker compose up -d && mvn test
 | `GroupCheckoutConcurrencyTest`（6） | 揪團的四條金流路徑（團員結帳、團長結帳、補款、取消退款）重複觸發時同一筆金額只能發生一次、帳本與餘額必須相符；同一張優惠券不可被用兩次 |
 | `DemoApplicationTests`（1） | Spring context 載入 |
 | `DemoDataSeederProdGuardTest`（2） | 正式環境不植入示範資料（即使 `DEMO_DATA_ENABLED` 沒設定也不會） |
-| `JwtAuthenticationFilterTest`（7） | JWT 過濾器：無效或過期的 token 會被拒絕；已刪除的帳號每次請求都會被擋下 |
+| `JwtAuthenticationFilterTest`（11） | JWT 過濾器：無效或過期的 token 會被拒絕；已刪除的帳號每次請求都會被擋下 |
 | `AuthServiceSmsModeGuardTest`（6） | 正式環境若 `sms.mode` 不是 `firebase` 就拒絕啟動（含 `MOCK_TOKEN` 繞過） |
 | `LoginAttemptLimiterTest`（10） | 登入與 OTP 限流：超過次數回 429；Redis 不可用時退回本機計數 |
 | `SafeImageUrlTest`（7） | 圖片網址白名單（純邏輯）：擋 `javascript:`、`../`、引號跳脫與控制字元 |
-| `SafeTextTest`（6） | 顧客名稱寫入規則（純邏輯）：拒絕 `< > " \`` 與控制字元，上限 30 字 |
+| `SafeTextTest`（9） | 顧客名稱寫入規則（純邏輯）：拒絕 `< > " \`` 與控制字元，上限 30 字 |
 | `MemberCancelSettlementTest`（9） | 團員取消品項的退款結算（純邏輯）：只退已付款的部分，團長退款以 escrow 為上限 |
 | `OrderStatusGuardTest`（5） | 顧客端訂單狀態轉換白名單（純邏輯） |
-| `CancellableStatusTest`（2） | 揪團品項可否取消：只有 OPEN 與 SUBMITTED（純邏輯） |
-| `StompSubscribeRulesTest`（9） | WebSocket 訂閱授權（純邏輯）：顧客、門市、品牌的頻道權限，未知目的地一律拒絕 |
+| `StompSubscribeRulesTest`（11） | WebSocket 訂閱授權（純邏輯）：顧客、門市、品牌的頻道權限，未知目的地一律拒絕 |
 | `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策（純邏輯）：手機已被使用就絕不另建帳號 |
 | `IdempotencyServiceTest`（9） | 冪等結帳：同一把鍵重送只執行一次並重播結果；失敗會釋放鍵以便重試；佔位中的重送回 409；鍵格式與使用者範圍；Redis 路徑（多實例共用完成紀錄） |
 | `ExclusiveJobRunnerTest`（3） | 排程互斥：其他實例持有鎖時略過且不釋放別人的鎖；取得鎖時執行一次並以同一 token 釋放；任務拋例外仍會釋放鎖 |
 | `GeoBoundsTest`（5） | 附近店家的預篩矩形是 50 公里圓的超集合，不會漏掉圓內的店；經緯度夾在合法範圍內；負半徑拒絕 |
 | `RequestIdFilterTest`（5） | `X-Request-Id`：合規的 id 沿用，非法或長度不符的重新產生；請求結束後 MDC 清空 |
 | `BrandSummaryJsonTest`（2） | 前端契約：品牌摘要的 JSON 欄位固定為 brandId、brandName、logoUrl，沒有 logo 時 logoUrl 為 null |
-| `StompAuthInterceptorTest`（13） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團頻道只開放顧客 |
+| `StompAuthInterceptorTest`（26） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團頻道只開放顧客 |
 | `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
 | `OrderNoFormatTest`（2） | 訂單編號格式為 ORD＋MMdd＋10 位十六進位；同一天 300 張單不重複 |
 | `UploadControllerTest`（4） | 通用圖片上傳以檔案內容（magic bytes）判斷，副檔名改成 .png 的 HTML 被拒；副檔名白名單；5 MB 上限；內容為 PNG 時成功並交給儲存服務 |
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 217 個 `@Test`（42 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 339 個 `@Test`（60 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -357,7 +356,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（217 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（339 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 39 個頁面全頁面普掃（51 次載入）＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -369,16 +368,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-2026-10-13 UTC 的 `pull_request` run 38352055664（commit `15c2a7d`，即程式與測試的最終狀態）全綠。之後的提交只改文件，程式與測試未變。
+程式與測試最後一次變更是 `ba80640`。PR 頭 `685864d` 上的完整 CI 執行是 [run 38837313131](https://github.com/Leo0049/projectLab_2/actions/runs/38837313131)（`pull_request`），兩個 job 皆成功。之後提交的內容由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | [run 38352055664](https://github.com/Leo0049/projectLab_2/actions/runs/38352055664)（`pull_request`，commit `15c2a7d`）；同一 run 的「容器映像建置（僅建置）」也全綠 |
-| 靜態檢查（第 0 層） | gitleaks、79 支受版控 JS 的 `node --check`、69 段內嵌 script：通過 |
-| `mvn test`（第 1 層） | 通過，耗時 59 秒。測試總計 **217 個測試、42 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」）；其中 9 個類別載入 Spring context，與其餘測試一併執行 |
-| 打包與起服務 | `mvn package -DskipTests` 通過（7 秒）；「啟動後端」步驟耗時 17 秒（輪詢到服務就緒為止） |
-| API 端對端（第 2 層） | 通過（腳本有任一失敗即 exit 1），耗時 6 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過（同上）：39 個頁面普掃（51 次載入）＋點餐、轉盤、揪團三條主線，耗時 4 分 39 秒 |
+| 執行 | run 38837313131（`pull_request`，commit `685864d`）：「測試與端對端驗證」431 秒、「容器映像建置（僅建置）」94 秒，皆成功 |
+| 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
+| `mvn test`（第 1 層） | 通過，51 秒。測試總計 **339 個測試、60 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 6 秒；啟動後端 15 秒 |
+| API 端對端（第 2 層） | 通過，5 秒 |
+| UI 流程（第 3 層，斷網模式） | 通過，277 秒：全頁面普掃，加上點餐、轉盤、揪團三條主線 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -445,6 +444,57 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 排程任務的正向路徑（取得鎖時執行一次、並以同一個 token 釋放）已由第 26、27 組覆蓋，破壞它就會紅。
 
+### 2026-10-15 還原驗證
+
+本輪的故意破壞全部在本機執行，沒有等 CI。每一組都單獨執行，沒有同時破壞兩處，因此不會互相遮蔽。「執行」欄標明方式：
+
+- **本機（純邏輯）**：編譯真實的被測類別，搭配本機的 JUnit 替身執行。不載入 Spring context，也不需要 Mockito。
+- **本機（stub）**：被測的仍是真實原始碼；Spring、Redis、Lombok 與 repository 以 stub 取代。`AccountStatus` 與 `User` 的方法取自真實原始碼，`User` 的兩個方法逐字取自 `User.java`。`FirebaseTokenReplayGuard` 的編譯副本把 `@Slf4j` 換成等價的 logger 欄位，因為 Lombok 不在本機。
+- **文字掃描**：讀取原始檔的文字，確認接線，例如某個方法有沒有呼叫記錄。
+
+| # | 執行 | 故意破壞的行為 | 轉紅的測試 |
+|---|---|---|---|
+| N13-1 | 本機（stub） | 顧客 token 不比對版本 | `AccountStatusTest.staleTokenVersionIsRejectedForEveryAccountType`、`roleChangeInvalidatesTheOldToken` |
+| N13-2 | 本機（stub） | 已刪除的顧客仍可使用 | `AccountStatusTest.deletedCustomerIsNotUsable` |
+| N13-3 | 本機（stub） | 角色不比對 | `AccountStatusTest.roleChangeInvalidatesTheOldToken` |
+| N13-4 | 本機（stub） | 版本不比對 | `AccountStatusTest.staleTokenVersionIsRejectedForEveryAccountType` |
+| N13-5 | 本機（stub） | 門市的版本不比對 | `AccountStatusTest.staleTokenVersionIsRejectedForEveryAccountType` |
+| N13-6 | 本機（stub） | 角色比對區分大小寫 | `AccountStatusTest.roleMatchIgnoresCase` |
+| N13-7 | 本機（stub） | 品牌只看資料列存在，不看角色與版本 | `AccountStatusTest.staleTokenVersionIsRejectedForEveryAccountType`、`roleChangeInvalidatesTheOldToken` |
+| N13-8 | 本機（stub） | 顧客 token 在找不到顧客列時，改以 id 相同的門市列判定（不比角色與版本） | `AccountStatusTest.customerTokenNeverMatchesAStoreRowWithTheSameId` |
+| N13-9 | 本機（stub） | 改密碼不遞增版本 | `UserTokenVersionTest.changingThePasswordBumpsTheVersion`、`everyPasswordChangeGetsAFreshVersion` |
+| N13-10 | 本機（stub） | 撤銷權杖不遞增版本 | `UserTokenVersionTest.changingThePasswordBumpsTheVersion`、`everyPasswordChangeGetsAFreshVersion`、`revokingTokensLeavesThePasswordAlone` |
+| N13-11 | 本機（stub） | 撤銷權杖時順便清空密碼雜湊 | `UserTokenVersionTest.changingThePasswordBumpsTheVersion`、`revokingTokensLeavesThePasswordAlone` |
+| J-1 | 本機（純邏輯） | JWT 不檢查 header，任何演算法都接受 | `JwtAlgorithmTest.hs256IsRejected`、`noneAndAsymmetricAreRejected`、`duplicateAlgIsRejected`、`escapedAlgKeyIsRejected` |
+| J-2 | 本機（純邏輯） | JWT 多接受 HS256 | `JwtAlgorithmTest.hs256IsRejected` |
+| P-1 | 本機（文字掃描） | `/api/auth/social-signup` 拿掉限流 | `PhoneProofRateLimitGuardTest.phoneProofRoutesAreRateLimited`，失敗訊息點名該路由 |
+| R-1 | 本機（純邏輯） | `ClaimStore` 不寫本地紀錄，只看遠端 | `ClaimStoreTest.localOnlyClaimsOnce`、`remoteFailureFallsBackToLocal`、`localRecordSurvivesRemoteRecovery`、`claimExpiresAfterTheTtl` |
+| R-2 | 本機（純邏輯） | `ClaimStore` 改成先問遠端、本地只當退路 | `ClaimStoreTest.remoteFailureFallsBackToLocal`、`localRecordSurvivesRemoteRecovery`、`claimExpiresAfterTheTtl` |
+| R-3 | 本機（純邏輯） | `ClaimStore` 不捕捉遠端例外 | `ClaimStoreTest.remoteFailureFallsBackToLocal`、`localRecordSurvivesRemoteRecovery` |
+| R-4 | 本機（純邏輯） | 遠端回傳 null 視為未記過 | `ClaimStoreTest.nullFromRemoteIsRejected` |
+| R-5 | 本機（純邏輯） | `ClaimStore` 一律接受 | `ClaimStoreTest` 全部 7 支 |
+| R-6 | 本機（純邏輯） | `ClaimStore` 寫入本地時忽略 TTL | `ClaimStoreTest.localOnlyClaimsOnce`、`remoteFailureFallsBackToLocal`、`localRecordSurvivesRemoteRecovery`、`claimExpiresAfterTheTtl` |
+| R-7 | 本機（純邏輯） | `LocalClaimStore` 一律回 true | `LocalClaimStoreTest.secondClaimOfTheSameKeyFails`、`claimExpiresAfterTheTtl`，以及 `ClaimStoreTest` 的 4 支 |
+| R-8 | 本機（純邏輯） | 權杖指紋直接回傳原始權杖（Redis 會存權杖本身） | `TokenFingerprintTest.matchesKnownSha256Vector`、`fingerprintIsHexAndHidesTheToken` |
+| R-9 | 本機（純邏輯） | 權杖指紋改用 SHA-1 | `TokenFingerprintTest.matchesKnownSha256Vector`、`fingerprintIsHexAndHidesTheToken` |
+| R-10 | 本機（stub） | Redis 鍵直接用原始權杖 | `FirebaseTokenReplayGuardTest.remoteKeyIsFingerprintNotToken`、`blankTokenIsRejected` |
+| R-11 | 本機（stub） | 保留時間改為 30 分鐘（短於 ID token 的 1 小時有效期） | `FirebaseTokenReplayGuardTest.retentionOutlivesTheIdTokenLifetime` |
+| R-12 | 本機（stub） | `claimOnce` 一律回 true | `FirebaseTokenReplayGuardTest.sameTokenIsAcceptedOnlyOnce` |
+| W-1 | 本機（文字掃描） | `verifyFirebasePhone` 不記錄權杖 | `PhoneTokenSingleUseGuardTest.phoneVerificationConsumesTheToken` |
+| W-2 | 本機（文字掃描） | 預先檢查 `verifyOnly` 也記錄權杖 | `PhoneTokenSingleUseGuardTest.preCheckDoesNotConsumeTheToken` |
+
+兩點需要說明：
+
+- N13-8 的第一次重建是「找不到顧客列時改比對 id 相同的門市列，但仍比角色」。角色比對擋住了這條路徑，這個變體與原始碼等價，測試沒有轉紅是正確的。改成真正的漏洞形狀（不比角色，只比 id 與版本）後，`customerTokenNeverMatchesAStoreRowWithTheSameId` 轉紅。
+- R-10 同時讓 `blankTokenIsRejected` 轉紅，因為空白權杖不再經過指紋函式，不會拋出例外。
+
+驗證狀態：
+
+- 已由 CI 確認（run 38836496498，commit `ba80640`）：`AuthServiceSecurityTest` 的新案例、`JwtAlgorithmEnforcementTest`、`StompAuthInterceptorTest`、`JwtAuthenticationFilterTest` 與 `JwtTokenVersionTest` 的新案例全部通過。`mvn test` 為 60 個類別、339 個測試，0 失敗、0 錯誤、0 略過。
+- 尚無本機還原驗證的：上列 CI 確認的案例（需要 Spring、Mockito 或 jjwt）。W-1 與 W-2 的文字掃描是本機的接線守門，不能取代行為層測試。
+- 沒有自動化斷言、也沒有做還原驗證的：`cart.js` 的登入權杖來源（`TOKEN_KEYS`）與 STOMP 拒絕訊息的文字改動。
+- 本機無法取得 Maven 相依（Maven Central 被代理政策擋下，回 403），`mvn test` 只能在 CI 執行。
+
 ### 這兩層實際抓到什麼
 
 **S-6 與四個固定 500** 是第二層抓到的。**另外六個**是第三層抓到的——
@@ -467,6 +517,26 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 少退、重複退、沒退都會紅。
 
 順手把首頁三張輪播橫幅重新壓縮（同解析度、mozjpeg q82）：**2,237 KB → 334 KB，減少 85%**。
+
+### 2026-10-16 還原驗證（CI）
+
+四組故意破壞，各自放在獨立的 scratch 分支（`main-verif-*`），每組各跑一次 CI，讀取 check-run annotation 的失敗清單。M1–M3 每組只改一行，M4 改寫同一段的三行（註解、變數、回傳）。scratch commit 標題以 `scratch:` 開頭，不屬於 PR 分支。
+
+| 編號 | 破壞 | 位置 | CI run | 轉紅的測試 | 實際的失敗訊息 |
+|------|------|------|--------|-----------|----------------|
+| M1 | 移除揪團加入時的分享憑證比對 | `GroupOrderService.joinGroup` | [38869078549](https://github.com/Leo0049/projectLab_2/actions/runs/38869078549) | `GroupOrderServiceAuthorizationTest.legacyJoinRequiresTheMatchingShareToken` | `expected: <403> but was: <404>`：移除檢查後流程繼續執行，回 404 |
+| M2 | 移除 `validateStoreProduct` 的品牌比對 | `GroupOrderService.validateStoreProduct` | [38869080521](https://github.com/Leo0049/projectLab_2/actions/runs/38869080521) | `GroupOrderServiceAuthorizationTest.legacyJoinRejectsProductsFromAnotherBrand` | `NullPointerException`（`PricingService` 未設定 stub），不是 400 的品牌訊息 |
+| M3 | 移除 `validateStoreProduct` 的停售商品檢查 | 同上 | [38869084122](https://github.com/Leo0049/projectLab_2/actions/runs/38869084122) | `GroupOrderServiceAuthorizationTest.legacyJoinRejectsProductsDisabledAtTheSelectedStore` | 同 M2 |
+| M4 | 合併流程在改密碼前簽發權杖（版本 0） | `AuthService.mergeSetPasswordAndBindSocial` | [38869089670](https://github.com/Leo0049/projectLab_2/actions/runs/38869089670) | `AuthServiceSecurityTest.verifiedPhoneAndMatchingSocialTokenCompleteTheMerge` | `PotentialStubbingProblem`：`generateToken(9, "CUSTOMER", phone, 0)` 與測試的 stub 不符（錯誤 1） |
+
+M1–M3 的「測試總計」為 339 個測試、失敗 1；M4 為錯誤 1。沒有其他測試受影響。
+
+讀取時要注意的兩點：
+
+- **M2、M3 的失敗原因是 NPE，不是斷言的訊息。** 測試沒有為 `PricingService` 設定 stub，移除檢查後程式走到定價時拋出 NPE。測試確實會紅，但失敗訊息無法直接指向被破壞的規則。M1 也是間接失敗：移除檢查後回 404，而不是斷言的 403。後續可以為 `PricingService` 補上 stub，讓斷言的訊息成為失敗原因；本次沒有改測試。
+- **M1–M3 的 scratch commit 含有行尾的額外變動。** `GroupOrderService.java` 原本 1770 行中有 1510 行是 CRLF、260 行是 LF；編輯工具把整檔統一為 CRLF，因此 commit 的 diff 含有 260 行的行尾變動。以 `git diff --ignore-cr-at-eol` 看，只有破壞的那一行改變。`AuthService.java` 為 LF，M4 的 diff 乾淨。
+
+scratch 分支在讀取結果後即應刪除；遠端刪除被代理政策擋下，見 `docs/REVIEW_2026-10-13.md` 的「本次無法由代理完成的操作」。
 
 ### 拆出可測試的規則
 
@@ -567,7 +637,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 | `src/main/resources/serviceAccountKey.json` | Firebase 金鑰 | ✗（已 gitignore） |
 | `.env.example` / `.env.prod.example` / `application-*.yml.example` | 範本 | ✓ |
 
-本機預設 `SMS_MODE=mock`，跳過 Firebase 手機驗證，**不需要金鑰即可註冊登入**。
+本機需設定 `SMS_MODE=mock`（`sms.mode` 的預設是 `firebase`，未設定時不會進入 mock），跳過 Firebase 手機驗證，**不需要金鑰即可註冊登入**。
 
 圖片上傳同理：有設定 Cloudinary 憑證就上傳雲端，沒有就自動存到本機 `uploads/`
 並以 `/uploads/**` 提供。**整個專案不需要任何第三方帳號即可完整運作。**

@@ -78,7 +78,7 @@
                           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
                   : ''}
                 <span class="w-full h-full flex items-center justify-center text-white font-bold text-sm"
-                      style="${store.brandLogoUrl ? 'display:none' : ''}">${brandInitial}</span>
+                      style="${store.brandLogoUrl ? 'display:none' : ''}">${esc(brandInitial)}</span>
               </div>` : ''}
               <h3 class="font-extrabold text-lg truncate">${esc(store.name || store.storeName || '')}</h3>
             </div>

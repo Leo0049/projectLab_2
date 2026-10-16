@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.common.JwtUtils;
 import com.example.demo.common.SafeImageUrl;
+import com.example.demo.common.SafeText;
 import com.example.demo.dto.StoreDTO;
 import com.example.demo.dto.StoreRequest;
 import com.example.demo.entity.*;
@@ -139,7 +140,7 @@ public class StoreService {
                 .orElseThrow(() -> new CustomException("404", "帳號不存在"));
         if (!passwordEncoder.matches(password, store.getPasswordHash()))
             throw new CustomException("401", "密碼錯誤");
-        String token = jwtUtils.generateToken(store.getId(), store.getRole(), store.getAccount());
+        String token = jwtUtils.generateToken(store.getId(), store.getRole(), store.getAccount(), store.getTokenVersion());
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("storeId", store.getId());
@@ -165,7 +166,7 @@ public class StoreService {
         if (store.getBrand() == null || !store.getBrand().getId().equals(brandId))
             throw new CustomException("403", "無權限操作此分店");
         if (req.getStoreName() != null)
-            store.setStoreName(req.getStoreName());
+            store.setStoreName(SafeText.normalizeLabel(req.getStoreName(), 100));
         if (req.getCoverUrl() != null)
             // ⚠️ 封面會進顧客端 <img src="...">：不驗證＝店家可對所有顧客下 XSS
             store.setCoverUrl(SafeImageUrl.normalize(req.getCoverUrl()));
@@ -209,7 +210,7 @@ public class StoreService {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new CustomException("404", "店家不存在"));
         if (req.getStoreName() != null)
-            store.setStoreName(req.getStoreName());
+            store.setStoreName(SafeText.normalizeLabel(req.getStoreName(), 100));
         if (req.getCoverUrl() != null)
             // ⚠️ 封面會進顧客端 <img src="...">：不驗證＝店家可對所有顧客下 XSS
             store.setCoverUrl(SafeImageUrl.normalize(req.getCoverUrl()));
@@ -258,7 +259,10 @@ public class StoreService {
     public Map<String, Object> getProfile(Long storeId) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new CustomException("404", "店家不存在"));
-        return toMap(store);
+        Map<String, Object> profile = toMap(store);
+        // 店家後台本人的表單沿用 phone 鍵（店長手機）；公開端點不會有這個鍵（N6）
+        profile.put("phone", store.getManagerPhone());
+        return profile;
     }
 
     @Transactional
@@ -294,7 +298,7 @@ public class StoreService {
      */
     private void applyStoreRequest(Store store, StoreRequest req) {
         if (req.getStoreName() != null)
-            store.setStoreName(req.getStoreName());
+            store.setStoreName(SafeText.normalizeLabel(req.getStoreName(), 100));
         if (req.getCoverUrl() != null)
             // ⚠️ 封面會進顧客端 <img src="...">：不驗證＝店家可對所有顧客下 XSS
             store.setCoverUrl(SafeImageUrl.normalize(req.getCoverUrl()));
@@ -328,7 +332,7 @@ public class StoreService {
         Map<String, Object> m = new HashMap<>();
         m.put("id", store.getId());
         m.put("name", store.getStoreName());
-        m.put("phone", store.getManagerPhone());
+        // 公開回應只帶店家電話；店長手機只在 getProfile（店家後台本人）加回（N6）
         m.put("storePhone", store.getStorePhone());
         m.put("address", store.getAddress());
         m.put("coverUrl", store.getCoverUrl());

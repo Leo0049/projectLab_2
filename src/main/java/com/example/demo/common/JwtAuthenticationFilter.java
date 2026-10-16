@@ -54,7 +54,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Long userId = jwtUtils.getUserIdFromToken(token);
                 String role = jwtUtils.getRoleFromToken(token);
-                boolean activeIdentity = isActiveIdentity(userId, role);
+                int tokenVersion = jwtUtils.getTokenVersionFromToken(token);
+                boolean activeIdentity = isActiveIdentity(userId, role, tokenVersion);
 
                 if (userId != null && activeIdentity
                         && SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -82,21 +83,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private boolean isActiveIdentity(Long userId, String role) {
-        if (userId == null || role == null) {
-            return false;
-        }
-        if ("CUSTOMER".equalsIgnoreCase(role)) {
-            return userRepository.findById(userId)
-                    .map(user -> !Boolean.TRUE.equals(user.getIsDeleted()))
-                    .orElse(false);
-        }
-        if ("BRAND".equalsIgnoreCase(role)) {
-            return brandRepository.existsById(userId);
-        }
-        if ("STORE".equalsIgnoreCase(role)) {
-            return storeRepository.existsById(userId);
-        }
-        return false;
+    /** 帳號與權杖是否仍有效；規則本體在 {@link AccountStatus}，與 WebSocket 認證共用（N7、N13）。 */
+    private boolean isActiveIdentity(Long userId, String role, int tokenVersion) {
+        return AccountStatus.isActive(userId, role, tokenVersion, userRepository, brandRepository, storeRepository);
     }
 }

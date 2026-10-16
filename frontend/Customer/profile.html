@@ -785,10 +785,14 @@ function escHtmlSafe(value) {
                 };
 
                 try {
-                    await NavAuth.fetchAPI(`/api/users/${userId}/change-password`, {
+                    const pwdResult = await NavAuth.fetchAPI(`/api/users/${userId}/change-password`, {
                         method: 'POST',
                         body: JSON.stringify(payload)
                     });
+                    // 改密碼後舊權杖已失效（N13）；換上後端回傳的新權杖，目前這個瀏覽器維持登入
+                    if (pwdResult && pwdResult.token) {
+                        localStorage.setItem('JOIN_TOKEN', pwdResult.token);
+                    }
                     showToast('密碼修改成功');
                     document.getElementById('old-password').value = '';
                     document.getElementById('new-password').value = '';
@@ -827,7 +831,7 @@ function escHtmlSafe(value) {
                                 <div class="flex gap-3">
                                     <i data-lucide="${icon}" class="w-5 h-5 text-gray-400 mt-0.5 shrink-0"></i>
                                     <div>
-                                        <p class="font-bold text-sm mb-0.5">${addr.label || '其他'}</p>
+                                        <p class="font-bold text-sm mb-0.5">${escHtmlSafe(addr.label || '其他')}</p>
                                         <p class="text-sm text-gray-500">${escHtmlSafe(addr.address || '未填寫地址')}</p>
                                     </div>
                                 </div>
@@ -1103,7 +1107,7 @@ function escHtmlSafe(value) {
                         return `
                         <div class="flex justify-between items-center p-4 bg-white dark:bg-zinc-800 rounded-xl border border-gray-100 dark:border-zinc-700">
                             <div>
-                                <p class="font-bold">${label}</p>
+                                <p class="font-bold">${escHtmlSafe(label)}</p>
                                 <p class="text-xs text-gray-400">${new Date(r.createdAt).toLocaleString()}</p>
                                 <p class="text-[10px] text-gray-300 mt-1">${escHtmlSafe(subDesc || '')}</p>
                             </div>

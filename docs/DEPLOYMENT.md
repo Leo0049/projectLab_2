@@ -21,7 +21,7 @@
 - `SERVER_FORWARD_HEADERS_STRATEGY`（預設 `native`）：後端如何信任反向代理送來的 `X-Forwarded-*`，見下方「反向代理與來源 IP」。
 - `DEMO_DATA_ENABLED=false`、`WALLET_MOCK_TOPUP_ENABLED=false`：正式環境不可植入示範帳號或開啟未付款儲值；後端也會強制拒絕 prod 模式的模擬儲值。
 - `prod` profile 將 `ddl-auto` 設為 `validate`：應用只檢查結構、不修改。repo 目前**沒有 migration 腳本或工具**（見 `docs/adr/0008-schema-migrations.md`）。首次部署前必須以人工方式建立與 Entity 一致的結構，例如在相同版本的開發資料庫以 `ddl-auto: update` 啟動一次、匯出 DDL 作為基線，檢查後再套用到正式庫；之後每次結構變更同樣需要人工套用。若有明確需求要覆寫，Spring 環境變數名稱是 `SPRING_JPA_HIBERNATE_DDL_AUTO`。
-- `SMS_MODE=firebase` 與 `FIREBASE_CONFIG_PATH`：**必填**。`sms.mode` 預設是 `mock`，而 mock 模式會把 `MOCK_TOKEN` 當成「手機已驗證」，公開的重設密碼端點因此能接管任何帳號；`AuthService` 在 prod profile 下一律拒絕啟動（不是默默回退）。另請設定可讀取的服務帳戶 JSON 檔案路徑，不要把 JSON 放入 repository 或 JAR。
+- `SMS_MODE=firebase` 與 `FIREBASE_CONFIG_PATH`：**必填**。`sms.mode` 的預設是 `firebase`（fail-closed）。若誤設為 `mock`，mock 模式會把 `MOCK_TOKEN` 當成「手機已驗證」，公開的重設密碼端點因此能接管任何帳號；`AuthService` 在 prod profile 下一律拒絕啟動（不是默默回退）。另請設定可讀取的服務帳戶 JSON 檔案路徑，不要把 JSON 放入 repository 或 JAR。
 - `RESET_PASSWORD_URL`：正式密碼重設頁網址。
 - 可選：`COUPON_TEMPLATE_URL`（優惠券圖片底圖）、`JWT_EXPIRATION`（預設 86400000 毫秒，即 24 小時）、`SERVER_PORT`（預設 8082）。
 - Cloudinary 憑證可選（`CLOUDINARY_CLOUD_NAME`、`CLOUDINARY_API_KEY`、`CLOUDINARY_API_SECRET`）；若不設定，圖片會寫入 `UPLOAD_LOCAL_DIR` 預設的 `uploads/`。使用本機儲存時，請掛載持久磁碟並納入備份。
@@ -139,3 +139,20 @@ curl -fsS 'http://127.0.0.1:8082/api/stores/nearby?lat=25&lng=121' >/dev/null
 12. **正式環境不公開 API 文件**：`application-prod.yml.example` 已關閉 springdoc。若要在正式環境查看 API，請在內部環境使用另一份設定。
 13. **靜態資源大小寫**：`WebConfig` 的 `/Store/**` 已改為對應 `frontend/store/`（實際目錄），Linux 上不再 404。`/auth/**` 的遺留映射已移除。
 14. **品牌自助註冊是公開的**：`/api/brand-auth/register` 為 permitAll，任何人都能註冊品牌並建立門市。上線前請業務決定是否要審核制（PENDING 狀態、後台核准）或邀請碼；在決定前，建議由營運團隊定期檢視新註冊的品牌與門市。
+
+## 2026-10-15 權杖版本（N13）的上線檢查
+
+部署前必須先完成資料庫變更；順序錯誤會讓應用程式在啟動時失敗（prod 為 `ddl-auto: validate`）。
+
+15. **先加欄位，再部署程式**：`users`、`brands`、`stores` 各需新增 `token_version INT NOT NULL DEFAULT 0`。SQL 與原因見 `DATABASE.md`「結構變更方式」：
+
+    ```sql
+    ALTER TABLE users  ADD COLUMN token_version INT NOT NULL DEFAULT 0;
+    ALTER TABLE brands ADD COLUMN token_version INT NOT NULL DEFAULT 0;
+    ALTER TABLE stores ADD COLUMN token_version INT NOT NULL DEFAULT 0;
+    ```
+
+16. **部署時既有登入不會被強制登出**：部署前簽發的權杖沒有版本聲明，視為版本 0；資料庫的 `DEFAULT 0` 讓既有帳號同為版本 0，因此仍然有效。
+17. **改密碼後，同一帳號在其他裝置上的舊權杖會失效**：`POST /api/users/{userId}/change-password` 回傳新權杖，前端（`profile.html`）會換上。其他裝置的舊權杖在下一次需要登入的請求時被拒絕（HTTP 與 STOMP 皆然）。客服與使用者需要知道這件事。
+18. **品牌與門市目前沒有改密碼或停用的路徑**：`token_version` 欄位存在但未使用。日後新增這兩條路徑時必須遞增版本，否則舊權杖不會失效（見 `CLAUDE.md` 的 N13 約定）。
+19. **登出仍只在前端清除權杖**：伺服器不撤銷，「登出所有裝置」尚未實作。

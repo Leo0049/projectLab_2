@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.common.JwtUtils;
+import com.example.demo.common.PhoneMask;
 import com.example.demo.common.SafeImageUrl;
 import com.example.demo.common.SafeText;
 import com.example.demo.common.Result;
@@ -37,6 +38,8 @@ public class AuthService {
     @Autowired private JwtUtils jwtUtils;
     @Autowired private BrandService brandService;
     @Autowired private StoreService storeService;
+    /** 手機驗證權杖只能成功使用一次（見 FirebaseTokenReplayGuard） */
+    @Autowired private FirebaseTokenReplayGuard firebaseTokenReplayGuard;
 
     @Value("${sms.mode:firebase}")
     private String smsMode;
@@ -54,7 +57,7 @@ public class AuthService {
     /**
      * 啟動時就檢查「正式環境不得使用 mock 手機驗證」。
      *
-     * <p>⚠️ 為什麼要 fail-fast：{@code sms.mode} 的預設值是 mock，而 mock 模式下
+     * <p>⚠️ 為什麼要 fail-fast：{@code sms.mode} 若被誤設為 mock，而 mock 模式下
      * {@link #MOCK_TOKEN} 會被視為已完成手機驗證——公開的
      * {@code POST /api/auth/reset-password-firebase} 因此可以對任何手機號碼重設密碼，
      * 等同任意顧客帳號接管。專案裡另外兩個同等敏感的開關
@@ -202,10 +205,10 @@ public class AuthService {
         User user = userRepository.findByPhone(phone).orElseThrow(() -> new CustomException("404", "帳號不存在"));
         ensureActiveUser(user);
 
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
-        log.info("帳號整合成功（三方帳號設定密碼）：{}", phone);
+        log.info("帳號整合成功（三方帳號設定密碼）：userId={} phone={}", user.getId(), PhoneMask.mask(phone));
         return Result.success(generateLoginResponse(user));
     }
 
@@ -214,7 +217,8 @@ public class AuthService {
     public Result mergeBindSocial(Long userId, String idToken, String providerUid, String provider) throws Exception {
         User user = userRepository.findById(userId).orElseThrow(() -> new CustomException("404", "找不到此帳號"));
         ensureActiveUser(user);
-        return bindVerifiedSocialProvider(user, idToken, providerUid, provider);
+        bindVerifiedSocialProvider(user, idToken, providerUid, provider);
+        return Result.success(generateLoginResponse(user));
     }
 
     /**
@@ -277,10 +281,15 @@ public class AuthService {
         verifyFirebasePhone(phoneIdToken, phone);
         User user = userRepository.findByPhone(phone).orElseThrow(() -> new CustomException("404", "找不到此帳號"));
         ensureActiveUser(user);
-        return bindVerifiedSocialProvider(user, socialIdToken, providerUid, provider);
+        bindVerifiedSocialProvider(user, socialIdToken, providerUid, provider);
+        return Result.success(generateLoginResponse(user));
     }
 
-    private Result bindVerifiedSocialProvider(User user, String idToken, String providerUid, String provider)
+    /**
+     * 綁定已驗證的社群身分。刻意不在這裡簽發權杖：由呼叫端在帳號狀態定案後才簽發
+     * （例如改密碼之後，N13 會遞增版本），否則同一流程會先簽出一張隨即失效的權杖。
+     */
+    private void bindVerifiedSocialProvider(User user, String idToken, String providerUid, String provider)
             throws Exception {
         String providerName = normalizeProvider(provider);
         FirebaseToken decoded = verifyFirebaseSocialToken(idToken, providerName);
@@ -293,7 +302,6 @@ public class AuthService {
         }
         bindSocialProvider(user, providerName, providerUid);
         log.info("帳號整合成功：userId={} provider={}", user.getId(), providerName);
-        return Result.success(generateLoginResponse(user));
     }
 
     /** Atomically set a password and attach the social identity after proving phone ownership. */
@@ -304,7 +312,7 @@ public class AuthService {
         User user = userRepository.findByPhone(phone).orElseThrow(() -> new CustomException("404", "帳號不存在"));
         ensureActiveUser(user);
         bindVerifiedSocialProvider(user, socialIdToken, providerUid, provider);
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         return Result.success(generateLoginResponse(user));
     }
@@ -317,9 +325,9 @@ public class AuthService {
         User user = userRepository.findByPhone(phoneNumber)
                 .orElseThrow(() -> new CustomException("404", "帳號不存在"));
         ensureActiveUser(user);
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-        log.info("密碼重設成功：{}", phoneNumber);
+        log.info("密碼重設成功：userId={} phone={}", user.getId(), PhoneMask.mask(phoneNumber));
     }
 
     // ─── 更新個人資料 ─────────────────────────────────────────
@@ -367,12 +375,17 @@ public class AuthService {
     }
 
     // 驗證 Firebase Phone Auth token 的手機號碼；本機 mock token 僅在 sms.mode=mock 可用。
+    // ⚠️ 真實的 token 只能成功使用一次：號碼比對通過後才記錄，號碼不符的嘗試不會燒掉 token。
+    //    MOCK_TOKEN 不記錄（固定字串，本機模擬用）。verifyOnly 不呼叫此方法，故預先檢查不消耗。
     private String verifyFirebasePhone(String idToken, String phoneNumber) throws Exception {
         FirebaseToken decodedToken = verifyFirebaseToken(idToken);
         if (decodedToken == null) return phoneNumber;
         String verifiedPhone = Objects.toString(decodedToken.getClaims().get("phone_number"), null);
         if (verifiedPhone == null || !normalizePhone(verifiedPhone).equals(normalizePhone(phoneNumber))) {
             throw new CustomException("401", "驗證的手機號碼與輸入不符");
+        }
+        if (!firebaseTokenReplayGuard.claimOnce(idToken)) {
+            throw new CustomException("401", "此手機驗證已使用，請重新取得驗證碼");
         }
         return verifiedPhone;
     }
@@ -438,7 +451,7 @@ public class AuthService {
     }
 
     private Map<String, Object> generateLoginResponse(User user) {
-        String token = jwtUtils.generateToken(user.getId(), user.getRole(), user.getPhone());
+        String token = jwtUtils.generateToken(user.getId(), user.getRole(), user.getPhone(), user.getTokenVersion());
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("userId", user.getId());

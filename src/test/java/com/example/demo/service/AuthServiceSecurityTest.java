@@ -6,6 +6,7 @@ import com.example.demo.entity.UserAuthProvider;
 import com.example.demo.exception.CustomException;
 import com.example.demo.repository.UserAuthProviderRepository;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.common.ClaimStore;
 import com.example.demo.common.JwtUtils;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseToken;
@@ -28,6 +29,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +50,9 @@ class AuthServiceSecurityTest {
         ReflectionTestUtils.setField(authService, "passwordEncoder", passwordEncoder);
         ReflectionTestUtils.setField(authService, "jwtUtils", jwtUtils);
         ReflectionTestUtils.setField(authService, "smsMode", "mock");
+        // 只記在本地（無 Redis）：手機驗證權杖的「只能使用一次」規則照常生效，每個測試各自從空白開始
+        ReflectionTestUtils.setField(authService, "firebaseTokenReplayGuard",
+                new FirebaseTokenReplayGuard(new ClaimStore(null, System::currentTimeMillis, e -> { })));
     }
 
     @Test
@@ -117,7 +122,8 @@ class AuthServiceSecurityTest {
         when(userAuthProviderRepository.findByProviderAndProviderUid("GOOGLE", "google-uid"))
                 .thenReturn(Optional.empty());
         when(passwordEncoder.encode("newpass123")).thenReturn("hashed-password");
-        when(jwtUtils.generateToken(9L, "CUSTOMER", phone)).thenReturn("session-token");
+        // 改密碼會遞增 tokenVersion（N13）：回給用戶端的權杖必須是改密碼之後的版本 1。
+        when(jwtUtils.generateToken(9L, "CUSTOMER", phone, 1)).thenReturn("session-token");
 
         FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
         FirebaseToken phoneToken = mock(FirebaseToken.class);
@@ -138,6 +144,9 @@ class AuthServiceSecurityTest {
             Assertions.assertEquals("200", result.getCode());
             Assertions.assertEquals("hashed-password", user.getPasswordHash());
             Assertions.assertEquals("session-token", ((Map<?, ?>) result.getData()).get("token"));
+            Assertions.assertEquals(1, user.getTokenVersion());
+            // 合併流程只簽發一張權杖，且是改密碼之後的版本，不得先以版本 0 簽發
+            verify(jwtUtils, never()).generateToken(9L, "CUSTOMER", phone, 0);
             verify(userAuthProviderRepository).save(any());
         }
     }
@@ -164,6 +173,53 @@ class AuthServiceSecurityTest {
             assertThrows(CustomException.class, () -> authService.mergeSetPasswordAndBindSocial(
                     "phone-token", phone, "newpass123", "social-token", "some-uid", "GOOGLE"));
             verify(passwordEncoder, never()).encode(anyString());
+        }
+    }
+
+    @Test
+    void verifiedPhoneTokenCanOnlyBeUsedOnce() throws Exception {
+        String phone = "0912345678";
+        User user = new User();
+        user.setPhone(phone);
+        when(userRepository.findByPhone(phone)).thenReturn(Optional.of(user));
+
+        FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
+        FirebaseToken phoneToken = mock(FirebaseToken.class);
+        when(phoneToken.getClaims()).thenReturn(Map.of("phone_number", "+886912345678"));
+
+        try (MockedStatic<FirebaseAuth> firebase = mockStatic(FirebaseAuth.class)) {
+            firebase.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
+            when(firebaseAuth.verifyIdToken("phone-token")).thenReturn(phoneToken);
+
+            authService.resetPasswordWithFirebase("phone-token", phone, "newpass123");
+
+            CustomException replay = assertThrows(CustomException.class, () ->
+                    authService.resetPasswordWithFirebase("phone-token", phone, "newpass456"));
+            Assertions.assertEquals("401", replay.getCode());
+            verify(userRepository, times(1)).save(any());
+        }
+    }
+
+    @Test
+    void preCheckDoesNotConsumeThePhoneToken() throws Exception {
+        String phone = "0912345678";
+        User user = new User();
+        user.setPhone(phone);
+        when(userRepository.findByPhone(phone)).thenReturn(Optional.of(user));
+
+        FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
+        FirebaseToken phoneToken = mock(FirebaseToken.class);
+        when(phoneToken.getClaims()).thenReturn(Map.of("phone_number", "+886912345678"));
+
+        try (MockedStatic<FirebaseAuth> firebase = mockStatic(FirebaseAuth.class)) {
+            firebase.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
+            when(firebaseAuth.verifyIdToken("phone-token")).thenReturn(phoneToken);
+
+            // 前端註冊頁先呼叫 firebase-verify（verifyOnly）再送出註冊；預先檢查不得讓真正的請求失效
+            authService.verifyOnly("phone-token");
+            authService.resetPasswordWithFirebase("phone-token", phone, "newpass123");
+
+            verify(userRepository).save(any());
         }
     }
 }

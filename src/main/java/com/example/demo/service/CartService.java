@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.common.SafeText;
 import com.example.demo.entity.*;
 import com.example.demo.exception.CustomException;
 import com.example.demo.repository.*;
@@ -158,9 +159,10 @@ public class CartService {
         item.setUser(user);
         item.setStore(store);
         item.setProduct(product);
-        item.setSugarSnapshot((String) req.getOrDefault("sugar", ""));
-        item.setIceSnapshot((String) req.getOrDefault("ice", ""));
-        item.setSizeSnapshot(pricingService.resolveSizeName(product, (String) req.getOrDefault("size", "M")));
+        item.setSugarSnapshot(SafeText.normalizeLabel((String) req.getOrDefault("sugar", ""), 50));
+        item.setIceSnapshot(SafeText.normalizeLabel((String) req.getOrDefault("ice", ""), 50));
+        item.setSizeSnapshot(pricingService.resolveSizeName(product,
+                SafeText.normalizeLabel((String) req.getOrDefault("size", "M"), 50)));
         item.setQuantity(QuantityLimits.parse(req.getOrDefault("qty", req.getOrDefault("quantity", "1"))));
 
         // 計算配料加價
@@ -192,11 +194,11 @@ public class CartService {
             throw new CustomException("403", "無權限修改此品項");
 
         if (req.containsKey("sugar"))
-            item.setSugarSnapshot((String) req.get("sugar"));
+            item.setSugarSnapshot(SafeText.normalizeLabel((String) req.get("sugar"), 50));
         if (req.containsKey("ice"))
-            item.setIceSnapshot((String) req.get("ice"));
+            item.setIceSnapshot(SafeText.normalizeLabel((String) req.get("ice"), 50));
         if (req.containsKey("size"))
-            item.setSizeSnapshot((String) req.get("size"));
+            item.setSizeSnapshot(SafeText.normalizeLabel((String) req.get("size"), 50));
         if (req.containsKey("qty"))
             item.setQuantity(QuantityLimits.parse(req.get("qty")));
         if (req.containsKey("quantity"))

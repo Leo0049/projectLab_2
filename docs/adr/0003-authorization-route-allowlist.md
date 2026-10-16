@@ -40,5 +40,5 @@
 
 - `AuthorizationTest`（19）：未認證的商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與不帶參數兩種繞過、拿他人 userId 結帳、竄改 `finalPrice`、跨帳號讀寫收藏、消耗他人優惠券、debug 與門市傾印端點已移除。
 - `AuthorizationRouteInventoryTest`（3）：以 `RequestMappingHandlerMapping` 列舉全部路由；非公開路由匿名呼叫必須回 401 或 403；公開清單中每一條都必須真的存在。
-- `StompSubscribeRulesTest`（9）：WebSocket 訂閱規則的純函式測試。
-- `GroupOrderSecurityTest`（5）、`GroupOrderServiceAuthorizationTest`（6）：揪團相關的擁有權檢查。
+- `StompSubscribeRulesTest`（11）：WebSocket 訂閱規則的純函式測試。
+- `GroupOrderSecurityTest`（5）、`GroupOrderServiceAuthorizationTest`（10）：揪團相關的擁有權檢查。

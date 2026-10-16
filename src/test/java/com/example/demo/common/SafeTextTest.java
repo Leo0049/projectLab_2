@@ -53,4 +53,30 @@ class SafeTextTest {
         assertEquals("新用戶", SafeText.sanitizeDisplayName(null, "新用戶"));
         assertEquals("新用戶", SafeText.sanitizeDisplayName("   ", "新用戶"));
     }
+
+    @Test
+    @DisplayName("標籤（規格、配料、分類、品項、門市與品牌名）：null 維持 null，一般名稱原樣保留")
+    void labelKeepsOrdinaryValues() {
+        assertNull(SafeText.normalizeLabel(null, 50));
+        assertEquals("大杯", SafeText.normalizeLabel("  大杯  ", 50));
+        assertEquals("去冰 (少)", SafeText.normalizeLabel("去冰 (少)", 50));
+        assertEquals("Joe's Tea", SafeText.normalizeLabel("Joe's Tea", 50));
+        assertEquals("", SafeText.normalizeLabel("   ", 50));
+    }
+
+    @Test
+    @DisplayName("標籤含 < > \" ` 或控制字元一律 400（實測攻擊向量：規格名稱 <img onerror=…>）")
+    void labelRejectsMarkupCharacters() {
+        assertThrows(CustomException.class, () -> SafeText.normalizeLabel("<img src=x onerror=alert(1)>", 50));
+        assertThrows(CustomException.class, () -> SafeText.normalizeLabel("大杯\" onmouseover=\"x", 50));
+        assertThrows(CustomException.class, () -> SafeText.normalizeLabel("珍珠`x", 50));
+        assertThrows(CustomException.class, () -> SafeText.normalizeLabel("少\u0007冰", 50));
+    }
+
+    @Test
+    @DisplayName("標籤超過上限一律 400，剛好等於上限可通過（上限依資料庫欄位長度）")
+    void labelRejectsOverLength() {
+        assertThrows(CustomException.class, () -> SafeText.normalizeLabel("字".repeat(51), 50));
+        assertEquals("字".repeat(50), SafeText.normalizeLabel("字".repeat(50), 50));
+    }
 }

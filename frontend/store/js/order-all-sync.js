@@ -73,7 +73,7 @@ function escHtmlSafe(value) {
     const specsPart = specs ? ` <span style="color:#64748b;font-weight:500">(${esc(specs)})</span>` : '';
     const note  = i.note ? ` <span style="color:#ec5b13;font-weight:800">${esc(i.note)}</span>` : '';
     const user  = i.userName ? ` <span style="color:#0f172a;font-weight:700">【${esc(i.userName)}】</span>` : '';
-    return `<span style="font-weight:600;color:#64748b">【${Number(i.qty)||1}杯】${name}</span>${specsPart}${escHtmlSafe(note)}${user}`;
+    return `<span style="font-weight:600;color:#64748b">【${Number(i.qty)||1}杯】${name}</span>${specsPart}${note}${user}`;
   };
 
   const fmtItems = (items) => {

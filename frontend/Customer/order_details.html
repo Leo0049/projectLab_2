@@ -153,11 +153,6 @@
                                     <span class="font-medium shrink-0">店家電話</span>
                                     <span id="store-phone-display" class="text-gray-600"></span>
                                 </div>
-                                <div class="flex items-center gap-2 hidden">
-                                    <i id="manager-phone-icon" data-lucide="user-round" class="w-4 h-4 text-gray-400 shrink-0"></i>
-                                    <span class="font-medium shrink-0">店長電話</span>
-                                    <span id="manager-phone-display" class="text-gray-600"></span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -793,13 +788,6 @@
                             storePhoneEl.innerText  = store.storePhone;
                             storePhoneEl.className  = 'text-gray-700';
                             if (storePhoneIcon) storePhoneIcon.className = 'w-4 h-4 text-primary shrink-0';
-                        }
-                        const managerPhoneEl   = document.getElementById('manager-phone-display');
-                        const managerPhoneIcon = document.getElementById('manager-phone-icon');
-                        if (managerPhoneEl && store.phone) {
-                            managerPhoneEl.innerText  = store.phone;
-                            managerPhoneEl.className  = 'text-gray-700';
-                            if (managerPhoneIcon) managerPhoneIcon.className = 'w-4 h-4 text-primary shrink-0';
                         }
                         if (!isDelivery && !order.storeAddress) {
                             addressEl.innerText = store.address || store.storeAddress || '（店家地址未提供）';

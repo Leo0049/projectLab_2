@@ -8,7 +8,8 @@ import java.util.regex.Pattern;
  *
  * <ul>
  *   <li>{@code /topic/order/{id}}：只限 CUSTOMER，且必須是該訂單的發起人或參與者。</li>
- *   <li>{@code /topic/group/{token}}：只限 CUSTOMER；token 即分享憑證。</li>
+ *   <li>{@code /topic/group/{token}}：只限 CUSTOMER，且必須是該揪團的成員（團長，或已在團內有品項的團員）。
+ *       持有分享連結的非成員不可訂閱：團內的品項異動、狀態變更都會經由這個頻道推播。</li>
  *   <li>{@code /topic/store/{id}}：只允許 STORE，且 id 必須等於連線者的門市 id
  *       （門市 token 的 userId claim 就是門市 id）。</li>
  *   <li>其餘目的地一律拒絕（預設拒絕）。</li>
@@ -23,7 +24,7 @@ public final class StompSubscribeRules {
 
     static final Pattern ORDER_TOPIC = Pattern.compile("^/topic/order/(\\d+)$");
     static final Pattern STORE_TOPIC = Pattern.compile("^/topic/store/(\\d+)$");
-    static final Pattern GROUP_TOPIC = Pattern.compile("^/topic/group/[^/]+$");
+    static final Pattern GROUP_TOPIC = Pattern.compile("^/topic/group/([^/]+)$");
 
     /** 查詢顧客是否為某訂單的發起人或參與者（由 StompAuthInterceptor 注入資料庫查詢） */
     @FunctionalInterface
@@ -31,11 +32,18 @@ public final class StompSubscribeRules {
         boolean isParticipant(long orderId, long userId);
     }
 
+    /** 查詢顧客是否為某揪團的成員：團長，或已在團內有品項的團員（由 StompAuthInterceptor 注入資料庫查詢） */
+    @FunctionalInterface
+    public interface GroupMemberCheck {
+        boolean isMember(String shareToken, long userId);
+    }
+
     private StompSubscribeRules() {
     }
 
     /** 回傳拒絕原因；允許時回傳 null。不會因為輸入而拋出例外。 */
-    public static String denyReason(String role, Long userId, String destination, OrderParticipantCheck participants) {
+    public static String denyReason(String role, Long userId, String destination,
+                                    OrderParticipantCheck participants, GroupMemberCheck members) {
         if (destination == null || destination.isBlank()) {
             return "訂閱目的地不得為空";
         }
@@ -61,8 +69,12 @@ public final class StompSubscribeRules {
             }
             return null;
         }
-        if (GROUP_TOPIC.matcher(destination).matches()) {
-            return ROLE_CUSTOMER.equals(role) ? null : "僅顧客可訂閱揪團推播";
+        m = GROUP_TOPIC.matcher(destination);
+        if (m.matches()) {
+            if (!ROLE_CUSTOMER.equals(role)) {
+                return "僅顧客可訂閱揪團推播";
+            }
+            return members.isMember(m.group(1), userId) ? null : "無權訂閱此揪團的推播";
         }
         return "不支援的訂閱目的地";
     }

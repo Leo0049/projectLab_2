@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.common.SafeText;
 import com.example.demo.entity.GroupOrder;
 import com.example.demo.entity.OrderItem;
 import com.example.demo.entity.UserAddress;
@@ -525,9 +526,10 @@ public class OrderController {
             item.setProductNameSnapshot(dto.getProductNameSnapshot());
             item.setUnitPriceSnapshot(dto.getUnitPriceSnapshot());
             item.setFinalPrice(dto.getFinalPrice());
-            item.setIceSnapshot(dto.getIceSnapshot());
-            item.setSugarSnapshot(dto.getSugarSnapshot());
-            item.setSizeSnapshot(dto.getSizeSnapshot());
+            // 規格快照是用戶端送來的字串（多選項時不會被覆寫），落庫前先擋掉標籤字元與過長的值
+            item.setIceSnapshot(SafeText.normalizeLabel(dto.getIceSnapshot(), 50));
+            item.setSugarSnapshot(SafeText.normalizeLabel(dto.getSugarSnapshot(), 50));
+            item.setSizeSnapshot(SafeText.normalizeLabel(dto.getSizeSnapshot(), 50));
             item.setPaymentStatus(dto.getPaymentStatus());
 
             // 品項的擁有者一律綁 token 的使用者，不看 dto.getUserId()

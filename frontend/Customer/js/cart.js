@@ -5,7 +5,9 @@
  */
 (function () {
     const STORAGE_KEY = 'join_multi_carts';
-    const TOKEN_KEYS = ['userToken', 'JOIN_TOKEN'];
+    // 登入權杖只有 JOIN_TOKEN 一個來源。舊的 userToken 已無任何程式寫入；若留著，
+    // 登出後殘留的值會讓購物車誤判為已登入，並用過期的權杖同步。
+    const TOKEN_KEYS = ['JOIN_TOKEN'];
     const POLL_VISIBLE_MS = 3000;
     const POLL_HIDDEN_MS = 10000;
 
@@ -621,7 +623,7 @@
             emitCartUpdated(carts);
             return;
         }
-        if (event.key === 'userToken' || event.key === 'JOIN_TOKEN') {
+        if (event.key === 'JOIN_TOKEN') {
             if (isLoggedIn()) {
                 void runRealtimeSyncOnce();
                 scheduleRealtimeSync();
