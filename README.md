@@ -518,6 +518,26 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 順手把首頁三張輪播橫幅重新壓縮（同解析度、mozjpeg q82）：**2,237 KB → 334 KB，減少 85%**。
 
+### 2026-10-16 還原驗證（CI）
+
+四組故意破壞，各自放在獨立的 scratch 分支（`main-verif-*`），每組各跑一次 CI，讀取 check-run annotation 的失敗清單。M1–M3 每組只改一行，M4 改寫同一段的三行（註解、變數、回傳）。scratch commit 標題以 `scratch:` 開頭，不屬於 PR 分支。
+
+| 編號 | 破壞 | 位置 | CI run | 轉紅的測試 | 實際的失敗訊息 |
+|------|------|------|--------|-----------|----------------|
+| M1 | 移除揪團加入時的分享憑證比對 | `GroupOrderService.joinGroup` | [38869078549](https://github.com/Leo0049/projectLab_2/actions/runs/38869078549) | `GroupOrderServiceAuthorizationTest.legacyJoinRequiresTheMatchingShareToken` | `expected: <403> but was: <404>`：移除檢查後流程繼續執行，回 404 |
+| M2 | 移除 `validateStoreProduct` 的品牌比對 | `GroupOrderService.validateStoreProduct` | [38869080521](https://github.com/Leo0049/projectLab_2/actions/runs/38869080521) | `GroupOrderServiceAuthorizationTest.legacyJoinRejectsProductsFromAnotherBrand` | `NullPointerException`（`PricingService` 未設定 stub），不是 400 的品牌訊息 |
+| M3 | 移除 `validateStoreProduct` 的停售商品檢查 | 同上 | [38869084122](https://github.com/Leo0049/projectLab_2/actions/runs/38869084122) | `GroupOrderServiceAuthorizationTest.legacyJoinRejectsProductsDisabledAtTheSelectedStore` | 同 M2 |
+| M4 | 合併流程在改密碼前簽發權杖（版本 0） | `AuthService.mergeSetPasswordAndBindSocial` | [38869089670](https://github.com/Leo0049/projectLab_2/actions/runs/38869089670) | `AuthServiceSecurityTest.verifiedPhoneAndMatchingSocialTokenCompleteTheMerge` | `PotentialStubbingProblem`：`generateToken(9, "CUSTOMER", phone, 0)` 與測試的 stub 不符（錯誤 1） |
+
+M1–M3 的「測試總計」為 339 個測試、失敗 1；M4 為錯誤 1。沒有其他測試受影響。
+
+讀取時要注意的兩點：
+
+- **M2、M3 的失敗原因是 NPE，不是斷言的訊息。** 測試沒有為 `PricingService` 設定 stub，移除檢查後程式走到定價時拋出 NPE。測試確實會紅，但失敗訊息無法直接指向被破壞的規則。M1 也是間接失敗：移除檢查後回 404，而不是斷言的 403。後續可以為 `PricingService` 補上 stub，讓斷言的訊息成為失敗原因；本次沒有改測試。
+- **M1–M3 的 scratch commit 含有行尾的額外變動。** `GroupOrderService.java` 原本 1770 行中有 1510 行是 CRLF、260 行是 LF；編輯工具把整檔統一為 CRLF，因此 commit 的 diff 含有 260 行的行尾變動。以 `git diff --ignore-cr-at-eol` 看，只有破壞的那一行改變。`AuthService.java` 為 LF，M4 的 diff 乾淨。
+
+scratch 分支在讀取結果後即應刪除；遠端刪除被代理政策擋下，見 `docs/REVIEW_2026-10-13.md` 的「本次無法由代理完成的操作」。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
