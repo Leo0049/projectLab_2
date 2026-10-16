@@ -243,7 +243,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
 > 新增測試時請照做，在修補前後各跑一次，確認它真的抓得到回歸，否則只是裝飾。
 > 2026-10-12 與本輪新增的測試（`IdempotencyServiceTest`、`ExclusiveJobRunnerTest`、`GeoBoundsTest`、`RequestIdFilterTest`、`AuthorizationRouteInventoryTest`、`BrandSummaryJsonTest`、`StompAuthInterceptorTest`、`WebSocketWiringTest`、`PageSizeClampTest`、`UploadControllerTest`、`OrderNoFormatTest`、`TimeZoneConfigTest`，以及 `LoginAttemptLimiterTest` 的新增案例）已於 2026-10-13 做過還原驗證：共 39 組故意破壞（把修補改回舊寫法，或改壞規則），每一組都讓至少一支對應的測試轉紅，對照表見 README「還原驗證」。這些類別並非每個測試都被破壞過：GeoBoundsTest、RequestIdFilterTest、AuthorizationRouteInventoryTest 各有未破壞的案例，LoginAttemptLimiterTest 只破壞了新增的 2 個案例，確切範圍以 README 為準。同一次 CI 內若同時破壞會互相遮蔽的兩處，必須單獨再跑一次，否則看不出各自是否被抓到。破壞用的 commit 標題以 `scratch:` 開頭，只存在於暫存分支 `main-cbduag`（可刪除），不屬於 PR 分支。
-> 2026-10-15 的 N13（權杖版本）已在本機還原驗證：`AccountStatus` 的 8 組破壞（版本、角色、已刪除、品牌與門市、大小寫、顧客比對到門市列）與 `User` 改密碼／撤銷的 3 組破壞，都讓至少一支對應的測試轉紅。本機以真實的 `AccountStatus` 搭配 stub 執行，stub 中的兩個 `User` 方法逐字取自 `User.java`。`JwtAuthenticationFilterTest`、`StompAuthInterceptorTest`、`JwtTokenVersionTest` 的新案例需要 Spring、Mockito 或 jjwt，本機無法執行，尚待 CI 確認；README 的「還原驗證」表已於 2026-10-15 補入本機結果（見「2026-10-15 還原驗證」）。
+> 2026-10-15 的 N13（權杖版本）已在本機還原驗證：`AccountStatus` 的 8 組破壞（版本、角色、已刪除、品牌與門市、大小寫、顧客比對到門市列）與 `User` 改密碼／撤銷的 3 組破壞，都讓至少一支對應的測試轉紅。本機以真實的 `AccountStatus` 搭配 stub 執行，stub 中的兩個 `User` 方法逐字取自 `User.java`。`JwtAuthenticationFilterTest`、`StompAuthInterceptorTest`、`JwtTokenVersionTest` 的新案例需要 Spring、Mockito 或 jjwt，本機無法執行，已由 CI 確認（run 38836496498，全數通過）；README 的「還原驗證」表已於 2026-10-15 補入本機結果（見「2026-10-15 還原驗證」）。
 
 ### 另外兩層驗證（都在 CI 上跑）
 
@@ -673,4 +673,4 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **JWT 只接受 HS512**：`common/JwtAlgorithm.isAllowed` 在 jjwt 解析前檢查 header，只接受 `{"alg":"HS512"}`（可加 `"typ":"JWT"`）。要放寬演算法，必須同時改 `JwtAlgorithmTest` 的負向案例並寫明理由。
 - **前端登入權杖只讀 `JOIN_TOKEN`**：`userToken` 已無任何程式寫入。`cart.js` 曾同時讀兩者，殘留值會讓登出後的購物車仍視為已登入。
 - **WebSocket 拒絕訊息**：權杖版本失效或帳號無法使用時回「登入已失效或帳號無法使用，請重新登入」。版本失效的帳號仍存在，因此不再沿用「帳號已停用或不存在」。
-- **2026-10-15 新增測試的驗證狀態**：手機驗證權杖、JWT 白名單與 `ClaimStore` 的純邏輯測試已在本機還原驗證（README「2026-10-15 還原驗證」）。需要 Spring、Mockito 或 jjwt 的案例（`AuthServiceSecurityTest` 新增的 2 支、`JwtAlgorithmEnforcementTest`、`StompAuthInterceptorTest` 與 `JwtAuthenticationFilterTest` 的新案例）本機無法執行，尚待 CI 確認。
+- **2026-10-15 新增測試的驗證狀態**：手機驗證權杖、JWT 白名單與 `ClaimStore` 的純邏輯測試已在本機還原驗證（README「2026-10-15 還原驗證」）。需要 Spring、Mockito 或 jjwt 的案例（`AuthServiceSecurityTest` 新增的 2 支、`JwtAlgorithmEnforcementTest`、`StompAuthInterceptorTest` 與 `JwtAuthenticationFilterTest` 的新案例）本機無法執行，已由 CI 確認（run 38836496498，`mvn test` 339 個測試全數通過）。

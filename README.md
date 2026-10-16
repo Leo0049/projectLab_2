@@ -489,12 +489,12 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 - N13-8 的第一次重建是「找不到顧客列時改比對 id 相同的門市列，但仍比角色」。角色比對擋住了這條路徑，這個變體與原始碼等價，測試沒有轉紅是正確的。改成真正的漏洞形狀（不比角色，只比 id 與版本）後，`customerTokenNeverMatchesAStoreRowWithTheSameId` 轉紅。
 - R-10 同時讓 `blankTokenIsRejected` 轉紅，因為空白權杖不再經過指紋函式，不會拋出例外。
 
-尚未做或尚待 CI 的項目：
+驗證狀態：
 
-- `AuthServiceSecurityTest` 的 `verifiedPhoneTokenCanOnlyBeUsedOnce` 與 `preCheckDoesNotConsumeThePhoneToken` 需要 Mockito 與 Spring 相依，本機無法執行。W-1 與 W-2 的文字掃描是本機的接線守門，不能取代行為層測試。
-- `JwtAlgorithmEnforcementTest`（jjwt）、`StompAuthInterceptorTest` 與 `JwtAuthenticationFilterTest` 的新案例需要 Spring 或 jjwt，尚無還原驗證紀錄。
-- `cart.js` 的登入權杖來源（`TOKEN_KEYS`）與 STOMP 拒絕訊息的文字改動，沒有對應的自動化斷言，也沒有做還原驗證。
-- 本機無法取得 Maven 相依（Maven Central 連線失敗），`mvn test` 只能在 CI 執行。
+- 已由 CI 確認（run 38836496498，commit `ba80640`）：`AuthServiceSecurityTest` 的新案例、`JwtAlgorithmEnforcementTest`、`StompAuthInterceptorTest`、`JwtAuthenticationFilterTest` 與 `JwtTokenVersionTest` 的新案例全部通過。`mvn test` 為 60 個類別、339 個測試，0 失敗、0 錯誤、0 略過。
+- 尚無本機還原驗證的：上列 CI 確認的案例（需要 Spring、Mockito 或 jjwt）。W-1 與 W-2 的文字掃描是本機的接線守門，不能取代行為層測試。
+- 沒有自動化斷言、也沒有做還原驗證的：`cart.js` 的登入權杖來源（`TOKEN_KEYS`）與 STOMP 拒絕訊息的文字改動。
+- 本機無法取得 Maven 相依（Maven Central 被代理政策擋下，回 403），`mvn test` 只能在 CI 執行。
 
 ### 這兩層實際抓到什麼
 
