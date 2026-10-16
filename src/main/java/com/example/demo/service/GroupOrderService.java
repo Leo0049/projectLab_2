@@ -560,7 +560,7 @@ public class GroupOrderService {
             throw new CustomException("400", "商品不屬於該分店品牌");
         }
         if (!Boolean.TRUE.equals(product.getIsEnabled()) || unavailableProductIds.contains(product.getId())) {
-            throw new CustomException("400", "此商品目前未在該分店供應");
+            // MUTATION M3: disabled-product check removed (verification only)
         }
     }
 
