@@ -312,9 +312,11 @@ public class AuthService {
         User user = userRepository.findByPhone(phone).orElseThrow(() -> new CustomException("404", "帳號不存在"));
         ensureActiveUser(user);
         bindVerifiedSocialProvider(user, socialIdToken, providerUid, provider);
+        // MUTATION M4: token issued before the password change bumps tokenVersion (verification only)
+        var resp = Result.success(generateLoginResponse(user));
         user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-        return Result.success(generateLoginResponse(user));
+        return resp;
     }
 
     // ─── 重設密碼 ─────────────────────────────────────────────
