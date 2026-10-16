@@ -217,7 +217,8 @@ public class AuthService {
     public Result mergeBindSocial(Long userId, String idToken, String providerUid, String provider) throws Exception {
         User user = userRepository.findById(userId).orElseThrow(() -> new CustomException("404", "找不到此帳號"));
         ensureActiveUser(user);
-        return bindVerifiedSocialProvider(user, idToken, providerUid, provider);
+        bindVerifiedSocialProvider(user, idToken, providerUid, provider);
+        return Result.success(generateLoginResponse(user));
     }
 
     /**
@@ -280,10 +281,15 @@ public class AuthService {
         verifyFirebasePhone(phoneIdToken, phone);
         User user = userRepository.findByPhone(phone).orElseThrow(() -> new CustomException("404", "找不到此帳號"));
         ensureActiveUser(user);
-        return bindVerifiedSocialProvider(user, socialIdToken, providerUid, provider);
+        bindVerifiedSocialProvider(user, socialIdToken, providerUid, provider);
+        return Result.success(generateLoginResponse(user));
     }
 
-    private Result bindVerifiedSocialProvider(User user, String idToken, String providerUid, String provider)
+    /**
+     * 綁定已驗證的社群身分。刻意不在這裡簽發權杖：由呼叫端在帳號狀態定案後才簽發
+     * （例如改密碼之後，N13 會遞增版本），否則同一流程會先簽出一張隨即失效的權杖。
+     */
+    private void bindVerifiedSocialProvider(User user, String idToken, String providerUid, String provider)
             throws Exception {
         String providerName = normalizeProvider(provider);
         FirebaseToken decoded = verifyFirebaseSocialToken(idToken, providerName);
@@ -296,7 +302,6 @@ public class AuthService {
         }
         bindSocialProvider(user, providerName, providerUid);
         log.info("帳號整合成功：userId={} provider={}", user.getId(), providerName);
-        return Result.success(generateLoginResponse(user));
     }
 
     /** Atomically set a password and attach the social identity after proving phone ownership. */

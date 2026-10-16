@@ -122,7 +122,8 @@ class AuthServiceSecurityTest {
         when(userAuthProviderRepository.findByProviderAndProviderUid("GOOGLE", "google-uid"))
                 .thenReturn(Optional.empty());
         when(passwordEncoder.encode("newpass123")).thenReturn("hashed-password");
-        when(jwtUtils.generateToken(9L, "CUSTOMER", phone, 0)).thenReturn("session-token");
+        // 改密碼會遞增 tokenVersion（N13）：回給用戶端的權杖必須是改密碼之後的版本 1。
+        when(jwtUtils.generateToken(9L, "CUSTOMER", phone, 1)).thenReturn("session-token");
 
         FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
         FirebaseToken phoneToken = mock(FirebaseToken.class);
@@ -143,6 +144,9 @@ class AuthServiceSecurityTest {
             Assertions.assertEquals("200", result.getCode());
             Assertions.assertEquals("hashed-password", user.getPasswordHash());
             Assertions.assertEquals("session-token", ((Map<?, ?>) result.getData()).get("token"));
+            Assertions.assertEquals(1, user.getTokenVersion());
+            // 合併流程只簽發一張權杖，且是改密碼之後的版本，不得先以版本 0 簽發
+            verify(jwtUtils, never()).generateToken(9L, "CUSTOMER", phone, 0);
             verify(userAuthProviderRepository).save(any());
         }
     }
