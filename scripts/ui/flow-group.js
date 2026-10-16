@@ -34,6 +34,9 @@ async function addDrink(page, shot, tag, token) {
 const groupInfo = async (token, host) =>
   (await api(`/api/group-orders/${token}`, { token: host.token })).data || {};
 
+// 儲值金餘額（N-15：儲值金付款必須實際扣款）
+const walletBalance = async (token) => Number(((await api('/api/wallet', { token })).data || {}).balance);
+
 module.exports = async function run() {
   console.log('\n═══ 流程三：揪團 → 加入 → 結帳 ═══');
   const host = await login('0912000000');
@@ -103,6 +106,7 @@ module.exports = async function run() {
       if (r) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); r.click(); }
     });
     await M.page.waitForTimeout(1000);
+    const balanceBefore = await walletBalance(member.token);
     const mOk = await M.page.$('#btn-confirm-member-pay');
     if (!mOk) { fail('團員付款彈窗找不到確認鈕'); return failed; }
     await mOk.click();
@@ -110,8 +114,15 @@ module.exports = async function run() {
     const mConfirm = await M.page.$('#confirm-ok-btn');
     if (mConfirm) await mConfirm.click();
     await M.page.waitForTimeout(4000);
+    const balanceAfter = await walletBalance(member.token);
+    if (!(balanceAfter < balanceBefore)) {
+      await M.shot('member-store-credit-not-debited');
+      fail(`團員以儲值金付款後餘額未減少（${balanceBefore} → ${balanceAfter}）`);
+      return failed;
+    }
     await M.shot('member-paid');
     log('團員完成自己的付款');
+    log(`儲值金扣款：餘額 ${balanceBefore} → ${balanceAfter}`);
 
     // 團長鎖定
     await H.page.goto(FE + `/Customer/group_order.html?token=${token}`, { waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
