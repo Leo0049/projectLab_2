@@ -180,7 +180,8 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `AuthorizationTest`（19） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、拿他人 userId 結帳、竄改 finalPrice、跨帳號讀寫收藏、消耗他人優惠券、debug 與門市傾印端點已移除 |
 | 授權與路由 | `AuthorizationRouteInventoryTest`（3） | 列舉全部路由：非公開路由匿名呼叫必須回 401／403；公開清單的每一條都必須真的存在（ADR-0003） |
 | 授權與路由 | `GroupOrderSecurityTest`（5） | 揪團 H-1～H-3：伺服器重算價格與歸屬；他人的 couponId 被拒；非團長不可改他人揪團狀態；團長本人的截單與重開可行，亂打的狀態被白名單擋下 |
-| 授權與路由 | `GroupOrderServiceAuthorizationTest`（6） | 揪團讀取與加入：只有發起人能取得分享 token；非成員不可讀數字 id 的明細；舊版加入必須帶正確的 token；拒絕他品牌的商品與門市停售的商品 |
+| 授權與路由 | `GroupOrderServiceAuthorizationTest`（10） | 揪團讀取與加入：只有發起人能取得分享 token；非成員不可讀數字 id 的明細；舊版加入必須帶正確的 token；拒絕他品牌的商品與門市停售的商品 |
+| 授權與路由 | `GroupOrderControllerViewerTest`（2） | 揪團查詢的 viewer 只取自 JWT 寫入的 request attribute，不取自參數；匿名請求以無 viewer 查詢 |
 | 授權與路由 | `StompSubscribeRulesTest`（11） | WebSocket 訂閱授權的純規則：顧客只能訂閱自己參與的訂單；揪團推播只開放成員（團長，或已在團內有品項的團員），持分享連結但未加入者不可訂閱（N12）；門市只能訂閱自己的頻道；角色必須相符（id 會撞號）；未知目的地與超大數字 id 一律拒絕 |
 | 授權與路由 | `StompAuthInterceptorTest`（26） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團推播的發起人（即使沒有品項）與已在團內有品項的團員可訂閱，只持分享連結者不可訂閱（N12）；門市不可訂閱揪團推播；已刪除或不存在的帳號、連線後 token 過期者不可連線或訂閱（N7）；客戶端直接 SEND 一律拒絕（N5）；權杖版本與帳號目前版本不符（改過密碼前簽發）者不可連線，連線後改密碼，之後的 SUBSCRIBE 一律拒絕（N13） |
 | 授權與路由 | `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |

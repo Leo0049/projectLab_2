@@ -289,15 +289,15 @@ docker compose up -d && mvn test
 | `AuthorizationTest`（19） | 未認證寫商品、跨帳號讀寫個資／錢包／訂單／收藏、偽造參數與「不帶參數」兩種繞過、拿他人 `userId` 結帳、竄改 `finalPrice`、消耗他人優惠券、debug 與傾印端點已移除、本人存取仍正常 |
 | `AuthorizationRouteInventoryTest`（3） | 路由清單全數列舉：白名單以外的每一條路由，匿名請求都必須回 401／403；白名單中的路由都真實存在；新增端點忘了加授權時 CI 會紅 |
 | `GroupOrderSecurityTest`（5） | 揪團數字 ID 查詢的團主／團員權限、邀請 token 與跨品牌商品限制 |
-| `AuthServiceSecurityTest`（7） | 手機 token 與社群 UID 驗證、帳號合併證明、已刪除帳號登入防護 |
+| `AuthServiceSecurityTest`（9） | 手機 token 與社群 UID 驗證、帳號合併證明、已刪除帳號登入防護 |
 | `JwtUtilsProdGuardTest`（4） | JWT 金鑰長度與正式環境禁止使用內建預設值 |
-| `GroupOrderServiceAuthorizationTest`（6） | 揪團建立、加品項與結帳時的門市及商品供應狀態 |
+| `GroupOrderServiceAuthorizationTest`（10） | 揪團建立、加品項與結帳時的門市及商品供應狀態 |
 | `PricingServiceTest`（5） | 商品尺寸定價、商品專屬配料規則、重複與超量配料拒絕 |
 | `BrandServiceReferenceTest`（2） | 品牌不能引用其他租戶的分類、規格或配料 |
 | `CartServiceTest`（1） | 購物車品項變更後重算單價與總額 |
 | `QuantityLimitsTest`（1） | 訂單數量邊界 1–99 |
 | `RedisCartServiceTest`（2） | Redis 購物車品項與數量更新 |
-| `ItemSpecResolverTest`（7） | 固定規格防竄改：商品只有唯一規格選項時不採信用戶端送來的值 |
+| `ItemSpecResolverTest`（9） | 固定規格防竄改：商品只有唯一規格選項時不採信用戶端送來的值 |
 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、任一規格不同即分開、套券的那杯要拆出來 |
 | `CouponEligibilityTest`（6） | 優惠券適用範圍：跨品牌／跨商品要擋、已付款不可再套 |
 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要拆回 type／description、補款靠正負號分辨收付方 |
@@ -307,22 +307,21 @@ docker compose up -d && mvn test
 | `GroupCheckoutConcurrencyTest`（6） | 揪團的四條金流路徑（團員結帳、團長結帳、補款、取消退款）重複觸發時同一筆金額只能發生一次、帳本與餘額必須相符；同一張優惠券不可被用兩次 |
 | `DemoApplicationTests`（1） | Spring context 載入 |
 | `DemoDataSeederProdGuardTest`（2） | 正式環境不植入示範資料（即使 `DEMO_DATA_ENABLED` 沒設定也不會） |
-| `JwtAuthenticationFilterTest`（7） | JWT 過濾器：無效或過期的 token 會被拒絕；已刪除的帳號每次請求都會被擋下 |
+| `JwtAuthenticationFilterTest`（11） | JWT 過濾器：無效或過期的 token 會被拒絕；已刪除的帳號每次請求都會被擋下 |
 | `AuthServiceSmsModeGuardTest`（6） | 正式環境若 `sms.mode` 不是 `firebase` 就拒絕啟動（含 `MOCK_TOKEN` 繞過） |
 | `LoginAttemptLimiterTest`（10） | 登入與 OTP 限流：超過次數回 429；Redis 不可用時退回本機計數 |
 | `SafeImageUrlTest`（7） | 圖片網址白名單（純邏輯）：擋 `javascript:`、`../`、引號跳脫與控制字元 |
-| `SafeTextTest`（6） | 顧客名稱寫入規則（純邏輯）：拒絕 `< > " \`` 與控制字元，上限 30 字 |
+| `SafeTextTest`（9） | 顧客名稱寫入規則（純邏輯）：拒絕 `< > " \`` 與控制字元，上限 30 字 |
 | `MemberCancelSettlementTest`（9） | 團員取消品項的退款結算（純邏輯）：只退已付款的部分，團長退款以 escrow 為上限 |
 | `OrderStatusGuardTest`（5） | 顧客端訂單狀態轉換白名單（純邏輯） |
-| `CancellableStatusTest`（2） | 揪團品項可否取消：只有 OPEN 與 SUBMITTED（純邏輯） |
-| `StompSubscribeRulesTest`（9） | WebSocket 訂閱授權（純邏輯）：顧客、門市、品牌的頻道權限，未知目的地一律拒絕 |
+| `StompSubscribeRulesTest`（11） | WebSocket 訂閱授權（純邏輯）：顧客、門市、品牌的頻道權限，未知目的地一律拒絕 |
 | `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策（純邏輯）：手機已被使用就絕不另建帳號 |
 | `IdempotencyServiceTest`（9） | 冪等結帳：同一把鍵重送只執行一次並重播結果；失敗會釋放鍵以便重試；佔位中的重送回 409；鍵格式與使用者範圍；Redis 路徑（多實例共用完成紀錄） |
 | `ExclusiveJobRunnerTest`（3） | 排程互斥：其他實例持有鎖時略過且不釋放別人的鎖；取得鎖時執行一次並以同一 token 釋放；任務拋例外仍會釋放鎖 |
 | `GeoBoundsTest`（5） | 附近店家的預篩矩形是 50 公里圓的超集合，不會漏掉圓內的店；經緯度夾在合法範圍內；負半徑拒絕 |
 | `RequestIdFilterTest`（5） | `X-Request-Id`：合規的 id 沿用，非法或長度不符的重新產生；請求結束後 MDC 清空 |
 | `BrandSummaryJsonTest`（2） | 前端契約：品牌摘要的 JSON 欄位固定為 brandId、brandName、logoUrl，沒有 logo 時 logoUrl 為 null |
-| `StompAuthInterceptorTest`（13） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團頻道只開放顧客 |
+| `StompAuthInterceptorTest`（26） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團頻道只開放顧客 |
 | `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
 | `OrderNoFormatTest`（2） | 訂單編號格式為 ORD＋MMdd＋10 位十六進位；同一天 300 張單不重複 |
 | `UploadControllerTest`（4） | 通用圖片上傳以檔案內容（magic bytes）判斷，副檔名改成 .png 的 HTML 被拒；副檔名白名單；5 MB 上限；內容為 PNG 時成功並交給儲存服務 |
