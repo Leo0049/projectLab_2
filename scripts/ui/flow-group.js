@@ -101,10 +101,20 @@ module.exports = async function run() {
     }
     await mBtn.click();
     await M.page.waitForTimeout(2500);
-    await M.page.evaluate(() => {
-      const r = document.querySelector('input[name="member-payment"][value="STORE_CREDIT"], input[name="payment"][value="STORE_CREDIT"]');
-      if (r) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); r.click(); }
+    // 只選團員付款彈窗裡的儲值金；頁面上的結帳區也有 name="payment" 的同值 radio，不能誤選
+    const storeCreditPicked = await M.page.evaluate(() => {
+      const r = document.querySelector('input[name="member-payment"][value="STORE_CREDIT"]');
+      if (!r) return false;
+      r.checked = true;
+      r.dispatchEvent(new Event('change', { bubbles: true }));
+      r.click();
+      return true;
     });
+    if (!storeCreditPicked) {
+      await M.shot('member-store-credit-missing');
+      fail('團員付款彈窗找不到儲值金選項');
+      return failed;
+    }
     await M.page.waitForTimeout(1000);
     const balanceBefore = await walletBalance(member.token);
     const mOk = await M.page.$('#btn-confirm-member-pay');
