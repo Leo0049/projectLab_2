@@ -1,6 +1,6 @@
 # ADR-0005：結帳採選擇性的 `Idempotency-Key`，重送時回放第一次的結果
 
-- **狀態**：Accepted（已知缺口：未比對請求內容，見「後果」）
+- **狀態**：Accepted（2026-10-17 補上請求指紋比對；舊格式紀錄的過渡期見「後果」）
 - **日期**：2026-10-12 補錄（實作於本次文件化前的修補階段）
 - **相關**：ADR-0001（最終防線仍是列鎖與狀態守衛）、ADR-0003（身分與金額一律由伺服器決定）、ADR-0006（Redis 與本地退避）
 
@@ -17,9 +17,10 @@
 3. **儲存鍵**：`idem:checkout:<userId>:<key>`。範圍包含使用者，不同使用者使用相同字串互不影響。
 4. **狀態機**：
    - 第一次呼叫以 `SETNX` 寫入 `IN_PROGRESS`，TTL 120 秒。
-   - 成功（2xx）後，把回應的狀態碼與 body 以 `DONE:<json>` 寫入，TTL 86400 秒（24 小時）。
+   - 成功（2xx）後，把回應的狀態碼、body 與請求指紋以 `DONE:<json>` 寫入，TTL 86400 秒（24 小時）。
    - 非 2xx 或拋出例外時釋放鍵，允許重試。
-   - 同一把鍵在進行中再次送來：回 409。
+   - 同一把鍵在進行中再次送來：內容相同回 409，內容不同回 422。
+   - 同一把鍵、內容不同（指紋不符）：回 422，不執行、不改動既有紀錄。
    - 已完成：回放第一次的回應，並加上 `Idempotent-Replayed: true` 標頭。
 5. **Redis 不可用時**退回本地 Map，只在單實例下正確（見 ADR-0006）。
 6. **前端**（`frontend/Customer/checkout.html`）：同一組購物車內容沿用同一把鍵；結帳成功後清除；遇到 4xx（409 除外）時釋放，讓使用者修正後可以重送。
@@ -29,7 +30,7 @@
 **取得的**：重送不會重複扣款，而且第二次的回應與第一次一致。
 
 **付出的代價與已知缺口**：
-- **未比對請求內容**。同一把鍵搭配不同的 body，仍會回放第一次的結果。這是有意識的取捨：金額已由伺服器重算，風險被限縮；但 body 指紋（hash）仍應補上，列於 `docs/IMPROVEMENT_ASSESSMENT.md` 的「仍未做」清單。
+- **舊格式紀錄無法比對**。2026-10-17 之前寫入的紀錄沒有指紋；過渡期內（最多 24 小時）同一把鍵搭配不同 body 仍會回放第一次的結果，過期後即完全比對。金額本來就由伺服器重算，風險原本已被限縮。
 - 冪等狀態只存在 Redis。Redis 被清空或鍵逾時後，重送會再次執行。
 - 標頭是選擇性的，舊客戶端沒有這層保護。
 
@@ -40,6 +41,7 @@
 
 ## 如何驗證
 
-- `IdempotencyServiceTest`（9）：`rejectsMalformedKeys`、`secondCallReplaysTheFirstResult`、`failedAttemptReleasesTheKey`、`exceptionPropagatesAndReleasesTheKey`、`duplicateWhileInProgressIsRejected`、`keysAreScopedPerUser`，以及三支 Redis 路徑的測試（`redisClaimThenStoresTheResult`、`redisReplaysWhenTheKeyIsAlreadyDone`、`redisInProgressReturnsConflict`）。
+- `IdempotencyServiceTest`（14）：`rejectsMalformedKeys`、`secondCallReplaysTheFirstResult`、`failedAttemptReleasesTheKey`、`exceptionPropagatesAndReleasesTheKey`、`duplicateWhileInProgressIsRejected`、`keysAreScopedPerUser`，以及 Redis 路徑的測試（`redisClaimThenStoresTheResult`、`redisReplaysWhenTheKeyIsAlreadyDone`、`redisInProgressReturnsConflict`），再加上請求內容比對的五支（`fingerprintFollowsTheBodyContent`、`sameKeyWithAnotherBodyIsRejectedAndTheFirstResultSurvives`、`anotherBodyWhileInProgressIsRejectedAs422`、`redisInProgressWithAnotherBodyIsRejectedAs422`、`redisDoneWithAnotherBodyIsRejectedAs422`）。
 - `scripts/e2e-verify.js` 的冪等區段：同一把鍵結帳兩次，應得到相同的 `orderId`，第二次帶有 `Idempotent-Replayed`；不合規的鍵回傳 400。
+- 2026-10-17 還原驗證（README「2026-10-17 還原驗證（CI）」）：M6 把請求指紋改為常數，使 `IdempotencyServiceTest` 的五支 422 測試轉紅；M5 與 M9 分別確認忙碌時的例外型別與控制器的回應。
 - 結帳頁的實際流程由 `scripts/ui/` 的 UI 流程測試覆蓋。

@@ -29,10 +29,10 @@
 | 1 | 登入／OTP 限流可被 `X-Forwarded-For` 繞過 | **實作** | `LoginAttemptLimiter.clientIp()` 不再自己解析標頭，只用 `getRemoteAddr()`；`server.forward-headers-strategy` 預設 `native`，由容器只信任可信代理送來的標頭（直連時 XFF 被忽略，經代理時取代理鏈上的真實來源）。另修正一個既有 bug：Redis 路徑與本地退避路徑都忽略呼叫端傳入的 `windowSeconds`，一律用 300 秒。限流的 Javadoc 原本寫「滑動視窗」，實際是固定視窗，已更正註解（行為未變）。 | 「以帳號為 key 的寬視窗」未做：它會讓攻擊者能鎖住他人帳號，需要產品決定視窗長度。 |
 | 2 | 前端快取不依使用者隔離，登出不清 | **實作** | `fetchAPI` 的快取鍵加入登入者 userId（未登入為 `anon`）；`logout()` 清除所有 `cache_*`；`order_details.html` 改用同一個 `cacheKeyFor()`，避免兩處格式漂移。 | — |
 | 3 | JWT 放 localStorage、CSRF、CSP 預設關閉 | **延後**（ADR-0007） | — | 改為 httpOnly cookie 需要同時處理：11 個直接讀 token 的檔案、`nav-auth.js` 的集中處理、STOMP CONNECT 的 header 驗證、CORS credentials 與 CSRF token。CSP 收緊的前置條件是約 **100 處 inline `on*=` 事件屬性**要先外部化。這兩件事都是跨頁面的結構改動，無法在沒有瀏覽器與後端的環境中安全完成，應分階段做。 |
-| 4 | 下單與結帳沒有冪等鍵 | **實作**（opt-in） | 新增 `Idempotency-Key` 標頭（格式 8–64 字元英數、底線、連字號）。以 Redis `SETNX` 佔位，成功結果以 24 小時保存並於重送時原樣重播（標頭 `Idempotent-Replayed: true`）；佔位中的重送回 409；失敗（4xx 或例外）釋放佔位，允許重試；Redis 不可用時退回本地計數（與 `RedisLockService` 相同策略）。結帳頁自動送出同一把鍵直到成功。**另修正**：結帳扣款成功之後的地址儲存、通知等步驟若失敗，原本會回 400，前端重送就會重複建單；現在只記 log，仍回成功。 | 團購結帳（`/api/group-orders/{token}/checkout`）已有列鎖與狀態守衛，本次未加冪等鍵，避免擴大範圍。伺服器不比對請求內容（見「仍未做」）。 |
+| 4 | 下單與結帳沒有冪等鍵 | **實作**（opt-in） | 新增 `Idempotency-Key` 標頭（格式 8–64 字元英數、底線、連字號）。以 Redis `SETNX` 佔位，成功結果以 24 小時保存並於重送時原樣重播（標頭 `Idempotent-Replayed: true`）；佔位中的重送回 409；失敗（4xx 或例外）釋放佔位，允許重試；Redis 不可用時退回本地計數（與 `RedisLockService` 相同策略）。結帳頁自動送出同一把鍵直到成功。**另修正**：結帳扣款成功之後的地址儲存、通知等步驟若失敗，原本會回 400，前端重送就會重複建單；現在只記 log，仍回成功。 | 團購結帳（`/api/group-orders/{token}/checkout`）已有列鎖與狀態守衛，本次未加冪等鍵，避免擴大範圍。請求內容比對已於 2026-10-17 補上（見「仍未做」第 3 項）。 |
 | 5 | 沒有 schema migration（Flyway） | **延後**（ADR-0008） | — | Flyway 的 baseline 必須從實際資料庫匯出，這個環境取不到。`ddl-auto: update` 目前仍是建表的唯一來源。另已確認的風險：`user_coupons.obtained_date` 的 generated column 在既有資料庫不會被 `ddl-auto` 改寫（entity 註解已載明），已記錄在 DATABASE.md。 |
 | 6 | 餘額扣款改條件式 UPDATE、加 `@Version` | **延後**（ADR-0001 記錄取捨） | — | 這是金流路徑。現行的列鎖做法由 `WalletConcurrencyTest` 與 `GroupCheckoutConcurrencyTest` 守住（已驗證改回舊寫法會轉紅）。改寫後必須在 CI 上跑完這兩支並確認結果不變；在無法執行的環境裡改，風險高於收益。 |
-| 7 | 附近查詢全表 Haversine、無分頁、無索引 | **部分實作** | (a) 先以 bounding box（`GeoBounds`）做 `BETWEEN` 預篩，再對候選列算 Haversine；`GeoBounds` 有「矩形必為圓的超集合」的測試。(b) `stores(latitude, longitude)` 加上索引 `idx_stores_lat_lng`。(c) 無定位時改為分頁（**原本會忽略 `size`/`page` 回傳全部店家**）。(d) `/api/stores/nearby/v2` 補上與 v1 相同的座標範圍檢查（超出回 400）。 | 地圖端點 `/api/stores/map` 仍是全量查詢：改成視窗查詢需要前端送出地圖邊界，屬於下一個 PR。`/api/stores/nearby/v2` 仍未分頁（見「仍未做」）。**本次未量測前後差異**，不宣稱任何效能數字。 |
+| 7 | 附近查詢全表 Haversine、無分頁、無索引 | **部分實作** | (a) 先以 bounding box（`GeoBounds`）做 `BETWEEN` 預篩，再對候選列算 Haversine；`GeoBounds` 有「矩形必為圓的超集合」的測試。(b) `stores(latitude, longitude)` 加上索引 `idx_stores_lat_lng`。(c) 無定位時改為分頁（**原本會忽略 `size`/`page` 回傳全部店家**）。(d) `/api/stores/nearby/v2` 補上與 v1 相同的座標範圍檢查（超出回 400）。 | 地圖端點 `/api/stores/map` 仍是全量查詢：改成視窗查詢需要前端送出地圖邊界，屬於下一個 PR。`/api/stores/nearby/v2` 已於 2026-10-17 移除（見「仍未做」第 2 項）。**本次未量測前後差異**，不宣稱任何效能數字。 |
 | 8 | 缺 batch fetch，N+1 無全域防線 | **部分實作** | `spring.jpa.properties.hibernate.default_batch_fetch_size: 50`。 | 以 Hibernate Statistics 斷言各端點 SQL 次數的測試尚未建立，列為下一步。 |
 | 9 | 沒有伺服器端快取 | **延後** | — | 目前沒有量測到熱點。快取需要先設計後台編輯時的失效策略與多實例一致性；在沒有量測資料前引入，只會增加一致性風險。 |
 | 10 | 前端資產偏重 | **延後** | — | 本次量測：`frontend/vendor/tailwind.js` 511,356 位元組（執行期 CDN 編譯版）、`images/coupons.jpg` 939,337 位元組、`group_order.html` 181,814 位元組，其中內嵌 script 129,146 位元組（約 71%）。Tailwind 預編譯需要建置步驟；內嵌 script 外移與第 3 項的 CSP 有關。 |
@@ -66,14 +66,14 @@
 這些是評估後確認存在、但本 PR 沒有處理的缺口。每一項都寫明影響，方便之後排序：
 
 1. **`GET /api/stores/search` 未分頁**：`page`／`size` 被忽略，回傳全部符合者。修正會改變既有前端拿到的筆數，需要先決定預設上限，因此不在本 PR 內。
-2. **`GET /api/stores/nearby/v2` 未分頁**：回傳全部接單中店家。違反「列表端點一律分頁」的規則（見 `CLAUDE.md`）；本次只補上座標檢查。
-3. **冪等結帳不比對請求內容**：同一把鍵搭配不同 body 會回放第一次的結果（ADR-0005）。金額已由伺服器重算，風險被限縮，但應補上 body 指紋。
+2. [已處理 2026-10-17] **`GET /api/stores/nearby/v2` 未分頁**：回傳全部接單中店家。違反「列表端點一律分頁」的規則（見 `CLAUDE.md`）。處理：端點已移除（controller、`SecurityConfig` 白名單、路由清單測試，以及只有它使用的服務程式碼），前端沒有呼叫者。
+3. [已處理 2026-10-17] **冪等結帳不比對請求內容**：同一把鍵搭配不同 body 會回放第一次的結果（ADR-0005）。金額已由伺服器重算，風險被限縮，但應補上 body 指紋。處理：請求主體的 SHA-256 指紋已納入佔位與完成紀錄，內容不同回 422；舊格式紀錄在過期前仍照舊重播。
 4. **轉盤的當日標記在資料庫寫入之前寫入**：寫入失敗時標記不回收，使用者會失去當天的機會（ADR-0007）。修正需要把標記與寫入放進同一個可回滾的單位。
-5. **結帳的使用者鎖忙碌時回 400，不是 503**：`OrderService.createOrder` 拋出的是 `RuntimeException`，`OrderController` 的 catch 把它轉成 400。應改為 `CustomException("503", …)`，並讓 `OrderController` 不把它吞成 400。
+5. [已處理 2026-10-17] **結帳的使用者鎖忙碌時回 400，不是 503**：`OrderService.createOrder` 拋出的是 `RuntimeException`，`OrderController` 的 catch 把它轉成 400。應改為 `CustomException("503", …)`，並讓 `OrderController` 不把它吞成 400。處理：忙碌時拋出 `CustomException("503", …)`，`OrderController` 原樣拋出；業務拒絕仍為 400（判斷見 `service/order/CheckoutFailure`）。
 6. **購物車的 Redis 鍵沒有過期時間**：`cart:items:*` 與 `carts:active` 沒有清理排程，`carts:active` 目前沒有消費者（見 DATABASE.md 的 Redis 鍵一覽）。
 7. **團購結帳沒有冪等鍵**：重送不會重複扣款（列鎖與狀態守衛保證），但也不會回放第一次的成功結果，前端需要自行處理重送後的回應。
 8. **Redis 沒有環境隔離**：多個環境共用同一台 Redis 時，鍵會互相干擾。正式環境應使用獨立的實例（見 DEPLOYMENT.md）。
-9. **`run-all.js` 的失敗名稱靠攔截 `console.log` 取得**：這是脆弱的做法，之後應改為由 harness 直接記錄檢查結果。
+9. [已處理 2026-10-17] **`run-all.js` 的失敗名稱靠攔截 `console.log` 取得**：這是脆弱的做法，之後應改為由 harness 直接記錄檢查結果。處理：各套件改由 `scripts/ui/report.js` 登記，`run-all.js` 不再攔截 `console.log`。
 10. **上傳目錄 `/uploads/**` 維持 `permitAll`**：上傳端已限制為 png／jpg／jpeg／gif／webp 並以 magic bytes 驗證（M-1 修補），圖片可直接顯示。若將來允許 SVG 或 HTML，必須重新評估儲存型 XSS 風險。
 
 2026-10-16 起，所有未完成事項的狀態（包括本文件以外的項目）統一記在 [`REVIEW_2026-10-13.md`](REVIEW_2026-10-13.md) 的「未完成事項」。
@@ -81,20 +81,20 @@
 ## 未能在本環境驗證的項目
 
 本環境沒有 Maven Central，也沒有 Docker daemon，因此 Java 編譯、`mvn test`、Docker 建置與 UI 流程都只能由 CI 驗證。
-程式與測試最後一次變更（commit `ba80640`）；PR 頭 `685864d` 上的完整 CI 執行是 [run 38837313131](https://github.com/Leo0049/projectLab_2/actions/runs/38837313131)：`mvn test`（339 個測試、60 個類別、略過 0）、API 端對端、UI 普掃與三條主線、Docker 建置全部步驟成功，摘要見 README「程式與測試的最後一次 CI 驗證」。CI 失敗的原因與修正歷程仍寫在 PR 說明中。
+程式與測試最後一次變更（commit `f8b1f16`）；PR #7 頭 `f8b1f16` 上的完整 CI 執行是 [run 39038787935](https://github.com/Leo0049/projectLab_2/actions/runs/39038787935)：`mvn test`（349 個測試、63 個類別、略過 0）、API 端對端、UI 普掃與三條主線、Docker 建置全部步驟成功，摘要見 README「程式與測試的最後一次 CI 驗證」。CI 失敗的原因與修正歷程仍寫在 PR 說明中。
 
 CI 已執行並通過的項目（不再列為未驗證）：
 
 - Java 編譯與 `mvn test`，包括 `AuthorizationRouteInventoryTest`：白名單與 `SecurityConfig` 的比對在 CI 中一致。
 - API 端對端驗證，以及 UI 普掃與三條主線（點餐、轉盤、揪團）。
 - Docker 映像建置（只建置，不推送、不啟動容器）。
-- 還原驗證（2026-10-13）：39 組故意破壞，每一組都讓對應的測試轉紅，對照表見 README「還原驗證」。2026-10-16 另有四組（M1–M4），見 README「2026-10-16 還原驗證（CI）」。
+- 還原驗證（2026-10-13）：39 組故意破壞，每一組都讓對應的測試轉紅，對照表見 README「還原驗證」。2026-10-16 另有四組（M1–M4），見 README「2026-10-16 還原驗證（CI）」；2026-10-17 另有六組（M5–M10），見 README「2026-10-17 還原驗證（CI）」。
 
 仍然只能在 CI 或線上環境驗證，目前沒有覆蓋的項目：
 
 - `IdempotencyService` 的多實例行為：單元測試以 mock 驗證 Redis 路徑與本地退避路徑，沒有跨實例的整合測試。
 - `server.forward-headers-strategy: native` 搭配真實反向代理的行為：CI 沒有代理，只能依 Tomcat 文件推論。
-- `/api/stores/nearby/v2` 的座標檢查：端對端沒有呼叫這支端點，`AuthorizationRouteInventoryTest` 只做無參數的匿名探測。座標範圍的邏輯（`requireValidCoordinates`）尚未以實際請求驗證。
+- `/api/stores/nearby/v2` 已於 2026-10-17 移除，本項不再適用（`PublicService.requireValidCoordinates` 仍由 `/api/stores/nearby` 使用）。
 - 索引是否被 MySQL 實際採用：需要 `EXPLAIN`，CI 目前沒有這個步驟。
 - 映像的實際執行（容器內的 `java -jar`、非 root 權限、`frontend/` 路徑）：CI 只確認建置成功。
 **效能數字**：本 PR 沒有重新量測。README「效能」一節的數字是修補當時留下的既有紀錄，本文件只引用、不另行宣稱。第 7 項的效果（含新增的 `idx_stores_lat_lng`）需要在 CI 或可重現的環境中以 `EXPLAIN` 與壓測重新量測後，才能視為本次驗證的結果。

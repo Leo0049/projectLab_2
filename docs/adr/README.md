@@ -8,7 +8,7 @@
 | [0002](0002-open-session-in-view-off.md) | 關閉 Open Session In View，禁止從 Controller 回傳 entity | Accepted | 持久層、交易邊界 |
 | [0003](0003-authorization-route-allowlist.md) | 預設拒絕的路由白名單，身分只取自 token | Accepted | 安全、授權 |
 | [0004](0004-client-ip-trust-and-rate-limits.md) | 用戶端 IP 只取 `getRemoteAddr()`，登入與 OTP 限流 | Accepted | 安全、部署 |
-| [0005](0005-idempotent-checkout.md) | 結帳採選擇性的 `Idempotency-Key` | Accepted（已知缺口） | 可靠性、API |
+| [0005](0005-idempotent-checkout.md) | 結帳採選擇性的 `Idempotency-Key` | Accepted（已補請求指紋比對；舊格式過渡期） | 可靠性、API |
 | [0006](0006-redis-shared-state-and-job-exclusion.md) | Redis 承載共享狀態；排程互斥 | Accepted | 多實例、併發 |
 | [0007](0007-deferred-decisions.md) | 延後決策登記冊 | Deferred | 治理 |
 | [0008](0008-schema-migrations.md) | 結構變更改用 Flyway（上線前） | Deferred | 資料庫、部署 |

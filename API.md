@@ -42,7 +42,6 @@
 | GET | `/api/home` | 首頁資料（banners、附近店家）Query: `?lat=&lng=` |
 | GET | `/api/stores/map` | 地圖所有營業中店家座標 |
 | GET | `/api/stores/nearby` | 附近店家分頁 Query: `?lat=&lng=&brandId=&minRating=&page=1&size=6`。有座標時依距離排序；無座標時 `minRating` 不生效（見 §7）|
-| GET | `/api/stores/nearby/v2` | 附近店家 V2 Query: `?lat=&lon=&sort=&category=&freeDelivery=`。`lat`、`lon` 必填；回傳依距離排序的全部接單中店家（未分頁，已知缺口）|
 | GET | `/api/stores/search` | 關鍵字搜尋品牌/店家 Query: `?keyword=&lat=&lng=`。`page`、`size` 目前被忽略，回傳全部符合者（已知缺口，見 §7）|
 | GET | `/api/stores/{storeId}/info` | 店家詳細資訊（評分、營業時間、地址）|
 | GET | `/api/stores/{storeId}/v2` | 店家詳情 V2 |
@@ -339,11 +338,13 @@
 | 格式不合規（需符合 `^[A-Za-z0-9_-]{8,64}$`）| 400 |
 | 首次送出且成功（2xx）| 200，結果保存 24 小時 |
 | 同一使用者、同一把鍵，成功後重送 | 回放第一次的狀態碼與 body，並加上 `Idempotent-Replayed: true`；不會再次扣款 |
-| 同一把鍵，第一次仍在處理中 | 409 |
+| 同一把鍵，第一次仍在處理中（內容相同）| 409 |
+| 同一把鍵，內容與第一次不同（請求指紋不符）| 422，不執行、不改動第一次的結果 |
+| 系統忙碌（結帳的使用者鎖取不到）| 503，沒有建單也沒有扣款；釋放此鍵，可稍後以同一把鍵重試 |
 | 首次失敗（非 2xx 或例外）| 釋放此鍵，可以用同一把鍵重試 |
 
 - 鍵的範圍是使用者；不同使用者可以使用相同字串，互不影響。
-- 伺服器目前**不比對請求內容**：同一把鍵搭配不同的 body 會回放第一次的結果（已知缺口，見 ADR-0005）。
+- 請求內容以 JSON 指紋（SHA-256）比對：同一把鍵搭配不同內容回 422，不執行、不改動既有紀錄。舊版紀錄沒有指紋，在過期（最多 24 小時）前仍照舊重播（見 ADR-0005）。
 
 ### 轉盤（`POST /api/coupons/spin`）狀態碼
 
@@ -362,7 +363,7 @@
 - 分頁：`page` 從 1 開始（小於 1 視為 1，上限 100000）；`size` 介於 1 與 50 之間（超過即截為 50）。回傳 `{ stores, page, size }`。
 - **有座標**（`lat` 介於 -90 與 90、`lng` 介於 -180 與 180）：只列出 50 km 內的營業中店家，依距離排序；`minRating` 生效。
 - **無座標**：依店家 id 分頁列出營業中店家；**`minRating` 不生效**（評分篩選只存在於距離排序的查詢路徑）。
-- 座標超出範圍或不是有限數字：400（`經緯度超出合法範圍`）。`/api/stores/nearby/v2` 採用相同的座標檢查。
+- 座標超出範圍或不是有限數字：400（`經緯度超出合法範圍`）。
 
 ### 即時推播（WebSocket／STOMP）
 
@@ -391,7 +392,7 @@
 
 - 會隨營運時間累積的列表端點必須分頁（規則見 `CLAUDE.md`）。
 - 門市訂單：`GET /api/stores/orders?page=0&size=50`，`size` 上限 200。
-- **已知未分頁**：`GET /api/stores/search`（`page`、`size` 目前被忽略）與 `GET /api/stores/nearby/v2`。列為待辦，見 `docs/IMPROVEMENT_ASSESSMENT.md`。
+- **已知未分頁**：`GET /api/stores/search`（`page`、`size` 目前被忽略）。列為待辦，見 `docs/IMPROVEMENT_ASSESSMENT.md`。
 
 ---
 
