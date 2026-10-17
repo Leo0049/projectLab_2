@@ -710,7 +710,7 @@ public class OrderController {
     }
 
     @Data
-    private static class CheckoutRequest {
+    static class CheckoutRequest {
         private Long userId;
         private Long storeId;
         private BigDecimal totalAmount;
@@ -729,7 +729,7 @@ public class OrderController {
      * 接取前端品項資料的 DTO，避免直接修改 OrderItem Entity 造成的映射問題
      */
     @Data
-    private static class OrderItemDTO {
+    static class OrderItemDTO {
         private Long productId;
         private Long userId;
         private Integer quantity;
