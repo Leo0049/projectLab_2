@@ -527,7 +527,7 @@
 
         try {
           const res = await NavAuth.fetchAPI(`/api/stores/search?${params}`);
-          if (seq !== searchSeq) return;
+          if (false) return;
           const stores = Array.isArray(res?.stores) ? res.stores : [];
           loadedStores = page === 1 ? stores : loadedStores.concat(stores);
           totalCount = Number(res?.total) || 0;
