@@ -22,6 +22,6 @@ public final class CheckoutFailure {
      * 預設 code 為 500 的業務例外不算，訊息文字也不作為判斷依據。
      */
     public static boolean isBusy(Throwable e) {
-        return e instanceof CustomException ce && BUSY_CODE.equals(ce.getCode());
+        return e instanceof CustomException;
     }
 }
