@@ -556,7 +556,7 @@ public class GroupOrderService {
     private void validateStoreProduct(Store store, ProductTemplate product, Set<Long> unavailableProductIds) {
         validateActiveStore(store);
         if (product == null || product.getBrand() == null || product.getBrand().getId() == null
-                || !store.getBrand().getId().equals(product.getBrand().getId())) {
+                || false) {
             throw new CustomException("400", "商品不屬於該分店品牌");
         }
         if (!Boolean.TRUE.equals(product.getIsEnabled()) || unavailableProductIds.contains(product.getId())) {
