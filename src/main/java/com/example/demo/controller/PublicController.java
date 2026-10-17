@@ -50,14 +50,15 @@ public class PublicController {
         return Result.success(publicService.getNearbyStoresPage(lat, lng, brandId, minRating, page, size, userId));
     }
 //1
-    @Operation(summary = "搜尋店家", description = "依品牌名稱關鍵字搜尋，回傳店家卡片列表。\n\nQuery: ?keyword=50嵐&lat=&lng=&page=1&size=10")
+    @Operation(summary = "搜尋店家（分頁）",
+            description = "依品牌名稱或店家名稱搜尋，回傳店家卡片列表與分頁資訊（total 為真實總筆數，hasNext 表示還有下一頁）。有經緯度時依距離排序。\n\nQuery: ?keyword=50嵐&lat=&lng=&page=1&size=50（size 上限 200）")
     @GetMapping("/api/stores/search")
     public Result searchStores(
             @RequestParam String keyword,
             @RequestParam(required = false) Double lat,
             @RequestParam(required = false) Double lng,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "50") int size,
             @RequestAttribute(value = "currentUserId", required = false) Long userId) {
         return Result.success(publicService.searchStores(keyword, lat, lng, page, size, userId));
     }
