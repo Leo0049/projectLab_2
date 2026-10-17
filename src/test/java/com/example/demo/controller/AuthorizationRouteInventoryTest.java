@@ -49,7 +49,6 @@ class AuthorizationRouteInventoryTest {
             "/api/menu/store/{storeId}",
             "/api/stores/map",
             "/api/stores/nearby",
-            "/api/stores/nearby/v2",
             "/api/stores/search",
             "/api/stores/brand/{brandId}",
             "/api/stores/{id}",                 // SecurityConfig 只放行數字 id（{storeId:[0-9]+}）

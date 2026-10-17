@@ -4,10 +4,12 @@
  * 用當天還沒抽過的新帳號，確保一定抽得到。
  */
 const { FE, api, newCustomer, launch, newSession, customerStorage, projectErrors } = require('./harness');
+const report = require('./report');
 
 let step = 0, failed = 0;
 const log = (s) => console.log(`  ${++step}. ${s}`);
-const fail = (s) => { failed++; console.log(`  ✗ ${s}`); };
+// 失敗同時登記給 run-all（逐項結果與註解），畫面上的輸出不變
+const fail = (s) => { failed++; report.fail(s); console.log(`  ✗ ${s}`); };
 
 const couponCount = async (u) =>
   ((await api('/api/coupons/my', { token: u.token })).data || []).length;

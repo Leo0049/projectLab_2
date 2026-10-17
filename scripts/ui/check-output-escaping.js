@@ -13,11 +13,12 @@
  *
  *   node scripts/ui/check-output-escaping.js
  *
- * 作為 run-all.js 的一個套件執行；失敗時以 "  ✗ <檢查名稱>" 回報。
+ * 作為 run-all.js 的一個套件執行；失敗時登記到 report.js，同時印出 "  ✗ <檢查名稱>"。
  */
 const fs = require('fs');
 const path = require('path');
 const { launch } = require('./harness');
+const report = require('./report');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
@@ -180,6 +181,7 @@ module.exports = async function run() {
   }
 
   for (const f of failures) {
+    report.fail(`${f.label}\n${f.detail}`);
     console.log(`  ✗ ${f.label}`);
     console.log(`      ${f.detail}`);
   }

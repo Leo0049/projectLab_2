@@ -120,7 +120,6 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.GET,
                                                                 "/api/stores/map",
                                                                 "/api/stores/nearby",
-                                                                "/api/stores/nearby/**",
                                                                 "/api/stores/search",
                                                                 "/api/stores/brand/**",
                                                                 "/api/stores/*/info",
