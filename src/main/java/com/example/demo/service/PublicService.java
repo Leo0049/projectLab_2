@@ -39,6 +39,8 @@ public class PublicService {
     static final int MAX_PAGE_SIZE = 50;
     /** 頁碼上限：避免 page × size 整數溢位（100000 × 50 = 5,000,000，遠小於 int 上限）。 */
     static final int MAX_PAGE = 100_000;
+    /** 搜尋結果每頁筆數上限（預設值 50 在 PublicController）。 */
+    static final int SEARCH_MAX_PAGE_SIZE = 200;
 
     @Autowired private StoreRepository storeRepository;
     @Autowired private BrandRepository brandRepository;
@@ -155,23 +157,38 @@ public class PublicService {
     }
 
     // ─── 搜尋店家 ──────────────────────────────────────────
-    public Map<String, Object> searchStores(String keyword, Double lat, Double lng, int page, int size, Long userId) {
-        List<Map<String, Object>> list = new ArrayList<>();
+    /**
+     * 搜尋店家（分頁）。total 是符合條件的真實總筆數（另以 COUNT 取得）；
+     * 舊版的 total 只是本頁長度，前端無從判斷還有沒有下一頁。
+     *
+     * @param page 1-based 頁碼；小於 1 視為 1，超過 {@link #MAX_PAGE} 截為上限
+     * @param size 每頁筆數；小於 1 視為 1，超過 {@link #SEARCH_MAX_PAGE_SIZE} 截為上限
+     */
+    public Map<String, Object> searchStores(String keyword, Double lat, Double lng,
+                                            int page, int size, Long userId) {
+        int safePage = Math.min(Math.max(1, page), MAX_PAGE);
+        int safeSize = Math.min(Math.max(1, size), SEARCH_MAX_PAGE_SIZE);
+        int pageIndex = safePage - 1;
+
         Set<Long> favorites = favoritesOf(userId);
+        List<Map<String, Object>> list = new ArrayList<>();
         if (lat != null && lng != null) {
             requireValidCoordinates(lat, lng);
             String likeKeyword = "%" + keyword + "%";
-            List<Object[]> rows = storeRepository.searchByKeywordWithDistance(likeKeyword, lat, lng);
+            List<Object[]> rows = storeRepository.searchByKeywordWithDistance(
+                    likeKeyword, lat, lng, safeSize, pageIndex * safeSize);
             if (!rows.isEmpty()) {
                 List<Long> storeIds = new ArrayList<>(rows.size());
                 Map<Long, Double> distanceById = new HashMap<>();
                 for (Object[] row : rows) {
                     Long id = ((Number) row[0]).longValue();
                     storeIds.add(id);
-                    distanceById.put(id, ((Number) row[row.length - 1]).doubleValue());
+                    // 距離為 NULL 代表店家沒有座標：卡片不顯示距離，不讓整個搜尋失敗
+                    Object rawDistance = row[row.length - 1];
+                    distanceById.put(id, rawDistance == null ? null : ((Number) rawDistance).doubleValue());
                 }
                 Map<Long, Store> storeById = indexById(storeRepository.findAllById(storeIds));
-                for (Long id : storeIds) {
+                for (Long id : storeIds) {          // 依查詢回傳的距離順序輸出
                     Store s = storeById.get(id);
                     if (s != null) {
                         list.add(buildStoreCard(s, distanceById.get(id), favorites));
@@ -179,13 +196,21 @@ public class PublicService {
                 }
             }
         } else {
-            for (Store s : storeRepository.searchByBrandName(keyword)) {
+            PageRequest pageable = PageRequest.of(pageIndex, safeSize);
+            for (Store s : storeRepository.searchByBrandName(keyword, pageable)) {
                 list.add(buildStoreCard(s, null, favorites));
             }
         }
+
+        long total = storeRepository.countSearchByKeyword(keyword);
+        int totalPages = (int) ((total + safeSize - 1) / safeSize);
         Map<String, Object> result = new HashMap<>();
         result.put("stores", list);
-        result.put("total", list.size());
+        result.put("page", safePage);
+        result.put("size", safeSize);
+        result.put("total", total);
+        result.put("totalPages", totalPages);
+        result.put("hasNext", safePage < totalPages);
         return result;
     }
 

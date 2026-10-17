@@ -123,4 +123,36 @@ class PageSizeClampTest {
 
         assertEquals(100_000, out.get("page"));
     }
+
+    // ── 搜尋店家（每頁上限 200，預設 50 在控制器） ─────────────
+
+    @Test
+    @DisplayName("搜尋店家：size 超過 200 時截為 200")
+    void searchStoresCapsPageSize() {
+        StoreRepository stores = mock(StoreRepository.class);
+        PublicService service = new PublicService();
+        ReflectionTestUtils.setField(service, "storeRepository", stores);
+
+        Map<String, Object> out = service.searchStores("春", null, null, 1, 5_000, null);
+
+        assertEquals(200, out.get("size"));
+        ArgumentCaptor<Pageable> sent = ArgumentCaptor.forClass(Pageable.class);
+        verify(stores).searchByBrandName(eq("春"), sent.capture());
+        assertEquals(200, sent.getValue().getPageSize());
+    }
+
+    @Test
+    @DisplayName("搜尋店家：page=0 視為第一頁，不會送出負的頁碼")
+    void searchStoresTreatsPageZeroAsFirstPage() {
+        StoreRepository stores = mock(StoreRepository.class);
+        PublicService service = new PublicService();
+        ReflectionTestUtils.setField(service, "storeRepository", stores);
+
+        Map<String, Object> out = service.searchStores("春", null, null, 0, 12, null);
+
+        assertEquals(1, out.get("page"));
+        ArgumentCaptor<Pageable> sent = ArgumentCaptor.forClass(Pageable.class);
+        verify(stores).searchByBrandName(eq("春"), sent.capture());
+        assertEquals(0, sent.getValue().getPageNumber());
+    }
 }
