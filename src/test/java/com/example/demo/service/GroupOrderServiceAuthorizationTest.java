@@ -29,6 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,6 +41,7 @@ class GroupOrderServiceAuthorizationTest {
     @Mock private UserRepository userRepository;
     @Mock private ProductTemplateRepository productTemplateRepository;
     @Mock private StoreProductStatusRepository storeProductStatusRepository;
+    @Mock private PricingService pricingService;
     @InjectMocks private GroupOrderService groupOrderService;
 
     @Test
@@ -100,6 +103,9 @@ class GroupOrderServiceAuthorizationTest {
         product.setId(20L);
         product.setBrand(otherBrand);
         when(productTemplateRepository.findById(20L)).thenReturn(Optional.of(product));
+        // 只有破壞規則（移除品牌比對）時才會走到定價；正常路徑在驗證時就拋出，因此用 lenient，避免未使用的 stub 失敗。
+        // 有了這個 stub，破壞時的失敗會是斷言（沒有拋出／訊息不符），而不是 PricingService 未設定造成的 NPE。
+        lenient().when(pricingService.unitPrice(any(), any(), any())).thenReturn(java.math.BigDecimal.TEN);
         Map<String, Object> item = Map.of("productId", 20L);
         Map<String, Object> request = Map.of("shareToken", "TOKEN123", "items", List.of(item));
 
@@ -128,6 +134,8 @@ class GroupOrderServiceAuthorizationTest {
         disabled.setId(disabledId);
         disabled.setIsEnabled(false);
         when(storeProductStatusRepository.findByStoreId(order.getStore().getId())).thenReturn(List.of(disabled));
+        // 同上：只有破壞規則（移除停售檢查）時才會走到定價，這裡只讓失敗訊息指向被破壞的規則。
+        lenient().when(pricingService.unitPrice(any(), any(), any())).thenReturn(java.math.BigDecimal.TEN);
 
         Map<String, Object> item = Map.of("productId", 20L);
         Map<String, Object> request = Map.of("shareToken", "TOKEN123", "items", List.of(item));

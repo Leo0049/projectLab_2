@@ -378,21 +378,6 @@ public class StoreController {
     // methods (from 待處理/StoreController — ResponseEntity-based)
     // ============================================================
 
-    @Operation(summary = "附近店家列表 (V2)", description = "舊版依距離排序查詢附近店家，包含排序與分類篩選。回傳 ResponseEntity 格式。")
-    @GetMapping("/nearby/v2")
-    public ResponseEntity<List<StoreDTO>> getNearbyStoresV2(
-            @RequestParam double lat,
-            @RequestParam double lon,
-            @RequestParam(required = false, defaultValue = "distance") String sort,
-            @RequestParam(required = false, defaultValue = "all") String category,
-            @RequestParam(required = false, defaultValue = "false") boolean freeDelivery) {
-        // 與 v1 相同的座標檢查：超出範圍回 400，不再靜默算出錯誤距離。
-        // ⚠️ 此端點仍未分頁（回傳全部營業中店家），列於 docs/IMPROVEMENT_ASSESSMENT.md 待辦。
-        com.example.demo.service.PublicService.requireValidCoordinates(lat, lon);
-        List<StoreDTO> stores = storeService.getOpenStoresSortedByDistance(lat, lon, sort, category, freeDelivery);
-        return ResponseEntity.ok(stores);
-    }
-
     @Operation(summary = "取得分店詳情 (V2)", description = "舊版依 storeId 查詢分店詳情。回傳 ResponseEntity 格式。")
     @GetMapping("/{storeId}/v2")
     public Result getStoreByIdV2Alias(@PathVariable Long storeId) {

@@ -21,6 +21,7 @@ import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.StoreProductStatusRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.order.OrderStatusGuard;
+import com.example.demo.service.order.CheckoutFailure;
 import com.example.demo.service.wallet.TxType;
 import jakarta.transaction.Transactional;
 import com.example.demo.repository.UserCouponRepository;
@@ -218,7 +219,7 @@ public class OrderService {
         // ⚠️ M-3 修復：acquireLock 回傳 token，release 需帶回同一 token 才不會誤刪他人的鎖
         String lockToken = redisLockService.acquireLock(lockKey, 30);
         if (lockToken == null) {
-            throw new RuntimeException("系統繁忙中，請稍後再試");
+            throw new CustomException(CheckoutFailure.BUSY_CODE, "系統繁忙中，請稍後再試");
         }
         try {
             // ⚠️ 金額一律由伺服器重算，傳進來的 totalAmount 與 item.finalPrice 都不採信。

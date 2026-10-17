@@ -6,10 +6,12 @@
  * 一旦團長鎖定（LOCKED），團員的控制項就會被隱藏。
  */
 const { FE, api, login, newCustomer, launch, newSession, customerStorage, projectErrors } = require('./harness');
+const report = require('./report');
 
 let step = 0, failed = 0;
 const log = (s) => console.log(`  ${++step}. ${s}`);
-const fail = (s) => { failed++; console.log(`  ✗ ${s}`); };
+// 失敗同時登記給 run-all（逐項結果與註解），畫面上的輸出不變
+const fail = (s) => { failed++; report.fail(s); console.log(`  ✗ ${s}`); };
 
 async function addDrink(page, shot, tag, token) {
   // 帶 token 就是「加進這個揪團」——揪團頁的「新增商品」正是導到這個網址

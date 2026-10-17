@@ -6,6 +6,7 @@ import com.example.demo.entity.OrderItem;
 import com.example.demo.entity.UserAddress;
 import com.example.demo.service.OrderService;
 import com.example.demo.service.IdempotencyService;
+import com.example.demo.service.order.CheckoutFailure;
 import com.example.demo.repository.UserAddressRepository;
 import com.example.demo.entity.User;
 import com.example.demo.entity.OrderItemTopping;
@@ -438,7 +439,7 @@ public class OrderController {
         if (idempotencyKey == null) {
             return placeCheckout(request, currentUserId);
         }
-        return idempotencyService.execute("checkout", currentUserId, idempotencyKey,
+        return idempotencyService.execute("checkout", currentUserId, idempotencyKey, request,
                 () -> placeCheckout(request, currentUserId));
     }
 
@@ -450,16 +451,20 @@ public class OrderController {
      * 原本這些步驟與建單共用同一個 try，任一失敗都回 400，前端會當成失敗而重送；
      * 重送若沒有冪等鍵就會再扣一次款（見 docs/IMPROVEMENT_ASSESSMENT.md 第 4 項）。
      *
-     * <p>提交之前的失敗（餘額不足、品項無效等）仍回 400。這種失敗不會留下冪等紀錄，同一把鍵可以重試。
+     * <p>提交之前的業務拒絕（餘額不足、品項無效等）回 400。系統忙碌（結帳鎖取不到，見 {@code CheckoutFailure}）回 503。兩者都沒有建單，不會留下冪等紀錄，同一把鍵可以重試。
      */
     private ResponseEntity<?> placeCheckout(CheckoutRequest request, Long userId) {
         Long orderId;
         try {
             orderId = createOrderFromRequest(request, userId);
+        } catch (CustomException e) {
+            // 系統忙碌（結帳鎖取不到）：沒有建單也沒有扣款，原樣拋出讓 GlobalExceptionHandler 回 503，前端可稍後重試
+            if (CheckoutFailure.isBusy(e)) {
+                throw e;
+            }
+            return checkoutRejected(e);
         } catch (Exception e) {
-            Map<String, String> errorResp = new HashMap<>();
-            errorResp.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResp);
+            return checkoutRejected(e);
         }
 
         // ── 以下訂單已提交：失敗只記 log，不改變回應 ──
@@ -503,6 +508,13 @@ public class OrderController {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    /** 提交之前的業務拒絕：回 400，錯誤訊息放在 error 欄位（與原本相同）。 */
+    private ResponseEntity<?> checkoutRejected(Exception e) {
+        Map<String, String> errorResp = new HashMap<>();
+        errorResp.put("error", e.getMessage());
+        return ResponseEntity.badRequest().body(errorResp);
     }
 
     /** 將請求轉成訂單品項並建單（含扣款）。金額與身分都由 OrderService 依資料庫重新決定。 */

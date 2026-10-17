@@ -4,10 +4,12 @@
  * 全程操作真實 UI（點擊、選規格），不直接呼叫下單 API。
  */
 const { FE, api, login, launch, newSession, customerStorage, projectErrors } = require('./harness');
+const report = require('./report');
 
 let step = 0, failed = 0;
 const log = (s) => console.log(`  ${++step}. ${s}`);
-const fail = (s) => { failed++; console.log(`  ✗ ${s}`); };
+// 失敗同時登記給 run-all（逐項結果與註解），畫面上的輸出不變
+const fail = (s) => { failed++; report.fail(s); console.log(`  ✗ ${s}`); };
 
 module.exports = async function run() {
   console.log('\n═══ 流程一：點餐 ═══');

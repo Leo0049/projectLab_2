@@ -6,6 +6,7 @@
  * 兩支腳本搶同一張 canvas，都是這樣被抓到的。
  */
 const { FE, api, login, newCustomer, corporateLogin, launch, newSession, customerStorage, projectErrors } = require('./harness');
+const report = require('./report');
 
 // 顧客端主要頁面。order_details / order_confirm 需要真實 orderId，
 // 由 customerPages() 在跑之前去 API 撈一筆補上。
@@ -55,7 +56,7 @@ module.exports = async function run() {
         await page.waitForTimeout(2500);
         const real = projectErrors(errors);
         total++;
-        if (real.length) { bad++; console.log(`  ✗ ${file}`); real.forEach(e => console.log(`      ${e}`)); }
+        if (real.length) { bad++; report.fail(`${file}\n${real.join('\n')}`); console.log(`  ✗ ${file}`); real.forEach(e => console.log(`      ${e}`)); }
         else console.log(`  ✓ ${file}`);
       }
     };

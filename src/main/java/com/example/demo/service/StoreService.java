@@ -83,53 +83,6 @@ public class StoreService {
         return storeRepository.findById(storeId).orElse(null);
     }
 
-    public List<StoreDTO> getOpenStoresSortedByDistance(double userLat, double userLon, String sort, String category,
-            boolean freeDelivery) {
-        List<Store> stores = storeRepository.findByIsAcceptingOrdersTrue();
-        return stores.stream()
-                .filter(s -> s.getLatitude() != null && s.getLongitude() != null)
-                .map(s -> {
-                    double distKm = calculateDistance(userLat, userLon, s.getLatitude().doubleValue(),
-                            s.getLongitude().doubleValue());
-                    String formattedDist = distKm < 1 ? String.format("%.0f m", distKm * 1000)
-                            : String.format("%.1f km", distKm);
-                    return new StoreDTO(s, formattedDist);
-                })
-                .filter(dto -> {
-                    // Filter Category
-                    if (!"all".equalsIgnoreCase(category)) {
-                        if (dto.getCategories() == null || !dto.getCategories().contains(category)) {
-                            return false;
-                        }
-                    }
-                    // Filter Free Delivery
-                    if (freeDelivery) {
-                        if (dto.getDiscount() == null
-                                || !dto.getDiscount().contains("免運") && !dto.getDiscount().contains("折扣")) {
-                            return false;
-                        }
-                    }
-                    return true;
-                })
-                .sorted((dto1, dto2) -> {
-                    if ("rating".equalsIgnoreCase(sort)) {
-                        // High rating first
-                        return Double.compare(dto2.getRating() != null ? dto2.getRating() : 0.0,
-                                dto1.getRating() != null ? dto1.getRating() : 0.0);
-                    } else if ("time".equalsIgnoreCase(sort)) {
-                        double d1 = extractNumericDistance(dto1.getDistance());
-                        double d2 = extractNumericDistance(dto2.getDistance());
-                        return Double.compare(d1, d2);
-                    } else {
-                        // Default is distance (nearest first)
-                        double d1 = extractNumericDistance(dto1.getDistance());
-                        double d2 = extractNumericDistance(dto2.getDistance());
-                        return Double.compare(d1, d2);
-                    }
-                })
-                .collect(Collectors.toList());
-    }
-
     // ============================================================
     // methods (Map-based, from 整合StoreService.java)
     // ============================================================
@@ -357,25 +310,5 @@ public class StoreService {
         m.put("avgRating", store.getAvgRating());
         m.put("reviewCount", store.getReviewCount());
         return m;
-    }
-
-    private double extractNumericDistance(String distance) {
-        if (distance == null)
-            return 999.0;
-        if (distance.endsWith(" km"))
-            return Double.parseDouble(distance.replace(" km", ""));
-        return Double.parseDouble(distance.replace(" m", "")) / 1000.0;
-    }
-
-    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-        // Haversine formula
-        final int R = 6371; // Earth radius in km
-        double latDistance = Math.toRadians(lat2 - lat1);
-        double lonDistance = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                        * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c; // returns distance in km
     }
 }
