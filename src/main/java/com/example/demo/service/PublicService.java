@@ -176,7 +176,7 @@ public class PublicService {
             requireValidCoordinates(lat, lng);
             String likeKeyword = "%" + keyword + "%";
             List<Object[]> rows = storeRepository.searchByKeywordWithDistance(
-                    likeKeyword, lat, lng, safeSize, pageIndex * safeSize);
+                    likeKeyword, lat, lng, safeSize, (pageIndex + 1) * safeSize);
             if (!rows.isEmpty()) {
                 List<Long> storeIds = new ArrayList<>(rows.size());
                 Map<Long, Double> distanceById = new HashMap<>();
