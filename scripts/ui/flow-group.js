@@ -103,6 +103,13 @@ module.exports = async function run() {
     }
     await mBtn.click();
     await M.page.waitForTimeout(2500);
+    // N-22：團員付款彈窗不再提供「信用卡」，預設為現金
+    const memberPay = await M.page.evaluate(() => ({
+      creditRadios: document.querySelectorAll('input[name="member-payment"][value="CREDIT_CARD"]').length,
+      checked: (document.querySelector('input[name="member-payment"]:checked') || {}).value || null,
+    }));
+    if (memberPay.creditRadios) fail('團員付款彈窗仍有「信用卡」選項（N-22）');
+    if (memberPay.checked !== 'CASH') fail(`團員付款預設應為現金，實際為 ${memberPay.checked}（N-22）`);
     // 只選團員付款彈窗裡的儲值金；頁面上的結帳區也有 name="payment" 的同值 radio，不能誤選
     const storeCreditPicked = await M.page.evaluate(() => {
       const r = document.querySelector('input[name="member-payment"][value="STORE_CREDIT"]');
@@ -152,6 +159,13 @@ module.exports = async function run() {
 
     // 鎖定後同頁展開結帳：選自取（預設外送，驗證沒過會停用送出鈕）＋儲值金，再送出
     if ((await groupInfo(token, host)).status === 'LOCKED') {
+      // N-22：團長結帳不再提供「信用卡」，預設為現金（付款區的選項在鎖定後才出現）
+      const hostPay = await H.page.evaluate(() => ({
+        creditRadios: document.querySelectorAll('input[name="payment"][value="CREDIT_CARD"]').length,
+        checked: (document.querySelector('input[name="payment"]:checked') || {}).value || null,
+      }));
+      if (hostPay.creditRadios) fail('團長結帳仍有「信用卡」選項（N-22）');
+      if (hostPay.checked !== 'CASH') fail(`團長結帳預設應為現金，實際為 ${hostPay.checked}（N-22）`);
       const pickup = await H.page.$('#btn-pickup');
       if (pickup) { await pickup.click().catch(() => {}); await H.page.waitForTimeout(1500); log('選擇自取'); }
       await H.page.evaluate(() => {
