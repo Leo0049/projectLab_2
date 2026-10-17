@@ -173,7 +173,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-15，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：339 個 `@Test`，分布在 60 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-17，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：349 個 `@Test`，分布在 63 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -208,12 +208,15 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 金流與併發 | `GroupCheckoutConcurrencyTest`（6） | 揪團四條金流路徑重複觸發時只能發生一次；同一張券不可用兩次 |
 | 金流與併發 | `UserCouponUseTest`（4） | 優惠券使用（N10）：消耗是條件式原子更新，同一張券第二次使用回 400（即使讀取時仍為 unused）；非擁有者與已過期的券不嘗試消耗 |
 | 金流與併發 | `RatingConcurrencyTest`（2） | 併發評分不得死鎖、門市則數與平均分數要對得起來 |
-| 金流與併發 | `IdempotencyServiceTest`（9） | 結帳冪等（ADR-0005）：格式檢查、重送回放、進行中衝突、失敗與例外釋放、使用者之間互不影響；Redis 與本地兩條路徑 |
+| 金流與併發 | `IdempotencyServiceTest`（14） | 結帳冪等（ADR-0005）：格式檢查、重送回放、進行中衝突、失敗與例外釋放、使用者之間互不影響；同一把鍵配不同內容回 422（請求指紋）；Redis 與本地兩條路徑；舊格式（無指紋）紀錄仍可重播 |
+| 金流與併發 | `OrderServiceCheckoutLockTest`（1） | 結帳使用者鎖忙碌時回 503（`OrderService.createOrder`），不是一般的 RuntimeException（400） |
+| 金流與併發 | `OrderControllerCheckoutFailureTest`（2） | 結帳失敗的 HTTP 結果（不載入 Spring context）：忙碌（503）原樣拋出，交給 GlobalExceptionHandler；業務拒絕仍回 400 的回應 |
 | 金流與併發 | `ExclusiveJobRunnerTest`（3） | 排程互斥（ADR-0006）：他人持鎖時略過；取得鎖時執行並以同一 token 釋放；任務拋出例外仍釋放 |
 | 金流與併發 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要能拆回兩欄、補款靠正負號分辨收付方 |
 | 訂單規則 | `ItemSpecResolverTest`（9） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）；非固定規格的自訂值拒絕標籤字元、控制字元與超過 50 字 |
 | 訂單規則 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
 | 訂單規則 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
+| 訂單規則 | `CheckoutFailureTest`（2） | 結帳失敗分類（純函式）：只有明確標示 503 的 CustomException 是系統忙碌；業務拒絕與同訊息的一般例外都不是 |
 | 訂單規則 | `MemberCancelSettlementTest`（9） | 團員取消品項的退款規則：只有真的付過（PAID／ESCROWED）才會退，且以 `escrowAmount` 為上限 |
 | 訂單規則 | `OrderStatusGuardTest`（5） | 顧客端狀態轉換白名單（`OPEN\|SUBMITTED → CANCELLED`、`SUBMITTED → PAID`） |
 | 訂單規則 | `GroupRefundPolicyTest`（9） | 揪團退款與權限（純函式）：送單前錢包退團員、現金與信用卡入團長帳號、送單後一律入團長、截單後團員不可自行取消、整單取消至店家接單前 |
@@ -648,11 +651,11 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 
 ## 2026-10-12 新增的不變量與約定
 
-- **結帳冪等**：`POST /api/orders/checkout` 接受選擇性的 `Idempotency-Key` 標頭，由 `service/IdempotencyService` 處理（範圍為 `checkout` 加上 JWT 使用者 id；鍵須符合 `^[A-Za-z0-9_-]{8,64}$`）。成功的請求重送時會回放第一次的結果並帶 `Idempotent-Replayed: true`；進行中的重複請求回 409；非 2xx 會釋放鍵。**新增任何可能被重送的金流 POST，一律沿用這個 helper，不要另外發明儲存方式。** 已知缺口：伺服器不比對 body 指紋，同一把鍵搭配不同的 body 會回放第一次的結果（見 ADR-0005）。
+- **結帳冪等**：`POST /api/orders/checkout` 接受選擇性的 `Idempotency-Key` 標頭，由 `service/IdempotencyService` 處理（範圍為 `checkout` 加上 JWT 使用者 id；鍵須符合 `^[A-Za-z0-9_-]{8,64}$`）。成功的請求重送時會回放第一次的結果並帶 `Idempotent-Replayed: true`；進行中的重複請求回 409；非 2xx 會釋放鍵。**新增任何可能被重送的金流 POST，一律沿用這個 helper，不要另外發明儲存方式。** 請求內容以 JSON 指紋（SHA-256）比對：同一把鍵搭配不同內容回 422，不執行、不改動既有紀錄；舊版紀錄（無指紋）在過期前仍照舊重播（見 ADR-0005）。`execute` 的 `requestBody` 不可省略。
 - **不信任 `X-Forwarded-For`**：限流與識別一律以 `getRemoteAddr()` 為準（`LoginAttemptLimiter.clientIp`）。`server.forward-headers-strategy`（環境變數 `SERVER_FORWARD_HEADERS_STRATEGY`，預設 `native`）決定容器是否信任反向代理送來的 `X-Forwarded-*`；部署到代理之後必須明確設定，並確認代理會覆寫這些標頭（見 `docs/DEPLOYMENT.md`、ADR-0004）。
 - **新增 `permitAll` 路由，必須同步更新 `AuthorizationRouteInventoryTest`**：把路徑加入 `PUBLIC_GET` 或 `PUBLIC_POST`，讓公開例外在 review 中可見。其他非公開路由的匿名呼叫必須回 401／403，否則該測試會紅（見 ADR-0003）。
 - **排程任務以 `ExclusiveJobRunner.runExclusively(jobName, leaseSeconds, job)` 包住**（Redis 鍵 `lock:job:<name>`），多實例時同一時間只會有一個實例執行。這是互斥，不是「每天只跑一次」，因此任務本身必須冪等（見 ADR-0006）。
-- **業務錯誤用 `CustomException`，code 填 HTTP 狀態碼字串**（如 `"409"`、`"422"`、`"503"`、`"400"`）。`GlobalExceptionHandler` 會轉成對應的 HTTP 狀態；不要在 Controller 手寫錯誤 Map。已知不一致：`OrderService.createOrder` 的結帳鎖忙碌時拋出的是 `RuntimeException`，待統一，見 `docs/IMPROVEMENT_ASSESSMENT.md`。
+- **業務錯誤用 `CustomException`，code 填 HTTP 狀態碼字串**（如 `"409"`、`"422"`、`"503"`、`"400"`）。`GlobalExceptionHandler` 會轉成對應的 HTTP 狀態；不要在 Controller 手寫錯誤 Map。結帳鎖忙碌時拋出 `CustomException("503", …)`（判斷見 `service/order/CheckoutFailure`），`OrderController` 原樣拋出，不吞成 400。
 - **CORS 的預設值只存在 `application.yml`**（`app.cors.allowed-origins`，環境變數 `CORS_ALLOWED_ORIGINS`），本機額外來源寫在 `application-local.yml`。上方「CORS 白名單」一節必須與預設值一致。
 - **Actuator 只開放 `health`，且 `show-details` 為 `never`**。不要為了除錯暴露更多端點；需要的資訊走 log，並以 `X-Request-Id` 串接。
 - **`X-Request-Id`**：每個回應都帶此標頭。合規的傳入值會沿用（`^[A-Za-z0-9_-]{8,64}$`），否則產生新的 32 位十六進位 id；它同時被寫進每一行 log 的 MDC。
@@ -675,3 +678,10 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **前端登入權杖只讀 `JOIN_TOKEN`**：`userToken` 已無任何程式寫入。`cart.js` 曾同時讀兩者，殘留值會讓登出後的購物車仍視為已登入。
 - **WebSocket 拒絕訊息**：權杖版本失效或帳號無法使用時回「登入已失效或帳號無法使用，請重新登入」。版本失效的帳號仍存在，因此不再沿用「帳號已停用或不存在」。
 - **2026-10-15 新增測試的驗證狀態**：手機驗證權杖、JWT 白名單與 `ClaimStore` 的純邏輯測試已在本機還原驗證（README「2026-10-15 還原驗證」）。需要 Spring、Mockito 或 jjwt 的案例（`AuthServiceSecurityTest` 新增的 2 支、`JwtAlgorithmEnforcementTest`、`StompAuthInterceptorTest` 與 `JwtAuthenticationFilterTest` 的新案例）本機無法執行，已由 CI 確認（run 38836496498，`mvn test` 339 個測試全數通過）。
+
+## 2026-10-17 新增的不變量與約定
+
+- **結帳忙碌回 503**：`OrderService.createOrder` 的結帳鎖取不到時拋 `CustomException("503", …)`；`OrderController.placeCheckout` 只對 `CheckoutFailure.isBusy` 原樣拋出，其餘建單失敗仍回 400。不要把 503 再吞成 400。
+- **冪等鍵必須綁定請求內容**：`IdempotencyService.execute` 的 `requestBody` 不可省略；佔位與完成紀錄都保存 SHA-256 指紋，同一把鍵配不同內容回 422。
+- **UI 驗證的失敗由 `scripts/ui/report.js` 登記**：新增的檢查套件要呼叫 `report.fail(...)`，不要只 `console.log`。`run-all.js` 不再解析 console 輸出。
+- **2026-10-17 新增測試的驗證狀態**：`OrderServiceCheckoutLockTest`、`OrderControllerCheckoutFailureTest`、`CheckoutFailureTest` 與 `IdempotencyServiceTest` 的新增案例已於 CI 還原驗證（README「2026-10-17 還原驗證（CI）」，M5、M6、M9、M10）；`GroupOrderServiceAuthorizationTest` 的 PricingService stub 改動見 M7、M8。

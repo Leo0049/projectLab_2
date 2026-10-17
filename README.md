@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：339 個 `@Test`，60 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：349 個 `@Test`，63 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：39 個 HTML 頁面全數普掃（共 51 次載入，顧客主頁有資料與空狀態各掃一次），加上點餐、轉盤、揪團三條主線 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -66,7 +66,7 @@ flowchart LR
 - JWT 存於 `localStorage`，CSP 預設關閉。改為 httpOnly cookie 與強制 CSP 需要先外部化大量 inline handler，已列為延後事項（[ADR-0007](docs/adr/0007-deferred-decisions.md)）。
 - 沒有 schema 遷移工具，結構由 `ddl-auto: update` 管理。正式上線前要導入 Flyway（[ADR-0008](docs/adr/0008-schema-migrations.md)）。
 - WebSocket 目前是單實例的 simple broker；Redis 不可用時，鎖與限流會退回單實例語意（[ADR-0006](docs/adr/0006-redis-shared-state-and-job-exclusion.md)）。
-- `/api/stores/search` 與 `/api/stores/nearby/v2` 仍未分頁，已列為待辦。
+- `/api/stores/search` 仍未分頁，已列為待辦。
 - 前端有 16 處寫死 `http://localhost:8082`（`window.JOIN_API_BASE` 與各頁面、各 JS 模組的 `BASE` 常數）。本機與 Docker 展示不受影響；要做公開 demo 前，需先改為設定值或同源反向代理。
 - 文件中的所有測試與效能敘述，以 CI 為準。開發環境無法連到 Maven Central 且沒有 Docker，因此 Java 編譯、`mvn test`、Spring 整合測試與瀏覽器 E2E 都在 GitHub Actions 上執行；結果見下方「程式與測試的最後一次 CI 驗證」。
 
@@ -316,7 +316,10 @@ docker compose up -d && mvn test
 | `OrderStatusGuardTest`（5） | 顧客端訂單狀態轉換白名單（純邏輯） |
 | `StompSubscribeRulesTest`（11） | WebSocket 訂閱授權（純邏輯）：顧客、門市、品牌的頻道權限，未知目的地一律拒絕 |
 | `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策（純邏輯）：手機已被使用就絕不另建帳號 |
-| `IdempotencyServiceTest`（9） | 冪等結帳：同一把鍵重送只執行一次並重播結果；失敗會釋放鍵以便重試；佔位中的重送回 409；鍵格式與使用者範圍；Redis 路徑（多實例共用完成紀錄） |
+| `IdempotencyServiceTest`（14） | 冪等結帳：同一把鍵重送只執行一次並重播結果；失敗會釋放鍵以便重試；佔位中的重送回 409；鍵格式與使用者範圍；Redis 路徑（多實例共用完成紀錄）；同一把鍵配不同內容回 422（請求指紋），舊格式紀錄仍可重播 |
+| `OrderServiceCheckoutLockTest`（1） | 結帳的使用者鎖忙碌時回 503，不是一般的 RuntimeException（400） |
+| `OrderControllerCheckoutFailureTest`（2） | 結帳失敗的 HTTP 結果：忙碌（503）原樣拋出、交給全域例外處理；業務拒絕仍回 400 |
+| `CheckoutFailureTest`（2） | 結帳失敗分類（純函式）：只有明確標示 503 的 CustomException 是系統忙碌 |
 | `ExclusiveJobRunnerTest`（3） | 排程互斥：其他實例持有鎖時略過且不釋放別人的鎖；取得鎖時執行一次並以同一 token 釋放；任務拋例外仍會釋放鎖 |
 | `GeoBoundsTest`（5） | 附近店家的預篩矩形是 50 公里圓的超集合，不會漏掉圓內的店；經緯度夾在合法範圍內；負半徑拒絕 |
 | `RequestIdFilterTest`（5） | `X-Request-Id`：合規的 id 沿用，非法或長度不符的重新產生；請求結束後 MDC 清空 |
@@ -328,7 +331,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 339 個 `@Test`（60 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 349 個 `@Test`（63 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -356,7 +359,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（339 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（349 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 39 個頁面全頁面普掃（51 次載入）＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -368,16 +371,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是 `ba80640`。PR 頭 `685864d` 上的完整 CI 執行是 [run 38837313131](https://github.com/Leo0049/projectLab_2/actions/runs/38837313131)（`pull_request`），兩個 job 皆成功。之後提交的內容由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是 `f8b1f16`（2026-10-17 的階段 1，見 PR #7）。PR #7 頭 `f8b1f16` 上的完整 CI 執行是 [run 39038787935](https://github.com/Leo0049/projectLab_2/actions/runs/39038787935)（`pull_request`），兩個 job 皆成功。之後只提交文件的內容由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 38837313131（`pull_request`，commit `685864d`）：「測試與端對端驗證」431 秒、「容器映像建置（僅建置）」94 秒，皆成功 |
+| 執行 | run 39038787935（`pull_request`，commit `f8b1f16`）：「測試與端對端驗證」441 秒、「容器映像建置（僅建置）」61 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，51 秒。測試總計 **339 個測試、60 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
-| 打包與起服務 | 打包 6 秒；啟動後端 15 秒 |
+| `mvn test`（第 1 層） | 通過，63 秒。測試總計 **349 個測試、63 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 7 秒；啟動後端 14 秒 |
 | API 端對端（第 2 層） | 通過，5 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，277 秒：全頁面普掃，加上點餐、轉盤、揪團三條主線 |
+| UI 流程（第 3 層，斷網模式） | 通過，280 秒：全頁面普掃，加上點餐、轉盤、揪團三條主線 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -537,6 +540,29 @@ M1–M3 的「測試總計」為 339 個測試、失敗 1；M4 為錯誤 1。沒
 - **M1–M3 的 scratch commit 含有行尾的額外變動。** `GroupOrderService.java` 原本 1770 行中有 1510 行是 CRLF、260 行是 LF；編輯工具把整檔統一為 CRLF，因此 commit 的 diff 含有 260 行的行尾變動。以 `git diff --ignore-cr-at-eol` 看，只有破壞的那一行改變。`AuthService.java` 為 LF，M4 的 diff 乾淨。
 
 scratch 分支在讀取結果後即應刪除；遠端刪除被代理政策擋下，見 `docs/REVIEW_2026-10-13.md` 的「本次無法由代理完成的操作」。
+
+### 2026-10-17 還原驗證（CI）
+
+六組故意破壞，各自放在獨立的 scratch 分支（`main-verif-stage1-*`），每組各跑一次 CI，讀取 check-run annotation 的失敗清單。每組只改一行。M5–M8 以 `fc86f98` 為基底，M9、M10 以 `f8b1f16` 為基底；後者相對於前者只多了測試，以及兩個巢狀 DTO 的可見度（`private` 改為 package-private），沒有行為變動。scratch commit 標題以 `scratch:` 開頭，不屬於 PR 分支。
+
+| 編號 | 破壞 | 位置 | CI run | 轉紅的測試 | 實際的失敗訊息 |
+|------|------|------|--------|-----------|----------------|
+| M5 | 結帳鎖忙碌時改拋 `RuntimeException`（會被當成一般的 400） | `OrderService.createOrder` | [39038073718](https://github.com/Leo0049/projectLab_2/actions/runs/39038073718) | `OrderServiceCheckoutLockTest.busyCheckoutLockFailsWith503InsteadOfAnOrdinaryRejection` | `Unexpected exception type thrown, expected: <CustomException> but was: <RuntimeException>` |
+| M6 | 請求指紋改為常數 `fixed-fingerprint` | `IdempotencyService.fingerprint` | [39038076167](https://github.com/Leo0049/projectLab_2/actions/runs/39038076167) | `IdempotencyServiceTest` 的 5 支：`fingerprintFollowsTheBodyContent`、`sameKeyWithAnotherBodyIsRejectedAndTheFirstResultSurvives`、`anotherBodyWhileInProgressIsRejectedAs422`、`redisInProgressWithAnotherBodyIsRejectedAs422`、`redisDoneWithAnotherBodyIsRejectedAs422` | `expected: <422> but was: <200>`（或 `<409>`）；`expected: not equal but was: <fixed-fingerprint>` |
+| M7 | 移除 `validateStoreProduct` 的品牌比對 | `GroupOrderService.validateStoreProduct` | [39038077969](https://github.com/Leo0049/projectLab_2/actions/runs/39038077969) | `GroupOrderServiceAuthorizationTest.legacyJoinRejectsProductsFromAnotherBrand` | `Expected CustomException to be thrown, but nothing was thrown.` |
+| M8 | 移除 `validateStoreProduct` 的停售商品檢查 | 同上 | [39038080177](https://github.com/Leo0049/projectLab_2/actions/runs/39038080177) | `GroupOrderServiceAuthorizationTest.legacyJoinRejectsProductsDisabledAtTheSelectedStore` | 同 M7 |
+| M9 | 控制器不再原樣拋出忙碌（`if (CheckoutFailure.isBusy(e))` 改為 `if (false)`） | `OrderController.placeCheckout` | [39038795874](https://github.com/Leo0049/projectLab_2/actions/runs/39038795874) | `OrderControllerCheckoutFailureTest.busyCheckoutIsRethrownSoItSurfacesAs503` | `Expected CustomException to be thrown, but nothing was thrown.`（忙碌被回成 400） |
+| M10 | 忙碌判斷只看例外型別（`instanceof CustomException`），不看 503 | `CheckoutFailure.isBusy` | [39038798147](https://github.com/Leo0049/projectLab_2/actions/runs/39038798147) | `CheckoutFailureTest.businessRejectionsAreNotBusy`（失敗）；`OrderControllerCheckoutFailureTest.businessRejectionStaysA400Response`（錯誤） | `expected: <false> but was: <true>`；`CustomException(code=400, msg=餘額不足)` 被原樣拋出 |
+
+未破壞的基準：PR #7 在 `fc86f98` 的 CI 為 run [39038117875](https://github.com/Leo0049/projectLab_2/actions/runs/39038117875)（`mvn test` 為 347 個測試、失敗 0、錯誤 0、略過 0），在 `f8b1f16` 為 run [39038787935](https://github.com/Leo0049/projectLab_2/actions/runs/39038787935)（349 個測試，同樣全數通過）。兩次的 API 端對端、UI 普掃與三條主線、Docker 建置都成功。
+
+讀取時要注意的幾點：
+
+- M5 與 M9 的失敗方式不同，這是刻意的。M5 是型別不符（一般例外會被當成業務拒絕）；M9 是「沒有拋出」（控制器把忙碌吞成 400 後，測試看到的是正常回應）。前端分辨 503 與 400 依賴的正是這兩處。
+- M6 的 `anotherBodyWhileInProgressIsRejectedAs422` 與 `redisInProgressWithAnotherBodyIsRejectedAs422` 失敗是 409 而不是 200：指紋失去區分力後，佔位中的同鍵請求退回到舊的一般重複請求行為。
+- M7、M8 的失敗已是斷言。`PricingService` 的 lenient stub 讓程式在破壞後走完定價，不再於 NPE 中中斷，因此 2026-10-16 留下的 M2、M3 待辦（見 `docs/REVIEW_2026-10-13.md`）在此關閉。兩支測試的訊息相同，但名稱各指向一條規則，且每組只破壞一條。
+- M10 同時打中兩支測試：`CheckoutFailureTest` 是失敗，控制器測試是錯誤（業務拒絕被當成忙碌原樣拋出，測試在呼叫處就拋出例外）。
+- scratch 分支 `main-verif-stage1-a` 至 `-f` 在讀取結果後即應刪除；遠端刪除被代理政策擋下，見 `docs/REVIEW_2026-10-13.md` 的「本次無法由代理完成的操作」。
 
 ### 拆出可測試的規則
 
