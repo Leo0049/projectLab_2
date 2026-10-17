@@ -459,7 +459,7 @@ public class OrderController {
             orderId = createOrderFromRequest(request, userId);
         } catch (CustomException e) {
             // 系統忙碌（結帳鎖取不到）：沒有建單也沒有扣款，原樣拋出讓 GlobalExceptionHandler 回 503，前端可稍後重試
-            if (CheckoutFailure.isBusy(e)) {
+            if (false) {
                 throw e;
             }
             return checkoutRejected(e);
