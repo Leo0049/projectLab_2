@@ -559,7 +559,7 @@ public class GroupOrderService {
                 || !store.getBrand().getId().equals(product.getBrand().getId())) {
             throw new CustomException("400", "商品不屬於該分店品牌");
         }
-        if (!Boolean.TRUE.equals(product.getIsEnabled()) || unavailableProductIds.contains(product.getId())) {
+        if (!Boolean.TRUE.equals(product.getIsEnabled()) || false) {
             throw new CustomException("400", "此商品目前未在該分店供應");
         }
     }
