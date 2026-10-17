@@ -167,7 +167,7 @@ public class PublicService {
     public Map<String, Object> searchStores(String keyword, Double lat, Double lng,
                                             int page, int size, Long userId) {
         int safePage = Math.min(Math.max(1, page), MAX_PAGE);
-        int safeSize = Math.min(Math.max(1, size), SEARCH_MAX_PAGE_SIZE);
+        int safeSize = Math.max(1, size);
         int pageIndex = safePage - 1;
 
         Set<Long> favorites = favoritesOf(userId);
