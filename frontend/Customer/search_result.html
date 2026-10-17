@@ -463,10 +463,23 @@
       }
 
       // ─── 狀態 ────────────────────────────────────────────────────
-      let allStores = [];
-      let visibleCount = 12;
-      const PAGE_SIZE = 6;
-      const INIT_SIZE = 12;
+      // 分頁在伺服器進行：每次取一頁，「展開更多」再取下一頁並接在後面。
+      const PAGE_SIZE = 12;
+      let currentKeyword = '';
+      let loadedStores = [];      // 目前已載入的店家（依頁序串接）
+      let totalCount = 0;         // 符合條件的總筆數（伺服器給的 total）
+      let nextPage = 1;           // 「展開更多」要取的頁碼
+      let hasNext = false;        // 伺服器說還有下一頁
+      let loadingMore = false;    // 正在取下一頁，防止重複點擊
+      let activeTab = 'store';
+      let emptyHtml = '';         // 沒有卡片時顯示的提示（搜尋中／找不到／失敗）
+      // 每次開始新搜尋就遞增；較晚回來的舊回應若序號不符就丟棄。
+      // 否則先搜「甲」、後搜「乙」時，「甲」的回應若比較晚到，會把「乙」的結果蓋掉。
+      let searchSeq = 0;
+
+      const SEARCHING_HTML = '<div class="col-span-full py-10 text-center text-gray-400">搜尋中...</div>';
+      const NOT_FOUND_HTML = '<div class="col-span-full py-10 text-center text-gray-400">找不到符合的店家</div>';
+      const ERROR_HTML = '<div class="col-span-full py-10 text-center text-red-400">搜尋失敗，請稍後再試</div>';
 
       const grid = document.getElementById('store-grid');
       const loadMoreBtn = document.getElementById('load-more-btn');
@@ -475,59 +488,90 @@
       const titleEl = document.getElementById('search-title');
 
       // ─── 渲染可見卡片 ──────────────────────────────────────────
-      function renderVisible() {
-        if (!grid) return;
-        const slice = allStores.slice(0, visibleCount);
-        grid.innerHTML = slice.map(renderCard).join('');
-        if (window.lucide) lucide.createIcons();
-
-        if (visibleCount >= allStores.length) {
-          loadMoreBtn.style.display = 'none';
+      function renderResults() {
+        if (!grid || activeTab !== 'store') return;
+        if (loadedStores.length === 0) {
+          grid.innerHTML = emptyHtml;
         } else {
-          loadMoreBtn.style.display = 'block';
+          grid.innerHTML = loadedStores.map(renderCard).join('');
+          if (window.lucide) lucide.createIcons();
         }
+        loadMoreBtn.style.display = hasNext ? 'block' : 'none';
+        loadMoreBtn.disabled = loadingMore;
       }
 
-      loadMoreBtn.addEventListener('click', () => {
-        visibleCount += PAGE_SIZE;
-        renderVisible();
-      });
+      loadMoreBtn.addEventListener('click', () => loadMore());
 
       // ─── 搜尋 ─────────────────────────────────────────────────
       async function doSearch(keyword) {
+        const seq = ++searchSeq;
+        currentKeyword = keyword;
+        loadedStores = [];
+        totalCount = 0;
+        nextPage = 1;
+        hasNext = false;
+        loadingMore = false;
+        emptyHtml = SEARCHING_HTML;
+        resultCountEl.style.display = 'none';
+        renderResults();
+        await fetchPage(seq, 1);
+      }
+
+      /** 取得第 page 頁，接在已載入的結果後面（第 1 頁則取代）。序號過期的回應一律丟棄。 */
+      async function fetchPage(seq, page) {
         const lat = localStorage.getItem('userLat') || '';
         const lng = localStorage.getItem('userLng') || '';
-        grid.innerHTML = '<div class="col-span-full py-10 text-center text-gray-400">搜尋中...</div>';
-        loadMoreBtn.style.display = 'none';
-        resultCountEl.style.display = 'none';
+        const params = new URLSearchParams({ keyword: currentKeyword, page: String(page), size: String(PAGE_SIZE) });
+        if (lat) params.set('lat', lat);
+        if (lng) params.set('lng', lng);
 
         try {
-          const params = new URLSearchParams({ keyword });
-          if (lat) params.set('lat', lat);
-          if (lng) params.set('lng', lng);
-
           const res = await NavAuth.fetchAPI(`/api/stores/search?${params}`);
-          allStores = Array.isArray(res?.stores) ? res.stores : (Array.isArray(res) ? res : []);
-          visibleCount = INIT_SIZE;
+          if (seq !== searchSeq) return;
+          const stores = Array.isArray(res?.stores) ? res.stores : [];
+          loadedStores = page === 1 ? stores : loadedStores.concat(stores);
+          totalCount = Number(res?.total) || 0;
+          hasNext = res?.hasNext === true;
+          nextPage = page + 1;
 
-          // 更新標題
-          const img = titleEl.querySelector('img');
-          titleEl.innerHTML = '';
-          if (img) titleEl.appendChild(img);
-          titleEl.appendChild(document.createTextNode(`「${keyword}」的搜尋結果`));
-
-          // 更新結果數
-          resultNumEl.textContent = allStores.length;
-          resultCountEl.style.display = 'block';
-
-          if (allStores.length === 0) {
-            grid.innerHTML = '<div class="col-span-full py-10 text-center text-gray-400">找不到符合的店家</div>';
-          } else {
-            renderVisible();
+          if (page === 1) {
+            // 更新標題
+            const img = titleEl.querySelector('img');
+            titleEl.innerHTML = '';
+            if (img) titleEl.appendChild(img);
+            titleEl.appendChild(document.createTextNode(`「${currentKeyword}」的搜尋結果`));
+            // 更新結果數
+            resultNumEl.textContent = totalCount;
+            resultCountEl.style.display = 'block';
+            emptyHtml = NOT_FOUND_HTML;
           }
+          renderResults();
         } catch (e) {
+          if (seq !== searchSeq) return;
           console.error('搜尋失敗', e);
-          grid.innerHTML = '<div class="col-span-full py-10 text-center text-red-400">搜尋失敗，請稍後再試</div>';
+          if (page === 1) {
+            loadedStores = [];
+            hasNext = false;
+            emptyHtml = ERROR_HTML;
+            renderResults();
+          }
+          // 展開更多失敗：保留已載入的卡片；loadMore 的 finally 會恢復按鈕，讓使用者可以再按一次
+        }
+      }
+
+      /** 展開更多：取下一頁並接在後面。 */
+      async function loadMore() {
+        if (loadingMore || !hasNext) return;
+        const seq = searchSeq;
+        loadingMore = true;
+        loadMoreBtn.disabled = true;
+        try {
+          await fetchPage(seq, nextPage);
+        } finally {
+          if (seq === searchSeq) {
+            loadingMore = false;
+            loadMoreBtn.disabled = false;
+          }
         }
       }
 
@@ -568,16 +612,16 @@
         tab.addEventListener('click', () => {
           document.querySelectorAll('.search-tab').forEach(t => t.classList.remove('active'));
           tab.classList.add('active');
+          activeTab = tab.dataset.tab;
           // 其他 tab 暫無資料
-          if (tab.dataset.tab !== 'store') {
+          if (activeTab !== 'store') {
             grid.innerHTML = '<div class="col-span-full py-10 text-center text-gray-400">功能即將推出</div>';
             loadMoreBtn.style.display = 'none';
             resultCountEl.style.display = 'none';
           } else {
-            resultNumEl.textContent = allStores.length;
-            resultCountEl.style.display = allStores.length > 0 ? 'block' : 'none';
-            visibleCount = INIT_SIZE;
-            renderVisible();
+            resultNumEl.textContent = totalCount;
+            resultCountEl.style.display = loadedStores.length > 0 ? 'block' : 'none';
+            renderResults();
           }
         });
       });
