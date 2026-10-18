@@ -5,6 +5,7 @@ import com.example.demo.dto.BrandSummary;
 import com.example.demo.entity.Brand;
 import com.example.demo.entity.Store;
 import com.example.demo.exception.CustomException;
+import com.example.demo.common.BrandApproval;
 import com.example.demo.repository.BrandRepository;
 import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.UserFavoriteRepository;
@@ -240,7 +241,8 @@ public class PublicService {
      * 回傳的 record 欄位名稱就是前端讀取的 JSON key，契約見 {@link BrandSummary}。
      */
     public List<BrandSummary> getBrands() {
-        return brandRepository.findAll().stream()
+        // N-28：待審與未通過的品牌不進入公開列表
+        return brandRepository.findByApprovalStatus(BrandApproval.APPROVED).stream()
                 .map(b -> new BrandSummary(b.getId(), b.getName(), b.getLogoUrl()))
                 .toList();
     }
@@ -249,6 +251,9 @@ public class PublicService {
     public Map<String, Object> getBrandDetail(Long brandId) {
         Brand brand = brandRepository.findById(brandId)
                 .orElseThrow(() -> new CustomException("404", "找不到品牌"));
+        // N-28：未核准的品牌對外視同不存在
+        if (!BrandApproval.isApproved(brand.getApprovalStatus()))
+            throw new CustomException("404", "找不到品牌");
         List<Store> stores = storeRepository.findByBrandId(brandId);
 
         Map<String, Object> result = new HashMap<>();

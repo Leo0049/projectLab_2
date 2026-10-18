@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
+import com.example.demo.common.BrandApproval;
 import com.example.demo.common.Result;
 import com.example.demo.dto.CategoryReorderRequest;
 import com.example.demo.dto.CreateCategoryRequest;
@@ -46,7 +47,9 @@ public class BrandController {
         if (name == null || account == null || password == null)
             return Result.error("400", "品牌名稱、帳號與密碼不能為空");
         brandService.register(name, account, password);
-        return Result.success();
+        // N-28：註冊不發放權杖，待管理員核准後才能登入
+        return Result.success(Map.of("approvalStatus", BrandApproval.PENDING,
+                "message", "註冊已送出，待管理員審核後即可登入"));
     }
 
     @Operation(summary = "品牌登入", description = "品牌帳號密碼登入。\n\nBody: { account, password }\n\n回傳 JWT Token（role = BRAND）。")

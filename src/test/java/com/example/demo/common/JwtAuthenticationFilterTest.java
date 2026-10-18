@@ -1,8 +1,10 @@
 package com.example.demo.common;
 
+import com.example.demo.entity.AdminAccount;
 import com.example.demo.entity.Brand;
 import com.example.demo.entity.Store;
 import com.example.demo.entity.User;
+import com.example.demo.repository.AdminAccountRepository;
 import com.example.demo.repository.BrandRepository;
 import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.UserRepository;
@@ -31,6 +33,7 @@ class JwtAuthenticationFilterTest {
     private Optional<User> customer = Optional.empty();
     private Optional<Brand> brand = Optional.empty();
     private Optional<Store> store = Optional.empty();
+    private Optional<AdminAccount> admin = Optional.empty();
     private JwtAuthenticationFilter filter;
 
     private final JwtUtils jwtUtils = new JwtUtils() {
@@ -55,10 +58,12 @@ class JwtAuthenticationFilterTest {
         customer = Optional.empty();
         brand = Optional.empty();
         store = Optional.empty();
+        admin = Optional.empty();
         tokenVersion = 0;
         SecurityContextHolder.clearContext();
         filter = new JwtAuthenticationFilter(jwtUtils, repository(UserRepository.class),
-                repository(BrandRepository.class), repository(StoreRepository.class));
+                repository(BrandRepository.class), repository(StoreRepository.class),
+                repository(AdminAccountRepository.class));
     }
 
     @AfterEach
@@ -102,6 +107,17 @@ class JwtAuthenticationFilterTest {
         runFilter("BRAND");
 
         assertAuthority("BRAND");
+    }
+
+    @Test
+    void rejectsBrandTokenWhilePendingReview() throws Exception {
+        Brand pending = new Brand();
+        pending.setApprovalStatus("PENDING");
+        brand = Optional.of(pending);
+
+        runFilter("BRAND");
+
+        assertNull(authentication());
     }
 
     @Test
@@ -168,8 +184,34 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void rejectsUnknownRole() throws Exception {
+    void acceptsAdminTokenWhenTheAdminAccountExists() throws Exception {
+        admin = Optional.of(adminAccount(0));
+
         runFilter("ADMIN");
+
+        assertAuthority("ADMIN");
+    }
+
+    @Test
+    void rejectsAdminTokenWhenTheAdminAccountNoLongerExists() throws Exception {
+        runFilter("ADMIN");
+
+        assertNull(authentication());
+    }
+
+    @Test
+    void rejectsAdminTokenIssuedBeforeAPasswordChange() throws Exception {
+        admin = Optional.of(adminAccount(1));
+        tokenVersion = 0;
+
+        runFilter("ADMIN");
+
+        assertNull(authentication());
+    }
+
+    @Test
+    void rejectsUnknownRole() throws Exception {
+        runFilter("ROOT");
 
         assertNull(authentication());
     }
@@ -187,6 +229,12 @@ class JwtAuthenticationFilterTest {
         assertEquals(1, forwarded[0]);
     }
 
+    private static AdminAccount adminAccount(int version) {
+        AdminAccount account = new AdminAccount();
+        account.setTokenVersion(version);
+        return account;
+    }
+
     private <T> T repository(Class<T> repositoryType) {
         return repositoryType.cast(Proxy.newProxyInstance(repositoryType.getClassLoader(),
                 new Class<?>[] {repositoryType}, (proxy, method, args) -> {
@@ -199,11 +247,17 @@ class JwtAuthenticationFilterTest {
                         };
                     }
                     return switch (method.getName()) {
-                        case "findById" -> repositoryType == UserRepository.class ? customer
-                                : repositoryType == BrandRepository.class ? brand : store;
+                        case "findById" -> optionalFor(repositoryType);
                         default -> defaultValue(method.getReturnType());
                     };
                 }));
+    }
+
+    private Object optionalFor(Class<?> repositoryType) {
+        if (repositoryType == UserRepository.class) return customer;
+        if (repositoryType == BrandRepository.class) return brand;
+        if (repositoryType == AdminAccountRepository.class) return admin;
+        return store;
     }
 
     private Object defaultValue(Class<?> returnType) {

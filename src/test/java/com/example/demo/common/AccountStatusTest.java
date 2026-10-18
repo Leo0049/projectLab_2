@@ -1,8 +1,10 @@
 package com.example.demo.common;
 
+import com.example.demo.entity.AdminAccount;
 import com.example.demo.entity.Brand;
 import com.example.demo.entity.Store;
 import com.example.demo.entity.User;
+import com.example.demo.repository.AdminAccountRepository;
 import com.example.demo.repository.BrandRepository;
 import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.UserRepository;
@@ -71,7 +73,7 @@ class AccountStatusTest {
     @DisplayName("未知角色、缺少角色或缺少 id 一律不可使用")
     void unknownOrIncompleteIdentityIsNotUsable() {
         UserRepository users = users(Map.of(1L, customer(false, 0)));
-        assertFalse(AccountStatus.isActive(1L, "ADMIN", 0, users, noBrands(), noStores()));
+        assertFalse(AccountStatus.isActive(1L, "ROOT", 0, users, noBrands(), noStores()));
         assertFalse(AccountStatus.isActive(1L, null, 0, users, noBrands(), noStores()));
         assertFalse(AccountStatus.isActive(null, "CUSTOMER", 0, users, noBrands(), noStores()));
     }
@@ -116,6 +118,43 @@ class AccountStatusTest {
                 users(Map.of()), noBrands(), stores(Map.of(7L, store("STORE", 0)))));
     }
 
+    @Test
+    @DisplayName("待審或未通過的品牌不可使用，即使權杖仍有效（N-28）")
+    void brandThatIsNotApprovedIsNotUsable() {
+        assertFalse(AccountStatus.isActive(10L, "BRAND", 0,
+                users(Map.of()), brands(Map.of(10L, brandWithStatus("PENDING"))), noStores()));
+        assertFalse(AccountStatus.isActive(10L, "BRAND", 0,
+                users(Map.of()), brands(Map.of(10L, brandWithStatus("REJECTED"))), noStores()));
+        assertTrue(AccountStatus.isActive(10L, "BRAND", 0,
+                users(Map.of()), brands(Map.of(10L, brandWithStatus("APPROVED"))), noStores()));
+    }
+
+    @Test
+    @DisplayName("管理員權杖只在傳入管理員儲存庫時可用（HTTP）；未傳入（WebSocket）一律不可用（N-28）")
+    void adminIsUsableOnlyWhenAdminRepositoryIsSupplied() {
+        assertTrue(AccountStatus.isActive(30L, "ADMIN", 0,
+                users(Map.of()), noBrands(), noStores(), admins(Map.of(30L, admin(0)))));
+        assertFalse(AccountStatus.isActive(30L, "ADMIN", 0,
+                users(Map.of()), noBrands(), noStores()));
+    }
+
+    @Test
+    @DisplayName("管理員改過密碼後，舊權杖不可使用（N13）；資料列不存在也不可使用")
+    void staleOrMissingAdminIsNotUsable() {
+        assertFalse(AccountStatus.isActive(30L, "ADMIN", 0,
+                users(Map.of()), noBrands(), noStores(), admins(Map.of(30L, admin(1)))));
+        assertFalse(AccountStatus.isActive(31L, "ADMIN", 0,
+                users(Map.of()), noBrands(), noStores(), admins(Map.of(30L, admin(0)))));
+    }
+
+    @Test
+    @DisplayName("管理員權杖不會去比對顧客、品牌或門市資料列（id 會撞號）")
+    void adminTokenNeverMatchesOtherAccountTypes() {
+        assertFalse(AccountStatus.isActive(7L, "ADMIN", 0,
+                users(Map.of(7L, customer(false, 0))), brands(Map.of(7L, brand("BRAND", 0))),
+                stores(Map.of(7L, store("STORE", 0))), admins(Map.of())));
+    }
+
     // ── 測試用的儲存庫與資料 ─────────────────────────────────
 
     private static User customer(boolean deleted, int tokenVersion) {
@@ -138,11 +177,24 @@ class AccountStatusTest {
         return brand;
     }
 
+    private static Brand brandWithStatus(String approvalStatus) {
+        Brand brand = brand("BRAND", 0);
+        brand.setApprovalStatus(approvalStatus);
+        return brand;
+    }
+
     private static Store store(String role, int tokenVersion) {
         Store store = new Store();
         store.setRole(role);
         store.setTokenVersion(tokenVersion);
         return store;
+    }
+
+    private static AdminAccount admin(int tokenVersion) {
+        AdminAccount admin = new AdminAccount();
+        admin.setRole("ADMIN");
+        admin.setTokenVersion(tokenVersion);
+        return admin;
     }
 
     private static UserRepository users(Map<Long, User> rows) {
@@ -161,6 +213,13 @@ class AccountStatusTest {
 
     private static StoreRepository stores(Map<Long, Store> rows) {
         return proxy(StoreRepository.class, (method, args) -> {
+            expect(method, "findById");
+            return Optional.ofNullable(rows.get((Long) args[0]));
+        });
+    }
+
+    private static AdminAccountRepository admins(Map<Long, AdminAccount> rows) {
+        return proxy(AdminAccountRepository.class, (method, args) -> {
             expect(method, "findById");
             return Optional.ofNullable(rows.get((Long) args[0]));
         });

@@ -92,6 +92,12 @@ public class SecurityConfig {
                                                 .hasAuthority("BRAND")
                                                 .requestMatchers("/api/brand/**", "/api/finance/brand/**")
                                                 .hasAnyAuthority("BRAND")
+                                                // ── 管理員後台（N-28）──────────────────────────────
+                                                // 登入只開放 POST；其餘 /api/admin/** 一律需要 ADMIN 權杖（ADMIN 只來自 AdminBootstrap 建立的帳號）。
+                                                .requestMatchers(HttpMethod.POST, "/api/admin/auth/login")
+                                                .permitAll()
+                                                .requestMatchers("/api/admin/**")
+                                                .hasAuthority("ADMIN")
 
                                                 // ── 商品/品牌公開資訊 ──────────────────────────────
                                                 // ⚠️ 同 /api/stores 的教訓：requestMatchers(String...) 不分 HTTP method。

@@ -82,7 +82,8 @@ class AuthorizationRouteInventoryTest {
             "/api/auth/social-signup",
             "/api/stores/auth/login",
             "/api/brand-auth/register",
-            "/api/brand-auth/login");
+            "/api/brand-auth/login",
+            "/api/admin/auth/login");
 
     /**
      * ⚠️ 必須指定名稱：加入 spring-boot-starter-actuator 後，容器內會有第二個 RequestMappingHandlerMapping

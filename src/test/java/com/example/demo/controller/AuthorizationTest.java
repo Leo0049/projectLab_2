@@ -69,10 +69,14 @@ class AuthorizationTest {
     @Autowired
     private com.example.demo.repository.BrandRepository brandRepository;
 
+    @Autowired
+    private com.example.demo.repository.AdminAccountRepository adminAccountRepository;
+
     private Long attackerId;
     private Long victimId;
     private String attackerToken;
     private Long victimOrderId;
+    private Long adminId;
 
     @BeforeEach
     void setUp() {
@@ -87,6 +91,9 @@ class AuthorizationTest {
     void tearDown() {
         if (victimOrderId != null) {
             groupOrderRepository.deleteById(victimOrderId);
+        }
+        if (adminId != null) {
+            adminAccountRepository.deleteById(adminId);
         }
         userRepository.deleteById(attackerId);
         userRepository.deleteById(victimId);
@@ -454,5 +461,31 @@ class AuthorizationTest {
         if (balance.compareTo(BigDecimal.ZERO) < 0) {
             throw new AssertionError("餘額被負數儲值扣成負的：" + balance);
         }
+    }
+
+    // ── N-28：管理員後台（/api/admin/**）─────────────────────────────
+
+    /** 以測試專用的管理員帳號簽發 ADMIN 權杖；帳號在 tearDown 刪除 */
+    private String adminBearer() {
+        com.example.demo.entity.AdminAccount admin = new com.example.demo.entity.AdminAccount();
+        admin.setUsername("authz-admin-" + System.nanoTime());
+        admin.setPasswordHash("test-only-no-login");
+        adminId = adminAccountRepository.save(admin).getId();
+        return "Bearer " + jwtUtils.generateToken(adminId, "ADMIN", admin.getUsername(), 0);
+    }
+
+    @Test
+    @DisplayName("N-28：顧客權杖不可進入管理員後台")
+    void customerCannotReachTheAdminBackend() throws Exception {
+        mockMvc.perform(get("/api/admin/brands/pending").header("Authorization", bearer()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("N-28：管理員權杖可以讀取待審品牌清單")
+    void adminCanReachThePendingBrandList() throws Exception {
+        mockMvc.perform(get("/api/admin/brands/pending").header("Authorization", adminBearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.brands").isArray());
     }
 }

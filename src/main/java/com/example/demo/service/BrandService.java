@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.common.BrandApproval;
 import com.example.demo.common.JwtUtils;
 import com.example.demo.common.SafeImageUrl;
 import com.example.demo.common.SafeText;
@@ -96,6 +97,8 @@ public class BrandService {
         brand.setName(safeName);
         brand.setAccount(account);
         brand.setPasswordHash(passwordEncoder.encode(password));
+        // N-28：自助註冊一律待審，管理員核准後才能登入
+        brand.setApprovalStatus(BrandApproval.PENDING);
         brandRepository.save(brand);
         Map<String, Integer> specTypeOrder = new HashMap<>();
 
@@ -126,6 +129,9 @@ public class BrandService {
                 .orElseThrow(() -> new CustomException("404", "帳號不存在"));
         if (!passwordEncoder.matches(password, brand.getPasswordHash()))
             throw new CustomException("401", "密碼錯誤");
+        // N-28：密碼正確後才檢查審核狀態，未知密碼者無從得知帳號的審核進度
+        if (!BrandApproval.isApproved(brand.getApprovalStatus()))
+            throw new CustomException("403", BrandApproval.loginBlockedMessage(brand.getApprovalStatus()));
         String token = jwtUtils.generateToken(brand.getId(), brand.getRole(), brand.getAccount(), brand.getTokenVersion());
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);

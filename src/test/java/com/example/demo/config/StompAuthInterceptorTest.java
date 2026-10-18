@@ -158,6 +158,14 @@ class StompAuthInterceptorTest {
     }
 
     @Test
+    @DisplayName("管理員權杖不可連線 WebSocket（N-28：管理員只開放 HTTP 後台，即使權杖有效）")
+    void adminTokenCannotConnect() {
+        assertThrows(MessageDeliveryException.class,
+                () -> connect("Bearer " + jwt.generateToken(1L, "ADMIN", "ops", 0)));
+        assertTrue(delivered.isEmpty());
+    }
+
+    @Test
     @DisplayName("沒有到期時間（exp）的 token 無法連線（缺期限即拒絕，N7）")
     void tokenWithoutExpiryCannotConnect() {
         String noExpiry = Jwts.builder()
