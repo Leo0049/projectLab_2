@@ -26,26 +26,42 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
     boolean existsByStoreName(String storeName);
 
 
-    // 品牌名稱搜尋（LIKE）,同時搜尋品牌名稱和店家名稱
+    // 品牌名稱搜尋（LIKE）,同時搜尋品牌名稱和店家名稱。分頁，依 id 排序才穩定。
     @EntityGraph(attributePaths = {"brand"})
-    @Query("SELECT s FROM Store s JOIN s.brand b WHERE (b.name LIKE %:keyword% OR s.storeName LIKE %:keyword%) AND s.status = 'active'")
-    List<Store> searchByBrandName(@Param("keyword") String keyword);
+    @Query("SELECT s FROM Store s JOIN s.brand b WHERE (b.name LIKE %:keyword% OR s.storeName LIKE %:keyword%) AND s.status = 'active' ORDER BY s.id ASC")
+    List<Store> searchByBrandName(@Param("keyword") String keyword, Pageable pageable);
 
-    // 依關鍵字搜尋 + 依距離排序（Haversine）
+    /** 搜尋結果總筆數。WHERE 條件必須與上兩支查詢完全相同，否則 hasNext 會與實際列表對不上。 */
+    @Query("SELECT COUNT(s) FROM Store s JOIN s.brand b WHERE (b.name LIKE %:keyword% OR s.storeName LIKE %:keyword%) AND s.status = 'active'")
+    long countSearchByKeyword(@Param("keyword") String keyword);
+
+    /**
+     * 依關鍵字搜尋 + 依距離排序（Haversine），分頁。
+     *
+     * <p>acos 的引數以 LEAST／GREATEST 夾在 [-1, 1]，理由同 {@link #findNearbyStores}：
+     * 站在店家座標上時浮點誤差會讓引數略大於 1，MySQL 回 NULL。
+     * 排序加上 {@code s.id} 作為次要鍵，分頁結果才穩定。
+     *
+     * <p>SELECT 只取 {@code id} 與 {@code distance}，呼叫端再以 id 載入實體。
+     */
     @Query(value = """
-            SELECT s.*, b.name as brand_name,
-            (6371 * acos(cos(radians(:lat)) * cos(radians(s.latitude))
+            SELECT s.id AS id,
+            (6371 * acos(LEAST(1, GREATEST(-1,
+            cos(radians(:lat)) * cos(radians(s.latitude))
             * cos(radians(s.longitude) - radians(:lng))
-            + sin(radians(:lat)) * sin(radians(s.latitude)))) AS distance
+            + sin(radians(:lat)) * sin(radians(s.latitude)))))) AS distance
             FROM stores s JOIN brands b ON s.brand_id = b.id
             WHERE s.status = 'active'
             AND (s.store_name LIKE :keyword OR b.name LIKE :keyword)
-            ORDER BY distance
+            ORDER BY distance, s.id
+            LIMIT :size OFFSET :offset
             """, nativeQuery = true)
     List<Object[]> searchByKeywordWithDistance(
             @Param("keyword") String keyword,
             @Param("lat") double lat,
-            @Param("lng") double lng);
+            @Param("lng") double lng,
+            @Param("size") int size,
+            @Param("offset") int offset);
 
     /**
      * 附近店家（兩段式查詢）。

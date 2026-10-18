@@ -39,8 +39,8 @@ public class GroupOrderController {
 
     /**
      * 團長與團員結帳接受的付款方式，須與團購頁實際送出的值一致。
-     * STORE_CREDIT 由前端映射為 WALLET，不在此列；CREDIT_CARD 是團購頁的預設勾選，後端視為門市付款（見 N-22）。
-     * 不可只留 WALLET／CASH：會擋下團長與團員的預設結帳（見 N-18）。
+     * STORE_CREDIT 由前端映射為 WALLET，不在此列；團購頁已隱藏「信用卡」、不再送出 CREDIT_CARD（N-22）；後端仍接受它並視為門市付款。
+     * 不可只留 WALLET／CASH：N-18 曾因此擋下團長與團員當時的預設 CREDIT_CARD；保留它是為了不擋下仍在舊版頁面上的請求。
      */
     private static final Set<String> ALLOWED_PAYMENT_METHODS = Set.of("WALLET", "CASH", "CREDIT_CARD");
 

@@ -89,6 +89,28 @@ const D = (j) => Array.isArray(j) ? j : (j || {}).data;
   const pd = await req('GET', `/api/products/${productId}`);
   check('飲品詳情（含規格與配料）', ok(pd) && !!D(pd));
 
+  // 店家搜尋分頁：伺服器端分頁、total 為真實總筆數，距離與品牌兩條路徑的總數一致
+  const srch1 = D(await req('GET', '/api/stores/search?keyword=&page=1&size=2')) || {};
+  const srch1Stores = Array.isArray(srch1.stores) ? srch1.stores : [];
+  check('店家搜尋：每頁 2 筆，回傳總筆數與 hasNext',
+    Number.isInteger(srch1.total) && srch1Stores.length === Math.min(2, srch1.total)
+      && srch1.page === 1 && srch1.size === 2 && srch1.hasNext === (srch1.total > 2),
+    `total ${srch1.total}，本頁 ${srch1Stores.length} 筆`);
+  const srch2 = D(await req('GET', '/api/stores/search?keyword=&page=2&size=2')) || {};
+  const srch2Stores = Array.isArray(srch2.stores) ? srch2.stores : [];
+  const srch1Ids = srch1Stores.map((s) => s.storeId);
+  check('店家搜尋：第 2 頁與第 1 頁不重複',
+    srch2.page === 2 && srch2Stores.every((s) => !srch1Ids.includes(s.storeId)));
+  const srchBig = D(await req('GET', '/api/stores/search?keyword=&page=1&size=1000')) || {};
+  check('店家搜尋：size 超過 200 時截為 200', srchBig.size === 200, `size ${srchBig.size}`);
+  const srchGeo = D(await req('GET', '/api/stores/search?keyword=&lat=25.0336&lng=121.5435&page=1&size=2')) || {};
+  check('店家搜尋（有定位）：總筆數與無定位相同，每頁不超過 2 筆',
+    srchGeo.total === srch1.total && (srchGeo.stores || []).length <= 2,
+    `${srchGeo.total} vs ${srch1.total}`);
+  const srchNone = D(await req('GET', '/api/stores/search?keyword=ZZNOSUCH9X&page=1&size=12')) || {};
+  check('店家搜尋：無符合時 total=0、hasNext=false',
+    srchNone.total === 0 && srchNone.hasNext === false && (srchNone.stores || []).length === 0);
+
   // ─────────────────────────────────────────────
   section('3. 錢包與帳本');
   const before = D(await req('GET', '/api/wallet', { token: CT }));

@@ -1,6 +1,6 @@
 # JoinDrink API 技術手冊 (v4.1)
 
-> **最後更新**：2026-10-12（補充：冪等結帳、轉盤狀態碼、附近店家分頁與座標檢查、健康檢查、`X-Request-Id`；移除不存在的 SSE 端點）
+> **最後更新**：2026-10-18（補充：店家搜尋分頁；冪等結帳、轉盤狀態碼、附近店家分頁與座標檢查、健康檢查、`X-Request-Id`；移除不存在的 SSE 端點）
 > **Base URL**：`http://localhost:8082`
 > **認證方式**：`Authorization: Bearer <JWT>`
 > **統一回應格式**：`{ "code": "200", "msg": "請求成功", "data": { ... } }`
@@ -42,7 +42,7 @@
 | GET | `/api/home` | 首頁資料（banners、附近店家）Query: `?lat=&lng=` |
 | GET | `/api/stores/map` | 地圖所有營業中店家座標 |
 | GET | `/api/stores/nearby` | 附近店家分頁 Query: `?lat=&lng=&brandId=&minRating=&page=1&size=6`。有座標時依距離排序；無座標時 `minRating` 不生效（見 §7）|
-| GET | `/api/stores/search` | 關鍵字搜尋品牌/店家 Query: `?keyword=&lat=&lng=`。`page`、`size` 目前被忽略，回傳全部符合者（已知缺口，見 §7）|
+| GET | `/api/stores/search` | 關鍵字搜尋品牌/店家（分頁）Query: `?keyword=&lat=&lng=&page=1&size=50`。`size` 上限 200；回傳 `{stores, page, size, total, totalPages, hasNext}`（見 §7）|
 | GET | `/api/stores/{storeId}/info` | 店家詳細資訊（評分、營業時間、地址）|
 | GET | `/api/stores/{storeId}/v2` | 店家詳情 V2 |
 | GET | `/api/brands` | 平台所有品牌列表 |
@@ -392,7 +392,8 @@
 
 - 會隨營運時間累積的列表端點必須分頁（規則見 `CLAUDE.md`）。
 - 門市訂單：`GET /api/stores/orders?page=0&size=50`，`size` 上限 200。
-- **已知未分頁**：`GET /api/stores/search`（`page`、`size` 目前被忽略）。列為待辦，見 `docs/IMPROVEMENT_ASSESSMENT.md`。
+- 店家搜尋：`GET /api/stores/search?keyword=&page=1&size=50`，`size` 上限 200。回應的 `total` 是真實總數（COUNT 查詢），`hasNext` 供判斷是否還有下一頁；距離排序時，分頁在 SQL 內以 `LIMIT`／`OFFSET` 完成。
+- `page` 在店家搜尋與附近店家都從 1 起算；門市訂單的範例為 `page=0`。三者都把 0 視為第一頁，接 API 時請依各端點的範例。
 
 ---
 

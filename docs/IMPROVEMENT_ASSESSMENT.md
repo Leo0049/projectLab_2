@@ -57,7 +57,7 @@
 - **`ScheduledTasks` 與 `CouponExpiryScheduler` 做同一件事**（00:00 與 00:01 兩次標記過期券）。本次只以互斥鎖保護，合併留待下一步。
 - **`DailySpinService` 的使用者訊息是 `RuntimeException`**，若不先改，移除 catch 後訊息會消失（已於第 14 項處理）。
 - **`order_details.html` 的快取鍵是手動拼的**，與 `fetchAPI` 格式可能漂移（已於第 2 項改為共用 helper）。
-- **`PublicService.searchStores` 的 `page`／`size` 被忽略**：回傳全部符合者。這是待辦，不是本次修正的項目（見「仍未做」第 1 點）。
+- **`PublicService.searchStores` 的 `page`／`size` 被忽略**：回傳全部符合者。已於 2026-10-18 改為分頁（見「仍未做」第 1 點）。
 - **文件數字不一致（已統一）**：`LazyInitializationException` 的重演次數統一以 `CLAUDE.md` 與問題紀錄的「九次」為準，README 原本的「十個地方」已改寫。
 - **文件與程式不符，已修正**：CLAUDE.md 寫 `AuthorizationTest` 為 18 個、`LoginAttemptLimiterTest` 為 8 個，實際為 19 與 9，且測試表缺 10 個既有類別（另有 6 個為本次新增），已依實際檔案重列；API.md 寫 `/api/upload` 不需認證（實際需登入）、列出不存在的 `SseController`，已修正；DEPLOYMENT.md 寫「部署前套用 migration」，但 repo 沒有 migration，已改為人工建立結構的說明。
 
@@ -65,7 +65,7 @@
 
 這些是評估後確認存在、但本 PR 沒有處理的缺口。每一項都寫明影響，方便之後排序：
 
-1. **`GET /api/stores/search` 未分頁**：`page`／`size` 被忽略，回傳全部符合者。修正會改變既有前端拿到的筆數，需要先決定預設上限，因此不在本 PR 內。
+1. [已處理 2026-10-18] **`GET /api/stores/search` 未分頁**：`page`／`size` 被忽略，回傳全部符合者。修正會改變既有前端拿到的筆數，需要先決定預設上限，因此不在本 PR 內。處理：預設每頁 50 筆、上限 200，回應含真實的 `total`、`totalPages`、`hasNext`；前端改為每頁 12 筆並以「展開更多」載入，過期的回應以序號丟棄。
 2. [已處理 2026-10-17] **`GET /api/stores/nearby/v2` 未分頁**：回傳全部接單中店家。違反「列表端點一律分頁」的規則（見 `CLAUDE.md`）。處理：端點已移除（controller、`SecurityConfig` 白名單、路由清單測試，以及只有它使用的服務程式碼），前端沒有呼叫者。
 3. [已處理 2026-10-17] **冪等結帳不比對請求內容**：同一把鍵搭配不同 body 會回放第一次的結果（ADR-0005）。金額已由伺服器重算，風險被限縮，但應補上 body 指紋。處理：請求主體的 SHA-256 指紋已納入佔位與完成紀錄，內容不同回 422；舊格式紀錄在過期前仍照舊重播。
 4. **轉盤的當日標記在資料庫寫入之前寫入**：寫入失敗時標記不回收，使用者會失去當天的機會（ADR-0007）。修正需要把標記與寫入放進同一個可回滾的單位。
@@ -81,14 +81,14 @@
 ## 未能在本環境驗證的項目
 
 本環境沒有 Maven Central，也沒有 Docker daemon，因此 Java 編譯、`mvn test`、Docker 建置與 UI 流程都只能由 CI 驗證。
-程式與測試最後一次變更（commit `f8b1f16`）；PR #7 頭 `f8b1f16` 上的完整 CI 執行是 [run 39038787935](https://github.com/Leo0049/projectLab_2/actions/runs/39038787935)：`mvn test`（349 個測試、63 個類別、略過 0）、API 端對端、UI 普掃與三條主線、Docker 建置全部步驟成功，摘要見 README「程式與測試的最後一次 CI 驗證」。CI 失敗的原因與修正歷程仍寫在 PR 說明中。
+程式與測試最後一次變更（commit `cbd7ff0`）；PR #8 頭 `cbd7ff0` 上的完整 CI 執行是 [run 39066084888](https://github.com/Leo0049/projectLab_2/actions/runs/39066084888)：`mvn test`（359 個測試、64 個類別、略過 0）、API 端對端、UI 普掃與四條主線、Docker 建置全部步驟成功，摘要見 README「程式與測試的最後一次 CI 驗證」。之後只改文件與註解的 commit，由 PR 頁面上的最新 run 驗證。CI 失敗的原因與修正歷程仍寫在 PR 說明中。
 
 CI 已執行並通過的項目（不再列為未驗證）：
 
 - Java 編譯與 `mvn test`，包括 `AuthorizationRouteInventoryTest`：白名單與 `SecurityConfig` 的比對在 CI 中一致。
-- API 端對端驗證，以及 UI 普掃與三條主線（點餐、轉盤、揪團）。
+- API 端對端驗證，以及 UI 普掃與四條主線（點餐、轉盤、揪團、搜尋分頁）。
 - Docker 映像建置（只建置，不推送、不啟動容器）。
-- 還原驗證（2026-10-13）：39 組故意破壞，每一組都讓對應的測試轉紅，對照表見 README「還原驗證」。2026-10-16 另有四組（M1–M4），見 README「2026-10-16 還原驗證（CI）」；2026-10-17 另有六組（M5–M10），見 README「2026-10-17 還原驗證（CI）」。
+- 還原驗證（2026-10-13）：39 組故意破壞，每一組都讓對應的測試轉紅，對照表見 README「還原驗證」。2026-10-16 另有四組（M1–M4），見 README「2026-10-16 還原驗證（CI）」；2026-10-17 另有六組（M5–M10），見 README「2026-10-17 還原驗證（CI）」；2026-10-18 另有四組（M11–M14），見 README「2026-10-18 還原驗證（CI）」。
 
 仍然只能在 CI 或線上環境驗證，目前沒有覆蓋的項目：
 
