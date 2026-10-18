@@ -47,6 +47,8 @@ public class SecurityConfig {
                                                                 "/Brand/**",
                                                                 "/Customer/**",
                                                                 "/Store/**",
+                                                                // 管理員後台的靜態頁（HTML／JS，不含資料）。資料一律走 /api/admin/**，仍需 ADMIN 權杖。
+                                                                "/Admin/**",
                                                                 "/api/menu/**",
                                                                 "/api/home/**",
                                                                 "/api/public/**",

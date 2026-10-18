@@ -1,11 +1,11 @@
 /**
- * 三個前台的全頁面普掃：逐頁載入，收集 JS 例外與 API 錯誤。
+ * 三個前台與管理員後台的全頁面普掃：逐頁載入，收集 JS 例外與 API 錯誤。
  *
  * 這支專門抓「API 單獨打會過、但畫面一載入就壞」的問題——
  * LazyInitializationException、相對路徑打錯主機、未宣告的變數、
  * 兩支腳本搶同一張 canvas，都是這樣被抓到的。
  */
-const { FE, api, login, newCustomer, corporateLogin, launch, newSession, customerStorage, projectErrors } = require('./harness');
+const { FE, api, login, newCustomer, corporateLogin, adminLogin, launch, newSession, customerStorage, projectErrors } = require('./harness');
 const report = require('./report');
 
 // 顧客端主要頁面。order_details / order_confirm 需要真實 orderId，
@@ -42,6 +42,7 @@ module.exports = async function run() {
   const fresh = await newCustomer('0977', '空狀態普掃');
   const brand = await corporateLogin('demo_brand');
   const store = await corporateLogin('demo_store');
+  const admin = await adminLogin();
 
   const browser = await launch();
   let bad = 0, total = 0;
@@ -73,6 +74,8 @@ module.exports = async function run() {
       store_token: store.token, store_id: String(store.storeId),
       JOIN_TOKEN: store.token, token: store.token,
     }, { width: 1440, height: 900 });
+
+    await sweep('管理員後台', '/Admin', ['login', 'brands'], { adminToken: admin.token }, MOBILE);
 
     console.log(`\n  ${total} 個頁面，有問題的 ${bad} 個`);
   } finally {

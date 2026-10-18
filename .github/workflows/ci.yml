@@ -49,6 +49,12 @@ jobs:
       REDIS_HOST: 127.0.0.1
       API_BASE: http://127.0.0.1:8082
       FE_BASE: http://127.0.0.1:5500
+      # 管理員後台（N-28）：啟動時由 AdminBootstrap 建立這個 CI 專用帳號（只在 CI 內有效）。
+      # E2E_ADMIN_* 供 UI 與 API 流程登入使用；兩者必須相同。hash 為 BCrypt（cost 10）。
+      ADMIN_BOOTSTRAP_USERNAME: ci-admin
+      ADMIN_BOOTSTRAP_PASSWORD_HASH: "$2a$10$4JRfIOgDvUdf6xxCRCvBYuN5lvVnSgFXfDM1/BizrTn9NWIR8GgU2"
+      E2E_ADMIN_USERNAME: ci-admin
+      E2E_ADMIN_PASSWORD: "ci#e2e-admin-2026"
 
     steps:
       - uses: actions/checkout@v7
@@ -157,7 +163,7 @@ jobs:
 
       # E2E_OFFLINE=1：把所有連外請求擋掉。第三方函式庫都收在 frontend/vendor/，
       # 所以斷網狀態下畫面必須完全正常。有人重新引入 CDN 的話，這一步就會紅。
-      - name: UI 流程驗證（斷網模式：全頁面普掃 + 點餐 + 轉盤 + 揪團 + 搜尋分頁）
+      - name: UI 流程驗證（斷網模式：全頁面普掃 + 點餐 + 轉盤 + 揪團 + 搜尋分頁 + 管理員審核）
         working-directory: scripts
         shell: bash
         env:
