@@ -263,7 +263,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 ```bash
 cd scripts && npm install
 node e2e-verify.js      # API 端對端，12 個面向（逐項通過數由腳本輸出）
-node ui/run-all.js      # 39 個 HTML 頁普掃（51 次載入）+ 點餐／轉盤／揪團／搜尋分頁四條主線（Playwright）
+node ui/run-all.js      # 41 個 HTML 頁普掃（53 次載入）+ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright）
 ```
 
 `.github/workflows/ci.yml` 會依序跑完這三層。**改完動到序列化、交易邊界或前端流程的
@@ -526,7 +526,7 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
 5. 本機需明確設定 `SMS_MODE=mock`（或 application-local.yml 的 `sms.mode: mock`），跳過 Firebase 驗證，不需要 `serviceAccountKey.json`。`sms.mode` 的預設是 `firebase`（N15，fail-closed）
 6. 啟動埠：`8082`；Swagger UI：`http://localhost:8082/swagger-ui.html`
 7. 容器映像（選用）：`docker build -t joindrink .`。映像內含 `frontend/`；資料庫與 Redis 需由外部提供。部署細節見 `docs/DEPLOYMENT.md`
-8. 管理員後台（N-28）：本機要建立管理員，設定 `ADMIN_BOOTSTRAP_USERNAME` 與 `ADMIN_BOOTSTRAP_PASSWORD_HASH`（BCrypt 雜湊，不接受明文；例如以 `htpasswd -nbBC 10 "" <密碼>` 產生後去掉前面的冒號）再啟動。帳號已存在時不會覆寫密碼；本機未設定時不會建立管理員。
+8. 管理員後台（N-28）：本機要建立管理員，設定 `ADMIN_BOOTSTRAP_USERNAME` 與 `ADMIN_BOOTSTRAP_PASSWORD_HASH`（BCrypt 雜湊，不接受明文；例如以 `htpasswd -nbBC 10 "" <密碼>` 產生後去掉前面的冒號）再啟動。帳號已存在時不會覆寫密碼；本機未設定時不會建立管理員。登入頁為 `/Admin/login.html`（後端 8082 或本機前端 5500 皆可）。
 
 設定值一律走 `${ENV_VAR:本機預設值}`，`application.yml` 內不再有任何明文密鑰。
 
@@ -571,6 +571,7 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
 - **Customer 前台** (`/frontend/Customer/`)：顧客端，含登入/註冊（`auth/` 8頁）、首頁、地圖、店家列表、購物車、結帳、訂單、揪團、個人資料等 12 頁，共 20 HTML
 - **Brand 後台** (`/frontend/Brand/`)：品牌管理後台，含 Dashboard、菜單、規格加料、門市管理、財務、口碑監控、熱銷趨勢（7 頁）
 - **Store 後台** (`/frontend/store/`)：門市後台，含訂單管理、庫存、營業時間、配送設定、財務報表、評分（12 頁）
+- **Admin 後台** (`/frontend/Admin/`)：管理員審核（N-28）：登入、待審品牌清單（核准、退件、分頁、登出；2 頁）。權杖存在 `adminToken`
 - 前端 JS 以模組化方式分割（每支 API 獨立 `*-api.js` 或 `api-*.js`）
 - JWT 存於 `localStorage`，每次請求自動帶入 `Authorization: Bearer <token>`
 - 側邊欄由 `store-shell-boot.js`（head 最早載入，防閃爍）+ `store-shell.js`（RWD 響應式 Shell）管理
@@ -715,3 +716,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **`brands.approval_status` 的 DDL 預設值是 `'APPROVED'`**：既有品牌因此維持可登入。正式環境的 ALTER 必須帶同一個預設值（見 `DATABASE.md`「結構變更方式」）。
 - **管理員權杖的版本（N13）**：與其他帳號相同。目前沒有管理員改密碼或停用的路徑；日後新增時必須遞增 `token_version`。
 - **N-28 測試的驗證狀態**：`AccountStatusTest.brandThatIsNotApprovedIsNotUsable`、`AccountStatusTest.adminIsUsableOnlyWhenAdminRepositoryIsSupplied`、`JwtAuthenticationFilterTest.rejectsBrandTokenWhilePendingReview`、`BrandServiceApprovalTest.registerCreatesAPendingBrand`、`AuthorizationTest.customerCannotReachTheAdminBackend`、`StompAuthInterceptorTest.adminTokenCannotConnect` 已於 CI 還原驗證（README「2026-10-18 還原驗證（N-28，CI）」，M-a 至 M-d）。`BrandApprovalTest`、`AdminServiceTest`、`AdminBootstrapTest` 與其餘 N-28 案例尚未被任何破壞覆蓋。
+- **管理員審核頁面（`frontend/Admin/`，N-28 第四階段）**：權杖存在 `adminToken`，與顧客、品牌、門市的權杖分開；帶權杖的請求回 401／403 時清除權杖並回到登入頁。`SecurityConfig` 只放行 `GET /Admin/**`（靜態頁不含資料），資料一律經 `/api/admin/**`，仍需 ADMIN 權杖。
+- **後台頁面的輸出端轉義**：清單的每個插入值都先過頁面內的 `escapeHtml`，動作以 `data-*` 與事件代理傳入，不把資料拼進 `onclick`。`flow-admin.js` 第七步以攔截的假資料驗證含標籤的品牌名稱不會被執行。
+- **UI 的管理員帳密**：CI 以 `ADMIN_BOOTSTRAP_*` 建立 `ci-admin`，同一組帳密由 `E2E_ADMIN_*` 提供給 `harness.adminLogin()`。本機要跑 `page-sweep` 或 `flow-admin` 前，需以相同帳密啟動後端。
+- **管理員審核流程的驗證狀態**：`flow-admin.js` 於 CI（commit `3ae0ca9`，run 39152447226）通過；四組破壞於本機還原驗證（README「2026-10-18 還原驗證（管理員審核 UI，本機）」）。

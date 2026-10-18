@@ -28,7 +28,7 @@
 
 付出的代價：
 
-- 管理員審核目前只有 API，沒有後台頁面（列為後續階段）。
+- 管理員審核的後台頁面於第四階段加入（`frontend/Admin/`，`/Admin/login.html`、`/Admin/brands.html`）。頁面是靜態檔、不含資料；資料仍只經 `/api/admin/**`，需要 ADMIN 權杖。
 - 第一位管理員需要人工設定環境變數並啟動一次；設定中的 BCrypt 雜湊應在建立後從環境移除。
 - 管理員沒有改密碼與停用的路徑（與品牌、門市相同的缺口，見 CLAUDE.md 的 N13 約定）；目前停用等同刪除列。
 - 上線前必須先執行 DDL。漏掉 `DEFAULT 'APPROVED'` 會讓所有既有品牌登入失敗。
@@ -48,3 +48,4 @@
 - 帳號與權杖：`AccountStatusTest`、`JwtAuthenticationFilterTest`；`StompAuthInterceptorTest.adminTokenCannotConnect`。
 - 授權（載入 Spring context，CI 執行）：`AuthorizationTest`（顧客不可進入後台、管理員可讀待審清單）、`AuthorizationRouteInventoryTest`（登入是唯一的公開 POST）。
 - 還原驗證：見 README「2026-10-18 還原驗證（N-28，CI）」。
+- UI（斷網模式，Playwright）：`scripts/ui/flow-admin.js`（沒有權杖導向登入頁、錯誤密碼、核准、退件、409、輸出端轉義、登出）；還原驗證見 README「2026-10-18 還原驗證（管理員審核 UI，本機）」。
