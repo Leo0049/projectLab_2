@@ -57,7 +57,7 @@ flowchart LR
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
 | 1. 單元與整合測試 | `mvn test`：390 個 `@Test`，68 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
-| 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：39 個 HTML 頁面全數普掃（共 51 次載入，顧客主頁有資料與空狀態各掃一次），加上點餐、轉盤、揪團、搜尋分頁四條主線 | 只有真的載入畫面、真的按下去才會出現的問題 |
+| 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：41 個 HTML 頁面全數普掃（共 53 次載入，顧客主頁有資料與空狀態各掃一次；管理員後台兩頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
 此外，CI 會以 `docker build` 驗證 Dockerfile 能建成映像（只建置、不推送）。
 
@@ -120,7 +120,7 @@ VS Code Live Server 的預設埠是 5500，但 5500 被占用時它會**靜默�
 | **優惠券轉盤** | 每日抽獎，優惠券圖片由 Java 2D 動態生成後上傳 Cloudinary |
 | **商品快照** | 下單時保存當下品名與價格，日後改價不影響歷史訂單 |
 
-規模：後端 159 個 Java 檔案 / 約 17.6k 行（`src/main/java`），26 張資料表，14 個 REST controller；前端 39 個頁面、約 18.1k 行 JS（不含 `vendor/`；Vanilla JS + Tailwind）。
+規模：後端 159 個 Java 檔案 / 約 17.6k 行（`src/main/java`），26 張資料表，14 個 REST controller；前端 41 個頁面、約 18.8k 行 JS（不含 `vendor/`；Vanilla JS + Tailwind）。
 
 ---
 
@@ -360,7 +360,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 |----|------|-----------|
 | `mvn test`（390 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
-| `scripts/ui/run-all.js` | 39 個頁面全頁面普掃（51 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
+| `scripts/ui/run-all.js` | 41 個頁面全頁面普掃（53 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
 顧客端是主要使用路徑，普掃分成三段跑：**有資料的帳號**、**剛註冊的空狀態帳號**
 （清單為空時才會踩到的 undefined，用有資料的帳號掃不出來）、以及**未登入的登入註冊 8 頁**。
@@ -602,6 +602,21 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 
 - scratch 分支 `main-verif-n28` 在讀取結果後即應刪除；遠端刪除需由擁有者處理。
 
+### 2026-10-18 還原驗證（管理員審核 UI，本機）
+
+第四階段的管理員審核頁面（`frontend/Admin/`）與 `scripts/ui/flow-admin.js`，用四組故意破壞驗證**在本機執行**，不是 CI。本機使用 Chromium 141 跑 Playwright；前端由 `python3 -m http.server` 從工作目錄提供，後端端點以本機 mock 取代（回應格式取自 `AdminController`、`AdminService`、`BrandController` 與 `PublicService`）。每組破壞只改一處、各跑一次，記下轉紅的檢查名稱，之後以 `git checkout` 還原，並確認工作目錄乾淨。
+
+| 編號 | 破壞 | 位置 | 轉紅的檢查（flow-admin 的具名失敗） |
+|------|------|------|-----------------------------------|
+| M-A1 | 核准改呼叫退件端點 | `frontend/Admin/js/admin-brands.js` | 「核准後品牌應可登入，實際 code=403」、「核准後品牌應出現在公開品牌列表」 |
+| M-A2 | 品牌名稱不經 `escapeHtml` | `frontend/Admin/js/admin-brands.js` | 「品牌名稱含標籤時不得被當成 HTML 執行」、「品牌名稱含標籤時應以原文字顯示」 |
+| M-A3 | 登出不清除 `adminToken` | `frontend/Admin/js/admin-api.js` | 「登出後應清除 adminToken」、「登出後直接進入清單頁應導向登入頁」 |
+| M-A4 | 409 只顯示錯誤、不重新載入 | `frontend/Admin/js/admin-brands.js` | 「已被處理的品牌按下核准後，應提示並重新載入清單」 |
+
+四組的 `flow-admin.js` 都以 exit 1 結束；未破壞時八個步驟全數通過。
+
+限制：這四組沒有在 CI 上各跑一次（每組需要獨立的 CI 執行，並留下暫存分支）。CI 驗證的是未破壞的版本：commit `3ae0ca9` 的 [run 39152447226](https://github.com/Leo0049/projectLab_2/actions/runs/39152447226) 全數通過，其中 UI 步驟含管理員審核；`mvn test` 為 390 個測試、68 個類別，失敗 0、錯誤 0、略過 0。若要 CI 留下破壞的記錄，可依上表另開 `main-verif-*` 暫存分支。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
@@ -688,7 +703,7 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 - 團購頁的「信用卡」選項已於 2026-10-18 隱藏，團長與團員的預設改為現金（N-22，見 `docs/REVIEW_2026-10-11.md`）。後端仍接受 `CREDIT_CARD` 並視為門市付款。
 - 單人結帳頁（`frontend/Customer/checkout.html`）的「信用卡支付」送出的是 `WALLET`，與「儲值金支付」相同，實際扣的是錢包餘額，與 UI 文字不符。尚未處理，需產品決定：移除該選項，或改為門市付款。
 - 個人訂單的錢包扣款說明（`OrderService.createOrder` 的 `WALLET` 分支）寫成「已扣除團員已付部分」，個人訂單的帳本會顯示這段文字。尚未處理。
-- 品牌自助註冊已改為審核制（N-28，2026-10-18）：新品牌為 `PENDING`，未核准不能登入，也不出現在公開列表。管理員審核目前只有 API（`/api/admin/**`），審核頁面列為後續階段；是否另加邀請碼仍待業務決定。
+- 品牌自助註冊已改為審核制（N-28，2026-10-18）：新品牌為 `PENDING`，未核准不能登入，也不出現在公開列表。管理員審核的後台頁面已加入（`frontend/Admin/`，路徑 `/Admin/login.html`），資料仍只經 `/api/admin/**`；是否另加邀請碼仍待業務決定。
 - 依賴漏洞稽核（npm 與 Maven）與 CI action 版本查證尚未完成（N-29、N-20），需在有網路的環境執行。
 
 ---

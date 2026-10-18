@@ -165,5 +165,5 @@ curl -fsS 'http://127.0.0.1:8082/api/stores/nearby?lat=25&lng=121' >/dev/null
 20. **先執行 DDL，再部署程式**：`brands` 新增 `approval_status`（`DEFAULT 'APPROVED'`）與 `reviewed_at`，並建立 `admins` 資料表。SQL 見 `DATABASE.md`「結構變更方式」的 N-28 項。少了 `DEFAULT 'APPROVED'` 會讓所有既有品牌登入失敗。
 21. **既有品牌不受影響**：升級後既有品牌維持 `APPROVED`，可照常登入；只有之後自助註冊的新品牌會是 `PENDING`。
 22. **建立第一位管理員**：設定 `ADMIN_BOOTSTRAP_USERNAME` 與 `ADMIN_BOOTSTRAP_PASSWORD_HASH`（BCrypt）後啟動一次，用 `POST /api/admin/auth/login` 確認可以登入，之後從環境變數移除這兩個設定。
-23. **目前沒有管理員審核頁面**：待審品牌以 `GET /api/admin/brands/pending` 查看，再以 `POST /api/admin/brands/{brandId}/approve`（或 `/reject`）處理，需使用管理員權杖（例如 curl；正式環境已關閉 Swagger UI）。審核頁面列為後續階段。
+23. **管理員審核頁面**：`/Admin/login.html` 登入後，可查看待審品牌並核准或退件（權杖存在瀏覽器的 `adminToken`）。頁面本身是靜態檔、不含資料；資料仍只經 `/api/admin/**`（`GET /api/admin/brands/pending`、`POST /api/admin/brands/{brandId}/approve` 或 `/reject`），需要管理員權杖。正式環境已關閉 Swagger UI。
 24. **管理員沒有改密碼或停用的路徑**：`token_version` 存在但未使用。目前要停用管理員，只能在資料庫刪除該列；刪除後，既有權杖在下一次請求即被拒絕。
