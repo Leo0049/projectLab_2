@@ -25,6 +25,10 @@ public class WebConfig implements WebMvcConfigurer {
                 .addResourceLocations("file:frontend/store/")
                 .setCachePeriod(0);
 
+        registry.addResourceHandler("/Admin/**")
+                .addResourceLocations("file:frontend/Admin/")
+                .setCachePeriod(0);
+
 
         // 未設定 Cloudinary 憑證時，ImageStorageService 會把圖片存到這個目錄
         registry.addResourceHandler("/uploads/**")

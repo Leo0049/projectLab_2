@@ -1,5 +1,5 @@
 /**
- * 一次跑完所有 UI 驗證：全頁面普掃 + 三條主線流程 + 輸出端跳逸。
+ * 一次跑完所有 UI 驗證：全頁面普掃 + 各條主線流程 + 輸出端跳逸。
  * 任何一項失敗就以非 0 結束，供 CI 判斷。
  *
  *   node scripts/ui/run-all.js
@@ -16,6 +16,7 @@ const suites = [
   ['轉盤流程', './flow-wheel'],
   ['揪團流程', './flow-group'],
   ['搜尋分頁流程', './flow-search'],
+  ['管理員審核流程', './flow-admin'],
   ['輸出端跳逸', './check-output-escaping'],
 ];
 

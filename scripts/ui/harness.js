@@ -7,6 +7,7 @@
  *   HEADED=1      有頭模式，方便本機肉眼看流程
  *   E2E_OFFLINE=1 斷網模式：擋掉所有連外請求，驗證專案不靠 CDN 也能跑
  *   CHROME_PATH   自備 Chromium 執行檔路徑（沒設就用 Playwright 內建的）
+ *   E2E_ADMIN_USERNAME / E2E_ADMIN_PASSWORD  管理員後台測試用的帳密（與後端的 ADMIN_BOOTSTRAP_* 相同）
  */
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -51,6 +52,22 @@ async function newCustomer(prefix, name) {
 async function corporateLogin(account, password = 'demo1234') {
   const j = await api('/api/auth/corporate-login', { method: 'POST', body: { account, password } });
   if (!j || !j.data || !j.data.token) throw new Error('後台登入失敗：' + JSON.stringify(j).slice(0, 200));
+  return j.data;
+}
+
+/**
+ * 管理員登入（ADMIN 權杖，只在 HTTP 有效）。帳密由環境變數提供，不寫死在程式裡；
+ * CI 在 job 環境變數中同時設定後端的 ADMIN_BOOTSTRAP_* 與這裡使用的帳密。
+ */
+const ADMIN_USERNAME = process.env.E2E_ADMIN_USERNAME || '';
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || '';
+
+async function adminLogin() {
+  if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
+    throw new Error('未設定 E2E_ADMIN_USERNAME／E2E_ADMIN_PASSWORD（需與後端的 ADMIN_BOOTSTRAP_* 相同）');
+  }
+  const j = await api('/api/admin/auth/login', { method: 'POST', body: { username: ADMIN_USERNAME, password: ADMIN_PASSWORD } });
+  if (!j || !j.data || !j.data.token) throw new Error('管理員登入失敗：' + JSON.stringify(j).slice(0, 200));
   return j.data;
 }
 
@@ -132,4 +149,7 @@ function projectErrors(errors) {
   return [...new Set(errors)].filter(e => !ignore.test(e));
 }
 
-module.exports = { API, FE, api, login, newCustomer, corporateLogin, launch, newSession, customerStorage, projectErrors };
+module.exports = {
+  API, FE, api, login, newCustomer, corporateLogin, adminLogin, ADMIN_USERNAME, ADMIN_PASSWORD,
+  launch, newSession, customerStorage, projectErrors,
+};
