@@ -14,6 +14,7 @@
 | CUSTOMER | 一般使用者 | `/api/auth/login` |
 | BRAND | 品牌總部 | `/api/brand-auth/login` |
 | STORE | 分店 | `/api/stores/auth/login` 或 `/api/auth/corporate-login` |
+| ADMIN | 平台管理員（N-28，只能由 `AdminBootstrap` 建立）| `/api/admin/auth/login`（僅 HTTP，WebSocket 不接受）|
 
 ---
 
@@ -45,8 +46,8 @@
 | GET | `/api/stores/search` | 關鍵字搜尋品牌/店家（分頁）Query: `?keyword=&lat=&lng=&page=1&size=50`。`size` 上限 200；回傳 `{stores, page, size, total, totalPages, hasNext}`（見 §7）|
 | GET | `/api/stores/{storeId}/info` | 店家詳細資訊（評分、營業時間、地址）|
 | GET | `/api/stores/{storeId}/v2` | 店家詳情 V2 |
-| GET | `/api/brands` | 平台所有品牌列表 |
-| GET | `/api/brands/{brandId}` | 品牌資訊與旗下分店 |
+| GET | `/api/brands` | 平台所有已核准品牌列表（待審與退件的品牌不列出，N-28）|
+| GET | `/api/brands/{brandId}` | 品牌資訊與旗下分店（未核准的品牌回 404，N-28）|
 | GET | `/api/products/{productId}` | 飲品基本資訊 |
 | GET | `/api/products/{productId}/customization` | 飲品可選規格與配料 |
 | GET | `/api/products/{productId}/customization/v2` | 飲品客製化 V2（ResponseEntity 格式）|
@@ -177,8 +178,8 @@
 ### 認證
 | Method | Path | 認證 | 說明 |
 |--------|------|------|------|
-| POST | `/api/brand-auth/register` | 無 | 品牌註冊 Body: `{ name, account, password }` |
-| POST | `/api/brand-auth/login` | 無 | 品牌登入 Body: `{ account, password }` |
+| POST | `/api/brand-auth/register` | 無 | 品牌註冊 Body: `{ name, account, password }`。回傳 `{ approvalStatus: "PENDING", message }`，**不發放權杖**；待管理員核准後才能登入（N-28）|
+| POST | `/api/brand-auth/login` | 無 | 品牌登入 Body: `{ account, password }`。密碼錯誤回 401；帳號待審或退件回 403（密碼正確後才說明審核狀態，N-28）|
 | POST | `/api/brand-auth/create-store` | BRAND | 建立分店帳號 Body: `{ storeName, account, password }` |
 | POST | `/api/brand-auth/create-store-with-images` | BRAND | 建立分店（含圖片上傳）multipart/form-data |
 
@@ -327,6 +328,21 @@
 
 ---
 
+### 管理員後台（ADMIN，N-28）
+
+所有路徑都需要 `ADMIN` 權杖（`Authorization: Bearer <token>`），登入除外。管理員只能由 `AdminBootstrap` 建立，沒有公開註冊。
+
+| Method | Path | 認證 | 說明 |
+|--------|------|------|------|
+| POST | `/api/admin/auth/login` | 無 | 管理員登入 Body: `{ username, password }`，回傳 `{ token, role }`。帳號不存在與密碼錯誤回同一則 401 訊息；失敗次數受 `LoginAttemptLimiter` 限流（scope `admin-login`）|
+| GET | `/api/admin/brands/pending` | ADMIN | 待審核品牌清單（分頁）Query: `?page=0&size=50`。page 從 0 起算，size 上限 100。回傳 `{ brands: [{ brandId, name, account, createdAt }], page, size, total, totalPages, hasNext }` |
+| POST | `/api/admin/brands/{brandId}/approve` | ADMIN | 核准待審品牌，品牌即可登入。品牌不存在回 404；已處理過（已核准或已退件）回 409 |
+| POST | `/api/admin/brands/{brandId}/reject` | ADMIN | 退件待審品牌，品牌無法登入。品牌不存在回 404；已處理過回 409 |
+
+> 管理員權杖只在 HTTP 有效。WebSocket 的 CONNECT 一律拒絕 ADMIN 權杖。
+
+---
+
 ## 7. 共通約定
 
 ### 冪等結帳（`Idempotency-Key`）
@@ -368,6 +384,7 @@
 ### 即時推播（WebSocket／STOMP）
 
 - 端點：`/ws-cart`（SockJS）。CONNECT 必須帶 `Authorization: Bearer <JWT>`。
+- 帳號仍須可使用（與 HTTP 相同規則）：已刪除的帳號、待審或退件的品牌，以及 ADMIN 權杖一律拒絕連線（N-28）。
 - SUBSCRIBE 規則：
   - `/topic/order/{orderId}`：顧客，且為該訂單的發起人或參與者。
   - `/topic/group/{token}`：顧客（token 本身即分享憑證）。

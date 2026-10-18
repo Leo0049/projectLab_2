@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：359 個 `@Test`，64 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：390 個 `@Test`，68 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：39 個 HTML 頁面全數普掃（共 51 次載入，顧客主頁有資料與空狀態各掃一次），加上點餐、轉盤、揪團、搜尋分頁四條主線 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -330,7 +330,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 359 個 `@Test`（64 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 390 個 `@Test`（68 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -358,7 +358,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（359 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（390 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 39 個頁面全頁面普掃（51 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -583,6 +583,25 @@ scratch 分支在讀取結果後即應刪除；遠端刪除被代理政策擋下
 - M13 與 M14 的 `mvn test` 仍然全綠，因為這兩處在前端，只有 UI 流程會抓到。這正是 CI 需要 UI 層的理由。
 - scratch 分支 `main-verif-stage2-a` 至 `-d` 在讀取結果後即應刪除；遠端刪除需由擁有者處理。
 
+### 2026-10-18 還原驗證（N-28，CI）
+
+四組故意破壞放在同一個 scratch commit（`9df310c`，標題以 `scratch:` 開頭，只存在於暫存分支 `main-verif-n28`，不屬於 PR 分支），由同一次 CI 執行，讀取 check-run annotation 的失敗清單。基準是 PR 分支 `9706c29` 的 CI，[run 39128158307](https://github.com/Leo0049/projectLab_2/actions/runs/39128158307)（`pull_request`）：`mvn test` 為 390 個測試、68 個類別，失敗 0、錯誤 0、略過 0；API 端對端與 UI 三層全數通過。
+
+| 編號 | 破壞 | 位置 | 轉紅的測試 | 實際的失敗訊息 |
+|------|------|------|-----------|----------------|
+| M-a | 品牌分支不再檢查審核狀態（`BrandApproval.isApproved(…)` 改為 `true`） | `common/AccountStatus` | `AccountStatusTest.brandThatIsNotApprovedIsNotUsable`、`JwtAuthenticationFilterTest.rejectsBrandTokenWhilePendingReview` | `expected: <false> but was: <true>`；待審品牌的權杖被授予 `BRAND` |
+| M-b | 自助註冊改為建立 `APPROVED` | `service/BrandService.register` | `BrandServiceApprovalTest.registerCreatesAPendingBrand` | `expected: <PENDING> but was: <APPROVED>` |
+| M-c | 移除 `/api/admin/**` 的 `ADMIN` 規則 | `SecurityConfig` | `AuthorizationTest.customerCannotReachTheAdminBackend` | `Status expected:<403> but was:<200>`：顧客權杖能進入後台路由 |
+| M-d | ADMIN 分支在未傳入管理員儲存庫時放行 | `common/AccountStatus` | `AccountStatusTest.adminIsUsableOnlyWhenAdminRepositoryIsSupplied`、`StompAuthInterceptorTest.adminTokenCannotConnect` | `expected: <false> but was: <true>`；預期拋出 `MessageDeliveryException`，實際未拋出 |
+
+結果：失敗共 6 筆，恰為上表的六支測試，沒有其他測試轉紅。[破壞 run 39128457484](https://github.com/Leo0049/projectLab_2/actions/runs/39128457484) 的 `mvn test` 失敗，其後步驟依預期未執行。
+
+M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，各自偵測測試的訊息都對應到自己破壞的分支，因此沒有互相遮蔽，四組沒有拆成四次 CI。
+
+未被上表覆蓋的 N-28 測試：`BrandApprovalTest`（3）、`AdminServiceTest`（7）、`AdminBootstrapTest`（5）、`BrandServiceApprovalTest` 中註冊以外的 4 支，以及 `JwtAuthenticationFilterTest` 的管理員權杖案例。它們目前只有 CI 通過的證據，還不能證明會抓到回歸；若要補上，可依 `CLAUDE.md` 的做法另加破壞並記錄於此。
+
+- scratch 分支 `main-verif-n28` 在讀取結果後即應刪除；遠端刪除需由擁有者處理。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
@@ -669,7 +688,7 @@ scratch 分支在讀取結果後即應刪除；遠端刪除被代理政策擋下
 - 團購頁的「信用卡」選項已於 2026-10-18 隱藏，團長與團員的預設改為現金（N-22，見 `docs/REVIEW_2026-10-11.md`）。後端仍接受 `CREDIT_CARD` 並視為門市付款。
 - 單人結帳頁（`frontend/Customer/checkout.html`）的「信用卡支付」送出的是 `WALLET`，與「儲值金支付」相同，實際扣的是錢包餘額，與 UI 文字不符。尚未處理，需產品決定：移除該選項，或改為門市付款。
 - 個人訂單的錢包扣款說明（`OrderService.createOrder` 的 `WALLET` 分支）寫成「已扣除團員已付部分」，個人訂單的帳本會顯示這段文字。尚未處理。
-- 品牌自助註冊對外開放（`/api/brand-auth/register` 為 permitAll，N-28），需業務決定是否改為審核制或邀請碼。
+- 品牌自助註冊已改為審核制（N-28，2026-10-18）：新品牌為 `PENDING`，未核准不能登入，也不出現在公開列表。管理員審核目前只有 API（`/api/admin/**`），審核頁面列為後續階段；是否另加邀請碼仍待業務決定。
 - 依賴漏洞稽核（npm 與 Maven）與 CI action 版本查證尚未完成（N-29、N-20），需在有網路的環境執行。
 
 ---
