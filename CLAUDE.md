@@ -31,10 +31,10 @@
 ```
 join_drink/
 ├── src/main/java/com/example/demo/
-│   ├── controller/          # 14 REST controllers
-│   ├── service/             # 31 個頂層類別（另有 order/、wallet/ 子套件共 7 個）
-│   ├── entity/              # 26 JPA entities + 6 EmbeddedId 類別
-│   ├── repository/          # 28 JPA repositories
+│   ├── controller/          # 15 REST controllers
+│   ├── service/             # 32 個頂層類別（另有 order/、wallet/ 子套件共 7 個）
+│   ├── entity/              # 27 JPA entities + 6 EmbeddedId 類別
+│   ├── repository/          # 29 JPA repositories
 │   ├── dto/                 # 25 Data Transfer Objects
 │   ├── common/              # JWT、SecurityHeadersFilter、RequestIdFilter、SafeImageUrl／SafeText、GeoBounds、Cloudinary／Firebase／Swagger／WebConfig、DataSeeder、DemoDataSeeder
 │   ├── config/              # RedisConfig、WebSocketConfig（掛載 StompAuthInterceptor）、StompSubscribeRules、TimeZoneConfig
@@ -53,14 +53,14 @@ join_drink/
 ├── docker-compose.yml       # 本機 MySQL 8 + Redis 7
 ├── pom.xml
 ├── API.md                   # 完整 REST API 端點文件
-├── DATABASE.md              # 26 張表 schema 說明
+├── DATABASE.md              # 27 張表 schema 說明
 └── README.md                # 本機開發指南（中文）
 ```
 
 > ⚠️ schema 的**唯一事實來源**是 `entity/` 下的 JPA Entity（`ddl-auto: update` 自動建表）。
 > `DATABASE.md` 是對照說明文件，改 Entity 後請一併更新。
 
-## 核心 Controllers（14 個）
+## 核心 Controllers（15 個）
 
 | Controller | 職責 |
 |-----------|------|
@@ -78,6 +78,7 @@ join_drink/
 | `ProductController` | 飲品 V2 API（分店飲品列表、客製化 V2、規格）|
 | `UploadController` | 本地檔案上傳 |
 | `UserFavoriteController` | 收藏店家（查詢、切換）|
+| `AdminController` | 管理員後台（N-28）：管理員登入、待審品牌清單、核准與退件；路徑 `/api/admin/**`，僅 ADMIN 權杖 |
 
 > ⚠️ **本專案沒有 SSE**。舊版文件曾寫「SSE 端點直接寫在 GroupOrderController /
 > StoreController / OrderController 內」，但全專案 `SseEmitter` 出現次數為 0，
@@ -90,6 +91,7 @@ join_drink/
 - `ROLE_CUSTOMER` — 一般顧客
 - `ROLE_BRAND` — 品牌總部管理員
 - `ROLE_STORE` — 門市管理員
+- `ROLE_ADMIN` — 平台管理員（N-28）：權杖的 authority 為 `ADMIN`；只能由 `AdminBootstrap` 建立，沒有公開註冊；權杖只在 HTTP 生效，WebSocket 拒絕
 
 ## 授權規則（SecurityConfig）
 
@@ -173,20 +175,24 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-18，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：359 個 `@Test`，分布在 64 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-18，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：390 個 `@Test`，分布在 68 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
-| 授權與路由 | `AuthorizationTest`（19） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、拿他人 userId 結帳、竄改 finalPrice、跨帳號讀寫收藏、消耗他人優惠券、debug 與門市傾印端點已移除 |
+| 授權與路由 | `AuthorizationTest`（21） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、拿他人 userId 結帳、竄改 finalPrice、跨帳號讀寫收藏、消耗他人優惠券、debug 與門市傾印端點已移除；非 ADMIN 權杖不可進入管理員後台、管理員權杖可讀待審清單（N-28） |
 | 授權與路由 | `AuthorizationRouteInventoryTest`（3） | 列舉全部路由：非公開路由匿名呼叫必須回 401／403；公開清單的每一條都必須真的存在（ADR-0003） |
 | 授權與路由 | `GroupOrderSecurityTest`（5） | 揪團 H-1～H-3：伺服器重算價格與歸屬；他人的 couponId 被拒；非團長不可改他人揪團狀態；團長本人的截單與重開可行，亂打的狀態被白名單擋下 |
 | 授權與路由 | `GroupOrderServiceAuthorizationTest`（10） | 揪團讀取與加入：只有發起人能取得分享 token；非成員不可讀數字 id 的明細；舊版加入必須帶正確的 token；拒絕他品牌的商品與門市停售的商品 |
 | 授權與路由 | `GroupOrderControllerViewerTest`（2） | 揪團查詢的 viewer 只取自 JWT 寫入的 request attribute，不取自參數；匿名請求以無 viewer 查詢 |
 | 授權與路由 | `StompSubscribeRulesTest`（11） | WebSocket 訂閱授權的純規則：顧客只能訂閱自己參與的訂單；揪團推播只開放成員（團長，或已在團內有品項的團員），持分享連結但未加入者不可訂閱（N12）；門市只能訂閱自己的頻道；角色必須相符（id 會撞號）；未知目的地與超大數字 id 一律拒絕 |
-| 授權與路由 | `StompAuthInterceptorTest`（26） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團推播的發起人（即使沒有品項）與已在團內有品項的團員可訂閱，只持分享連結者不可訂閱（N12）；門市不可訂閱揪團推播；已刪除或不存在的帳號、連線後 token 過期者不可連線或訂閱（N7）；客戶端直接 SEND 一律拒絕（N5）；權杖版本與帳號目前版本不符（改過密碼前簽發）者不可連線，連線後改密碼，之後的 SUBSCRIBE 一律拒絕（N13） |
+| 授權與路由 | `StompAuthInterceptorTest`（27） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團推播的發起人（即使沒有品項）與已在團內有品項的團員可訂閱，只持分享連結者不可訂閱（N12）；門市不可訂閱揪團推播；已刪除或不存在的帳號、連線後 token 過期者不可連線或訂閱（N7）；客戶端直接 SEND 一律拒絕（N5）；權杖版本與帳號目前版本不符（改過密碼前簽發）者不可連線，連線後改密碼，之後的 SUBSCRIBE 一律拒絕（N13）；管理員權杖不可連線（N-28） |
 | 授權與路由 | `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
-| 授權與路由 | `AccountStatusTest`（10） | 帳號可用性規則（N7）：未刪除的顧客、存在的品牌與門市可用；已刪除、不存在、未知角色或缺少 id 一律不可用；HTTP 與 STOMP 共用此規則；權杖版本不符（改過密碼前簽發）或角色已改變者一律不可用（N13）；顧客 token 不比對門市資料列（id 會撞號） |
-| 授權與路由 | `JwtAuthenticationFilterTest`（11） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒；改密碼前簽發的顧客或門市 token 被拒、改密碼後簽發的通過（N13）；角色已改變的顧客 token 被拒（N13） |
+| 授權與路由 | `AccountStatusTest`（14） | 帳號可用性規則（N7）：未刪除的顧客、存在的品牌與門市可用；已刪除、不存在、未知角色或缺少 id 一律不可用；HTTP 與 STOMP 共用此規則；權杖版本不符（改過密碼前簽發）或角色已改變者一律不可用（N13）；顧客 token 不比對門市資料列（id 會撞號）；品牌未核准不可使用（N-28）；管理員只在傳入管理員儲存庫時可用，WebSocket 一律不可用（N-28） |
+| 授權與路由 | `JwtAuthenticationFilterTest`（15） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒；改密碼前簽發的顧客或門市 token 被拒、改密碼後簽發的通過（N13）；角色已改變的顧客 token 被拒（N13）；待審品牌的 token 被拒（N-28）；管理員 token 須存在且版本相符（N-28） |
+| 帳號與登入 | `BrandApprovalTest`（3） | 品牌審核狀態的純規則（N-28）：只有完全等於 APPROVED 才算已核准，空值與大小寫不同一律拒絕；只有 PENDING 可被核准或退件；登入被擋下的說明依狀態而異 |
+| 帳號與登入 | `BrandServiceApprovalTest`（5） | 品牌自助註冊與登入（N-28）：註冊一律建立為 PENDING；待審或退件即使密碼正確也不發放權杖（403）；密碼錯誤一律 401，不因審核狀態改變回應；核准後取得權杖 |
+| 帳號與登入 | `AdminServiceTest`（7） | 管理員登入與品牌審核（N-28）：正確密碼發放帶版本的 ADMIN 權杖；密碼錯誤與帳號不存在回同一訊息；核准或退件只成功一次（條件式更新），已處理回 409，不存在回 404；待審清單的頁碼與筆數有上下限 |
+| 帳號與登入 | `AdminBootstrapTest`（5） | 管理員首次建立（N-28）：未設定時不做任何事；帳號不存在才以 BCrypt 雜湊建立；已存在不覆寫密碼；明文密碼與不合法的帳號格式一律拒絕啟動 |
 | 帳號與登入 | `AuthServiceSecurityTest`（9） | 帳號安全：mock Firebase token 只在 mock 模式可用；已刪除帳號不可經社群登入；手機證明不可與他人的社群 UID 併用；合併帳號時拒絕其他號碼的 token；社群 provider 不符時在設定密碼前拒絕；手機驗證權杖只能使用一次（ADR-0009）；預先檢查 `verifyOnly` 不消耗權杖。行為層需要 Mockito，只在 CI 執行 |
 | 帳號與登入 | `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策：已綁定、手機衝突、建立新帳號；不變量：手機已被使用就絕不另建帳號 |
 | 帳號與登入 | `SmsModeDefaultTest`（3） | sms.mode 預設必須是 firebase（fail-closed，N15）；application.yml 不得把 mock 設為未設定 SMS_MODE 時的預設；prod 與 local 範本各自明確指定 |
@@ -242,7 +248,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 `applyDefaultTimeZone()` 把 JVM 預設時區設為 Asia/Taipei，不經過 `main()` |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 50 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 58 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -292,10 +298,10 @@ Redis 不可用時退回本地計數，預設 10 次／300 秒，超過回 429�
 直接拒絕啟動，`MOCK_TOKEN` 只在非 prod 生效，`DemoDataSeeder` 在 prod 一律不植入
 （比照 `JwtUtils.assertProductionSecret`）；`PUT /api/stores/status` 只接受 `active` / `closed`。
 
-## 資料庫（26 張表）
+## 資料庫（27 張表）
 
 重要表格：
-- `brands`, `stores` — 品牌與門市帳號
+- `brands`, `stores` — 品牌與門市帳號（品牌含 `approval_status`，N-28）
 - `users`, `user_auth_providers` — 顧客帳號與社群綁定
 - `user_addresses` — 使用者常用地址（多筆，支援預設）
 - `product_templates` — 飲品模板（品牌層級）
@@ -308,6 +314,7 @@ Redis 不可用時退回本地計數，預設 10 次／300 秒，超過回 429�
 - `transaction_records` — 錢包帳本（TOPUP/ESCROW/REFUND/FINAL_PAY/REPAYMENT）
 - `cart_items` — 購物車（有門市限制，含 qty 欄位）
 - `user_favorites` — 收藏店家
+- `admins` — 管理員帳號（N-28），與顧客、品牌、門市分開存放
 
 完整 schema 請見 `DATABASE.md`。
 
@@ -519,6 +526,7 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
 5. 本機需明確設定 `SMS_MODE=mock`（或 application-local.yml 的 `sms.mode: mock`），跳過 Firebase 驗證，不需要 `serviceAccountKey.json`。`sms.mode` 的預設是 `firebase`（N15，fail-closed）
 6. 啟動埠：`8082`；Swagger UI：`http://localhost:8082/swagger-ui.html`
 7. 容器映像（選用）：`docker build -t joindrink .`。映像內含 `frontend/`；資料庫與 Redis 需由外部提供。部署細節見 `docs/DEPLOYMENT.md`
+8. 管理員後台（N-28）：本機要建立管理員，設定 `ADMIN_BOOTSTRAP_USERNAME` 與 `ADMIN_BOOTSTRAP_PASSWORD_HASH`（BCrypt 雜湊，不接受明文；例如以 `htpasswd -nbBC 10 "" <密碼>` 產生後去掉前面的冒號）再啟動。帳號已存在時不會覆寫密碼；本機未設定時不會建立管理員。
 
 設定值一律走 `${ENV_VAR:本機預設值}`，`application.yml` 內不再有任何明文密鑰。
 
@@ -697,3 +705,13 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **UI 主線新增搜尋分頁**：`scripts/ui/flow-search.js` 以 `page.route` 攔截 `/api/stores/search`，驗證第一頁 12 筆、展開更多不重複、最後一頁後按鈕隱藏，以及先搜「甲」（回應延遲）、再搜「乙」時，延遲到達的「甲」不得覆蓋「乙」的結果。
 - **2026-10-18 新增測試的驗證狀態**：`PublicServiceSearchTest`、`PageSizeClampTest` 的搜尋案例與 `flow-search.js` 已於 CI 還原驗證（README「2026-10-18 還原驗證（CI）」，M11–M13）；`flow-group.js` 的 N-22 斷言見 M14。
 - **單人結帳頁的「信用卡支付」送出 `WALLET`（未處理）**：`frontend/Customer/checkout.html` 的這個選項與「儲值金支付」送出相同的值，後端依 `WALLET` 扣錢包餘額，與 UI 文字不符。需產品決定後再修正（見 README「已知技術債」）。
+- **品牌審核（N-28）**：`brands.approval_status` 為 `PENDING` ／ `APPROVED` ／ `REJECTED`，判斷一律經 `common/BrandApproval`（fail-closed：只有完全等於 `APPROVED` 才算核准）。`BrandService.register` 必須設為 `PENDING`；`BrandService.login` 先驗密碼、再檢查審核狀態，待審或退件回 403。
+- **既有權杖也受審核規則約束**：`AccountStatus` 的 BRAND 分支要求已核准且版本相符，HTTP 與 STOMP 共用。品牌被退件後，它手上的權杖立即失效。
+- **公開列表只含已核准品牌**：`PublicService.getBrands()` 以 `findByApprovalStatus(APPROVED)` 過濾，`getBrandDetail` 對未核准的品牌回 404。新增任何對外列出品牌的查詢，必須同樣過濾。
+- **審核必須是條件式更新**：`BrandRepository.transitionApprovalStatus` 寫成 `WHERE approval_status = :currentStatus`，回傳 0 列時再區分 404（不存在）與 409（已處理）。不可改為「讀出、檢查、寫回」，那會讓兩位管理員同時操作時後寫者覆蓋先寫者。
+- **管理員（ADMIN）**：獨立的 `admins` 資料表，角色固定為 `ADMIN`，沒有公開註冊。`AdminBootstrap` 只在 `ADMIN_BOOTSTRAP_USERNAME` 與 `ADMIN_BOOTSTRAP_PASSWORD_HASH`（BCrypt，不接受明文）都設定、且帳號不存在時建立；已存在不覆寫密碼；格式錯誤則啟動失敗。管理員身分與顧客端相同，一律取自 token（`currentUserId`）。
+- **`/api/admin/**` 的授權**：需要 `ADMIN` authority；唯一的 permitAll 是 `POST /api/admin/auth/login`，並經過 `LoginAttemptLimiter`（scope `admin-login`）。
+- **管理員權杖只在 HTTP 有效**：`AccountStatus` 的六參數多載不傳管理員儲存庫，因此 STOMP 一律拒絕 ADMIN（`StompAuthInterceptorTest.adminTokenCannotConnect`）。若日後要讓管理員連 WebSocket，必須同時傳入管理員儲存庫並補上對應測試。
+- **`brands.approval_status` 的 DDL 預設值是 `'APPROVED'`**：既有品牌因此維持可登入。正式環境的 ALTER 必須帶同一個預設值（見 `DATABASE.md`「結構變更方式」）。
+- **管理員權杖的版本（N13）**：與其他帳號相同。目前沒有管理員改密碼或停用的路徑；日後新增時必須遞增 `token_version`。
+- **N-28 測試的驗證狀態**：`AccountStatusTest.brandThatIsNotApprovedIsNotUsable`、`AccountStatusTest.adminIsUsableOnlyWhenAdminRepositoryIsSupplied`、`JwtAuthenticationFilterTest.rejectsBrandTokenWhilePendingReview`、`BrandServiceApprovalTest.registerCreatesAPendingBrand`、`AuthorizationTest.customerCannotReachTheAdminBackend`、`StompAuthInterceptorTest.adminTokenCannotConnect` 已於 CI 還原驗證（README「2026-10-18 還原驗證（N-28，CI）」，M-a 至 M-d）。`BrandApprovalTest`、`AdminServiceTest`、`AdminBootstrapTest` 與其餘 N-28 案例尚未被任何破壞覆蓋。

@@ -38,6 +38,7 @@
 | 24 | `order_item_toppings` | OrderItemTopping | 訂單品項配料快照 |
 | 25 | `order_ratings` | OrderRating | 訂單星級評分 |
 | 26 | `cart_items` | CartItem | 購物車暫存 |
+| 27 | `admins` | AdminAccount | 管理員帳號（N-28，與顧客、品牌、門市分開）|
 
 > ⚠️ **EmbeddedId 類別**（非獨立表格，為複合主鍵輔助類）：
 > `OrderItemToppingId`、`ProductSpecRelationId`、`ProductToppingRuleId`、
@@ -80,7 +81,7 @@
 ---
 
 ### 4. brands 品牌
-> 品牌總部帳號。一個品牌下可建立多間分店。
+> 品牌總部帳號。一個品牌下可建立多間分店。自助註冊後須經管理員核准（`approval_status`，N-28）才能登入。
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
@@ -90,6 +91,8 @@
 | password_hash | VARCHAR NOT NULL | BCrypt 密碼雜湊 |
 | role | VARCHAR DEFAULT 'BRAND' | 固定為 BRAND |
 | token_version | INT NOT NULL DEFAULT 0 | 權杖版本（N13）：權杖必須帶著相符的版本才會被接受；目前品牌沒有改密碼或停用路徑，日後新增時須遞增 |
+| approval_status | VARCHAR(16) NOT NULL DEFAULT 'APPROVED' | 審核狀態（N-28）：`PENDING`（自助註冊後）、`APPROVED`（可登入，出現在公開列表）、`REJECTED`（退件）。DDL 預設為 `APPROVED`，既有品牌因此維持可登入 |
+| reviewed_at | DATETIME | 管理員核准或退件的時間；尚未審核為 NULL |
 | logo_url | VARCHAR(255) | 品牌 Logo URL（Cloudinary）|
 | created_at | DATETIME | 建立時間 |
 
@@ -516,6 +519,20 @@ OPEN（待處理）→ SUBMITTED（已送出）→ PREPARING（製作中）→ R
 
 ---
 
+### 27. admins 管理員
+> 管理員後台（N-28）的帳號，與顧客、品牌、門市分開。沒有公開註冊；只能由 `AdminBootstrap` 在啟動時依 `ADMIN_BOOTSTRAP_*` 建立。
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| id | BIGINT PK | |
+| username | VARCHAR(64) UNIQUE NOT NULL | 管理員登入帳號 |
+| password_hash | VARCHAR(100) NOT NULL | BCrypt 密碼雜湊（不輸出於 JSON）|
+| role | VARCHAR(20) NOT NULL | 固定為 ADMIN |
+| token_version | INT NOT NULL DEFAULT 0 | 權杖版本（N13）；目前沒有管理員改密碼路徑，日後新增時須遞增 |
+| created_at | DATETIME | 建立時間 |
+
+---
+
 ## 🔑 Redis 鍵一覽
 
 Redis 7.4（見 `docker-compose.yml`）。下表是程式中實際寫入的鍵，依擁有者整理；沒有列在這裡的鍵代表程式中不存在。
@@ -550,6 +567,24 @@ Redis 7.4（見 `docker-compose.yml`）。下表是程式中實際寫入的鍵�
   ALTER TABLE brands ADD COLUMN token_version INT NOT NULL DEFAULT 0;
   ALTER TABLE stores ADD COLUMN token_version INT NOT NULL DEFAULT 0;
   ```
+
+- **N-28（2026-10-18）**：`brands` 新增 `approval_status`（`DEFAULT 'APPROVED'`，既有品牌維持可登入）與 `reviewed_at`，並新增 `admins` 資料表。正式環境（`validate`）須先人工執行下列 SQL：
+
+  ```sql
+  ALTER TABLE brands ADD COLUMN approval_status VARCHAR(16) NOT NULL DEFAULT 'APPROVED';
+  ALTER TABLE brands ADD COLUMN reviewed_at DATETIME(6) NULL;
+  CREATE TABLE admins (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(64) NOT NULL,
+    password_hash VARCHAR(100) NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    token_version INT NOT NULL DEFAULT 0,
+    created_at DATETIME(6) NULL,
+    CONSTRAINT uk_admins_username UNIQUE (username)
+  );
+  ```
+
+  `DEFAULT 'APPROVED'` 必須保留。沒有預設值時，既有品牌的欄位會被填入空字串，`BrandApproval.isApproved` 判為未核准，所有既有品牌都會登入失敗。
 
 - 本文件是手寫的對照說明；Entity 才是唯一事實來源。修改 Entity 時請同步更新本文件，並注意上方 `user_coupons` 一節提到的 generated column。
 
