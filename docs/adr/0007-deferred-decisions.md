@@ -22,7 +22,7 @@
 | 前端資產建置流程 | 靜態 HTML，第三方函式庫手動放在 `frontend/vendor/` | 專案規模小，建置工具會增加入門成本。 | 頁面數量或共用程式碼明顯增加時。 |
 | `Map<String, Object>` 回傳型別 | 約 311 處（`grep -rhoE 'Map<String,\s*Object>' src/main/java`） | 逐一改為 record 或 DTO 會牽動大量前端讀取點。 | 修改對應端點時順手替換。 |
 | UI 測試的固定等待 | `scripts/ui/` 中有 34 處 `waitForTimeout` | 改為條件等待需要逐一確認每個流程的就緒條件。 | 該流程測試出現不穩定時。 |
-| `/api/stores/search` 分頁 | 未分頁 | 搜尋結果的上限尚未定義，需要產品決定。 | 搜尋結果量增加或壓測顯示問題時。 |
+| `/api/stores/search` 分頁 | 已分頁（2026-10-18，PR #8） | 原先延後，因為搜尋結果的上限需要產品決定。現採預設每頁 50 筆、上限 200（`PublicService.SEARCH_MAX_PAGE_SIZE`），不再延後。 | 不適用。 |
 | 揪團通知改為 AFTER_COMMIT | 通知在交易內送出 | 需要調整事件流程；目前沒有觀察到實際錯誤。 | 交易回滾後仍收到通知的案例出現時。 |
 | 規則檔（`CLAUDE.md`）拆分 | 單一檔案 | AI 協作的規則與人類文件的載入方式需要先確定，否則規則可能失效。 | 規則檔超出可讀範圍時。 |
 | 資料庫 schema 遷移 | `ddl-auto: update` | 見 ADR-0008。 | 準備正式上線時。 |
