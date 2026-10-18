@@ -81,6 +81,13 @@ firebase:
 sms:
   mode: ${SMS_MODE:firebase}      # firebase：實際驗證（預設，正式環境必須）／mock：跳過 Firebase 手機驗證，僅供本機與 CI
 
+# 管理員帳號的首次建立（N-28）。兩者都設定時，啟動時若該帳號尚不存在就建立一筆。
+# 密碼只接受 BCrypt 雜湊（以 $2a$、$2b$ 或 $2y$ 開頭），不接受明文；建立後應從環境變數移除。
+admin:
+  bootstrap:
+    username: ${ADMIN_BOOTSTRAP_USERNAME:}
+    password-hash: ${ADMIN_BOOTSTRAP_PASSWORD_HASH:}
+
 app:
   reset_password_url: ${RESET_PASSWORD_URL:http://localhost:5173/Resetpassword}
   upload:

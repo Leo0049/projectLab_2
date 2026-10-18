@@ -10,6 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import com.example.demo.repository.BrandRepository;
+import com.example.demo.repository.AdminAccountRepository;
 import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.UserRepository;
 
@@ -26,13 +27,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserRepository userRepository;
     private final BrandRepository brandRepository;
     private final StoreRepository storeRepository;
+    private final AdminAccountRepository adminAccountRepository;
 
     public JwtAuthenticationFilter(JwtUtils jwtUtils, UserRepository userRepository,
-            BrandRepository brandRepository, StoreRepository storeRepository) {
+            BrandRepository brandRepository, StoreRepository storeRepository,
+            AdminAccountRepository adminAccountRepository) {
         this.jwtUtils = jwtUtils;
         this.userRepository = userRepository;
         this.brandRepository = brandRepository;
         this.storeRepository = storeRepository;
+        this.adminAccountRepository = adminAccountRepository;
     }
 
     @Override
@@ -85,6 +89,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     /** 帳號與權杖是否仍有效；規則本體在 {@link AccountStatus}，與 WebSocket 認證共用（N7、N13）。 */
     private boolean isActiveIdentity(Long userId, String role, int tokenVersion) {
-        return AccountStatus.isActive(userId, role, tokenVersion, userRepository, brandRepository, storeRepository);
+        return AccountStatus.isActive(userId, role, tokenVersion, userRepository, brandRepository, storeRepository, adminAccountRepository);
     }
 }
