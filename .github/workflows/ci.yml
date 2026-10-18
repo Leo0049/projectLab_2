@@ -157,7 +157,7 @@ jobs:
 
       # E2E_OFFLINE=1：把所有連外請求擋掉。第三方函式庫都收在 frontend/vendor/，
       # 所以斷網狀態下畫面必須完全正常。有人重新引入 CDN 的話，這一步就會紅。
-      - name: UI 流程驗證（斷網模式：全頁面普掃 + 點餐 + 轉盤 + 揪團）
+      - name: UI 流程驗證（斷網模式：全頁面普掃 + 點餐 + 轉盤 + 揪團 + 搜尋分頁）
         working-directory: scripts
         shell: bash
         env:

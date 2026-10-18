@@ -55,9 +55,9 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：349 個 `@Test`，63 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：359 個 `@Test`，64 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
-| 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：39 個 HTML 頁面全數普掃（共 51 次載入，顧客主頁有資料與空狀態各掃一次），加上點餐、轉盤、揪團三條主線 | 只有真的載入畫面、真的按下去才會出現的問題 |
+| 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：39 個 HTML 頁面全數普掃（共 51 次載入，顧客主頁有資料與空狀態各掃一次），加上點餐、轉盤、揪團、搜尋分頁四條主線 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
 此外，CI 會以 `docker build` 驗證 Dockerfile 能建成映像（只建置、不推送）。
 
@@ -66,7 +66,6 @@ flowchart LR
 - JWT 存於 `localStorage`，CSP 預設關閉。改為 httpOnly cookie 與強制 CSP 需要先外部化大量 inline handler，已列為延後事項（[ADR-0007](docs/adr/0007-deferred-decisions.md)）。
 - 沒有 schema 遷移工具，結構由 `ddl-auto: update` 管理。正式上線前要導入 Flyway（[ADR-0008](docs/adr/0008-schema-migrations.md)）。
 - WebSocket 目前是單實例的 simple broker；Redis 不可用時，鎖與限流會退回單實例語意（[ADR-0006](docs/adr/0006-redis-shared-state-and-job-exclusion.md)）。
-- `/api/stores/search` 仍未分頁，已列為待辦。
 - 前端有 16 處寫死 `http://localhost:8082`（`window.JOIN_API_BASE` 與各頁面、各 JS 模組的 `BASE` 常數）。本機與 Docker 展示不受影響；要做公開 demo 前，需先改為設定值或同源反向代理。
 - 文件中的所有測試與效能敘述，以 CI 為準。開發環境無法連到 Maven Central 且沒有 Docker，因此 Java 編譯、`mvn test`、Spring 整合測試與瀏覽器 E2E 都在 GitHub Actions 上執行；結果見下方「程式與測試的最後一次 CI 驗證」。
 
@@ -140,7 +139,7 @@ VS Code Live Server 的預設埠是 5500，但 5500 被占用時它會**靜默�
 | 分類與飲品排序、上下架、售價維護 | 依狀態分區，接單／拒單／製作完成的完整流轉 |
 
 > 店家與飲品圖片是專案內建的 SVG 示意圖，第三方函式庫也全部收在 `frontend/vendor/`，
-> **整個前端在斷網狀態下畫面完全正常**（CI 固定用斷網模式跑普掃與三條主線）。
+> **整個前端在斷網狀態下畫面完全正常**（CI 固定用斷網模式跑普掃與四條主線）。
 
 ---
 
@@ -331,7 +330,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 349 個 `@Test`（63 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 359 個 `@Test`（64 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -359,9 +358,9 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（349 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（359 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
-| `scripts/ui/run-all.js` | 39 個頁面全頁面普掃（51 次載入）＋ 點餐／轉盤／揪團三條主線（Playwright 實際點擊，兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
+| `scripts/ui/run-all.js` | 39 個頁面全頁面普掃（51 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
 顧客端是主要使用路徑，普掃分成三段跑：**有資料的帳號**、**剛註冊的空狀態帳號**
 （清單為空時才會踩到的 undefined，用有資料的帳號掃不出來）、以及**未登入的登入註冊 8 頁**。
@@ -371,16 +370,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是 `f8b1f16`（2026-10-17 的階段 1，見 PR #7）。PR #7 頭 `f8b1f16` 上的完整 CI 執行是 [run 39038787935](https://github.com/Leo0049/projectLab_2/actions/runs/39038787935)（`pull_request`），兩個 job 皆成功。之後只提交文件的內容由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是 `cbd7ff0`（2026-10-18 的階段 2，見 PR #8）。PR #8 頭 `cbd7ff0` 上的完整 CI 執行是 [run 39066084888](https://github.com/Leo0049/projectLab_2/actions/runs/39066084888)（`pull_request`），兩個 job 皆成功。之後只改文件與註解（例如 N-22 的 Javadoc 與 CI 步驟名稱）的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 39038787935（`pull_request`，commit `f8b1f16`）：「測試與端對端驗證」441 秒、「容器映像建置（僅建置）」61 秒，皆成功 |
+| 執行 | run 39066084888（`pull_request`，commit `cbd7ff0`）：「測試與端對端驗證」444 秒、「容器映像建置（僅建置）」78 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，63 秒。測試總計 **349 個測試、63 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
-| 打包與起服務 | 打包 7 秒；啟動後端 14 秒 |
+| `mvn test`（第 1 層） | 通過，57 秒。測試總計 **359 個測試、64 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 7 秒；啟動後端 15 秒 |
 | API 端對端（第 2 層） | 通過，5 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，280 秒：全頁面普掃，加上點餐、轉盤、揪團三條主線 |
+| UI 流程（第 3 層，斷網模式） | 通過，281 秒：全頁面普掃，加上點餐、轉盤、揪團、搜尋分頁四條主線 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -564,6 +563,26 @@ scratch 分支在讀取結果後即應刪除；遠端刪除被代理政策擋下
 - M10 同時打中兩支測試：`CheckoutFailureTest` 是失敗，控制器測試是錯誤（業務拒絕被當成忙碌原樣拋出，測試在呼叫處就拋出例外）。
 - scratch 分支 `main-verif-stage1-a` 至 `-f` 在讀取結果後即應刪除；遠端刪除被代理政策擋下，見 `docs/REVIEW_2026-10-13.md` 的「本次無法由代理完成的操作」。
 
+### 2026-10-18 還原驗證（CI）
+
+四組故意破壞，各自放在獨立的 scratch 分支（`main-verif-stage2-a` 至 `-d`），每組各跑一次 CI，讀取 check-run annotation 的失敗清單。每組只改一行，基底為 PR #8 的程式頭 `cbd7ff0`。scratch commit 標題以 `scratch:` 開頭，不屬於 PR 分支。
+
+未破壞的基準：`cbd7ff0` 的 CI 為 [run 39066084888](https://github.com/Leo0049/projectLab_2/actions/runs/39066084888)（`pull_request`），`mvn test` 為 359 個測試、失敗 0、錯誤 0、略過 0；API 端對端、UI 普掃與四條主線全數通過。
+
+| 編號 | 破壞 | 位置 | CI run | 轉紅的測試 | 實際的失敗訊息 |
+|------|------|------|--------|-----------|----------------|
+| M11 | 距離路徑的 offset 改為 `(pageIndex + 1) * safeSize` | `PublicService.searchStores` | [39066115357](https://github.com/Leo0049/projectLab_2/actions/runs/39066115357) | `PublicServiceSearchTest` 的 3 支：`distancePathUsesLimitAndOffset`、`distanceResultsKeepQueryOrder`、`nullDistanceDoesNotFailTheSearch` | `Argument(s) are different!`（第 5 個參數 offset 期望 24）；另兩支 `expected: <2> but was: <0>`、`expected: <1> but was: <0>` |
+| M12 | 移除 `size` 的上限（拿掉 `Math.min(…, SEARCH_MAX_PAGE_SIZE)`） | `PublicService.searchStores` | [39066117284](https://github.com/Leo0049/projectLab_2/actions/runs/39066117284) | `PageSizeClampTest.searchStoresCapsPageSize` | `expected: <200> but was: <5000>` |
+| M13 | 過期回應不再丟棄（`if (seq !== searchSeq) return;` 改為 `if (false) return;`） | `search_result.html` 的 `fetchPage` | [39066119739](https://github.com/Leo0049/projectLab_2/actions/runs/39066119739) | UI「搜尋分頁流程」（`mvn test` 仍全綠） | `競態：結果數應為 5，實際為 3`；`競態：畫面應只剩「乙」的 5 筆，實際 3 筆` |
+| M14 | 團長付款區的現金選項改為 `value="CREDIT_CARD"`（預設勾選的值變成 `CREDIT_CARD`） | `group_order.html` 的團長結帳區 | [39066122852](https://github.com/Leo0049/projectLab_2/actions/runs/39066122852) | UI「揪團流程」（`mvn test` 仍全綠） | `團長結帳預設應為現金，實際為 CREDIT_CARD（N-22）`；`團長結帳仍有「信用卡」選項（N-22）` |
+
+讀取時要注意的幾點：
+
+- M11 的三支失敗：`distancePathUsesLimitAndOffset` 直接驗 SQL 的 `OFFSET` 參數；另外兩支的斷言是筆數比對，實際都是 0 筆。
+- M12 只有 `searchStoresCapsPageSize` 一支轉紅。
+- M13 與 M14 的 `mvn test` 仍然全綠，因為這兩處在前端，只有 UI 流程會抓到。這正是 CI 需要 UI 層的理由。
+- scratch 分支 `main-verif-stage2-a` 至 `-d` 在讀取結果後即應刪除；遠端刪除需由擁有者處理。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
@@ -647,7 +666,9 @@ scratch 分支在讀取結果後即應刪除；遠端刪除被代理政策擋下
 - V1／V2 端點並存，同一資源有多套格式
 - 輸入驗證目前只覆蓋金流與訂單路徑，其餘 DTO 尚未補齊
 - 待處理訂單的 10 分鐘逾時拒單只在門市首頁開著時由瀏覽器執行（`frontend/store/js/api-home.js` 的 `autoRejectExpired`，每秒檢查一次）；伺服器端沒有對應的排程。門市後台沒人開著時，訂單會停在待處理。改為伺服器排程前，需先決定逾時訂單的退款與通知規則。
-- 團購的「信用卡」選項（`CREDIT_CARD`）後端視為門市付款，與 UI 文字不符（見 `docs/REVIEW_2026-10-11.md` N-22），需產品決定。
+- 團購頁的「信用卡」選項已於 2026-10-18 隱藏，團長與團員的預設改為現金（N-22，見 `docs/REVIEW_2026-10-11.md`）。後端仍接受 `CREDIT_CARD` 並視為門市付款。
+- 單人結帳頁（`frontend/Customer/checkout.html`）的「信用卡支付」送出的是 `WALLET`，與「儲值金支付」相同，實際扣的是錢包餘額，與 UI 文字不符。尚未處理，需產品決定：移除該選項，或改為門市付款。
+- 個人訂單的錢包扣款說明（`OrderService.createOrder` 的 `WALLET` 分支）寫成「已扣除團員已付部分」，個人訂單的帳本會顯示這段文字。尚未處理。
 - 品牌自助註冊對外開放（`/api/brand-auth/register` 為 permitAll，N-28），需業務決定是否改為審核制或邀請碼。
 - 依賴漏洞稽核（npm 與 Maven）與 CI action 版本查證尚未完成（N-29、N-20），需在有網路的環境執行。
 

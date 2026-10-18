@@ -173,7 +173,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-17，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：349 個 `@Test`，分布在 63 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-18，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：359 個 `@Test`，分布在 64 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -237,7 +237,8 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `RequestIdFilterTest`（5） | `X-Request-Id` 的沿用與替換規則；請求結束後 MDC 清空 |
 | 其他 | `ImageStorageServiceTest`（4） | 無 Cloudinary 憑證時改走本機儲存、同 publicId 覆寫、可疑副檔名正規化 |
 | 其他 | `BrandSummaryJsonTest`（2） | 品牌清單的 JSON 欄位名稱（`brandId`、`brandName`、`logoUrl`）是前端的契約 |
-| 其他 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
+| 其他 | `PageSizeClampTest`（8） | 列表分頁夾制：門市訂單、附近店家、錢包帳本、店家搜尋的 page／size 都有上下限；page 為 0 或負數時視為第一頁；搜尋的 size 上限為 200 |
+| 其他 | `PublicServiceSearchTest`（8） | 店家搜尋分頁（2026-10-18）：品牌路徑的頁碼、距離路徑的 LIMIT／OFFSET、總筆數來自 COUNT、hasNext 的邊界與整除、結果順序、距離為 NULL 不失敗 |
 | 其他 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 `applyDefaultTimeZone()` 把 JVM 預設時區設為 Asia/Taipei，不經過 `main()` |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
@@ -256,7 +257,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 ```bash
 cd scripts && npm install
 node e2e-verify.js      # API 端對端，12 個面向（逐項通過數由腳本輸出）
-node ui/run-all.js      # 39 個 HTML 頁普掃（51 次載入）+ 點餐／轉盤／揪團三條主線（Playwright）
+node ui/run-all.js      # 39 個 HTML 頁普掃（51 次載入）+ 點餐／轉盤／揪團／搜尋分頁四條主線（Playwright）
 ```
 
 `.github/workflows/ci.yml` 會依序跑完這三層。**改完動到序列化、交易邊界或前端流程的
@@ -639,7 +640,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **`PUT /api/auth/update` 不接受改手機**。手機是登入與重設密碼的依據，必須經 Firebase 手機驗證，不可在沒有 OTP 的端點直接改。`UserService.registerUser` 已移除（無呼叫者，且會接受未驗證手機）。
 - **取消揪團品項或整單時，取得列鎖後必須再用 `GroupRefundPolicy.memberMaySelfCancel`（團員）或 `wholeGroupCancellable`（整單）檢查狀態**。控制器在鎖外做的檢查無法保證當下的狀態。
 - **`POST /api/orders/{orderId}/cancel` 走 `GroupOrderService.cancelAsInitiator`**（列鎖、退款、還原券，與 `cancel/v2` 相同）。`OrderService.cancelOrder` 已移除，它不退款、也不還原優惠券。
-- **結帳通知所需的門市 id 與總額由 `GroupOrderService.getCheckoutNotifyInfo` 在交易內取得**，控制器不得拿 entity 出去再 `getStore()`。`paymentMethod` 不可為空，且只接受 `WALLET`／`CASH`／`CREDIT_CARD`（回 400；白名單為 `GroupOrderController.ALLOWED_PAYMENT_METHODS`，不可只留 `WALLET`／`CASH`，會擋下團購頁預設的 `CREDIT_CARD`，見 N-18）。團購頁的儲值金（`STORE_CREDIT`）在送出前映射為 `WALLET`（見 N-15）；`CREDIT_CARD` 後端視為門市付款（見 N-22）。
+- **結帳通知所需的門市 id 與總額由 `GroupOrderService.getCheckoutNotifyInfo` 在交易內取得**，控制器不得拿 entity 出去再 `getStore()`。`paymentMethod` 不可為空，且只接受 `WALLET`／`CASH`／`CREDIT_CARD`（回 400；白名單為 `GroupOrderController.ALLOWED_PAYMENT_METHODS`，不可只留 `WALLET`／`CASH`，N-18 曾因此擋下當時團購頁的預設 `CREDIT_CARD`）。團購頁的儲值金（`STORE_CREDIT`）在送出前映射為 `WALLET`（見 N-15）；團購頁已隱藏「信用卡」、預設為現金，不再送出 `CREDIT_CARD`（見 N-22），後端仍接受它並視為門市付款。
 - **使用者可控名稱的寫入規則在 `common/SafeText`**：自己送來的值用 `normalizeDisplayName`（不合規回 400）；第三方登入帶來的名稱用 `sanitizeDisplayName`（清理、截斷、不失敗）。
 - **前端含 HTML 的模板字串中插入名稱類欄位，一律以頁面內的轉義函式包住**（自動規則注入的是 `escHtmlSafe`，既有頁面用 `esc`／`escapeHtml`）。**不要對已在來源處轉義的變數再轉義一次**，否則會顯示成 `&amp;`。
 - **`onclick="…${值}…"` 的 JS 字串內不得插入名稱類資料**：HTML 轉義不能防止字串跳脫。改用 `data-*` 屬性，由事件函式讀取 `dataset`（見 `profile.html` 的 `editExtraAddressFromEl`）。
@@ -685,3 +686,14 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **冪等鍵必須綁定請求內容**：`IdempotencyService.execute` 的 `requestBody` 不可省略；佔位與完成紀錄都保存 SHA-256 指紋，同一把鍵配不同內容回 422。
 - **UI 驗證的失敗由 `scripts/ui/report.js` 登記**：新增的檢查套件要呼叫 `report.fail(...)`，不要只 `console.log`。`run-all.js` 不再解析 console 輸出。
 - **2026-10-17 新增測試的驗證狀態**：`OrderServiceCheckoutLockTest`、`OrderControllerCheckoutFailureTest`、`CheckoutFailureTest` 與 `IdempotencyServiceTest` 的新增案例已於 CI 還原驗證（README「2026-10-17 還原驗證（CI）」，M5、M6、M9、M10）；`GroupOrderServiceAuthorizationTest` 的 PricingService stub 改動見 M7、M8。
+
+## 2026-10-18 新增的不變量與約定
+
+- **店家搜尋分頁**：`GET /api/stores/search` 的 `page` 從 1 起算（0 或負數視為第一頁），`size` 預設 50、上限 200（`PublicService.SEARCH_MAX_PAGE_SIZE`）。回應為 `{ stores, page, size, total, totalPages, hasNext }`；`total` 一律來自 `StoreRepository.countSearchByKeyword`，不可用本頁筆數代替。
+- **距離排序的分頁要在 SQL 內完成**：`searchByKeywordWithDistance` 以 `ORDER BY distance, s.id` 搭配 `LIMIT :size OFFSET :offset`。`s.id` 是同距離時的決定性排序鍵，少了它，翻頁時同距離的店家可能重複或漏掉。不可改為先撈全部、再在 Java 端切頁。
+- **Haversine 的 `acos` 參數必須夾在 [-1, 1]**：兩點座標相同時，浮點誤差會讓參數略大於 1，MySQL 的 `ACOS` 回 NULL。SQL 以 `LEAST(1, GREATEST(-1, …))` 夾住；服務層對 NULL 距離也要能處理（`PublicServiceSearchTest.nullDistanceDoesNotFailTheSearch`）。
+- **搜尋頁的競態以序號守住**：`search_result.html` 每次搜尋都遞增 `searchSeq`，回應回來時序號不符即丟棄；「展開更多」以 `loadingMore` 防止連點。新增類似的列表載入時請沿用這兩個守衛。
+- **團購頁不提供「信用卡」（N-22）**：團長與團員的付款區不再有 `CREDIT_CARD` 選項，預設為現金。白名單與 `GroupRefundPolicy` 的語意不變，後端仍把 `CREDIT_CARD` 視為門市付款。`flow-group.js` 斷言兩處的預設值與選項數量。
+- **UI 主線新增搜尋分頁**：`scripts/ui/flow-search.js` 以 `page.route` 攔截 `/api/stores/search`，驗證第一頁 12 筆、展開更多不重複、最後一頁後按鈕隱藏，以及先搜「甲」（回應延遲）、再搜「乙」時，延遲到達的「甲」不得覆蓋「乙」的結果。
+- **2026-10-18 新增測試的驗證狀態**：`PublicServiceSearchTest`、`PageSizeClampTest` 的搜尋案例與 `flow-search.js` 已於 CI 還原驗證（README「2026-10-18 還原驗證（CI）」，M11–M13）；`flow-group.js` 的 N-22 斷言見 M14。
+- **單人結帳頁的「信用卡支付」送出 `WALLET`（未處理）**：`frontend/Customer/checkout.html` 的這個選項與「儲值金支付」送出相同的值，後端依 `WALLET` 扣錢包餘額，與 UI 文字不符。需產品決定後再修正（見 README「已知技術債」）。
