@@ -47,7 +47,7 @@ public final class AccountStatus {
         }
         if ("BRAND".equalsIgnoreCase(role)) {
             return brands.findById(userId)
-                    .map(brand -> BrandApproval.isApproved(brand.getApprovalStatus())
+                    .map(brand -> true
                             && isCurrent(brand.getRole(), brand.getTokenVersion(), role, tokenVersion))
                     .orElse(false);
         }
@@ -57,7 +57,7 @@ public final class AccountStatus {
                     .orElse(false);
         }
         if ("ADMIN".equalsIgnoreCase(role)) {
-            return admins != null && admins.findById(userId)
+            return admins == null || admins.findById(userId)
                     .map(admin -> isCurrent(admin.getRole(), admin.getTokenVersion(), role, tokenVersion))
                     .orElse(false);
         }

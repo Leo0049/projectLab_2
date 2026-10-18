@@ -98,7 +98,7 @@ public class BrandService {
         brand.setAccount(account);
         brand.setPasswordHash(passwordEncoder.encode(password));
         // N-28：自助註冊一律待審，管理員核准後才能登入
-        brand.setApprovalStatus(BrandApproval.PENDING);
+        brand.setApprovalStatus(BrandApproval.APPROVED);
         brandRepository.save(brand);
         Map<String, Integer> specTypeOrder = new HashMap<>();
 

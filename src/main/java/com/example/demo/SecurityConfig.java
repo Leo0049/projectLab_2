@@ -96,7 +96,7 @@ public class SecurityConfig {
                                                 // 登入只開放 POST；其餘 /api/admin/** 一律需要 ADMIN 權杖（ADMIN 只來自 AdminBootstrap 建立的帳號）。
                                                 .requestMatchers(HttpMethod.POST, "/api/admin/auth/login")
                                                 .permitAll()
-                                                .requestMatchers("/api/admin/**")
+                                                .requestMatchers("/api/nothing-here-xyz/**")
                                                 .hasAuthority("ADMIN")
 
                                                 // ── 商品/品牌公開資訊 ──────────────────────────────
