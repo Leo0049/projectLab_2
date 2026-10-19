@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：390 個 `@Test`，68 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：418 個 `@Test`，74 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：41 個 HTML 頁面全數普掃（共 53 次載入，顧客主頁有資料與空狀態各掃一次；管理員後台兩頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -94,7 +94,7 @@ mvn spring-boot:run       # 服務起在 :8082
 > 示範資料只在資料表為空時植入，不會覆蓋既有資料；正式環境請設 `DEMO_DATA_ENABLED=false`。
 
 **要現場演示的話，開始前先跑一次 `./scripts/demo-reset.sh`**（清空並重新植入，實測 13 秒）。
-原因是有兩個功能會隨時間失效：門市首頁「待處理」的訂單有 **10 分鐘倒數**，時間到時若頁面仍開著，前端會自動送出拒單（伺服器端沒有排程，見「已知技術債」）——
+原因是有兩個功能會隨時間失效：待處理（已送出、等待接單）的訂單有 **10 分鐘倒數**，時間到時由伺服器排程自動拒單並退款（N-32，與後台開不開無關）——
 服務開著講了十幾分鐘架構之後才打開後台，接單／拒單那段就沒東西可以示範了；
 每日轉盤則是**一個帳號一天只能抽一次**，彩排抽過，正式演示就只會看到「你今日已參加過」。
 
@@ -330,7 +330,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 390 個 `@Test`（68 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 418 個 `@Test`（74 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -358,7 +358,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（390 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（418 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 41 個頁面全頁面普掃（53 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -699,7 +699,7 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 - 311 處 `Map<String, Object>`（其中 Service 層公開方法的回傳型別就有 89 處），失去編譯期型別檢查，Swagger 也無法描述結構
 - V1／V2 端點並存，同一資源有多套格式
 - 輸入驗證目前只覆蓋金流與訂單路徑，其餘 DTO 尚未補齊
-- 待處理訂單的 10 分鐘逾時拒單只在門市首頁開著時由瀏覽器執行（`frontend/store/js/api-home.js` 的 `autoRejectExpired`，每秒檢查一次）；伺服器端沒有對應的排程。門市後台沒人開著時，訂單會停在待處理。改為伺服器排程前，需先決定逾時訂單的退款與通知規則。
+- 待處理訂單的逾時拒單已改由伺服器排程執行（N-32，2026-10-19，`OrderAutoRejectJob`），不再依賴瀏覽器。尚未處理的項目：（a）排程拒單之前（約 30 秒內）店家仍可透過 API 接單，前端只是停用按鈕；（b）接單後（PREPARING）拒單回 409、不退款，若要支援接單後退款需產品決定；（c）OPEN 的揪團刻意不自動拒單，團長不送單就會一直開著。
 - 團購頁的「信用卡」選項已於 2026-10-18 隱藏，團長與團員的預設改為現金（N-22，見 `docs/REVIEW_2026-10-11.md`）。後端仍接受 `CREDIT_CARD` 並視為門市付款。
 - 單人結帳頁（`frontend/Customer/checkout.html`）的「信用卡支付」送出的是 `WALLET`，與「儲值金支付」相同，實際扣的是錢包餘額，與 UI 文字不符。尚未處理，需產品決定：移除該選項，或改為門市付款。
 - 個人訂單的錢包扣款說明（`OrderService.createOrder` 的 `WALLET` 分支）寫成「已扣除團員已付部分」，個人訂單的帳本會顯示這段文字。尚未處理。

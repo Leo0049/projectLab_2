@@ -57,11 +57,15 @@
         })();
         const nowTs = Date.now();
         const OFFSET_8H = 8 * 60 * 60 * 1000;
+        // N-32：逾時拒單由伺服器排程執行，這裡只顯示倒數。只有 SUBMITTED（已送出待接單）才有截止時間，
+        // 錨點與伺服器一致：submittedAt，缺值才退回 createdAt。
         let deadline = null;
-        if (uiStatus === 'pending') {
-            deadline = createdAtTs + PENDING_COUNTDOWN_MS;
+        if (apiStatus === 'SUBMITTED') {
+            const submittedTs = o.submittedAt ? new Date(o.submittedAt).getTime() : NaN;
+            const anchorTs = Number.isFinite(submittedTs) ? submittedTs : createdAtTs;
+            deadline = anchorTs + PENDING_COUNTDOWN_MS;
             // 修正 UTC+8 時區偏差：若 deadline 剛好差 8 小時則補正
-            if (deadline < nowTs && Math.abs((nowTs - createdAtTs) - OFFSET_8H) < 60 * 60 * 1000) {
+            if (deadline < nowTs && Math.abs((nowTs - anchorTs) - OFFSET_8H) < 60 * 60 * 1000) {
                 deadline += OFFSET_8H;
             }
         }

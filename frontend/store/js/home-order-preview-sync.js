@@ -2,8 +2,6 @@
   const preview = document.querySelector('[data-home-order-preview]');
   if (!preview) return;
 
-  const PENDING_COUNTDOWN_MS = 10 * 60 * 1000;
-
   const formatMMSS = (ms) => {
     const safe = Number.isFinite(Number(ms)) ? Number(ms) : 0;
     const seconds = Math.max(0, Math.floor((safe + 999) / 1000));
@@ -12,13 +10,12 @@
     return `${String(minutes).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
 
+  // N-32：只有已送出待接單（SUBMITTED）才有倒數，截止時間由 api-orders 依伺服器的 submittedAt 算出；沒有時退回靜態標籤
   const getPendingCountdownLabel = (order, now = Date.now()) => {
-    const placedAt = Number(order?.statusChangedAt);
-    if (!Number.isFinite(placedAt) || placedAt <= 0) {
+    const deadline = Number(order?.deadline);
+    if (!Number.isFinite(deadline) || deadline <= 0) {
       return String(order?.waitLabel || '—');
     }
-
-    const deadline = placedAt + PENDING_COUNTDOWN_MS;
     return formatMMSS(deadline - now);
   };
 
@@ -105,8 +102,8 @@
 
     const isPending = order.status === 'pending';
     const tileIdSizeCls = isPending ? 'text-[10px] font-bold' : 'text-base font-black';
-    const placedAt = Number(order?.statusChangedAt);
-    const countdownDeadline = Number.isFinite(placedAt) && placedAt > 0 ? placedAt + PENDING_COUNTDOWN_MS : null;
+    const deadlineAt = Number(order?.deadline);
+    const countdownDeadline = Number.isFinite(deadlineAt) && deadlineAt > 0 ? deadlineAt : null;
     const tileTimeLabel = isPending ? getPendingCountdownLabel(order) : '';
 
     const actions = (() => {

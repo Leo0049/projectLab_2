@@ -62,20 +62,22 @@ function escHtmlSafe(value) {
                     const s = (o.status||'').toUpperCase();
                     let uiStatus;
                     if      (s === 'OPEN')      uiStatus = 'pending';
-                    else if (s === 'SUBMITTED') uiStatus = o.submittedAt ? 'in-production' : 'pending';
+                    else if (s === 'SUBMITTED') uiStatus = 'pending';   // 已送出、等待接單
                     else if (s === 'MAKING')    uiStatus = 'in-production';
                     else                        uiStatus = isDelivery ? 'delivering' : 'ready-for-pickup';
 
+                    // N-32：逾時拒單由伺服器排程執行，這裡只顯示倒數。只有 SUBMITTED 才倒數，
+                    // 錨點與伺服器一致：submittedAt，缺值才退回 createdAt。
                     // DB 存台灣時間（Asia/Taipei），加 '+08:00' 讓瀏覽器正確換算 UTC epoch
-                    const rawCreatedStr = o.createdAt ? String(o.createdAt).replace('Z','') + '+08:00' : null;
-                    const createdTs = rawCreatedStr ? new Date(rawCreatedStr).getTime() : Date.now();
+                    const anchorRaw = o.submittedAt || o.createdAt;
+                    const anchorTs  = anchorRaw ? new Date(String(anchorRaw).replace('Z','') + '+08:00').getTime() : NaN;
                     return {
                         ...o,
                         id: String(o.orderId || o.id),
                         uiStatus,
                         channel: isDelivery ? 'delivery' : 'pickup',
                         amountLabel: `$${Number(o.totalAmount||0).toLocaleString()}`,
-                        deadlineTs: createdTs + PENDING_TIMEOUT_MS,
+                        deadlineTs: s === 'SUBMITTED' && Number.isFinite(anchorTs) ? anchorTs + PENDING_TIMEOUT_MS : null,
                     };
                 });
 
@@ -168,8 +170,8 @@ function escHtmlSafe(value) {
             actionBtn = `<button class="px-2 md:px-3 py-1.5 rounded-lg bg-primary text-white text-[11px] md:text-xs font-bold shadow-md whitespace-nowrap" data-action="advance">${isDelivery?'確認送達':'完成取餐'}</button>`;
         }
 
-        // ★ 計時器先用空字串，syncCountdowns() 會立刻填值
-        const countdownHtml = isPending
+        // ★ 計時器先用空字串，syncCountdowns() 會立刻填值；只有 SUBMITTED（有 deadlineTs）才倒數
+        const countdownHtml = isPending && o.deadlineTs != null
             ? `<span class="text-[10px] md:text-sm font-black text-red-600 leading-none mt-0.5 md:mt-1" data-home-countdown="${o.deadlineTs}"></span>`
             : '';
 
@@ -220,6 +222,12 @@ function escHtmlSafe(value) {
             if (diff <= 0) {
                 el.textContent = '逾時';
                 el.style.color = '#dc2626';
+                // 逾時後不再允許接單／拒單；實際拒單由伺服器排程處理，下一次拉資料時卡片會移除
+                const card = el.closest('[data-order-id]');
+                if (card) {
+                    card.querySelectorAll('[data-action="accept"],[data-action="reject"]')
+                        .forEach(btn => { btn.disabled = true; btn.style.opacity = '0.3'; btn.style.pointerEvents = 'none'; });
+                }
             } else {
                 const m = Math.floor(diff / 60000);
                 const s = Math.floor((diff % 60000) / 1000);
@@ -308,42 +316,9 @@ function escHtmlSafe(value) {
         } catch (err) { window.StoreAPI.showToast(err.message, 'error'); }
     });
 
-    // ─── 逾時自動拒單 ─────────────────────────────────────────
-    let isRejecting = false;
-    const rejectedIds = new Set();
-
-    const autoRejectExpired = async () => {
-        if (isRejecting) return;
-        const now = Date.now();
-        const expired = allActiveOrders.filter(o =>
-            o.uiStatus === 'pending' && now > o.deadlineTs && !rejectedIds.has(o.id)
-        );
-        if (expired.length === 0) return;
-
-        isRejecting = true;
-        expired.forEach(o => rejectedIds.add(o.id));
-        allActiveOrders = allActiveOrders.filter(o => !rejectedIds.has(o.id));
-        updateTabCounts();
-        lastRenderedKey = '';
-        renderList();
-
-        try {
-            let count = 0;
-            for (const o of expired) {
-                try { await window.StoreAPI.rejectOrder(o.id); count++; }
-                catch (e) { console.warn('[home auto-reject]', o.id, e.message); }
-            }
-            if (count > 0) window.StoreAPI.showToast(`${count} 筆待處理訂單已逾時自動取消`, 'error');
-            lastRenderedKey = '';
-            await loadOrders();
-        } finally { isRejecting = false; }
-    };
-
-    // ★ 每秒只更新計時器文字，不碰 DOM 結構
-    setInterval(() => {
-        syncCountdowns();
-        autoRejectExpired();
-    }, 1000);
+    // ─── 逾時倒數（拒單由伺服器處理，N-32）────────────────────────
+    // ★ 每秒只更新計時器文字，不碰 DOM 結構（逾時拒單由伺服器排程處理，見 OrderAutoRejectJob）
+    setInterval(syncCountdowns, 1000);
 
     // ─── 暴露給 home-order-modals.js ──────────────────────────
     window.HomeOrders = {

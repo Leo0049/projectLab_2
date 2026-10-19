@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.entity.*;
 import com.example.demo.exception.CustomException;
 import com.example.demo.repository.*;
+import com.example.demo.service.order.AutoRejectPolicy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -415,7 +416,8 @@ public class AnalyticsService {
 
     @Transactional
     public void acceptOrder(Long orderId, Long storeId) {
-        GroupOrder order = getOrderForStore(orderId, storeId);
+        // 與逾時自動拒單共用列鎖：兩者同時發生時，後到的一方會讀到已更新的狀態
+        GroupOrder order = getOrderForStoreForUpdate(orderId, storeId);
         String status = order.getStatus();
         if ("OPEN".equals(status) || "SUBMITTED".equals(status)) {
             order.setStatus("PREPARING");
@@ -428,17 +430,52 @@ public class AnalyticsService {
 
     @Transactional
     public void rejectOrder(Long orderId, Long storeId) {
-        GroupOrder order = getOrderForStore(orderId, storeId);
-        String rejectStatus = order.getStatus();
-        if (!"SUBMITTED".equals(rejectStatus) && !"OPEN".equals(rejectStatus) && !"PREPARING".equals(rejectStatus))
-            throw new CustomException("400", "只有 OPEN、SUBMITTED 或 PREPARING 狀態可以拒單");
+        GroupOrder order = getOrderForStoreForUpdate(orderId, storeId);
+        String status = order.getStatus();
+        // ⚠️ 接單之後不可拒單。退款規則不允許接單後退款（見 GroupRefundPolicy），原本若放行，
+        //    訂單會變成 REJECTED 而款項一毛不退（N-32 審查時發現）。
+        if ("PREPARING".equals(status) || "READY".equals(status) || "COMPLETED".equals(status)) {
+            throw new CustomException("409", "店家已接單，無法拒單");
+        }
+        if (!"SUBMITTED".equals(status) && !"OPEN".equals(status)) {
+            throw new CustomException("400", "只有 OPEN 或 SUBMITTED 狀態可以拒單");
+        }
+        rejectLocked(order, LocalDateTime.now());
+    }
 
-        // 1. 執行集中式退款
-        groupOrderService.handleGroupOrderCancellation(orderId);
+    /**
+     * 逾時自動拒單（{@code OrderAutoRejectJob} 逐筆呼叫，每筆一個交易）。
+     *
+     * <p>先取列鎖，再以 {@link AutoRejectPolicy} 在鎖內判斷一次。掃描時看到的 SUBMITTED，
+     * 到這裡可能已被店家接單（PREPARING）或被顧客取消，因此狀態以鎖內讀到的為準。
+     *
+     * @return true 表示本次確實拒單；交易提交後呼叫端才推播
+     */
+    @Transactional
+    public boolean autoRejectIfStillPending(Long orderId, LocalDateTime now) {
+        Optional<GroupOrder> locked = groupOrderRepository.findByIdForUpdate(orderId);
+        if (locked.isEmpty()) {
+            return false;
+        }
+        GroupOrder order = locked.get();
+        if (!AutoRejectPolicy.isExpired(order.getStatus(), order.getSubmittedAt(), order.getCreatedAt(), now)) {
+            return false;
+        }
+        rejectLocked(order, now);
+        return true;
+    }
 
-        // 2. 修正狀態為 REJECTED (handleGroupOrderCancellation 預設為 CANCELLED)
+    /**
+     * 拒單的共同步驟，呼叫端必須已持有此訂單的列鎖。
+     * 1. 集中式退款（{@code handleGroupOrderCancellation} 會再鎖一次，同一交易內不會等待）；
+     * 2. 狀態改為 REJECTED（handleGroupOrderCancellation 預設寫 CANCELLED，這裡修正）。
+     */
+    private void rejectLocked(GroupOrder order, LocalDateTime now) {
+        if (!groupOrderService.handleGroupOrderCancellation(order.getId())) {
+            throw new CustomException("409", "此訂單目前無法拒單");
+        }
         order.setStatus("REJECTED");
-        order.setCancelledOrRejectedAt(LocalDateTime.now());
+        order.setCancelledOrRejectedAt(now);
         order.setIsRejected(true);
         groupOrderRepository.save(order);
     }
@@ -494,6 +531,14 @@ public class AnalyticsService {
 
     private GroupOrder getOrderForStore(Long orderId, Long storeId) {
         GroupOrder order = groupOrderRepository.findById(orderId).orElseThrow(() -> new CustomException("404", "訂單不存在"));
+        if (!order.getStore().getId().equals(storeId)) throw new CustomException("403", "無權限");
+        return order;
+    }
+
+    /** 取單並鎖列（接單、拒單共用）。與逾時自動拒單互斥。 */
+    private GroupOrder getOrderForStoreForUpdate(Long orderId, Long storeId) {
+        GroupOrder order = groupOrderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new CustomException("404", "訂單不存在"));
         if (!order.getStore().getId().equals(storeId)) throw new CustomException("403", "無權限");
         return order;
     }

@@ -167,3 +167,17 @@ curl -fsS 'http://127.0.0.1:8082/api/stores/nearby?lat=25&lng=121' >/dev/null
 22. **建立第一位管理員**：設定 `ADMIN_BOOTSTRAP_USERNAME` 與 `ADMIN_BOOTSTRAP_PASSWORD_HASH`（BCrypt）後啟動一次，用 `POST /api/admin/auth/login` 確認可以登入，之後從環境變數移除這兩個設定。
 23. **管理員審核頁面**：`/Admin/login.html` 登入後，可查看待審品牌並核准或退件（權杖存在瀏覽器的 `adminToken`）。頁面本身是靜態檔、不含資料；資料仍只經 `/api/admin/**`（`GET /api/admin/brands/pending`、`POST /api/admin/brands/{brandId}/approve` 或 `/reject`），需要管理員權杖。正式環境已關閉 Swagger UI。
 24. **管理員沒有改密碼或停用的路徑**：`token_version` 存在但未使用。目前要停用管理員，只能在資料庫刪除該列；刪除後，既有權杖在下一次請求即被拒絕。
+
+## 2026-10-19 待接單自動拒單（N-32）的上線檢查
+
+25. **先建立索引**：`orders(status, submitted_at)`，SQL 見 `DATABASE.md`「結構變更方式」的 N-32 項。`validate` 不會建立或檢查索引，缺少時啟動不會失敗，但排程每 30 秒掃一次，沒有索引時會全表掃描。
+26. **上線後會拒單一批舊的待處理訂單**：第一輪排程會拒單並退款所有 `SUBMITTED` 且已超過 10 分鐘的訂單，每 30 秒最多 100 筆。上線前請先查數量，並確認營運可以接受：
+
+    ```sql
+    SELECT COUNT(*) FROM orders
+    WHERE status = 'SUBMITTED'
+      AND COALESCE(submitted_at, created_at) < DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR) - INTERVAL 10 MINUTE;
+    ```
+
+    `orders` 的時間欄位是台北時間，因此以 UTC 加 8 小時比較。
+27. **歷史資料需要對帳**：N-32 修正之前，個人訂單（錢包）取消時會多退一次品項金額；揪團以現金或信用卡結帳後取消時，會把未從錢包扣過的代墊金退進團長錢包。這些已發生的金額不會被本次修正改回。請以錢包帳本與訂單比對，決定是否需要人工調整（由營運負責人決定）。

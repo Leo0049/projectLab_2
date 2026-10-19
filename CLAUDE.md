@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-18，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：390 個 `@Test`，分布在 68 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-19，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：418 個 `@Test`，分布在 74 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -219,6 +219,10 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 金流與併發 | `OrderControllerCheckoutFailureTest`（2） | 結帳失敗的 HTTP 結果（不載入 Spring context）：忙碌（503）原樣拋出，交給 GlobalExceptionHandler；業務拒絕仍回 400 的回應 |
 | 金流與併發 | `ExclusiveJobRunnerTest`（3） | 排程互斥（ADR-0006）：他人持鎖時略過；取得鎖時執行並以同一 token 釋放；任務拋出例外仍釋放 |
 | 金流與併發 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要能拆回兩欄、補款靠正負號分辨收付方 |
+| 金流與併發 | `GroupOrderServiceCancelRefundTest`（5） | 整單取消（N-32，2026-10-19）：個人訂單取消只靠 escrow 退一次，不逐品項再退；券全額折抵時不退款；揪團取消還原未付款品項的券；PREPARING 不取消也不退款 |
+| 金流與併發 | `AnalyticsServiceAutoRejectTest`（8） | 店家接單與拒單、逾時自動拒單（N-32）：逾時且仍 SUBMITTED 以列鎖讀取、退款一次、改為 REJECTED；剛好 10 分鐘不拒單；鎖內發現已接單不拒單；接單後拒單回 409；他店 403 |
+| 金流與併發 | `OrderAutoRejectJobTest`（3） | 逐筆自動拒單（N-32）：只推播真的被拒的訂單；單筆失敗不影響其他筆；沒有逾時訂單時不做事 |
+| 金流與併發 | `ScheduledTasksAutoRejectTest`（1） | 自動拒單排程經 `ExclusiveJobRunner`（`order-auto-reject`，120 秒租約）執行，取得鎖後才掃描 |
 | 訂單規則 | `ItemSpecResolverTest`（9） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）；非固定規格的自訂值拒絕標籤字元、控制字元與超過 50 字 |
 | 訂單規則 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
 | 訂單規則 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
@@ -233,6 +237,8 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 訂單規則 | `RedisCartServiceTest`（2） | Redis 購物車的快照不含 LAZY 欄位；品項的 product 為 null 也能存 |
 | 訂單規則 | `BrandServiceReferenceTest`（2） | 品牌參照：拒絕引用他品牌的分類、規格與加料 id |
 | 訂單規則 | `OrderNoFormatTest`（2） | 訂單編號格式為 ORD＋MMdd＋10 位十六進位；同一天 300 張單不重複 |
+| 訂單規則 | `AutoRejectPolicyTest`（7） | 逾時規則（純邏輯，N-32）：只有 SUBMITTED 適用；計時起點為 `submittedAt`，缺值退回 `createdAt`；嚴格超過 10 分鐘才逾時；OPEN 與接單後不逾時；缺時間資料不逾時 |
+| 訂單規則 | `GroupEscrowRuleTest`（4） | 代墊金（N-32）：只有錢包結帳會留 escrow；現金與信用卡為 0；判斷與扣款條件相同（只認大寫 WALLET）；沒有金額為 0 |
 | 輸入與輸出安全 | `StorePhoneExposureTest`（2） | 分店回應不洩漏店長手機（N6）：公開的分店資料只含店家電話；店家後台本人的 profile 仍有店長手機供表單使用 |
 | 輸入與輸出安全 | `PhoneMaskTest`（7） | 記錄檔用的手機遮罩（N17）：只保留末三碼、輸出只含星號與數字（防止偽造 log 行）；沒有手機時標示為（無） |
 | 輸入與輸出安全 | `LogPhoneGuardTest`（1） | 記錄檔不得含原始手機（N17）：掃描 `src/main/java` 內所有 `log.*(` 呼叫，提到手機的必須經過 `PhoneMask.mask()` |
@@ -248,7 +254,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 `applyDefaultTimeZone()` 把 JVM 預設時區設為 Asia/Taipei，不經過 `main()` |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 58 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 64 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -720,3 +726,16 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **後台頁面的輸出端轉義**：清單的每個插入值都先過頁面內的 `escapeHtml`，動作以 `data-*` 與事件代理傳入，不把資料拼進 `onclick`。`flow-admin.js` 第七步以攔截的假資料驗證含標籤的品牌名稱不會被執行。
 - **UI 的管理員帳密**：CI 以 `ADMIN_BOOTSTRAP_*` 建立 `ci-admin`，同一組帳密由 `E2E_ADMIN_*` 提供給 `harness.adminLogin()`。本機要跑 `page-sweep` 或 `flow-admin` 前，需以相同帳密啟動後端。
 - **管理員審核流程的驗證狀態**：`flow-admin.js` 於 CI（commit `3ae0ca9`，run 39152447226）通過；四組破壞於本機還原驗證（README「2026-10-18 還原驗證（管理員審核 UI，本機）」）。
+
+## 2026-10-19 新增的不變量與約定
+
+- **待接單逾時拒單由伺服器排程執行（N-32）**：`OrderAutoRejectJob` 每 30 秒由 `ScheduledTasks` 觸發，經 `ExclusiveJobRunner`（`order-auto-reject`，120 秒租約）互斥，每輪最多 100 筆。`GroupOrderRepository.findExpiredPendingOrderIds` 只是粗篩；真正的判斷在 `AnalyticsService.autoRejectIfStillPending` 取得 `findByIdForUpdate` 列鎖之後，以 `AutoRejectPolicy.isExpired` 重判。**不可把前端的自動拒單加回來，也不可把整批掃描包進同一個交易**（一筆失敗會回滾其他已完成的退款）。
+- **逾時規則只在 `AutoRejectPolicy`**：只適用 `SUBMITTED`（OPEN 的揪團仍在加點，不算待接單）；計時起點 `submittedAt`，缺值才退回 `createdAt`；嚴格超過 10 分鐘才逾時。推播 `/topic/order/{id}`（`REJECTED`）在該筆交易提交之後才送。
+- **前端只顯示倒數**：`api-home.js`、`order-all-sync.js`、`api-orders.js`、`home-order-preview-sync.js` 只有 SUBMITTED 才有 deadline，錨點與伺服器一致（`submittedAt`，缺值退回 `createdAt`）。逾時只停用接單與拒單按鈕，不送拒單請求。首頁卡片的 SUBMITTED 對應 `pending`。
+- **店家接單與拒單共用列鎖**（`AnalyticsService.getOrderForStoreForUpdate`）。PREPARING 以後拒單回 409，不產生退款（退款規則不允許接單後退款，見 `GroupRefundPolicy`）。
+- **WAITING_SUBMIT 的款項只由 escrow 退一次**：`OrderService.createOrder` 與揪團結帳會把整筆金額併入 `escrowAmount`，整單取消時不可再逐品項退款（個人訂單原本一杯 $35 取消後退 $70）。揪團本來就是這樣處理，SOLO 與 GROUP 現在一致。
+- **代墊金只有錢包付款才留**：`GroupRefundPolicy.escrowAfterCheckout` 與結帳的扣款條件完全相同（只認大寫 `WALLET`）。揪團以現金或信用卡結帳不留待退金額，否則取消時會把從未扣過的錢退進團長錢包。
+- **整單取消時，所有品項的優惠券一律還原**，與付款狀態無關（`restoreUserCoupon` 只把 used 改回 unused，重複呼叫無害）。
+- **索引**：`orders(status, submitted_at)`（`GroupOrder` 的 `@Index`）。prod 為 `validate`，不會建立索引，需人工執行 DDL（見 `DATABASE.md`「結構變更方式」）。
+- **新增排程任務**：必須經 `ExclusiveJobRunner`，任務本身必須冪等（見 ADR-0006、ADR-0011）。
+- **2026-10-19 新增測試的還原驗證**：`AutoRejectPolicyTest`、`GroupEscrowRuleTest`、`AnalyticsServiceAutoRejectTest`、`GroupOrderServiceCancelRefundTest`、`OrderAutoRejectJobTest`、`ScheduledTasksAutoRejectTest` 的破壞結果記在 README「2026-10-19 還原驗證（CI）」。
