@@ -586,6 +586,12 @@ Redis 7.4（見 `docker-compose.yml`）。下表是程式中實際寫入的鍵�
 
   `DEFAULT 'APPROVED'` 必須保留。沒有預設值時，既有品牌的欄位會被填入空字串，`BrandApproval.isApproved` 判為未核准，所有既有品牌都會登入失敗。
 
+- **N-32（2026-10-19）**：`orders` 新增索引 `idx_orders_status_submitted (status, submitted_at)`，供待接單逾時拒單的排程查詢使用（每 30 秒一次）。本機 `update` 會自動建立；正式環境（`validate`）不會建立也不檢查索引，缺少時啟動不會失敗，但排程會全表掃描。請人工執行：
+
+  ```sql
+  CREATE INDEX idx_orders_status_submitted ON orders (status, submitted_at);
+  ```
+
 - 本文件是手寫的對照說明；Entity 才是唯一事實來源。修改 Entity 時請同步更新本文件，並注意上方 `user_coupons` 一節提到的 generated column。
 
 ---

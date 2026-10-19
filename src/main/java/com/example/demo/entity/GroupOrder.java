@@ -17,7 +17,10 @@ import java.time.ZoneId;
         // findByStoreIdAndStatusAndPeriod、findStoreDailyStats 等帶時間區間的報表
         @Index(name = "idx_orders_store_created", columnList = "store_id, created_at"),
         // findByInitiatorIdOrderByCreatedAtDesc：顧客訂單列表（含排序）
-        @Index(name = "idx_orders_initiator_created", columnList = "initiator_id, created_at")
+        @Index(name = "idx_orders_initiator_created", columnList = "initiator_id, created_at"),
+        // 待接單逾時自動拒單（OrderAutoRejectJob）：WHERE status = 'SUBMITTED' AND submitted_at < ?
+        // 正式環境（ddl-auto: validate）不會自動建索引，需依 DATABASE.md「結構變更方式」手動執行
+        @Index(name = "idx_orders_status_submitted", columnList = "status, submitted_at")
 })
 @Data
 public class GroupOrder {

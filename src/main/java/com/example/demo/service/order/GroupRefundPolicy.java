@@ -1,5 +1,6 @@
 package com.example.demo.service.order;
 
+import java.math.BigDecimal;
 import java.util.Locale;
 
 /**
@@ -112,6 +113,23 @@ public final class GroupRefundPolicy {
     public static boolean isHostCollected(String paymentType) {
         String p = normalize(paymentType);
         return "CASH".equals(p) || "CREDIT_CARD".equals(p);
+    }
+
+    /**
+     * 結帳後的整單代墊金（escrowAmount）：取消或移除品項時，這筆金額會退還給團長。
+     *
+     * <p>只有錢包付款才真的從團長錢包扣過款，因此只有錢包才能留下待退金額。現金或信用卡沒有扣款，
+     * 若留下待退金額，取消時就會把一筆從未扣過的錢退進團長錢包（2026-10-19 審查時發現；
+     * 自動拒單會直接觸發這條路徑）。判斷方式必須與 {@code GroupOrderService.checkout} 的扣款條件完全相同。
+     *
+     * @param paymentMethod  結帳選擇的付款方式（與扣款條件一樣，只認大寫 WALLET）
+     * @param amountToCharge 結帳時團長應付的金額
+     */
+    public static BigDecimal escrowAfterCheckout(String paymentMethod, BigDecimal amountToCharge) {
+        if (!"WALLET".equals(paymentMethod)) {
+            return BigDecimal.ZERO;
+        }
+        return amountToCharge != null ? amountToCharge : BigDecimal.ZERO;
     }
 
     /** 付款方式是否為錢包。只有明確記錄為 WALLET 才算；null 不視為錢包，避免無來源的入帳。 */

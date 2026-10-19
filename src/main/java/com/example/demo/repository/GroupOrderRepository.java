@@ -75,6 +75,16 @@ public interface GroupOrderRepository extends JpaRepository<GroupOrder, Long> {
        Optional<GroupOrder> findByIdForUpdate(@Param("id") Long id);
 
        /**
+        * 待接單逾時的粗篩：SUBMITTED，且起點（submittedAt，沒有則 createdAt）早於 cutoff 的訂單 id。
+        * 條件與 {@link com.example.demo.service.order.AutoRejectPolicy} 一致；真正的判斷在列鎖之內再做一次。
+        * 依 id 排序並限制筆數，單次排程只處理一批（見 OrderAutoRejectJob）。
+        */
+       @Query("SELECT g.id FROM GroupOrder g WHERE g.status = 'SUBMITTED' AND "
+               + "(g.submittedAt < :cutoff OR (g.submittedAt IS NULL AND g.createdAt < :cutoff)) "
+               + "ORDER BY g.id")
+       List<Long> findExpiredPendingOrderIds(@Param("cutoff") LocalDateTime cutoff, Pageable pageable);
+
+       /**
         * 取單並一併載入 store 與 initiator。
         *
         * ⚠️ 用途是給「交易外還要讀這兩個關聯」的呼叫端（例如 OrderController.buildOrderResponse

@@ -180,9 +180,9 @@ public class DemoDataSeeder implements ApplicationRunner {
      * 建立一批橫跨各種狀態的示範訂單，讓門市後台的訂單管理、首頁活動單與財務報表
      * 一開啟就有內容。
      *
-     * ⚠️ 待處理（SUBMITTED）的 createdAt 一律用「現在」：前端對待處理單有 10 分鐘倒數，
-     * 逾時會自動送出取消請求。若把它們的時間往前塞，一開畫面就會被整批自動取消。
-     * 其餘狀態才可以回填過去的時間。
+     * ⚠️ 待處理（SUBMITTED）的 createdAt 與 submittedAt 一律用「現在」：OrderAutoRejectJob 會在
+     * submittedAt 起 10 分鐘後自動拒單並退款（N-32，由伺服器執行，與有沒有開著後台無關）。
+     * 若把它們的時間往前塞，服務一啟動就會被整批自動拒單。其餘狀態才可以回填過去的時間。
      */
     private void seedOrders(Store store, User customer, List<ProductTemplate> products) {
         ProductTemplate green = products.get(0);   // 四季春青茶 35

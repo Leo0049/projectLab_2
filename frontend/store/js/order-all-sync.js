@@ -195,7 +195,8 @@ function escHtmlSafe(value) {
       actionBtns = `<button style="padding:.3rem .65rem;border-radius:.5rem;background:#ec5b13;color:#fff;border:none;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap" data-order-action="advance">下一步</button>`;
     }
 
-    const countdown = o.uiStatus === 'pending'
+    // N-32：只有 SUBMITTED 才有 deadlineTs（伺服器會在逾時後自動拒單）
+    const countdown = o.deadlineTs != null
       ? `<span style="font-size:.7rem;font-weight:900;color:#ef4444" data-countdown-deadline="${o.deadlineTs}">--:--</span>`
       : '';
 
@@ -280,7 +281,7 @@ function escHtmlSafe(value) {
     }
 
     const statusHtml = `<span style="font-size:.8rem;font-weight:700;${STATUS_COLOR[o.uiStatus]||''}">${STATUS_LABEL[o.uiStatus]||o.uiStatus}</span>`
-        + (o.uiStatus === 'pending' ? `<br><span style="font-size:.75rem;font-weight:900;color:#ef4444" data-countdown-deadline="${o.deadlineTs}">--:--</span>` : '');
+        + (o.deadlineTs != null ? `<br><span style="font-size:.75rem;font-weight:900;color:#ef4444" data-countdown-deadline="${o.deadlineTs}">--:--</span>` : '');
 
     const tds = [
       `#${esc(o.orderNo||o.id)}`,
@@ -380,6 +381,9 @@ function escHtmlSafe(value) {
         // display 時 +8h 用 getUTC*() 格式化，與機器時區無關
         const rawCreated = o.createdAt ? String(o.createdAt).replace('Z','') + '+08:00' : null;
         const createdTs  = rawCreated ? new Date(rawCreated).getTime() : Date.now();
+        // N-32：逾時拒單由伺服器排程執行。只有 SUBMITTED 才倒數，錨點與伺服器一致：submittedAt，缺值才退回 createdAt
+        const anchorRaw  = o.submittedAt || o.createdAt;
+        const anchorTs   = anchorRaw ? new Date(String(anchorRaw).replace('Z','') + '+08:00').getTime() : NaN;
         const pad = n => String(n).padStart(2,'0');
         const dd = new Date(createdTs + 8 * 3600 * 1000);
         const placedLabel = `${dd.getUTCFullYear()}/${pad(dd.getUTCMonth()+1)}/${pad(dd.getUTCDate())} ${pad(dd.getUTCHours())}:${pad(dd.getUTCMinutes())}`;
@@ -392,7 +396,7 @@ function escHtmlSafe(value) {
           customerName:  o.initiator?.name  || '匿名',
           customerPhone: o.initiator?.phone || '—',
           amountLabel:   `$${Number(o.totalAmount||0).toLocaleString()}`,
-          deadlineTs:    createdTs + PENDING_MS,
+          deadlineTs:    s === 'SUBMITTED' && Number.isFinite(anchorTs) ? anchorTs + PENDING_MS : null,
           placedLabel,
         };
       });
@@ -408,34 +412,20 @@ function escHtmlSafe(value) {
     } catch (err) { console.error('[order-all-sync]', err); }
   };
 
-  /* ── 倒數計時 & 逾時自動取消 ──────────────────────── */
-  const autoExpiredIds = new Set(); // 已送出取消請求的訂單，避免重複打 API
-
-  setInterval(async () => {
-    document.querySelectorAll('[data-countdown-deadline]').forEach(async (el) => {
+  /* ── 倒數計時（逾時拒單由伺服器排程處理，N-32）──────── */
+  setInterval(() => {
+    document.querySelectorAll('[data-countdown-deadline]').forEach((el) => {
       const diff = parseInt(el.dataset.countdownDeadline) - Date.now();
       const row  = el.closest('[data-order-id]');
-      const orderId = row?.dataset.orderId;
 
       if (diff <= 0) {
         el.textContent = '逾時';
         el.style.color = '#dc2626';
 
-        // 隱藏接單/拒單按鈕
+        // 逾時後停用接單/拒單；伺服器排程會拒單並退款，下一次 fetchOrders 時訂單會移到已取消
         if (row) {
           row.querySelectorAll('[data-order-action="accept"],[data-order-action="reject"]')
               .forEach(btn => { btn.disabled = true; btn.style.opacity = '0.3'; btn.style.pointerEvents = 'none'; });
-        }
-
-        // 自動取消（只送一次）
-        if (orderId && !autoExpiredIds.has(orderId)) {
-          autoExpiredIds.add(orderId);
-          try {
-            await window.StoreAPI.rejectOrder(orderId);
-            await fetchOrders(); // 重新拉資料，讓訂單移到已取消
-          } catch (err) {
-            console.warn('[auto-expire] 取消失敗:', orderId, err.message);
-          }
         }
       } else {
         const m = Math.floor(diff / 60000);

@@ -886,7 +886,8 @@ public class GroupOrderService {
         go.setTotalAmount(finalAmount);
         go.setAddress(address != null ? address : "");
         go.setNote(note != null ? note : "");
-        go.setEscrowAmount(amountToCharge);
+        // 只有錢包付款才會從團長錢包扣款，現金／信用卡不留待退金額（見 GroupRefundPolicy.escrowAfterCheckout）
+        go.setEscrowAmount(GroupRefundPolicy.escrowAfterCheckout(paymentMethod, amountToCharge));
 
         if ("WALLET".equals(paymentMethod)) {
             transactionRecordService.updateStoreCredit(hostId, amountToCharge.negate(),
@@ -1025,6 +1026,12 @@ public class GroupOrderService {
                 item.setPaymentStatus("CANCELLED");
                 continue;
             }
+            // 優惠券一律還原給原持有人，與付款狀態無關（2026-10-19）：結帳時券已標為 used，
+            // 但 ESCROWED、WAITING_SUBMIT、UNPAID 的品項原本從不還原，整單取消後團員的券就消失了。
+            // 與 removeItemsAndSettle 的步驟 3 一致。restoreUserCoupon 只把 used 改回 unused，重複呼叫無害。
+            if (item.getCouponId() != null) {
+                restoreUserCoupon(item.getUser().getId(), item.getCouponId());
+            }
             // 只有 PAID 且未退款的品項才處理
             if ("PAID".equalsIgnoreCase(item.getPaymentStatus())) {
                 // 退款去向依規則：送單前錢包付款退團員、現金與信用卡不入帳；送單後入團長帳號（見 GroupRefundPolicy）。
@@ -1052,21 +1059,11 @@ public class GroupOrderService {
                     case NONE -> item.setPaymentStatus("CANCELLED"); // 付款方式未記錄，無從判斷退款去向：不入帳（見 GroupRefundPolicy.paidRefundTo）
                 }
 
-                // 還原個人優惠券
-                if (item.getCouponId() != null) {
-                    restoreUserCoupon(item.getUser().getId(), item.getCouponId());
-                }
             } else if ("WAITING_SUBMIT".equalsIgnoreCase(item.getPaymentStatus())) {
-                // WAITING_SUBMIT 表示已從錢包扣款但尚未 SUBMITTED (用於個人訂單或揪團結帳中間態)
-                // 因為 checkout 計算 escrowAmount 時會扣除 PAID，
-                // 如果是 WAITING_SUBMIT 且是個人訂單，也應在此退款
-                if ("GROUP".equals(go.getType())) {
-                    // 揪團中的 WAITING_SUBMIT 通常由 escrowAmount 覆蓋，故此處不重複退
-                } else {
-                    BigDecimal refundAmount = item.getFinalPrice();
-                    transactionRecordService.updateStoreCredit(item.getUser().getId(), refundAmount,
-                            TxType.REFUND, "訂單取消退款 (品項: " + item.getProductNameSnapshot() + ")", LocalDateTime.now());
-                }
+                // ⚠️ 不逐品項退款。WAITING_SUBMIT 的款項在結帳時已整筆併入 escrowAmount（OrderService.createOrder
+                // 與 checkout），由下方步驟 2 統一退還。原本 SOLO 這裡又退一次品項金額：一杯 $35 取消後退 $70；
+                // 用券折抵時，折抵前的金額也全退。escrowAmount 為 0（例如券已全額折抵）時本來就沒有款項可退。
+                // 揪團原本就是這樣處理，SOLO 與 GROUP 現在一致（2026-10-19 修正，見 CLAUDE.md）。
                 item.setPaymentStatus("CANCELLED");
             } else if ("ESCROWED".equalsIgnoreCase(item.getPaymentStatus())) {
                 // 團長代墊品項：成員未實際付款，取消時僅改狀態
