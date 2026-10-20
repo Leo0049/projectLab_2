@@ -50,7 +50,7 @@ public class OrderAutoRejectJob {
                     rejected++;
                     notifyRejected(orderId);
                 }
-            } catch (RuntimeException e) {
+            } catch (IllegalStateException e) {
                 log.warn("待接單自動拒單失敗，訂單 {} 下一輪再試：{}", orderId, e.getMessage());
             }
         }

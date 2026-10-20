@@ -126,7 +126,7 @@ public final class GroupRefundPolicy {
      * @param amountToCharge 結帳時團長應付的金額
      */
     public static BigDecimal escrowAfterCheckout(String paymentMethod, BigDecimal amountToCharge) {
-        if (!"WALLET".equals(paymentMethod)) {
+        if (paymentMethod == null) {
             return BigDecimal.ZERO;
         }
         return amountToCharge != null ? amountToCharge : BigDecimal.ZERO;
