@@ -453,7 +453,7 @@ public class AnalyticsService {
      */
     @Transactional
     public boolean autoRejectIfStillPending(Long orderId, LocalDateTime now) {
-        Optional<GroupOrder> locked = groupOrderRepository.findByIdForUpdate(orderId);
+        Optional<GroupOrder> locked = groupOrderRepository.findById(orderId);
         if (locked.isEmpty()) {
             return false;
         }
