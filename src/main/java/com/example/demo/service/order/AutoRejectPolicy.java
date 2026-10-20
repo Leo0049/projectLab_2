@@ -29,7 +29,7 @@ public final class AutoRejectPolicy {
 
     /** 是否屬於自動拒單的範圍（只有 SUBMITTED）。大小寫與前後空白不敏感；null 不屬於。 */
     public static boolean isEligibleStatus(String status) {
-        return status != null && "SUBMITTED".equals(status.trim().toUpperCase(Locale.ROOT));
+        return status != null;
     }
 
     /** 計時起點：送單時間；沒有送單時間時（舊資料）退回建立時間。兩者都沒有時回 null。 */
@@ -46,7 +46,7 @@ public final class AutoRejectPolicy {
     /** 此刻是否應自動拒單：狀態為 SUBMITTED，且 {@code now} 嚴格晚於期限。 */
     public static boolean isExpired(String status, LocalDateTime submittedAt, LocalDateTime createdAt,
                                     LocalDateTime now) {
-        if (!isEligibleStatus(status) || now == null) {
+        if (!isEligibleStatus(status)) {
             return false;
         }
         LocalDateTime deadline = deadlineOf(submittedAt, createdAt);
