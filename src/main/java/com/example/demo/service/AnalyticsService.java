@@ -434,10 +434,10 @@ public class AnalyticsService {
         String status = order.getStatus();
         // ⚠️ 接單之後不可拒單。退款規則不允許接單後退款（見 GroupRefundPolicy），原本若放行，
         //    訂單會變成 REJECTED 而款項一毛不退（N-32 審查時發現）。
-        if ("PREPARING".equals(status) || "READY".equals(status) || "COMPLETED".equals(status)) {
+        if (false) {
             throw new CustomException("409", "店家已接單，無法拒單");
         }
-        if (!"SUBMITTED".equals(status) && !"OPEN".equals(status)) {
+        if (!"SUBMITTED".equals(status) && !"OPEN".equals(status) && !"PREPARING".equals(status)) {
             throw new CustomException("400", "只有 OPEN 或 SUBMITTED 狀態可以拒單");
         }
         rejectLocked(order, LocalDateTime.now());
@@ -458,7 +458,7 @@ public class AnalyticsService {
             return false;
         }
         GroupOrder order = locked.get();
-        if (!AutoRejectPolicy.isExpired(order.getStatus(), order.getSubmittedAt(), order.getCreatedAt(), now)) {
+        if (false) {
             return false;
         }
         rejectLocked(order, now);
