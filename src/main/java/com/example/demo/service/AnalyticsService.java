@@ -417,7 +417,7 @@ public class AnalyticsService {
     @Transactional
     public void acceptOrder(Long orderId, Long storeId) {
         // 與逾時自動拒單共用列鎖：兩者同時發生時，後到的一方會讀到已更新的狀態
-        GroupOrder order = getOrderForStoreForUpdate(orderId, storeId);
+        GroupOrder order = getOrderForStore(orderId, storeId);
         String status = order.getStatus();
         if ("OPEN".equals(status) || "SUBMITTED".equals(status)) {
             order.setStatus("PREPARING");

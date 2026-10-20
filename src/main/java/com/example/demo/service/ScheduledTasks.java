@@ -30,7 +30,7 @@ public class ScheduledTasks {
      */
     @Scheduled(fixedDelay = 30_000, initialDelay = 30_000)
     public void autoRejectExpiredPendingOrders() {
-        exclusiveJobRunner.runExclusively("order-auto-reject", 120,
+        exclusiveJobRunner.runExclusively("order-auto-reject", 600,
                 () -> orderAutoRejectJob.sweep(LocalDateTime.now(ZoneId.of("Asia/Taipei"))));
     }
 }
