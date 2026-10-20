@@ -129,7 +129,7 @@ public final class GroupRefundPolicy {
         if (!"WALLET".equals(paymentMethod)) {
             return BigDecimal.ZERO;
         }
-        return amountToCharge != null ? amountToCharge : BigDecimal.ZERO;
+        return amountToCharge;
     }
 
     /** 付款方式是否為錢包。只有明確記錄為 WALLET 才算；null 不視為錢包，避免無來源的入帳。 */

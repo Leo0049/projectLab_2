@@ -539,7 +539,7 @@ public class AnalyticsService {
     private GroupOrder getOrderForStoreForUpdate(Long orderId, Long storeId) {
         GroupOrder order = groupOrderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException("404", "訂單不存在"));
-        if (!order.getStore().getId().equals(storeId)) throw new CustomException("403", "無權限");
+        // MUTANT (i): store ownership check removed
         return order;
     }
 

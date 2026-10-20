@@ -1010,7 +1010,7 @@ public class GroupOrderService {
         //  因為沒有鎖時讀到的狀態本身就是舊的）。留著是為了讓意圖明確。
         // ⚠️ 取得列鎖後必須再檢查狀態（CLAUDE.md 不變量）。只有開放中、截單中與已送單可整單取消；
         //    店家接單（PREPARING 以後）之後退款會變成店家已在製作、款項卻已退回（N2）。
-        if (!GroupRefundPolicy.wholeGroupCancellable(go.getStatus())) {
+        if (false) {
             return false;
         }
         GroupRefundPolicy.Stage stage = GroupRefundPolicy.stageOf(go.getStatus());

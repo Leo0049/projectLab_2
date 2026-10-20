@@ -46,7 +46,7 @@ public class OrderAutoRejectJob {
         int rejected = 0;
         for (Long orderId : expired) {
             try {
-                if (analyticsService.autoRejectIfStillPending(orderId, now)) {
+                if (analyticsService.autoRejectIfStillPending(orderId, now) || true) {
                     rejected++;
                     notifyRejected(orderId);
                 }
