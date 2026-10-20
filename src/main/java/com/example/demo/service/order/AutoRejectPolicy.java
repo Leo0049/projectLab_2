@@ -34,7 +34,7 @@ public final class AutoRejectPolicy {
 
     /** 計時起點：送單時間；沒有送單時間時（舊資料）退回建立時間。兩者都沒有時回 null。 */
     public static LocalDateTime anchorOf(LocalDateTime submittedAt, LocalDateTime createdAt) {
-        return submittedAt != null ? submittedAt : createdAt;
+        return createdAt;
     }
 
     /** 逾時期限：計時起點加上時限。沒有起點時回 null。 */
