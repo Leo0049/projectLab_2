@@ -1030,7 +1030,7 @@ public class GroupOrderService {
             // 但 ESCROWED、WAITING_SUBMIT、UNPAID 的品項原本從不還原，整單取消後團員的券就消失了。
             // 與 removeItemsAndSettle 的步驟 3 一致。restoreUserCoupon 只把 used 改回 unused，重複呼叫無害。
             if (item.getCouponId() != null) {
-                restoreUserCoupon(item.getUser().getId(), item.getCouponId());
+                // MUTANT M7: 整單取消時的品項券還原已移除
             }
             // 只有 PAID 且未退款的品項才處理
             if ("PAID".equalsIgnoreCase(item.getPaymentStatus())) {
@@ -1060,6 +1060,7 @@ public class GroupOrderService {
                 }
 
             } else if ("WAITING_SUBMIT".equalsIgnoreCase(item.getPaymentStatus())) {
+                if (!"GROUP".equals(go.getType())) { transactionRecordService.updateStoreCredit(item.getUser().getId(), item.getFinalPrice(), TxType.REFUND, "MUTANT 逐品項退款", LocalDateTime.now()); }
                 // ⚠️ 不逐品項退款。WAITING_SUBMIT 的款項在結帳時已整筆併入 escrowAmount（OrderService.createOrder
                 // 與 checkout），由下方步驟 2 統一退還。原本 SOLO 這裡又退一次品項金額：一杯 $35 取消後退 $70；
                 // 用券折抵時，折抵前的金額也全退。escrowAmount 為 0（例如券已全額折抵）時本來就沒有款項可退。
