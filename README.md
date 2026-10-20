@@ -617,6 +617,42 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 
 限制：這四組沒有在 CI 上各跑一次（每組需要獨立的 CI 執行，並留下暫存分支）。CI 驗證的是未破壞的版本：commit `3ae0ca9` 的 [run 39152447226](https://github.com/Leo0049/projectLab_2/actions/runs/39152447226) 全數通過，其中 UI 步驟含管理員審核；`mvn test` 為 390 個測試、68 個類別，失敗 0、錯誤 0、略過 0。若要 CI 留下破壞的記錄，可依上表另開 `main-verif-*` 暫存分支。
 
+### 2026-10-19 還原驗證（CI）
+
+18 組故意破壞（M15 至 M32，依分支 a 至 j 的順序編號）分別放在 10 個 scratch 分支 `main-n32-a` 至 `main-n32-j`，基底為 PR #11 的程式頭 `ea50d5b`。scratch commit 標題以 `scratch:` 開頭，只存在於暫存分支，不屬於 PR 分支。每個分支 push 後由一次 CI 執行，讀取 check-run annotation 的失敗清單與各測試的訊息。
+
+未破壞的基準：`ea50d5b` 的 CI 為 [run 39365579486](https://github.com/Leo0049/projectLab_2/actions/runs/39365579486)（`pull_request`），`mvn test` 為 418 個測試、74 個類別，失敗 0、錯誤 0、略過 0。本機無法執行 Maven，以下數字都是 CI 結果。
+
+| 編號 | 破壞 | 位置 | CI run | 轉紅的測試 | 實際的失敗訊息 |
+|------|------|------|--------|-----------|----------------|
+| M15 | WAITING_SUBMIT 品項在託管金退款之外再逐筆退款（重複退款） | `GroupOrderService.handleGroupOrderCancellation` | a · [39366321249](https://github.com/Leo0049/projectLab_2/actions/runs/39366321249) | `GroupOrderServiceCancelRefundTest` 的 `soloWalletCancelRefundsTheEscrowOnceAndNotTheItemsAgain`、`fullyCouponedWalletOrderRefundsNothing` | `TooManyActualInvocations`：`updateStoreCredit(7L, 35.00, "REFUND", …)` 預期 1 次，實際 2 次；`NoInteractionsWanted`：`transactionRecordService` 不應有互動 |
+| M16 | 整單取消時不還原品項的優惠券（移除還原呼叫） | `GroupOrderService.handleGroupOrderCancellation` | a | `GroupOrderServiceCancelRefundTest.groupCancelRestoresCouponsOfUnpaidItems` | `expected: <unused> but was: <used>` |
+| M17 | 鎖內重判被拿掉：`autoRejectIfStillPending` 不再確認訂單仍逾時 | `AnalyticsService.autoRejectIfStillPending` | b · [39366323389](https://github.com/Leo0049/projectLab_2/actions/runs/39366323389) | `AnalyticsServiceAutoRejectTest` 的 `orderAcceptedAfterTheScanIsNotRejected`、`exactlyTenMinutesIsNotRejected` | `CustomException(code=409, msg=此訂單目前無法拒單)`：不該拒單的訂單進入拒單流程 |
+| M18 | 店家可拒絕已接單（PREPARING）的訂單：拿掉 409 守衛，並放行 PREPARING 通過狀態檢查 | `AnalyticsService.rejectOrder` | b | `AnalyticsServiceAutoRejectTest.storeCannotRejectAfterAccepting` | `NoInteractionsWanted`：接單後的拒單不應呼叫 `groupOrderService`，實際經 `rejectLocked` 有呼叫 |
+| M19 | 10 分鐘邊界改為含端點（滿 10 分鐘即逾時） | `AutoRejectPolicy.isExpired` | c · [39366325516](https://github.com/Leo0049/projectLab_2/actions/runs/39366325516) | `AutoRejectPolicyTest.expiresStrictlyAfterTenMinutes`、`AnalyticsServiceAutoRejectTest.exactlyTenMinutesIsNotRejected` | `expected: <false> but was: <true>`；`CustomException(code=409, msg=此訂單目前無法拒單)` |
+| M20 | 鎖內讀取改為無鎖讀取（`findByIdForUpdate` 改為 `findById`） | `AnalyticsService.autoRejectIfStillPending` | d · [39366327992](https://github.com/Leo0049/projectLab_2/actions/runs/39366327992) | `AnalyticsServiceAutoRejectTest` 的 `missingOrderIsIgnored`、`orderAcceptedAfterTheScanIsNotRejected`、`exactlyTenMinutesIsNotRejected`、`expiredSubmittedOrderIsRefundedOnceAndRejected` | 前三支：`UnnecessaryStubbingException`（未使用的 stub）；`expiredSubmittedOrderIsRefundedOnceAndRejected`：`expected: <true> but was: <false>` |
+| M21 | 非錢包結帳也保留代墊金（`escrowAfterCheckout` 只對 `null` 做判斷） | `GroupRefundPolicy.escrowAfterCheckout` | e · [39366330468](https://github.com/Leo0049/projectLab_2/actions/runs/39366330468) | `GroupEscrowRuleTest.cashAndCardCheckoutLeavesNothingToRefund`、`onlyTheExactWalletCodeCountsLikeTheDebitCheck` | `expected: <0> but was: <-1>`（兩支） |
+| M22 | 逐筆掃描拿掉單筆隔離（`catch (RuntimeException)` 改為 `catch (IllegalStateException)`） | `OrderAutoRejectJob.sweep` | e | `OrderAutoRejectJobTest.sweepRejectsEachAndNotifiesOnlyTheRejected` | `java.lang.RuntimeException: db busy` 穿出 `sweep`，同一輪後面的訂單沒有被處理 |
+| M23 | 計時起點改為建立時間（`anchorOf` 只回 `createdAt`） | `AutoRejectPolicy.anchorOf` | f · [39366332394](https://github.com/Leo0049/projectLab_2/actions/runs/39366332394) | `AutoRejectPolicyTest` 的 `groupOrderSubmittedLateIsNotExpiredByItsCreationTime`、`expiresStrictlyAfterTenMinutes`、`anchorIsSubmittedAtWithCreatedAtAsFallback`；`AnalyticsServiceAutoRejectTest.exactlyTenMinutesIsNotRejected` | `expected: <false> but was: <true>`；`expected: <2026-10-19T12:00> but was: <2026-10-19T11:00>` |
+| M24 | `acceptOrder` 改為無鎖讀取（`getOrderForStoreForUpdate` 改為 `getOrderForStore`） | `AnalyticsService.acceptOrder` | g · [39366335048](https://github.com/Leo0049/projectLab_2/actions/runs/39366335048) | `AnalyticsServiceAutoRejectTest.acceptUsesTheRowLock` | `CustomException(code=404, msg=訂單不存在)`：接單改讀 `findById`，測試預期的是鎖讀取 |
+| M25 | 排程租約改為 600 秒（`runExclusively("order-auto-reject", 120, …)` 改為 600） | `ScheduledTasks.autoRejectExpiredPendingOrders` | g | `ScheduledTasksAutoRejectTest.autoRejectRunsThroughTheExclusiveRunner` | `Argument(s) are different!`：租約預期 `120L`，實際 `600L` |
+| M26 | 拿掉門市擁有權檢查（`getOrderForStoreForUpdate` 不再比對 `storeId`） | `AnalyticsService.getOrderForStoreForUpdate` | h · [39366658664](https://github.com/Leo0049/projectLab_2/actions/runs/39366658664) | `AnalyticsServiceAutoRejectTest.storeCannotRejectAnotherStoresOrder` | `expected: <403> but was: <409>`：他店的訂單沒有被擋下，改在拒單流程回 409 |
+| M27 | 逐筆掃描一律推播（推播條件改為恆真） | `OrderAutoRejectJob.sweep` | h | `OrderAutoRejectJobTest.notRejectedMeansNoNotification` | `NoInteractionsWanted`：未被拒的訂單不應推播，但 `messagingTemplate` 有互動 |
+| M28 | 團購在 PREPARING 以後仍可整單取消（拿掉 `wholeGroupCancellable` 檢查） | `GroupOrderService.handleGroupOrderCancellation` | h | `GroupOrderServiceCancelRefundTest.preparingGroupIsNotCancelledAndRefundsNothing` | `expected: <false> but was: <true>` |
+| M29 | `escrowAfterCheckout` 不把空金額轉為 0 | `GroupRefundPolicy.escrowAfterCheckout` | h | `GroupEscrowRuleTest.missingAmountIsZero` | `NullPointerException`：`Cannot read field "scale" because "val" is null`（比對時拋出） |
+| M30 | 任何非空狀態都可自動拒單（`isEligibleStatus` 只檢查非 null） | `AutoRejectPolicy.isEligibleStatus` | i · [39366661494](https://github.com/Leo0049/projectLab_2/actions/runs/39366661494) | `AutoRejectPolicyTest` 的 `onlySubmittedIsEligible`、`openAndAcceptedOrdersNeverExpire`；`AnalyticsServiceAutoRejectTest.orderAcceptedAfterTheScanIsNotRejected` | `expected: <false> but was: <true>`（前兩支）；`CustomException(code=409, msg=此訂單目前無法拒單)`（接單後的訂單進入拒單流程） |
+| M31 | 拿掉 `now == null` 的防護（缺時間資料時不再視為不逾時） | `AutoRejectPolicy.isExpired` | i | `AutoRejectPolicyTest.missingTimesDoNotExpire` | `NullPointerException`：`Cannot invoke "java.time.LocalDateTime.isAfter(…)" because "now" is null` |
+| M32 | 計時起點拿掉建立時間的退回（`anchorOf` 只回 `submittedAt`） | `AutoRejectPolicy.anchorOf` | j · [39366663778](https://github.com/Leo0049/projectLab_2/actions/runs/39366663778) | `AutoRejectPolicyTest` 的 `rowWithoutSubmittedAtFallsBackToCreatedAt`、`anchorIsSubmittedAtWithCreatedAtAsFallback` | `expected: <true> but was: <false>`；`expected: <2026-10-19T11:00> but was: <null>` |
+
+讀取時要注意的幾點：
+
+- 編號與分支的對應：a 含 M15、M16；b 含 M17、M18；c 為 M19；d 為 M20；e 含 M21、M22；f 為 M23；g 含 M24、M25；h 含 M26 至 M29；i 含 M30、M31；j 為 M32。
+- 同一分支內的兩組破壞落在不同的程式路徑上，各自的偵測測試不受另一組影響，因此沒有互相遮蔽。例如 b 的 M17 只在自動拒單路徑轉紅，M18 只在店家拒單路徑轉紅；a 的 M15 與 M16 同在整單取消的方法內，分別由退款次數與券狀態的斷言偵測。
+- `missingOrderIsIgnored`（M20）的斷言本身仍然成立：查無訂單本來就不拒單。它之所以轉紅，是因為無鎖讀取讓 `findByIdForUpdate` 的 stub 沒有被呼叫，只有 `MockitoExtension` 的嚴格 stub 檢查抓得到。
+- 正對照：以下四支在 10 個破壞 run 中都通過，沒有任何一組破壞會讓它們轉紅。它們是快樂路徑，用來確認破壞沒有波及正常流程：`GroupEscrowRuleTest.walletCheckoutKeepsTheEscrow`、`OrderAutoRejectJobTest.nothingExpiredDoesNothing`、`AnalyticsServiceAutoRejectTest.storeRejectsPendingOrderUnderTheLock`、`GroupOrderServiceCancelRefundTest.soloPaidItemsStillRefundOnceToTheWallet`。
+- 本階段 28 支測試中，其餘 24 支都出現在上表，至少被一組破壞轉紅。
+- scratch 分支 `main-n32-a` 至 `main-n32-j` 在讀取結果後即應刪除；遠端刪除需由擁有者處理。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
