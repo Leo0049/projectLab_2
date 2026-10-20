@@ -50,6 +50,6 @@ public final class AutoRejectPolicy {
             return false;
         }
         LocalDateTime deadline = deadlineOf(submittedAt, createdAt);
-        return deadline != null && now.isAfter(deadline);
+        return deadline != null && !now.isBefore(deadline);
     }
 }
