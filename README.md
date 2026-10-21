@@ -677,10 +677,41 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 限制（以下項目不在上述結果之內）：
 
 - **Java 端在本機沒有編譯或執行測試。** 以 JDK 21 的 `javac --release 17` 解析 `src/main/java` 與 `src/test/java` 下全部 269 個 `.java`，沒有出現任何語法錯誤訊息；回報的 10,545 筆錯誤全是缺少依賴造成的套件與符號解析錯誤（Spring、Lombok、JUnit 等），這不是語意檢查。Java 測試的結果以 CI 為準：`ea1531d` 的 [run 39535734153](https://github.com/Leo0049/projectLab_2/actions/runs/39535734153) 通過，460 個測試、失敗 0。第一次 CI（run 39535423592）有三個測試錯誤，已於 `ea1531d` 修正。
-- **Java 端的還原驗證尚未做。** 依 CLAUDE.md，新增的測試要在修補前後各跑一次，確認真的抓得到回歸；這需要 CI，屬於合併前的待辦（見 CLAUDE.md）。
+- **Java 端的還原驗證已於 CI 完成**，結果與缺口見下一節「2026-10-20 還原驗證（Java，CI）」。
 - **`scripts/ui/flow-admin.js` 的第八步（停用與恢復）只通過 `node --check`，沒有實際執行。** 它需要真的後端與資料庫，只能在 CI 跑。
 - **39 項檢查的腳本是暫存檔，沒有收進 repo**，因此這一節的數字無法從 repo 重現。
 - **本機的 mock 不驗證後端。** 權杖版本失效、WebSocket 切斷、分店可見性，以及停用期間的付款守衛，都不在這組驗證範圍內。
+
+### 2026-10-20 還原驗證（Java，CI）
+
+十組故意破壞，各自放在獨立的 scratch 分支 `main-verif-stage6-A` 至 `-K`（沒有 B，見下方），基底為 PR #12 的程式頭 `0c29a39`。每組的 commit 只改一條守衛：I 與 J 各拿掉兩個呼叫點（同一條規則），其餘各一處。commit 標題以 `scratch:` 開頭，不屬於 PR 分支。每個分支 push 後由一次 CI 執行，轉紅的測試從 check-run annotation 的失敗清單讀取。未破壞的對照是 `ea1531d` 的 [run 39535734153](https://github.com/Leo0049/projectLab_2/actions/runs/39535734153)：`mvn test` 為 460 個測試、84 個類別，失敗 0、錯誤 0、略過 0。
+
+結果：六組被具名測試抓到（A、C、D、E、F、H），四組沒有任何測試轉紅（G、I、J、K）。
+
+| 編號 | 破壞 | 位置 | CI run | 結果 | 轉紅的測試 |
+|------|------|------|--------|------|-----------|
+| A | 品牌停用不再遞增分店的權杖版本（拿掉 `bumpTokenVersionsOfBrand`） | `AdminService.suspendBrand` | [39574690459](https://github.com/Leo0049/projectLab_2/actions/runs/39574690459) | 失敗 | `AdminServiceTest.suspendingABrandBumpsItsStoresAndPublishesTheCut`（`Wanted but not invoked`）；`StoreSuspensionIntegrationTest.suspendingABrandHidesItsStoresAndRevokesTokens`（恢復後分店的舊權杖重新有效，`expected: <false> but was: <true>`） |
+| C | 分店的授權規則不再檢查所屬品牌是否停用 | `AccountStatus`（STORE 分支） | [39574694124](https://github.com/Leo0049/projectLab_2/actions/runs/39574694124) | 失敗 | `AccountStatusTest.storeUnderSuspendedBrandIsNotUsable`。整合測試沒有轉紅，見下方說明 |
+| D | 列表查詢 `findVisibleByBrandIdOrderByIdAsc` 拿掉 `StoreVisibility.FILTER` | `StoreRepository` | [39574698707](https://github.com/Leo0049/projectLab_2/actions/runs/39574698707) | 失敗 | `StoreVisibilityGuardTest.everyPublicListingQueryAppliesTheSharedFilter`（文字掃描，`expected: <true> but was: <false>`）；`StoreSuspensionIntegrationTest.suspendingAStoreLeavesTheBrandAndSiblingsAlone` 與 `suspendingABrandHidesItsStoresAndRevokesTokens`（停用的分店仍被列表查詢回傳） |
+| E | 切斷的工作階段仍會收到訊息（`preSend` 不再丟棄） | `CutSessionOutboundInterceptor` | [39574702684](https://github.com/Leo0049/projectLab_2/actions/runs/39574702684) | 失敗 | `CutSessionOutboundInterceptorTest.dropsMessagesOnlyForCutSessions`（`expected: <null> but was: <GenericMessage …>`） |
+| F | 切斷比對只看 id、不看角色（N13 的 id 撞號） | `StompSessionRegistry.cut` | [39574707227](https://github.com/Leo0049/projectLab_2/actions/runs/39574707227) | 失敗 | `StompSessionRegistryTest.sameIdAcrossRolesIsNotCut`（`expected: <false> but was: <true>`） |
+| G | 切斷監聽器改為 `BEFORE_COMMIT`（原為 `AFTER_COMMIT`） | `AccountSuspensionCutListener` | [39574711826](https://github.com/Leo0049/projectLab_2/actions/runs/39574711826) | **通過** | 無 |
+| H | 分店重複停用回 404（原為 409） | `AdminService.suspendStore` | [39574716826](https://github.com/Leo0049/projectLab_2/actions/runs/39574716826) | 失敗 | `AdminServiceTest.storeStateErrorsAreDistinguished`；`StoreSuspensionIntegrationTest.suspendingAStoreLeavesTheBrandAndSiblingsAlone`（`expected: <409> but was: <404>`） |
+| I | 團員付款與補款的分店停用守衛拿掉（`getMemberUnpaidTotalAndMarkPaid`、`repayToHost`） | `GroupOrderService` | [39574722749](https://github.com/Leo0049/projectLab_2/actions/runs/39574722749) | **通過** | 無 |
+| J | 個人結帳的分店停用守衛拿掉（`repriceItems`、`placeOrder`） | `OrderService` | [39574728943](https://github.com/Leo0049/projectLab_2/actions/runs/39574728943) | **通過** | 無 |
+| K | 揪團商品驗證的分店停用守衛拿掉（`validateActiveStore`） | `GroupOrderService` | [39576348154](https://github.com/Leo0049/projectLab_2/actions/runs/39576348154) | **通過** | 無 |
+
+讀取時要注意的幾點：
+
+- 沒有做 B（恢復品牌時遞增版本）。行為上等價：停用期間無法簽發權杖，因此沒有任何有效權杖的版本會等於停用後的 N+1，遞增與否不影響結果。
+- 每個分支只有一組破壞，所以每一支轉紅的測試都可以歸因到該組，沒有互相遮蔽的情況。
+- 「通過」只代表沒有任何測試因此失敗，也就是這條守衛沒有被斷言；不代表被破壞的行為是正確的。失敗的 run 在 `mvn test` 即停止，之後的打包、API 與 UI 層都被略過；通過的 run（G、I、J、K）完整跑完所有步驟。
+- C 只被單元測試抓到。整合測試抓不到，是因為 A 所保護的版本遞增已讓舊的分店權杖失效，而品牌停用期間也無法登入。這條規則目前有版本這道防線，但直接斷言它的只有 `AccountStatusTest`。
+- G、I、J、K 是**測試缺口，不是程式錯誤**。程式碼中的實作與 ADR-0012 一致，只是沒有測試斷言它們：
+  - G：`AccountSuspensionCutListenerTest` 直接呼叫 `onAccountsSuspended`，沒有經過交易，因此 `AFTER_COMMIT` 階段與「交易回滾時不切斷」都沒有測試。
+  - I、J、K：停用期間的付款守衛（個人結帳、團員付款、補款、揪團商品驗證）沒有任何測試斷言它們會回 400。
+- 補上這四組的測試後，應依 CLAUDE.md 的做法在修補前後各跑一次。是否在合併前補測試，由負責人決定。
+- scratch 分支 `main-verif-stage6-A` 至 `-K` 在讀取結果後即應刪除；遠端刪除需由擁有者處理。
 
 ### 拆出可測試的規則
 
@@ -770,6 +801,7 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 - 個人訂單的錢包扣款說明（`OrderService.createOrder` 的 `WALLET` 分支）寫成「已扣除團員已付部分」，個人訂單的帳本會顯示這段文字。尚未處理。
 - 品牌自助註冊已改為審核制（N-28，2026-10-18）：新品牌為 `PENDING`，未核准不能登入，也不出現在公開列表。管理員審核的後台頁面已加入（`frontend/Admin/`，路徑 `/Admin/login.html`），資料仍只經 `/api/admin/**`；是否另加邀請碼仍待業務決定。
 - 品牌與分店停用（stage 6，2026-10-20，ADR-0012）的已知缺口：（a）收藏清單仍會列出已停用的分店，只是顯示，無法下單；（b）購物車加入不檢查停用，結帳才會擋下；（c）停用前已建立的揪團仍可由成員檢視，商品驗證、團員付款與補款會擋；（d）即時切斷只作用於收到停用事件的那台實例，其他實例上既有的 WebSocket 訂閱要等連線結束（見 `docs/DEPLOYMENT.md` 第 30 項）。
+- 停用的付款守衛（個人結帳、團員付款、補款、揪團商品驗證）與切斷的 `AFTER_COMMIT` 階段沒有測試（2026-10-20 還原驗證的 G、I、J、K）。補測試後需再做一次還原驗證。
 - 依賴漏洞稽核（npm 與 Maven）與 CI action 版本查證尚未完成（N-29、N-20），需在有網路的環境執行。
 
 ---
