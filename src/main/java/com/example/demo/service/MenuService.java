@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.common.StoreVisibility;
 import com.example.demo.entity.BrandRegionCategoryPricing;
 import com.example.demo.entity.MenuCategory;
 import com.example.demo.entity.ProductTemplate;
@@ -27,6 +28,9 @@ public class MenuService {
     public List<Map<String, Object>> getStoreMenu(Long storeId) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new CustomException("404", "找不到店家"));
+        // stage 6：分店或品牌被停用時，菜單對外視同不存在
+        if (!StoreVisibility.isReachable(store.isSuspended(), storeRepository.isBrandSuspended(storeId)))
+            throw new CustomException("404", "找不到店家");
 
         Long brandId = store.getBrand().getId();
         List<MenuCategory> categories = menuCategoryRepository.findByBrandId(brandId);

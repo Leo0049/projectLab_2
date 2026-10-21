@@ -108,7 +108,7 @@ class PageSizeClampTest {
 
         assertEquals(50, out.get("size"));
         ArgumentCaptor<Pageable> sent = ArgumentCaptor.forClass(Pageable.class);
-        verify(stores).findByStatusOrderByIdAsc(eq("active"), sent.capture());
+        verify(stores).findVisibleOrderByIdAsc(sent.capture());
         assertEquals(50, sent.getValue().getPageSize());
     }
 

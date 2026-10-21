@@ -132,6 +132,9 @@ public class BrandService {
         // N-28：密碼正確後才檢查審核狀態，未知密碼者無從得知帳號的審核進度
         if (!BrandApproval.isApproved(brand.getApprovalStatus()))
             throw new CustomException("403", BrandApproval.loginBlockedMessage(brand.getApprovalStatus()));
+        // stage 6：已停用的品牌不發放權杖（密碼正確才告知，與審核檢查相同的順序）
+        if (brand.isSuspended())
+            throw new CustomException("403", "此品牌已停用，請聯絡平台管理員");
         String token = jwtUtils.generateToken(brand.getId(), brand.getRole(), brand.getAccount(), brand.getTokenVersion());
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);

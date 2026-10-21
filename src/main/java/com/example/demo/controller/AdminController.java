@@ -16,7 +16,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/admin")
-@Tag(name = "管理員後台 (ADMIN)", description = "管理員登入、品牌審核")
+@Tag(name = "管理員後台 (ADMIN)", description = "管理員登入、品牌審核、品牌與門市的停用與恢復")
 public class AdminController {
 
     @Autowired
@@ -42,6 +42,13 @@ public class AdminController {
         return Result.success(adminService.listPendingBrands(page, size));
     }
 
+    @Operation(summary = "已核准品牌清單", description = "含停用狀態。page 從 0 起算，size 預設 50、上限 100。")
+    @GetMapping("/brands/approved")
+    public Result approvedBrands(@RequestParam(defaultValue = "0") int page,
+                                 @RequestParam(defaultValue = "50") int size) {
+        return Result.success(adminService.listApprovedBrands(page, size));
+    }
+
     @Operation(summary = "核准品牌", description = "只能核准待審核（PENDING）的品牌；核准後品牌即可登入。")
     @PostMapping("/brands/{brandId}/approve")
     public Result approveBrand(@RequestAttribute("currentUserId") Long adminId, @PathVariable Long brandId) {
@@ -52,5 +59,41 @@ public class AdminController {
     @PostMapping("/brands/{brandId}/reject")
     public Result rejectBrand(@RequestAttribute("currentUserId") Long adminId, @PathVariable Long brandId) {
         return Result.success(adminService.rejectBrand(adminId, brandId));
+    }
+
+    @Operation(summary = "停用品牌",
+            description = "只能停用已核准的品牌。停用後品牌與其所有分店的既有權杖立即失效，已開啟的推播連線一併切斷；"
+                    + "分店不再出現在公開列表且不能下單。")
+    @PostMapping("/brands/{brandId}/suspend")
+    public Result suspendBrand(@RequestAttribute("currentUserId") Long adminId, @PathVariable Long brandId) {
+        return Result.success(adminService.suspendBrand(adminId, brandId));
+    }
+
+    @Operation(summary = "恢復品牌",
+            description = "只能恢復已停用的品牌。恢復後須重新登入；停用前的權杖不會因此重新有效。")
+    @PostMapping("/brands/{brandId}/reinstate")
+    public Result reinstateBrand(@RequestAttribute("currentUserId") Long adminId, @PathVariable Long brandId) {
+        return Result.success(adminService.reinstateBrand(adminId, brandId));
+    }
+
+    @Operation(summary = "某品牌的分店清單", description = "含停用狀態。page 從 0 起算，size 預設 50、上限 100。")
+    @GetMapping("/brands/{brandId}/stores")
+    public Result brandStores(@PathVariable Long brandId,
+                              @RequestParam(defaultValue = "0") int page,
+                              @RequestParam(defaultValue = "50") int size) {
+        return Result.success(adminService.listStoresOfBrand(brandId, page, size));
+    }
+
+    @Operation(summary = "停用分店",
+            description = "停用後分店的既有權杖立即失效，已開啟的推播連線一併切斷；不再出現在公開列表且不能下單。")
+    @PostMapping("/stores/{storeId}/suspend")
+    public Result suspendStore(@RequestAttribute("currentUserId") Long adminId, @PathVariable Long storeId) {
+        return Result.success(adminService.suspendStore(adminId, storeId));
+    }
+
+    @Operation(summary = "恢復分店", description = "只能恢復已停用的分店。恢復後須重新登入。")
+    @PostMapping("/stores/{storeId}/reinstate")
+    public Result reinstateStore(@RequestAttribute("currentUserId") Long adminId, @PathVariable Long storeId) {
+        return Result.success(adminService.reinstateStore(adminId, storeId));
     }
 }

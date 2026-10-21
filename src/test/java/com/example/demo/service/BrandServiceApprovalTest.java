@@ -108,6 +108,20 @@ class BrandServiceApprovalTest {
     }
 
     @Test
+    @DisplayName("已核准但被停用的品牌即使密碼正確也不能登入，且不發放權杖（stage 6）")
+    void suspendedBrandCannotLogIn() {
+        Brand suspended = brand("APPROVED");
+        suspended.setSuspended(true);
+        when(brandRepository.findByAccount("acc")).thenReturn(Optional.of(suspended));
+        when(passwordEncoder.matches("pw", "hash")).thenReturn(true);
+
+        CustomException e = assertThrows(CustomException.class, () -> brandService.login("acc", "pw"));
+
+        assertEquals("403", e.getCode());
+        verify(jwtUtils, never()).generateToken(any(), any(), any(), anyInt());
+    }
+
+    @Test
     @DisplayName("核准後的品牌登入取得權杖")
     void approvedBrandGetsAToken() {
         when(brandRepository.findByAccount("acc")).thenReturn(Optional.of(brand("APPROVED")));

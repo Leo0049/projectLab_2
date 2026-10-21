@@ -1,7 +1,9 @@
 package com.example.demo.service;
 
+import com.example.demo.common.BrandApproval;
 import com.example.demo.entity.ProductTemplate;
 import com.example.demo.entity.UserCoupon;
+import com.example.demo.repository.BrandRepository;
 import com.example.demo.repository.ProductRepository;
 import com.example.demo.repository.UserCouponRepository;
 import com.example.demo.repository.MenuCategoryRepository;
@@ -29,6 +31,14 @@ public class DailySpinService {
     private final MenuCategoryRepository menuCategoryRepository;
     private final RedisLockService redisLockService;
     private final StringRedisTemplate stringRedisTemplate;
+    private final BrandRepository brandRepository;
+
+    /** 品牌已核准且未停用，才對外可見（stage 6）。品牌不存在也視為不可見。 */
+    private boolean brandReachable(Long brandId) {
+        return brandRepository.findById(brandId)
+                .map(brand -> BrandApproval.isApproved(brand.getApprovalStatus()) && !brand.isSuspended())
+                .orElse(false);
+    }
 
     /**
      * 純查詢今日是否已轉過（不寫入 Redis，避免干擾 spin 的 dailyKey）
@@ -51,6 +61,10 @@ public class DailySpinService {
     }
 
     public List<String> getCategoriesByBrand(Long brandId) {
+        // stage 6：未核准或已停用的品牌，對外視同沒有分類
+        if (!brandReachable(brandId)) {
+            return List.of();
+        }
         return menuCategoryRepository.findByBrandIdOrderBySortOrderAsc(brandId).stream()
                 .map(com.example.demo.entity.MenuCategory::getName)
                 .collect(Collectors.toList());
@@ -60,6 +74,10 @@ public class DailySpinService {
     public SpinResult spin(Long userId, Long brandId) {
         if (brandId == null) {
             throw new com.example.demo.exception.CustomException("400", "請選擇品牌");
+        }
+        // stage 6：未核准或已停用的品牌不發放新優惠券（在取得鎖與寫入今日標記之前就拒絕）
+        if (!brandReachable(brandId)) {
+            throw new com.example.demo.exception.CustomException("404", "找不到品牌");
         }
 
         // 1. 使用 Redis 鎖防止同一用戶同時多次併發請求

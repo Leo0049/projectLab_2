@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.common.JwtUtils;
 import com.example.demo.common.SafeImageUrl;
 import com.example.demo.common.SafeText;
+import com.example.demo.common.StoreVisibility;
 import com.example.demo.dto.StoreDTO;
 import com.example.demo.dto.StoreRequest;
 import com.example.demo.entity.*;
@@ -53,14 +54,6 @@ public class StoreService {
     // Existing entity-based methods
     // ============================================================
 
-    public List<Store> getAllOpenStores() {
-        return storeRepository.findByIsAcceptingOrdersTrue();
-    }
-
-    public List<Store> getStoresByBrandId(Long brandId) {
-        return storeRepository.findByBrandId(brandId);
-    }
-
     /**
      * 品牌底下的分店列表（對外用）。
      *
@@ -72,15 +65,9 @@ public class StoreService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getStoreMapsByBrandId(Long brandId) {
         return storeRepository.findByBrandId(brandId).stream()
+                .filter(StoreVisibility::isReachable)   // stage 6：停用的分店或品牌不對外
                 .map(this::toMap)
                 .toList();
-    }
-
-    /**
-     * 回傳 Store entity（原始版本）
-     */
-    public Store getStoreById(Long storeId) {
-        return storeRepository.findById(storeId).orElse(null);
     }
 
     // ============================================================
@@ -93,6 +80,11 @@ public class StoreService {
                 .orElseThrow(() -> new CustomException("404", "帳號不存在"));
         if (!passwordEncoder.matches(password, store.getPasswordHash()))
             throw new CustomException("401", "密碼錯誤");
+        // stage 6：密碼正確後才告知停用，與品牌登入的檢查順序一致
+        if (store.isSuspended())
+            throw new CustomException("403", "此分店已停用，請聯絡平台管理員");
+        if (storeRepository.isBrandSuspended(store.getId()))
+            throw new CustomException("403", "此分店所屬的品牌已停用，請聯絡平台管理員");
         String token = jwtUtils.generateToken(store.getId(), store.getRole(), store.getAccount(), store.getTokenVersion());
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
@@ -109,6 +101,9 @@ public class StoreService {
     public Map<String, Object> getStoreByIdV2(Long id) {
         Store store = storeRepository.findById(id)
                 .orElseThrow(() -> new CustomException("404", "店家不存在"));
+        // stage 6：停用的分店或品牌對外視同不存在
+        if (!StoreVisibility.isReachable(store))
+            throw new CustomException("404", "店家不存在");
         return toMap(store);
     }
 

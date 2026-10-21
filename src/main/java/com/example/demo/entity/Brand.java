@@ -37,8 +37,7 @@ public class Brand {
     private LocalDateTime createdAt = LocalDateTime.now();
 
     /**
-     * 權杖版本（N13）。目前品牌沒有改密碼或停用的路徑；日後新增時必須遞增此欄位，
-     * 否則舊權杖不會失效（見 CLAUDE.md 的 N13 約定）。
+     * 權杖版本（N13）。改密碼與管理員停用時遞增（停用由 AdminService 處理），舊權杖因此失效。
      */
     @JsonIgnore
     @Column(name = "token_version", nullable = false)
@@ -55,4 +54,16 @@ public class Brand {
     /** 管理員審核（核准或退件）的時間；尚未審核為 null。 */
     @Column(name = "reviewed_at")
     private LocalDateTime reviewedAt;
+
+    /**
+     * 管理員停用（stage 6）。停用的品牌不能登入、其門市不能下單、列表與詳情對外視同不存在，
+     * 既有權杖與 STOMP 連線立即失效（見 {@link com.example.demo.common.AccountStatus}）。
+     * DDL 的 DEFAULT false 讓既有品牌維持可用；正式環境的 ALTER 必須帶同樣的預設值（見 DATABASE.md）。
+     */
+    @Column(name = "suspended", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT false")
+    private boolean suspended = false;
+
+    /** 停用時間；未停用為 null。恢復時會清空。 */
+    @Column(name = "suspended_at")
+    private LocalDateTime suspendedAt;
 }

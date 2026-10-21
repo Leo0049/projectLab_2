@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "stores",
@@ -97,10 +98,21 @@ public class Store {
     private String coverUrl;
 
     /**
-     * 權杖版本（N13）。目前分店沒有改密碼或停用的路徑；日後新增時必須遞增此欄位，
-     * 否則舊權杖不會失效（見 CLAUDE.md 的 N13 約定）。
+     * 權杖版本（N13）。改密碼、管理員停用，以及所屬品牌被停用時遞增，舊權杖因此失效。
      */
     @JsonIgnore
     @Column(name = "token_version", nullable = false)
     private int tokenVersion = 0;
+
+    /**
+     * 管理員停用（stage 6）。與 {@link #status}（店家自行營業或休息）不同：
+     * 停用由平台管理員設定，店家無法自行解除。停用後不出現在公開列表、不接受新訂單。
+     * DDL 的 DEFAULT false 讓既有分店維持可用；正式環境的 ALTER 必須帶同樣的預設值（見 DATABASE.md）。
+     */
+    @Column(name = "suspended", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT false")
+    private boolean suspended = false;
+
+    /** 停用時間；未停用為 null。恢復時會清空。 */
+    @Column(name = "suspended_at")
+    private LocalDateTime suspendedAt;
 }

@@ -1,11 +1,13 @@
 package com.example.demo.service;
 
+import com.example.demo.common.StoreVisibility;
 import com.example.demo.entity.*;
 import com.example.demo.exception.CustomException;
 import com.example.demo.repository.ProductRepository;
 import com.example.demo.repository.ProductTemplateRepository;
 import com.example.demo.repository.ProductToppingRuleRepository;
 import com.example.demo.repository.StoreProductStatusRepository;
+import com.example.demo.repository.StoreRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -38,6 +40,7 @@ public class ProductService {
     private final com.example.demo.repository.BrandToppingSettingRepository brandToppingSettingRepository;
     private final com.example.demo.repository.StoreSpecSettingRepository storeSpecSettingRepository;
     private final com.example.demo.repository.StoreToppingStatusRepository storeToppingStatusRepository;
+    private final StoreRepository storeRepository;
 
     @Autowired(required = false)
     private ProductToppingRuleRepository productToppingRuleRepository;
@@ -53,6 +56,10 @@ public class ProductService {
     // 但它與本方法都呼叫 findByStoreId()（查詢條件已含 isEnabled = true），
     // 是同一份結果的重複方法，公開端點移除後已刪除。
     public List<com.example.demo.dto.ProductDTO> getActiveProductsByStoreId(Long storeId) {
+        // stage 6：分店或其品牌被停用時，對外視同沒有上架商品
+        if (!storeReachable(storeId)) {
+            return List.of();
+        }
         List<ProductTemplate> products = productRepository.findByStoreId(storeId);
         return convertToDTOList(products);
     }
@@ -106,13 +113,26 @@ public class ProductService {
                 canBeHot);
     }
 
-    public ProductTemplate getProductById(Long productId) {
-        return productRepository.findById(productId).orElse(null);
+    /** 分店與其品牌都未停用才對外可見（stage 6）。分店不存在也視為不可見。 */
+    private boolean storeReachable(Long storeId) {
+        return storeRepository.findById(storeId)
+                .map(store -> StoreVisibility.isReachable(store.isSuspended(),
+                        storeRepository.isBrandSuspended(storeId)))
+                .orElse(false);
+    }
+
+    /** 商品所屬的品牌被停用時，商品對外視同不存在（stage 6）。 */
+    private static boolean brandReachable(ProductTemplate product) {
+        Brand brand = product.getBrand();
+        return brand != null && !brand.isSuspended();
     }
 
     public List<com.example.demo.dto.ProductSpecDTO> getProductSpecs(Long productId) {
         ProductTemplate product = productRepository.findById(productId).orElse(null);
         if (product == null)
+            return List.of();
+        // stage 6：商品所屬品牌被停用時，對外視同沒有規格
+        if (!brandReachable(product))
             return List.of();
 
         // 1. Get all relations for this specific product (mainly for SIZE and extra
@@ -185,6 +205,9 @@ public class ProductService {
         ProductTemplate product = productRepository.findById(productId).orElse(null);
         if (product == null)
             return null;
+        // stage 6：商品所屬品牌或指定的分店被停用時，對外視同不存在
+        if (!brandReachable(product) || (storeId != null && !storeReachable(storeId)))
+            return null;
 
         List<com.example.demo.dto.ProductSpecDTO> specs = getProductSpecs(productId);
 
@@ -253,6 +276,9 @@ public class ProductService {
     public Map<String, Object> getProductDetail(Long productId) {
         ProductTemplate p = productTemplateRepository.findById(productId)
                 .orElseThrow(() -> new CustomException("404", "找不到商品"));
+        // stage 6：商品所屬品牌被停用時，對外視同不存在（公開的商品詳情端點會呼叫這裡）
+        if (!brandReachable(p))
+            throw new CustomException("404", "找不到商品");
 
         Map<String, Object> result = new HashMap<>();
         result.put("productId", p.getId());

@@ -15,6 +15,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -155,6 +156,34 @@ class AccountStatusTest {
                 stores(Map.of(7L, store("STORE", 0))), admins(Map.of())));
     }
 
+    @Test
+    @DisplayName("被停用的品牌不可使用，即使已核准、權杖版本也相符（stage 6）")
+    void suspendedBrandIsNotUsable() {
+        Brand suspended = brand("BRAND", 0);
+        suspended.setSuspended(true);
+        assertFalse(AccountStatus.isActive(10L, "BRAND", 0,
+                users(Map.of()), brands(Map.of(10L, suspended)), noStores()));
+    }
+
+    @Test
+    @DisplayName("被停用的分店不可使用，即使版本相符（stage 6）")
+    void suspendedStoreIsNotUsable() {
+        Store suspended = store("STORE", 0);
+        suspended.setSuspended(true);
+        assertFalse(AccountStatus.isActive(20L, "STORE", 0,
+                users(Map.of()), noBrands(), stores(Map.of(20L, suspended))));
+    }
+
+    @Test
+    @DisplayName("所屬品牌被停用的分店不可使用，即使分店本身未停用、權杖版本也相符（stage 6）")
+    void storeUnderSuspendedBrandIsNotUsable() {
+        // 品牌停用時分店版本會一併遞增；這裡再檢查品牌，確保停用立即生效，不依賴版本號的時間差
+        assertFalse(AccountStatus.isActive(20L, "STORE", 0,
+                users(Map.of()), noBrands(), stores(Map.of(20L, store("STORE", 0)), Set.of(20L))));
+        assertTrue(AccountStatus.isActive(20L, "STORE", 0,
+                users(Map.of()), noBrands(), stores(Map.of(20L, store("STORE", 0)), Set.of(21L))));
+    }
+
     // ── 測試用的儲存庫與資料 ─────────────────────────────────
 
     private static User customer(boolean deleted, int tokenVersion) {
@@ -212,7 +241,15 @@ class AccountStatusTest {
     }
 
     private static StoreRepository stores(Map<Long, Store> rows) {
+        return stores(rows, Set.of());
+    }
+
+    /** storesWithSuspendedBrand：所屬品牌已停用的分店 id，供 {@code isBrandSuspended} 回傳。 */
+    private static StoreRepository stores(Map<Long, Store> rows, Set<Long> storesWithSuspendedBrand) {
         return proxy(StoreRepository.class, (method, args) -> {
+            if ("isBrandSuspended".equals(method.getName())) {
+                return storesWithSuspendedBrand.contains((Long) args[0]);
+            }
             expect(method, "findById");
             return Optional.ofNullable(rows.get((Long) args[0]));
         });

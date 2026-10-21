@@ -1,6 +1,7 @@
 package com.example.demo.repository;
 
 import com.example.demo.entity.Store;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,15 +12,19 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 分店的查詢。
+ *
+ * <p>⚠️ 對顧客公開的列表查詢，WHERE 都必須包含 {@link com.example.demo.common.StoreVisibility#FILTER}
+ * 的完整條件（分店與品牌都未停用，stage 6）。計數與列表必須使用相同條件，否則分頁的 hasNext 會對不上。
+ * 這些查詢的字串會被 {@code StoreVisibilityGuardTest} 逐一檢查。
+ */
 @Repository
 public interface StoreRepository extends JpaRepository<Store, Long> {
-
-    @EntityGraph(attributePaths = {"brand", "region"})
-    @Query("SELECT s FROM Store s WHERE s.isAcceptingOrders = true")
-    List<Store> findByIsAcceptingOrdersTrue();
 
     Optional<Store> findFirstByAccount(String account);
 
@@ -28,11 +33,11 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
     // 品牌名稱搜尋（LIKE）,同時搜尋品牌名稱和店家名稱。分頁，依 id 排序才穩定。
     @EntityGraph(attributePaths = {"brand"})
-    @Query("SELECT s FROM Store s JOIN s.brand b WHERE (b.name LIKE %:keyword% OR s.storeName LIKE %:keyword%) AND s.status = 'active' ORDER BY s.id ASC")
+    @Query("SELECT s FROM Store s JOIN s.brand b WHERE (b.name LIKE %:keyword% OR s.storeName LIKE %:keyword%) AND s.status = 'active' AND s.suspended = FALSE AND b.suspended = FALSE ORDER BY s.id ASC")
     List<Store> searchByBrandName(@Param("keyword") String keyword, Pageable pageable);
 
     /** 搜尋結果總筆數。WHERE 條件必須與上兩支查詢完全相同，否則 hasNext 會與實際列表對不上。 */
-    @Query("SELECT COUNT(s) FROM Store s JOIN s.brand b WHERE (b.name LIKE %:keyword% OR s.storeName LIKE %:keyword%) AND s.status = 'active'")
+    @Query("SELECT COUNT(s) FROM Store s JOIN s.brand b WHERE (b.name LIKE %:keyword% OR s.storeName LIKE %:keyword%) AND s.status = 'active' AND s.suspended = FALSE AND b.suspended = FALSE")
     long countSearchByKeyword(@Param("keyword") String keyword);
 
     /**
@@ -51,7 +56,7 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
             * cos(radians(s.longitude) - radians(:lng))
             + sin(radians(:lat)) * sin(radians(s.latitude)))))) AS distance
             FROM stores s JOIN brands b ON s.brand_id = b.id
-            WHERE s.status = 'active'
+            WHERE s.status = 'active' AND s.suspended = FALSE AND b.suspended = FALSE
             AND (s.store_name LIKE :keyword OR b.name LIKE :keyword)
             ORDER BY distance, s.id
             LIMIT :size OFFSET :offset
@@ -84,7 +89,7 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
             * cos(radians(s.longitude) - radians(:lng))
             + sin(radians(:lat)) * sin(radians(s.latitude)))))) AS distance
             FROM stores s JOIN brands b ON s.brand_id = b.id
-            WHERE s.status = 'active'
+            WHERE s.status = 'active' AND s.suspended = FALSE AND b.suspended = FALSE
             AND s.latitude BETWEEN :latMin AND :latMax
             AND s.longitude BETWEEN :lngMin AND :lngMax
             AND (:brandId IS NULL OR s.brand_id = :brandId)
@@ -110,19 +115,61 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
     @EntityGraph(attributePaths = {"brand"})
     List<Store> findAllById(Iterable<Long> ids);
 
+    /** 地圖用：全部對顧客可見的分店。 */
     @EntityGraph(attributePaths = {"brand"})
-    List<Store> findByStatus(String status);
+    @Query("SELECT s FROM Store s JOIN s.brand b WHERE s.status = 'active' AND s.suspended = FALSE AND b.suspended = FALSE ORDER BY s.id ASC")
+    List<Store> findAllVisible();
 
     /** 無定位時的分頁列表（依 id 排序，分頁才穩定）。 */
     @EntityGraph(attributePaths = {"brand"})
-    List<Store> findByStatusOrderByIdAsc(String status, Pageable pageable);
+    @Query("SELECT s FROM Store s JOIN s.brand b WHERE s.status = 'active' AND s.suspended = FALSE AND b.suspended = FALSE ORDER BY s.id ASC")
+    List<Store> findVisibleOrderByIdAsc(Pageable pageable);
 
     /** 無定位且指定品牌時的分頁列表。 */
     @EntityGraph(attributePaths = {"brand"})
-    List<Store> findByStatusAndBrandIdOrderByIdAsc(String status, Long brandId, Pageable pageable);
+    @Query("SELECT s FROM Store s JOIN s.brand b WHERE s.status = 'active' AND s.suspended = FALSE AND b.suspended = FALSE AND b.id = :brandId ORDER BY s.id ASC")
+    List<Store> findVisibleByBrandIdOrderByIdAsc(@Param("brandId") Long brandId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"brand"})
     List<Store> findByBrandId(Long brandId);
+
+    /** 管理員看某品牌的分店（分頁，含停用狀態；不套用顧客可見條件）。 */
+    Page<Store> findPageByBrandId(Long brandId, Pageable pageable);
+
+    /**
+     * 條件式停用分店（stage 6）：只停用尚未停用的分店，並遞增 tokenVersion 讓其既有權杖失效。
+     * 回傳 0 代表分店不存在或已停用。
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Store s SET s.suspended = true, s.suspendedAt = :at, s.tokenVersion = s.tokenVersion + 1 "
+            + "WHERE s.id = :storeId AND s.suspended = false")
+    int suspendStore(@Param("storeId") Long storeId, @Param("at") LocalDateTime at);
+
+    /** 條件式恢復分店（stage 6）。不遞增版本，理由同 {@code BrandRepository#reinstateBrand}。 */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Store s SET s.suspended = false, s.suspendedAt = null "
+            + "WHERE s.id = :storeId AND s.suspended = true")
+    int reinstateStore(@Param("storeId") Long storeId);
+
+    /** 品牌停用時，讓其底下所有分店的既有權杖一併失效（stage 6）。 */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Store s SET s.tokenVersion = s.tokenVersion + 1 WHERE s.brand.id = :brandId")
+    int bumpTokenVersionsOfBrand(@Param("brandId") Long brandId);
+
+    /** 品牌底下所有分店的 id。停用前取得，供切斷這些分店既有的 WebSocket 連線。 */
+    @Query("SELECT s.id FROM Store s WHERE s.brand.id = :brandId ORDER BY s.id ASC")
+    List<Long> findIdsByBrandId(@Param("brandId") Long brandId);
+
+    @Query("SELECT COUNT(s) FROM Store s JOIN s.brand b WHERE s.id = :storeId AND b.suspended = true")
+    long countOfSuspendedBrand(@Param("storeId") Long storeId);
+
+    /**
+     * 分店所屬品牌是否已停用。不經過 LAZY 關聯，因此可在任何交易之外呼叫
+     * （StoreService.login、AccountStatus 等沒有交易的路徑）。
+     */
+    default boolean isBrandSuspended(Long storeId) {
+        return countOfSuspendedBrand(storeId) > 0;
+    }
 
     /**
      * 取得門市那一列的寫鎖。

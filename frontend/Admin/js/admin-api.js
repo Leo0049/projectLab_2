@@ -97,6 +97,32 @@ const AdminAPI = (() => {
       return request(`/api/admin/brands/${encodeURIComponent(brandId)}/reject`, { method: 'POST' });
     },
 
+    approvedBrands(page, size) {
+      const query = new URLSearchParams({ page: String(page), size: String(size) });
+      return request(`/api/admin/brands/approved?${query}`);
+    },
+
+    suspendBrand(brandId) {
+      return request(`/api/admin/brands/${encodeURIComponent(brandId)}/suspend`, { method: 'POST' });
+    },
+
+    reinstateBrand(brandId) {
+      return request(`/api/admin/brands/${encodeURIComponent(brandId)}/reinstate`, { method: 'POST' });
+    },
+
+    brandStores(brandId, page, size) {
+      const query = new URLSearchParams({ page: String(page), size: String(size) });
+      return request(`/api/admin/brands/${encodeURIComponent(brandId)}/stores?${query}`);
+    },
+
+    suspendStore(storeId) {
+      return request(`/api/admin/stores/${encodeURIComponent(storeId)}/suspend`, { method: 'POST' });
+    },
+
+    reinstateStore(storeId) {
+      return request(`/api/admin/stores/${encodeURIComponent(storeId)}/reinstate`, { method: 'POST' });
+    },
+
     logout() {
       clearToken();
       redirectToLogin();
