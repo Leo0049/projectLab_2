@@ -549,7 +549,7 @@ public class GroupOrderService {
         if (store == null || !"active".equalsIgnoreCase(store.getStatus())) {
             throw new CustomException("400", "分店目前不接受新訂單");
         }
-        requireNotSuspended(store);
+        
         if (store.getBrand() == null || store.getBrand().getId() == null) {
             throw new CustomException("400", "分店未關聯有效品牌");
         }
