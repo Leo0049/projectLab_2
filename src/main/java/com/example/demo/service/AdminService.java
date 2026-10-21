@@ -198,7 +198,7 @@ public class AdminService {
             }
             throw new CustomException("409", "品牌已停用");
         }
-        storeRepository.bumpTokenVersionsOfBrand(brandId);
+        
 
         List<AccountRef> accounts = new ArrayList<>();
         accounts.add(new AccountRef(BRAND_ROLE, brandId));
