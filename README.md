@@ -370,16 +370,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是 `cbd7ff0`（2026-10-18 的階段 2，見 PR #8）。PR #8 頭 `cbd7ff0` 上的完整 CI 執行是 [run 39066084888](https://github.com/Leo0049/projectLab_2/actions/runs/39066084888)（`pull_request`），兩個 job 皆成功。之後只改文件與註解（例如 N-22 的 Javadoc 與 CI 步驟名稱）的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是 `ea1531d`（階段 6，PR #12）。PR #12 頭 `ea1531d` 上的完整 CI 執行是 [run 39535734153](https://github.com/Leo0049/projectLab_2/actions/runs/39535734153)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 39066084888（`pull_request`，commit `cbd7ff0`）：「測試與端對端驗證」444 秒、「容器映像建置（僅建置）」78 秒，皆成功 |
+| 執行 | run 39535734153（`pull_request`，commit `ea1531d`）：「測試與端對端驗證」475 秒、「容器映像建置（僅建置）」59 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，57 秒。測試總計 **359 個測試、64 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
-| 打包與起服務 | 打包 7 秒；啟動後端 15 秒 |
+| `mvn test`（第 1 層） | 通過，71 秒。測試總計 **460 個測試、84 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 8 秒；啟動後端 16 秒 |
 | API 端對端（第 2 層） | 通過，5 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，281 秒：全頁面普掃，加上點餐、轉盤、揪團、搜尋分頁四條主線 |
+| UI 流程（第 3 層，斷網模式） | 通過，302 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -676,7 +676,7 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 
 限制（以下項目不在上述結果之內）：
 
-- **Java 端沒有編譯或測試結果。** 以 JDK 21 的 `javac --release 17` 解析 `src/main/java` 與 `src/test/java` 下全部 269 個 `.java`，沒有出現任何語法錯誤訊息；回報的 10,545 筆錯誤全是缺少依賴造成的套件與符號解析錯誤（Spring、Lombok、JUnit 等），這不是語意檢查。ADR-0012 列出的 Java 測試結果以 CI 為準。
+- **Java 端在本機沒有編譯或執行測試。** 以 JDK 21 的 `javac --release 17` 解析 `src/main/java` 與 `src/test/java` 下全部 269 個 `.java`，沒有出現任何語法錯誤訊息；回報的 10,545 筆錯誤全是缺少依賴造成的套件與符號解析錯誤（Spring、Lombok、JUnit 等），這不是語意檢查。Java 測試的結果以 CI 為準：`ea1531d` 的 [run 39535734153](https://github.com/Leo0049/projectLab_2/actions/runs/39535734153) 通過，460 個測試、失敗 0。第一次 CI（run 39535423592）有三個測試錯誤，已於 `ea1531d` 修正。
 - **Java 端的還原驗證尚未做。** 依 CLAUDE.md，新增的測試要在修補前後各跑一次，確認真的抓得到回歸；這需要 CI，屬於合併前的待辦（見 CLAUDE.md）。
 - **`scripts/ui/flow-admin.js` 的第八步（停用與恢復）只通過 `node --check`，沒有實際執行。** 它需要真的後端與資料庫，只能在 CI 跑。
 - **39 項檢查的腳本是暫存檔，沒有收進 repo**，因此這一節的數字無法從 repo 重現。

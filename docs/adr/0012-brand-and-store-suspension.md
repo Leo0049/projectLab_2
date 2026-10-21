@@ -53,4 +53,4 @@
 
 - 本機：`node --check` 與內嵌腳本檢查通過。以 Chromium 對假的管理員 API 跑管理員頁面的 39 項檢查，並以六組故意破壞確認檢查會轉紅（見 README「2026-10-20 還原驗證（本機）」）。
 - Java 測試：`StoreSuspensionIntegrationTest`（真實資料庫：條件式更新、版本、可見性、登入，以及恢復後舊權杖仍失效）、`SuspensionPublicReadsTest`、`SuspensionVisibilityServiceTest`、`StoreLoginSuspensionTest`、`StoreVisibilityTest`、`StoreVisibilityGuardTest`、`StompSessionRegistryTest`、`CutSessionOutboundInterceptorTest`、`StompSessionListenerTest`、`AccountSuspensionCutListenerTest`，以及 `AccountStatusTest`、`AdminServiceTest`、`BrandServiceApprovalTest` 的新增案例。
-- 尚未完成：這些 Java 測試尚未在 CI 上確認（本機無法執行 Maven），也未做還原驗證。合併前需確認 CI 通過，並依 CLAUDE.md 的做法做破壞驗證（新案例在修補前後各跑一次），結果記錄於 README。
+- 尚未完成：本機無法執行 Maven，也未做還原驗證。Java 測試已在 CI 上通過（`ea1531d`，[run 39535734153](https://github.com/Leo0049/projectLab_2/actions/runs/39535734153)，460 個測試、84 個類別，失敗 0）。合併前仍需依 CLAUDE.md 的做法做破壞驗證（新案例在修補前後各跑一次），結果記錄於 README。
