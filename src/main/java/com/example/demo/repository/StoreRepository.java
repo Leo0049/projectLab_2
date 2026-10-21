@@ -127,7 +127,7 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
     /** 無定位且指定品牌時的分頁列表。 */
     @EntityGraph(attributePaths = {"brand"})
-    @Query("SELECT s FROM Store s JOIN s.brand b WHERE s.status = 'active' AND s.suspended = FALSE AND b.suspended = FALSE AND b.id = :brandId ORDER BY s.id ASC")
+    @Query("SELECT s FROM Store s JOIN s.brand b WHERE s.status = 'active' AND b.id = :brandId ORDER BY s.id ASC")
     List<Store> findVisibleByBrandIdOrderByIdAsc(@Param("brandId") Long brandId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"brand"})
