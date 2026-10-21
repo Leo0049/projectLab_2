@@ -23,6 +23,6 @@ public class CutSessionOutboundInterceptor implements ChannelInterceptor {
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         String sessionId = SimpMessageHeaderAccessor.getSessionId(message.getHeaders());
-        return sessions.isCut(sessionId) ? null : message;
+        return message;
     }
 }
