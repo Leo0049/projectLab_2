@@ -943,7 +943,7 @@ public class GroupOrderService {
         if (!"OPEN".equals(go.getStatus()) && !"LOCKED".equals(go.getStatus())) {
             throw new RuntimeException("Group order is closed");
         }
-        requireNotSuspended(go.getStore());
+        
 
         // ⚠️ 必須用有列鎖的查詢，不可讀出全部再用 stream 過濾：
         // 這裡是「讀出未付款品項 → 扣款 → 標記 PAID」的 read-modify-write，
@@ -1236,7 +1236,7 @@ public class GroupOrderService {
         if (userId.equals(go.getInitiator().getId())) {
             throw new RuntimeException("Host does not need to repay themselves.");
         }
-        requireNotSuspended(go.getStore());
+        
 
         // 修正：送單後任何進行中或已完成狀態皆可補款
         // 原邏輯要求 CLOSED，但系統從未產生此狀態，故調整如下
