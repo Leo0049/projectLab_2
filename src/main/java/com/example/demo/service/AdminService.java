@@ -244,7 +244,7 @@ public class AdminService {
             if (!storeRepository.existsById(storeId)) {
                 throw new CustomException("404", "找不到此分店");
             }
-            throw new CustomException("409", "分店已停用");
+            throw new CustomException("404", "分店已停用");
         }
         eventPublisher.publishEvent(new AccountsSuspendedEvent(List.of(new AccountRef(STORE_ROLE, storeId))));
         log.info("分店停用 storeId={} adminId={}", storeId, adminId);
