@@ -55,9 +55,9 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：418 個 `@Test`，74 個測試類別（JUnit 5 + Mockito；10 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：460 個 `@Test`，84 個測試類別（JUnit 5 + Mockito；11 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
-| 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：41 個 HTML 頁面全數普掃（共 53 次載入，顧客主頁有資料與空狀態各掃一次；管理員後台兩頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 | 只有真的載入畫面、真的按下去才會出現的問題 |
+| 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：43 個 HTML 頁面全數普掃（共 55 次載入，顧客主頁有資料與空狀態各掃一次；管理員後台四頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
 此外，CI 會以 `docker build` 驗證 Dockerfile 能建成映像（只建置、不推送）。
 
@@ -120,7 +120,7 @@ VS Code Live Server 的預設埠是 5500，但 5500 被占用時它會**靜默�
 | **優惠券轉盤** | 每日抽獎，優惠券圖片由 Java 2D 動態生成後上傳 Cloudinary |
 | **商品快照** | 下單時保存當下品名與價格，日後改價不影響歷史訂單 |
 
-規模：後端 159 個 Java 檔案 / 約 17.6k 行（`src/main/java`），26 張資料表，14 個 REST controller；前端 41 個頁面、約 18.8k 行 JS（不含 `vendor/`；Vanilla JS + Tailwind）。
+規模：後端 184 個 Java 檔案 / 約 19.8k 行（`src/main/java`），27 張資料表，15 個 REST controller；前端 43 個頁面、約 18.9k 行 JS（不含 `vendor/`；Vanilla JS + Tailwind）。
 
 ---
 
@@ -158,7 +158,7 @@ Customer / Brand / Store 三種前台 (Vanilla JS)
                  │                      │
                  ▼                      ▼
           Redis 7                   MySQL 8
-   揪團購物車 / 分散式鎖 / 轉盤狀態      26 張表（JPA Entity 為 schema 唯一事實來源）
+   揪團購物車 / 分散式鎖 / 轉盤狀態      27 張表（JPA Entity 為 schema 唯一事實來源）
 ```
 
 三種角色 `CUSTOMER` / `BRAND` / `STORE`，授權規則集中在 `SecurityConfig`。
@@ -330,7 +330,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 418 個 `@Test`（74 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 460 個 `@Test`（84 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -358,9 +358,9 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（418 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（460 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
-| `scripts/ui/run-all.js` | 41 個頁面全頁面普掃（53 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
+| `scripts/ui/run-all.js` | 43 個頁面全頁面普掃（55 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
 顧客端是主要使用路徑，普掃分成三段跑：**有資料的帳號**、**剛註冊的空狀態帳號**
 （清單為空時才會踩到的 undefined，用有資料的帳號掃不出來）、以及**未登入的登入註冊 8 頁**。
@@ -653,6 +653,35 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 - 本階段 28 支測試中，其餘 24 支都出現在上表，至少被一組破壞轉紅。
 - scratch 分支 `main-n32-a` 至 `main-n32-j` 在讀取結果後即應刪除；遠端刪除需由擁有者處理。
 
+### 2026-10-20 還原驗證（本機）
+
+第五階段（品牌與門市停用，ADR-0012）的管理員前端以本機 Chromium 驗證，**不是 CI**。本機無法取得 Maven 依賴（連線遭代理以 403 拒絕），也沒有 Docker，因此 Java 端沒有在本機編譯或執行測試，限制見本節末。
+
+環境：Chromium 141（Playwright 的 `chromium-1194`）。靜態頁由 `127.0.0.1:5500` 提供，`/api/admin/**` 以本機假資料取代，欄位依 `AdminService` 的回傳格式。因此這一組驗證的是前端如何處理 API 回應，不是後端的權限與資料。
+
+未破壞時，39 項檢查全數通過（39/39），涵蓋停用與恢復、確認視窗、409 的重新載入、狀態對照表、分店頁的品牌停用提示，以及導覽列與 JS 錯誤。
+
+每組只改一處、各跑一次，記下轉紅的檢查，跑完以雜湊比對還原。
+
+| 編號 | 破壞 | 位置 | 轉紅的檢查（具名失敗） |
+|------|------|------|-----------------------|
+| M-B1 | 品牌名稱不經 `escapeHtml` | `frontend/Admin/js/admin-managed.js` | 「品牌名稱含標籤時以文字顯示、不被執行」 |
+| M-B2 | 停用不再確認 | `frontend/Admin/js/admin-managed.js` | 「停用前出現確認視窗，內容含品牌名稱」、「取消確認視窗時不送出請求」、「取消後品牌仍為營業中」 |
+| M-B3 | 409 不重新載入（只接受 404） | `frontend/Admin/js/admin-managed.js` | 「別人已停用時回 409：提示並重新載入」、「重新載入後 Beta 顯示『恢復』」、「409 提示為琥珀色樣式」 |
+| M-B4 | 狀態對照表改用 `!== undefined` 查找，會查到原型上的鍵 | `frontend/Admin/js/admin-stores.js` | 「狀態不在對照表時原樣顯示（不查到原型上的 constructor）」 |
+| M-B5 | 品牌停用提示的條件反向 | `frontend/Admin/js/admin-stores.js` | 「品牌停用時顯示停用提示（Alpha 剛才已停用）」、「品牌仍停用時，提示說明分店仍無法使用」、「提示為琥珀色樣式」 |
+| M-B6 | 停用分店改打恢復端點（`suspendStore` 呼叫 `/reinstate`） | `frontend/Admin/js/admin-api.js` | 「停用分店後提示」、「停用分店後按鈕變為『恢復』」 |
+
+六組都讓至少一項具名檢查轉紅，各自以 exit code 1 結束。還原後 runner 回報「全部還原，雜湊一致」，重跑 39/39 仍然通過。
+
+限制（以下項目不在上述結果之內）：
+
+- **Java 端沒有編譯或測試結果。** 以 JDK 21 的 `javac --release 17` 解析 `src/main/java` 與 `src/test/java` 下全部 269 個 `.java`，沒有出現任何語法錯誤訊息；回報的 10,545 筆錯誤全是缺少依賴造成的套件與符號解析錯誤（Spring、Lombok、JUnit 等），這不是語意檢查。ADR-0012 列出的 Java 測試結果以 CI 為準。
+- **Java 端的還原驗證尚未做。** 依 CLAUDE.md，新增的測試要在修補前後各跑一次，確認真的抓得到回歸；這需要 CI，屬於合併前的待辦（見 CLAUDE.md）。
+- **`scripts/ui/flow-admin.js` 的第八步（停用與恢復）只通過 `node --check`，沒有實際執行。** 它需要真的後端與資料庫，只能在 CI 跑。
+- **39 項檢查的腳本是暫存檔，沒有收進 repo**，因此這一節的數字無法從 repo 重現。
+- **本機的 mock 不驗證後端。** 權杖版本失效、WebSocket 切斷、分店可見性，以及停用期間的付款守衛，都不在這組驗證範圍內。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
@@ -740,6 +769,7 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 - 單人結帳頁（`frontend/Customer/checkout.html`）的「信用卡支付」送出的是 `WALLET`，與「儲值金支付」相同，實際扣的是錢包餘額，與 UI 文字不符。尚未處理，需產品決定：移除該選項，或改為門市付款。
 - 個人訂單的錢包扣款說明（`OrderService.createOrder` 的 `WALLET` 分支）寫成「已扣除團員已付部分」，個人訂單的帳本會顯示這段文字。尚未處理。
 - 品牌自助註冊已改為審核制（N-28，2026-10-18）：新品牌為 `PENDING`，未核准不能登入，也不出現在公開列表。管理員審核的後台頁面已加入（`frontend/Admin/`，路徑 `/Admin/login.html`），資料仍只經 `/api/admin/**`；是否另加邀請碼仍待業務決定。
+- 品牌與分店停用（stage 6，2026-10-20，ADR-0012）的已知缺口：（a）收藏清單仍會列出已停用的分店，只是顯示，無法下單；（b）購物車加入不檢查停用，結帳才會擋下；（c）停用前已建立的揪團仍可由成員檢視，商品驗證、團員付款與補款會擋；（d）即時切斷只作用於收到停用事件的那台實例，其他實例上既有的 WebSocket 訂閱要等連線結束（見 `docs/DEPLOYMENT.md` 第 30 項）。
 - 依賴漏洞稽核（npm 與 Maven）與 CI action 版本查證尚未完成（N-29、N-20），需在有網路的環境執行。
 
 ---
@@ -772,7 +802,7 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 ## 其他文件
 
 - [API.md](./API.md) — REST API 端點文件
-- [DATABASE.md](./DATABASE.md) — 26 張表 schema 說明
+- [DATABASE.md](./DATABASE.md) — 27 張表 schema 說明
 - [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) — 正式環境部署範圍、設定與限制
 - [docs/adr/README.md](./docs/adr/README.md) — 架構決策紀錄（ADR）
 - [docs/ISSUE_LOG.md](./docs/ISSUE_LOG.md) — 工程問題紀錄

@@ -155,7 +155,7 @@ curl -fsS 'http://127.0.0.1:8082/api/stores/nearby?lat=25&lng=121' >/dev/null
 
 16. **部署時既有登入不會被強制登出**：部署前簽發的權杖沒有版本聲明，視為版本 0；資料庫的 `DEFAULT 0` 讓既有帳號同為版本 0，因此仍然有效。
 17. **改密碼後，同一帳號在其他裝置上的舊權杖會失效**：`POST /api/users/{userId}/change-password` 回傳新權杖，前端（`profile.html`）會換上。其他裝置的舊權杖在下一次需要登入的請求時被拒絕（HTTP 與 STOMP 皆然）。客服與使用者需要知道這件事。
-18. **品牌與門市目前沒有改密碼或停用的路徑**：`token_version` 欄位存在但未使用。日後新增這兩條路徑時必須遞增版本，否則舊權杖不會失效（見 `CLAUDE.md` 的 N13 約定）。
+18. **品牌與門市目前沒有改密碼的路徑**：停用路徑已於 2026-10-20 加入（見下方 28 至 31），停用時會遞增版本。日後新增改密碼路徑時必須遞增版本，否則舊權杖不會失效（見 `CLAUDE.md` 的 N13 約定）。
 19. **登出仍只在前端清除權杖**：伺服器不撤銷，「登出所有裝置」尚未實作。
 
 ## 2026-10-18 品牌審核（N-28）的上線檢查
@@ -181,3 +181,18 @@ curl -fsS 'http://127.0.0.1:8082/api/stores/nearby?lat=25&lng=121' >/dev/null
 
     `orders` 的時間欄位是台北時間，因此以 UTC 加 8 小時比較。
 27. **歷史資料需要對帳**：N-32 修正之前，個人訂單（錢包）取消時會多退一次品項金額；揪團以現金或信用卡結帳後取消時，會把未從錢包扣過的代墊金退進團長錢包。這些已發生的金額不會被本次修正改回。請以錢包帳本與訂單比對，決定是否需要人工調整（由營運負責人決定）。
+
+## 2026-10-20 品牌與門市停用（stage 6）的上線檢查
+
+28. **先加欄位，再部署程式**：`brands`、`stores` 各新增 `suspended BOOLEAN NOT NULL DEFAULT false` 與 `suspended_at DATETIME(6) NULL`。SQL 見 `DATABASE.md`「結構變更方式」的 stage 6 項，也列在下方。prod 為 `ddl-auto: validate`，欄位不存在時啟動會失敗。
+
+    ```sql
+    ALTER TABLE brands ADD COLUMN suspended BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE brands ADD COLUMN suspended_at DATETIME(6) NULL;
+    ALTER TABLE stores ADD COLUMN suspended BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE stores ADD COLUMN suspended_at DATETIME(6) NULL;
+    ```
+
+29. **上線後的驗證**：以管理員登入 `/Admin/login.html`，到「已核准品牌」頁停用一個測試品牌，確認 (a) 公開品牌列表不再出現、(b) 該品牌登入回 403、(c) 它的分店頁顯示停用提示。再恢復，確認品牌可以重新登入。**停用會立即切斷該品牌與分店的既有登入與推播連線**，請在非營業時段操作，並事先告知門市與團長需要重新登入。
+30. **多實例部署**：切斷的登錄表只在收到停用事件的那個實例內。其他實例上既有的 WebSocket 訂閱會持續收到推播，直到連線結束；新的 CONNECT 與 SUBSCRIBE 在所有實例都會被拒絕，因為權杖版本保存在資料庫。需要所有實例即時切斷時，須另行設計共享的通知機制（見 ADR-0012）。
+31. **停用不會取消既有訂單**：已建立的訂單與揪團保留，取消與退款不受停用影響。停用期間的下單與團員付款會被拒絕（400）。
