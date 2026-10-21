@@ -90,8 +90,10 @@
 | account | VARCHAR UNIQUE NOT NULL | 品牌登入帳號 |
 | password_hash | VARCHAR NOT NULL | BCrypt 密碼雜湊 |
 | role | VARCHAR DEFAULT 'BRAND' | 固定為 BRAND |
-| token_version | INT NOT NULL DEFAULT 0 | 權杖版本（N13）：權杖必須帶著相符的版本才會被接受；目前品牌沒有改密碼或停用路徑，日後新增時須遞增 |
+| token_version | INT NOT NULL DEFAULT 0 | 權杖版本（N13）：權杖必須帶著相符的版本才會被接受；停用時遞增（stage 6）。目前沒有改密碼路徑，日後新增時也須遞增 |
 | approval_status | VARCHAR(16) NOT NULL DEFAULT 'APPROVED' | 審核狀態（N-28）：`PENDING`（自助註冊後）、`APPROVED`（可登入，出現在公開列表）、`REJECTED`（退件）。DDL 預設為 `APPROVED`，既有品牌因此維持可登入 |
+| suspended | BOOLEAN NOT NULL DEFAULT false | 停用（stage 6，ADR-0012）：`true` 時品牌不可登入、不出現在公開列表，底下分店也不可見、不能下單 |
+| suspended_at | DATETIME(6) NULL | 停用時間，恢復時清為 NULL |
 | reviewed_at | DATETIME | 管理員核准或退件的時間；尚未審核為 NULL |
 | logo_url | VARCHAR(255) | 品牌 Logo URL（Cloudinary）|
 | created_at | DATETIME | 建立時間 |
@@ -213,7 +215,9 @@
 | account | VARCHAR UNIQUE | 登入帳號 |
 | password_hash | VARCHAR | BCrypt 密碼雜湊 |
 | role | VARCHAR(20) DEFAULT 'STORE' | 固定為 STORE |
-| token_version | INT NOT NULL DEFAULT 0 | 權杖版本（N13）：同 brands；目前分店沒有改密碼或停用路徑，日後新增時須遞增 |
+| token_version | INT NOT NULL DEFAULT 0 | 權杖版本（N13）：同 brands；停用時遞增（stage 6）。目前沒有改密碼路徑，日後新增時也須遞增 |
+| suspended | BOOLEAN NOT NULL DEFAULT false | 停用（stage 6，ADR-0012）：`true` 時分店不可登入、不出現在公開列表與地圖，也不能下單 |
+| suspended_at | DATETIME(6) NULL | 停用時間，恢復時清為 NULL |
 | address | VARCHAR | 門市地址 |
 | latitude / longitude | DECIMAL(10,8) / DECIMAL(11,8) | 地理座標（用於地圖與附近搜尋）|
 | is_delivery_available | BOOLEAN DEFAULT true | 是否提供外送服務 |
@@ -590,6 +594,15 @@ Redis 7.4（見 `docker-compose.yml`）。下表是程式中實際寫入的鍵�
 
   ```sql
   CREATE INDEX idx_orders_status_submitted ON orders (status, submitted_at);
+  ```
+
+- **stage 6（2026-10-20）**：`brands`、`stores` 各新增 `suspended BOOLEAN NOT NULL DEFAULT false` 與 `suspended_at DATETIME(6) NULL`，供管理員停用使用（ADR-0012）。`DEFAULT false` 讓既有品牌與分店維持可用。正式環境（`validate`）須先人工執行下列 SQL，否則啟動會失敗：
+
+  ```sql
+  ALTER TABLE brands ADD COLUMN suspended BOOLEAN NOT NULL DEFAULT false;
+  ALTER TABLE brands ADD COLUMN suspended_at DATETIME(6) NULL;
+  ALTER TABLE stores ADD COLUMN suspended BOOLEAN NOT NULL DEFAULT false;
+  ALTER TABLE stores ADD COLUMN suspended_at DATETIME(6) NULL;
   ```
 
 - 本文件是手寫的對照說明；Entity 才是唯一事實來源。修改 Entity 時請同步更新本文件，並注意上方 `user_coupons` 一節提到的 generated column。

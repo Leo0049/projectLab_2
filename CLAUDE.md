@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-19，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：418 個 `@Test`，分布在 74 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-20，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：460 個 `@Test`，分布在 84 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -187,11 +187,21 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `StompSubscribeRulesTest`（11） | WebSocket 訂閱授權的純規則：顧客只能訂閱自己參與的訂單；揪團推播只開放成員（團長，或已在團內有品項的團員），持分享連結但未加入者不可訂閱（N12）；門市只能訂閱自己的頻道；角色必須相符（id 會撞號）；未知目的地與超大數字 id 一律拒絕 |
 | 授權與路由 | `StompAuthInterceptorTest`（27） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團推播的發起人（即使沒有品項）與已在團內有品項的團員可訂閱，只持分享連結者不可訂閱（N12）；門市不可訂閱揪團推播；已刪除或不存在的帳號、連線後 token 過期者不可連線或訂閱（N7）；客戶端直接 SEND 一律拒絕（N5）；權杖版本與帳號目前版本不符（改過密碼前簽發）者不可連線，連線後改密碼，之後的 SUBSCRIBE 一律拒絕（N13）；管理員權杖不可連線（N-28） |
 | 授權與路由 | `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
-| 授權與路由 | `AccountStatusTest`（14） | 帳號可用性規則（N7）：未刪除的顧客、存在的品牌與門市可用；已刪除、不存在、未知角色或缺少 id 一律不可用；HTTP 與 STOMP 共用此規則；權杖版本不符（改過密碼前簽發）或角色已改變者一律不可用（N13）；顧客 token 不比對門市資料列（id 會撞號）；品牌未核准不可使用（N-28）；管理員只在傳入管理員儲存庫時可用，WebSocket 一律不可用（N-28） |
+| 授權與路由 | `AccountStatusTest`（17） | 帳號可用性規則（N7）：未刪除的顧客、存在的品牌與門市可用；已刪除、不存在、未知角色或缺少 id 一律不可用；HTTP 與 STOMP 共用此規則；權杖版本不符（改過密碼前簽發）或角色已改變者一律不可用（N13）；顧客 token 不比對門市資料列（id 會撞號）；品牌未核准不可使用（N-28）；管理員只在傳入管理員儲存庫時可用，WebSocket 一律不可用（N-28）；停用的品牌與分店不可用，分店所屬品牌停用時亦然（stage 6） |
+| 授權與路由 | `StoreVisibilityTest`（3） | 分店可見性的純規則（stage 6）：分店與品牌都未停用才可連到，任一停用即不可連到；實體版本讀取兩個旗標，沒有品牌時只看分店本身；列表條件要求營業中，且兩者都未停用 |
+| 授權與路由 | `StoreVisibilityGuardTest`（1） | 文字掃描（反射）（stage 6）：`StoreRepository` 每一條公開列出分店的 `@Query`（含計數查詢）都必須套用 `StoreVisibility.FILTER`，漏掉條件的查詢會紅 |
+| 授權與路由 | `SuspensionVisibilityServiceTest`（5） | 停用對公開讀取的影響（stage 6，純邏輯）：品牌列表只查已核准且未停用的品牌；停用的品牌詳情回 404，底下已停用的分店不列出；分店詳情與地圖清單只走可見查詢；分店或品牌停用時分店菜單回 404，不讀取菜單 |
+| 授權與路由 | `SuspensionPublicReadsTest`（4） | 停用對商品與轉盤的影響（stage 6，純邏輯）：分店停用時上架商品清單為空，且不查詢商品；品牌停用時商品詳情回 404，規格與客製化選項不對外；客製化選項帶入已停用的分店時回 null；品牌停用時轉盤分類為空、不能抽獎（不取得鎖、不寫入今日標記） |
+| 授權與路由 | `StoreSuspensionIntegrationTest`（3，載入 Spring context） | 停用的資料庫層驗證（stage 6，真實資料庫）：停用品牌後分店立即不可見，品牌與分店的舊權杖失效，恢復後舊權杖仍無效；單一分店停用只影響該分店；待審品牌不可停用（409） |
+| 授權與路由 | `StompSessionRegistryTest`（5） | WebSocket 工作階段登錄表（stage 6，純邏輯）：切斷某帳號只影響該帳號；顧客與門市 id 相同時互不影響（N13）；角色比對不分大小寫；工作階段結束後移除切斷旗標；null 一律忽略 |
+| 授權與路由 | `CutSessionOutboundInterceptorTest`（2） | 切斷的工作階段的訊息一律丟棄，其他工作階段不受影響；沒有工作階段 id 的訊息（例如系統訊息）原樣放行（stage 6） |
+| 授權與路由 | `StompSessionListenerTest`（3） | CONNECT 後的工作階段登錄（stage 6）：可使用的帳號登錄且不被切斷；登錄時帳號已被停用（停用交易早於登錄）時立即切斷；未經認證的連線直接切斷 |
+| 授權與路由 | `AccountSuspensionCutListenerTest`（1） | 停用事件（`AccountsSuspendedEvent`）切斷列出的帳號所有工作階段，其他帳號不受影響（stage 6，`AFTER_COMMIT`） |
 | 授權與路由 | `JwtAuthenticationFilterTest`（15） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒；改密碼前簽發的顧客或門市 token 被拒、改密碼後簽發的通過（N13）；角色已改變的顧客 token 被拒（N13）；待審品牌的 token 被拒（N-28）；管理員 token 須存在且版本相符（N-28） |
 | 帳號與登入 | `BrandApprovalTest`（3） | 品牌審核狀態的純規則（N-28）：只有完全等於 APPROVED 才算已核准，空值與大小寫不同一律拒絕；只有 PENDING 可被核准或退件；登入被擋下的說明依狀態而異 |
-| 帳號與登入 | `BrandServiceApprovalTest`（5） | 品牌自助註冊與登入（N-28）：註冊一律建立為 PENDING；待審或退件即使密碼正確也不發放權杖（403）；密碼錯誤一律 401，不因審核狀態改變回應；核准後取得權杖 |
-| 帳號與登入 | `AdminServiceTest`（7） | 管理員登入與品牌審核（N-28）：正確密碼發放帶版本的 ADMIN 權杖；密碼錯誤與帳號不存在回同一訊息；核准或退件只成功一次（條件式更新），已處理回 409，不存在回 404；待審清單的頁碼與筆數有上下限 |
+| 帳號與登入 | `BrandServiceApprovalTest`（6） | 品牌自助註冊與登入（N-28）：註冊一律建立為 PENDING；待審或退件即使密碼正確也不發放權杖（403）；密碼錯誤一律 401，不因審核狀態改變回應；核准後取得權杖；被停用的品牌不可登入（403，stage 6） |
+| 帳號與登入 | `AdminServiceTest`（14） | 管理員登入與品牌審核（N-28）：正確密碼發放帶版本的 ADMIN 權杖；密碼錯誤與帳號不存在回同一訊息；核准或退件只成功一次（條件式更新），已處理回 409，不存在回 404；待審清單的頁碼與筆數有上下限。品牌與分店的停用與恢復（stage 6）：停用遞增版本並發布切斷事件，恢復不遞增，重複操作回 409，只能停用已核准的品牌 |
+| 帳號與登入 | `StoreLoginSuspensionTest`（4） | 分店登入（stage 6）：分店被停用或所屬品牌被停用時，密碼正確也不發放權杖（403）；密碼錯誤仍回 401，不因停用狀態改變回應；分店與品牌都未停用時發放權杖 |
 | 帳號與登入 | `AdminBootstrapTest`（5） | 管理員首次建立（N-28）：未設定時不做任何事；帳號不存在才以 BCrypt 雜湊建立；已存在不覆寫密碼；明文密碼與不合法的帳號格式一律拒絕啟動 |
 | 帳號與登入 | `AuthServiceSecurityTest`（9） | 帳號安全：mock Firebase token 只在 mock 模式可用；已刪除帳號不可經社群登入；手機證明不可與他人的社群 UID 併用；合併帳號時拒絕其他號碼的 token；社群 provider 不符時在設定密碼前拒絕；手機驗證權杖只能使用一次（ADR-0009）；預先檢查 `verifyOnly` 不消耗權杖。行為層需要 Mockito，只在 CI 執行 |
 | 帳號與登入 | `SocialSignupRulesTest`（6） | 社群登入的帳號狀態決策：已綁定、手機衝突、建立新帳號；不變量：手機已被使用就絕不另建帳號 |
@@ -254,7 +264,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 `applyDefaultTimeZone()` 把 JVM 預設時區設為 Asia/Taipei，不經過 `main()` |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 10 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`）之外，其餘 64 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 73 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -269,7 +279,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 ```bash
 cd scripts && npm install
 node e2e-verify.js      # API 端對端，12 個面向（逐項通過數由腳本輸出）
-node ui/run-all.js      # 41 個 HTML 頁普掃（53 次載入）+ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright）
+node ui/run-all.js      # 43 個 HTML 頁普掃（55 次載入）+ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright）
 ```
 
 `.github/workflows/ci.yml` 會依序跑完這三層。**改完動到序列化、交易邊界或前端流程的
@@ -577,7 +587,7 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
 - **Customer 前台** (`/frontend/Customer/`)：顧客端，含登入/註冊（`auth/` 8頁）、首頁、地圖、店家列表、購物車、結帳、訂單、揪團、個人資料等 12 頁，共 20 HTML
 - **Brand 後台** (`/frontend/Brand/`)：品牌管理後台，含 Dashboard、菜單、規格加料、門市管理、財務、口碑監控、熱銷趨勢（7 頁）
 - **Store 後台** (`/frontend/store/`)：門市後台，含訂單管理、庫存、營業時間、配送設定、財務報表、評分（12 頁）
-- **Admin 後台** (`/frontend/Admin/`)：管理員審核（N-28）：登入、待審品牌清單（核准、退件、分頁、登出；2 頁）。權杖存在 `adminToken`
+- **Admin 後台** (`/frontend/Admin/`)：管理員審核（N-28）：登入、待審品牌清單（核准、退件）、已核准品牌（停用、恢復、查看分店）、分店（停用、恢復）；分頁與登出；4 頁。權杖存在 `adminToken`
 - 前端 JS 以模組化方式分割（每支 API 獨立 `*-api.js` 或 `api-*.js`）
 - JWT 存於 `localStorage`，每次請求自動帶入 `Authorization: Bearer <token>`
 - 側邊欄由 `store-shell-boot.js`（head 最早載入，防閃爍）+ `store-shell.js`（RWD 響應式 Shell）管理
@@ -682,7 +692,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **權杖在改密碼與刪除帳號後失效（N13）**：權杖帶 `tokenVersion` 聲明（`JwtUtils.generateToken` 的四參數版本）。`AccountStatus.isActive` 比對資料庫目前的版本與角色，HTTP 與 STOMP（CONNECT、每次 SUBSCRIBE）共用這一條規則。
 - **改密碼一律呼叫 `User.changePasswordHash()`**，它會換掉雜湊並遞增版本。`setPasswordHash` 只用於建立新帳號（註冊、新增分店）與示範資料。需要強制登出的路徑（如刪除帳號）呼叫 `revokeIssuedTokens()`。
 - **改密碼 API 回傳新權杖**（`POST /api/users/{userId}/change-password` 回傳 `{ message, token }`）。前端必須換上（`profile.html` 已處理）；其他裝置上的舊權杖在下一次需要登入的請求即被拒絕。
-- **品牌與門市目前沒有改密碼或停用路徑**，`token_version` 欄位存在但尚未使用。日後新增這兩條路徑時，必須遞增版本，否則舊權杖不會失效。
+- **品牌與門市目前沒有改密碼路徑**。停用路徑已於 2026-10-20 加入（見該節），停用時會遞增版本。日後新增改密碼路徑時，必須遞增版本，否則舊權杖不會失效。
 - **沒有版本聲明的舊權杖視為版本 0**，欄位預設 0，部署時既有登入不會被強制登出。
 - **部署前必須先手動加欄位**：`users`、`brands`、`stores` 新增 `token_version INT NOT NULL DEFAULT 0`。prod 為 `ddl-auto: validate`，欄位不存在時啟動會失敗（SQL 見 `DATABASE.md`「結構變更方式」）。
 - **登出仍只在前端清除 token**，伺服器端不撤銷；「登出所有裝置」尚未實作，待產品決定。已建立的 STOMP 訂閱不會因版本改變而即時中斷，直到連線結束（與 N12 同一缺口）；新的 SUBSCRIBE 會被拒絕。
@@ -739,3 +749,13 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **索引**：`orders(status, submitted_at)`（`GroupOrder` 的 `@Index`）。prod 為 `validate`，不會建立索引，需人工執行 DDL（見 `DATABASE.md`「結構變更方式」）。
 - **新增排程任務**：必須經 `ExclusiveJobRunner`，任務本身必須冪等（見 ADR-0006、ADR-0011）。
 - **2026-10-19 新增測試的還原驗證**：`AutoRejectPolicyTest`、`GroupEscrowRuleTest`、`AnalyticsServiceAutoRejectTest`、`GroupOrderServiceCancelRefundTest`、`OrderAutoRejectJobTest`、`ScheduledTasksAutoRejectTest` 的破壞結果記在 README「2026-10-19 還原驗證（CI）」。
+
+## 2026-10-20 新增的不變量與約定
+
+- **品牌與門市可由管理員停用（stage 6，ADR-0012）**：`AdminService.suspendBrand` 與 `suspendStore` 停用時遞增 `token_version`（品牌連同底下所有分店），既有權杖由 `AccountStatus` 的版本比對擋下。`reinstate` 不遞增，停用前的權杖恢復後仍無效，須重新登入。停用與恢復一律是條件式更新（`WHERE suspended = …`），0 列時再以一次讀取區分 404 與 409，不可改為「讀出、檢查、寫回」。
+- **列出分店的查詢只能套用 `StoreVisibility.FILTER`**：`StoreRepository` 中每一條公開列出分店的 `@Query`（含計數查詢）都必須帶 `s.status = 'active' AND s.suspended = FALSE AND b.suspended = FALSE`，由 `StoreVisibilityGuardTest` 以反射掃描守住。單一分店的判斷用 `StoreVisibility.isReachable(...)`，不要在 Service 內再寫一份條件。
+- **下單與付款檢查停用，取消與退款不檢查**：個人結帳（`OrderService.repriceItems`）、揪團的商品驗證（`GroupOrderService.validateActiveStore`）、團員付款與補款會拒絕（400）。取消與退款刻意不檢查，已付款的訂單必須仍能結清。
+- **公開讀取一律過濾**：`PublicService`、`MenuService`、`ProductService`（商品清單、詳情、規格、客製化）與 `DailySpinService`（轉盤分類與抽獎）對停用的分店或品牌回空或 404。新增公開讀取端點時，同步加入 `SuspensionPublicReadsTest` 或 `SuspensionVisibilityServiceTest` 的案例。
+- **既有 WebSocket 連線在交易提交後切斷**：`AdminService` 在交易內發布 `AccountsSuspendedEvent`，`AccountSuspensionCutListener` 以 `AFTER_COMMIT` 處理，交易回滾就不切。切斷以 `StompSessionRegistry` 標記，`CutSessionOutboundInterceptor` 丟棄送往這些工作階段的訊息。`StompSessionListener` 在 CONNECT 後再檢查一次，停用早於登錄者立即切斷。登錄表只在單一實例內（見 ADR-0012 的代價）。
+- **管理員頁面**：`/Admin/managed.html`（已核准品牌）與 `/Admin/stores.html?brandId=`（分店）。停用需要確認（`window.confirm`），恢復不需要；提示說明須重新登入。`stores.html` 的品牌 id 只接受正整數，缺少或不合法時不呼叫 API。
+- **2026-10-20 新增測試的驗證狀態**：Java 測試尚未在 CI 上確認，本機無法執行 Maven，也尚未做還原驗證（合併前的待辦）。前端部分以 Chromium 對假的管理員 API 跑 39 項檢查，並做六組還原驗證，結果見 README「2026-10-20 還原驗證（本機）」。`flow-admin.js` 新增的「停用與恢復」步驟只通過語法檢查，尚未實際執行。

@@ -338,8 +338,16 @@
 | GET | `/api/admin/brands/pending` | ADMIN | 待審核品牌清單（分頁）Query: `?page=0&size=50`。page 從 0 起算，size 上限 100。回傳 `{ brands: [{ brandId, name, account, createdAt }], page, size, total, totalPages, hasNext }` |
 | POST | `/api/admin/brands/{brandId}/approve` | ADMIN | 核准待審品牌，品牌即可登入。品牌不存在回 404；已處理過（已核准或已退件）回 409 |
 | POST | `/api/admin/brands/{brandId}/reject` | ADMIN | 退件待審品牌，品牌無法登入。品牌不存在回 404；已處理過回 409 |
+| GET | `/api/admin/brands/approved` | ADMIN | 已核准品牌清單（含停用狀態，分頁）Query: `?page=0&size=50`。回傳 `{ brands: [{ brandId, name, account, suspended, suspendedAt }], page, size, total, totalPages, hasNext }` |
+| POST | `/api/admin/brands/{brandId}/suspend` | ADMIN | 停用已核准的品牌。品牌與底下所有分店的既有權杖立即失效，推播連線在交易提交後切斷。待審或退件的品牌回 409；已停用回 409；不存在回 404。回傳 `{ brandId, suspended: true, affectedStores }` |
+| POST | `/api/admin/brands/{brandId}/reinstate` | ADMIN | 恢復已停用的品牌。停用前的權杖不會因此重新有效，須重新登入。未停用回 409；不存在回 404 |
+| GET | `/api/admin/brands/{brandId}/stores` | ADMIN | 某品牌的分店清單（含停用狀態，分頁）Query: `?page=0&size=50`。回傳 `{ stores: [{ storeId, storeName, status, suspended, suspendedAt }], page, size, total, totalPages, hasNext, brandId, brandName, brandSuspended }`。品牌不存在回 404 |
+| POST | `/api/admin/stores/{storeId}/suspend` | ADMIN | 停用分店。分店的既有權杖立即失效，推播連線在交易提交後切斷。已停用回 409；不存在回 404 |
+| POST | `/api/admin/stores/{storeId}/reinstate` | ADMIN | 恢復已停用的分店，須重新登入。未停用回 409；不存在回 404 |
 
 > 管理員權杖只在 HTTP 有效。WebSocket 的 CONNECT 一律拒絕 ADMIN 權杖。
+>
+> 停用的效果（stage 6，ADR-0012）：被停用的品牌或分店不出現在公開列表、地圖、搜尋與附近店家；分店與品牌詳情、分店菜單與商品詳情回 404，商品清單、規格與轉盤分類為空，轉盤不能抽獎；登入回 403；既有權杖在下一次請求即被拒絕；新的 WebSocket 連線與訂閱被拒絕，既有訂閱在交易提交後切斷。結帳與團員付款會檢查停用；取消與退款不檢查，已付款的訂單仍可處理。
 
 ---
 
