@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-20，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：460 個 `@Test`，分布在 84 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-21，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：467 個 `@Test`，分布在 85 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -196,7 +196,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `StompSessionRegistryTest`（5） | WebSocket 工作階段登錄表（stage 6，純邏輯）：切斷某帳號只影響該帳號；顧客與門市 id 相同時互不影響（N13）；角色比對不分大小寫；工作階段結束後移除切斷旗標；null 一律忽略 |
 | 授權與路由 | `CutSessionOutboundInterceptorTest`（2） | 切斷的工作階段的訊息一律丟棄，其他工作階段不受影響；沒有工作階段 id 的訊息（例如系統訊息）原樣放行（stage 6） |
 | 授權與路由 | `StompSessionListenerTest`（3） | CONNECT 後的工作階段登錄（stage 6）：可使用的帳號登錄且不被切斷；登錄時帳號已被停用（停用交易早於登錄）時立即切斷；未經認證的連線直接切斷 |
-| 授權與路由 | `AccountSuspensionCutListenerTest`（1） | 停用事件（`AccountsSuspendedEvent`）切斷列出的帳號所有工作階段，其他帳號不受影響（stage 6，`AFTER_COMMIT`） |
+| 授權與路由 | `AccountSuspensionCutListenerTest`（2） | 停用事件（`AccountsSuspendedEvent`）切斷列出的帳號所有工作階段，其他帳號不受影響（stage 6，`AFTER_COMMIT`）；切斷綁在 `AFTER_COMMIT`，以反射讀取註解固定（2026-10-21） |
 | 授權與路由 | `JwtAuthenticationFilterTest`（15） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒；改密碼前簽發的顧客或門市 token 被拒、改密碼後簽發的通過（N13）；角色已改變的顧客 token 被拒（N13）；待審品牌的 token 被拒（N-28）；管理員 token 須存在且版本相符（N-28） |
 | 帳號與登入 | `BrandApprovalTest`（3） | 品牌審核狀態的純規則（N-28）：只有完全等於 APPROVED 才算已核准，空值與大小寫不同一律拒絕；只有 PENDING 可被核准或退件；登入被擋下的說明依狀態而異 |
 | 帳號與登入 | `BrandServiceApprovalTest`（6） | 品牌自助註冊與登入（N-28）：註冊一律建立為 PENDING；待審或退件即使密碼正確也不發放權杖（403）；密碼錯誤一律 401，不因審核狀態改變回應；核准後取得權杖；被停用的品牌不可登入（403，stage 6） |
@@ -227,6 +227,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 金流與併發 | `IdempotencyServiceTest`（14） | 結帳冪等（ADR-0005）：格式檢查、重送回放、進行中衝突、失敗與例外釋放、使用者之間互不影響；同一把鍵配不同內容回 422（請求指紋）；Redis 與本地兩條路徑；舊格式（無指紋）紀錄仍可重播 |
 | 金流與併發 | `OrderServiceCheckoutLockTest`（1） | 結帳使用者鎖忙碌時回 503（`OrderService.createOrder`），不是一般的 RuntimeException（400） |
 | 金流與併發 | `OrderControllerCheckoutFailureTest`（2） | 結帳失敗的 HTTP 結果（不載入 Spring context）：忙碌（503）原樣拋出，交給 GlobalExceptionHandler；業務拒絕仍回 400 的回應 |
+| 金流與併發 | `StoreSuspensionPaymentGuardTest`（6） | 停用期間的付款守衛（stage 6，ADR-0012 決策 5，不載入 Spring context）：停用的分店或品牌時，個人結帳（`createOrder`）、單人下單（`placeOrder`）、團員付款、補款與建立揪團（`createGroupOrderV2`）都回 400，且付款路徑不鎖定未付款品項 |
 | 金流與併發 | `ExclusiveJobRunnerTest`（3） | 排程互斥（ADR-0006）：他人持鎖時略過；取得鎖時執行並以同一 token 釋放；任務拋出例外仍釋放 |
 | 金流與併發 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要能拆回兩欄、補款靠正負號分辨收付方 |
 | 金流與併發 | `GroupOrderServiceCancelRefundTest`（5） | 整單取消（N-32，2026-10-19）：個人訂單取消只靠 escrow 退一次，不逐品項再退；券全額折抵時不退款；揪團取消還原未付款品項的券；PREPARING 不取消也不退款 |
@@ -264,7 +265,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 `applyDefaultTimeZone()` 把 JVM 預設時區設為 Asia/Taipei，不經過 `main()` |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 73 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 74 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -758,5 +759,5 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **公開讀取一律過濾**：`PublicService`、`MenuService`、`ProductService`（商品清單、詳情、規格、客製化）與 `DailySpinService`（轉盤分類與抽獎）對停用的分店或品牌回空或 404。新增公開讀取端點時，同步加入 `SuspensionPublicReadsTest` 或 `SuspensionVisibilityServiceTest` 的案例。
 - **既有 WebSocket 連線在交易提交後切斷**：`AdminService` 在交易內發布 `AccountsSuspendedEvent`，`AccountSuspensionCutListener` 以 `AFTER_COMMIT` 處理，交易回滾就不切。切斷以 `StompSessionRegistry` 標記，`CutSessionOutboundInterceptor` 丟棄送往這些工作階段的訊息。`StompSessionListener` 在 CONNECT 後再檢查一次，停用早於登錄者立即切斷。登錄表只在單一實例內（見 ADR-0012 的代價）。
 - **管理員頁面**：`/Admin/managed.html`（已核准品牌）與 `/Admin/stores.html?brandId=`（分店）。停用需要確認（`window.confirm`），恢復不需要；提示說明須重新登入。`stores.html` 的品牌 id 只接受正整數，缺少或不合法時不呼叫 API。
-- **2026-10-20 新增測試的驗證狀態**：Java 測試已在 CI 上通過（`ea1531d`，[run 39535734153](https://github.com/Leo0049/projectLab_2/actions/runs/39535734153)，460 個測試、84 個類別，失敗 0）。第一次 CI（run 39535423592）有三個測試錯誤，已於同一 PR 修正。本機無法執行 Maven。Java 端的還原驗證已於 CI 完成：十組破壞（scratch 分支 `main-verif-stage6-A` 至 `-K`）中，六組被具名測試抓到，G、I、J、K 四組沒有任何測試轉紅，列為測試缺口（見 README「2026-10-20 還原驗證（Java，CI）」）。前端部分以 Chromium 對假的管理員 API 跑 39 項檢查，並做六組還原驗證，結果見 README「2026-10-20 還原驗證（本機）」。`flow-admin.js` 的「停用與恢復」步驟已在 CI 的 UI 流程中執行並通過。
-- **付款守衛與切斷階段目前沒有測試**：停用期間的個人結帳（`OrderService.repriceItems`、`placeOrder`）、團員付款與補款（`GroupOrderService.getMemberUnpaidTotalAndMarkPaid`、`repayToHost`）、揪團商品驗證（`validateActiveStore`），以及 `AccountSuspensionCutListener` 的 `AFTER_COMMIT` 階段，都沒有任何測試斷言。改動這些地方時請補測試，並依 README 的做法在修補前後各跑一次。
+- **2026-10-20 新增測試的驗證狀態**：Java 測試已在 CI 上通過（`ea1531d`，[run 39535734153](https://github.com/Leo0049/projectLab_2/actions/runs/39535734153)，460 個測試、84 個類別，失敗 0）。第一次 CI（run 39535423592）有三個測試錯誤，已於同一 PR 修正。本機無法執行 Maven。Java 端的還原驗證已於 CI 完成：十組破壞（scratch 分支 `main-verif-stage6-A` 至 `-K`）中，六組被具名測試抓到，G、I、J、K 四組當時沒有任何測試轉紅，列為測試缺口；2026-10-21 已補測試並重跑（見 README「2026-10-21 補測試後還原驗證（Java，CI）」）。前端部分以 Chromium 對假的管理員 API 跑 39 項檢查，並做六組還原驗證，結果見 README「2026-10-20 還原驗證（本機）」。`flow-admin.js` 的「停用與恢復」步驟已在 CI 的 UI 流程中執行並通過。
+- **付款守衛與切斷階段的測試（2026-10-21 補上）**：停用期間的個人結帳（`OrderService.repriceItems`、`placeOrder`）、團員付款與補款（`GroupOrderService.getMemberUnpaidTotalAndMarkPaid`、`repayToHost`）、揪團建立時的分店驗證（`validateActiveStore`，經 `createGroupOrderV2`），由 `StoreSuspensionPaymentGuardTest` 斷言回 400；`AccountSuspensionCutListener` 的 `AFTER_COMMIT` 階段由 `AccountSuspensionCutListenerTest` 以反射固定。交易回滾不切斷沒有整合測試，語意依賴 Spring。改動這些地方時，請在修補前後各跑一次還原驗證，並確認對應測試轉紅。
