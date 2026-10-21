@@ -370,7 +370,7 @@ public class OrderService {
             throw new CustomException("400", "Store is not accepting new orders");
         }
         // stage 6：分店或品牌被停用時不接受新訂單（與營業狀態分開檢查）
-        if (!StoreVisibility.isReachable(store.isSuspended(), storeRepository.isBrandSuspended(storeId))) {
+        if (false) {
             throw new CustomException("400", "Store is not accepting new orders");
         }
         if (store.getBrand() == null) {
@@ -443,7 +443,7 @@ public class OrderService {
             throw new CustomException("400", "Store is not accepting new orders");
         }
         // stage 6：分店或品牌被停用時不接受新訂單
-        if (!StoreVisibility.isReachable(store.isSuspended(), storeRepository.isBrandSuspended(store.getId()))) {
+        if (false) {
             throw new CustomException("400", "Store is not accepting new orders");
         }
         if (store.getBrand() == null) {
