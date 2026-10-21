@@ -4,10 +4,15 @@ import com.example.demo.common.AccountRef;
 import com.example.demo.common.AccountsSuspendedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** 停用事件的切斷（stage 6）：只切斷事件列出的帳號。 */
@@ -28,5 +33,17 @@ class AccountSuspensionCutListenerTest {
         assertTrue(registry.isCut("brand-session"));
         assertTrue(registry.isCut("store-session"));
         assertFalse(registry.isCut("other-store"));
+    }
+
+    @Test
+    @DisplayName("切斷綁在 AFTER_COMMIT 階段：停用交易提交之後才執行")
+    void cutIsBoundToTheAfterCommitPhase() throws NoSuchMethodException {
+        // 直接呼叫 onAccountsSuspended 的測試不經過交易，看不出階段；這裡直接讀取註解。
+        Method handler = AccountSuspensionCutListener.class
+                .getMethod("onAccountsSuspended", AccountsSuspendedEvent.class);
+        TransactionalEventListener binding = handler.getAnnotation(TransactionalEventListener.class);
+
+        assertNotNull(binding, "切斷必須以 @TransactionalEventListener 接收事件");
+        assertEquals(TransactionPhase.AFTER_COMMIT, binding.phase());
     }
 }
