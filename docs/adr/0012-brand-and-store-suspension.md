@@ -48,10 +48,10 @@
 - 購物車加入不檢查停用，但結帳會檢查，因此無法完成訂單。
 - 停用前已建立的揪團仍可由成員檢視；揪團的商品驗證、團員付款與補款會檢查停用。
 - 多實例的即時切斷（見上）。
-- 測試缺口（2026-10-20 還原驗證）：切斷在 `AFTER_COMMIT` 階段與交易回滾不切斷，沒有測試（G）；停用期間的個人結帳、團員付款、補款與揪團商品驗證，沒有測試斷言會被拒絕（I、J、K）。這些是測試缺口，不是程式錯誤。
+- 測試缺口（2026-10-20 還原驗證）已於 2026-10-21 補上：停用期間的個人結帳、單人下單、團員付款、補款與揪團建立，由 `StoreSuspensionPaymentGuardTest` 斷言會被拒絕（I、J、K）；`AFTER_COMMIT` 階段由反射固定（G）。交易回滾不切斷沒有整合測試，語意依賴 Spring。這些原本是測試缺口，不是程式錯誤。
 
 ## 如何驗證
 
 - 本機：`node --check` 與內嵌腳本檢查通過。以 Chromium 對假的管理員 API 跑管理員頁面的 39 項檢查，並以六組故意破壞確認檢查會轉紅（見 README「2026-10-20 還原驗證（本機）」）。
-- Java 測試：`StoreSuspensionIntegrationTest`（真實資料庫：條件式更新、版本、可見性、登入，以及恢復後舊權杖仍失效）、`SuspensionPublicReadsTest`、`SuspensionVisibilityServiceTest`、`StoreLoginSuspensionTest`、`StoreVisibilityTest`、`StoreVisibilityGuardTest`、`StompSessionRegistryTest`、`CutSessionOutboundInterceptorTest`、`StompSessionListenerTest`、`AccountSuspensionCutListenerTest`，以及 `AccountStatusTest`、`AdminServiceTest`、`BrandServiceApprovalTest` 的新增案例。
-- Java 測試已在 CI 上通過（`ea1531d`，[run 39535734153](https://github.com/Leo0049/projectLab_2/actions/runs/39535734153)，460 個測試、84 個類別，失敗 0）。本機無法執行 Maven，還原驗證改在 CI 上做：十組破壞中六組被具名測試抓到，四組（G、I、J、K）沒有任何測試轉紅，列於上方「已知缺口」。結果與各 run 連結見 README「2026-10-20 還原驗證（Java，CI）」。
+- Java 測試：`StoreSuspensionIntegrationTest`（真實資料庫：條件式更新、版本、可見性、登入，以及恢復後舊權杖仍失效）、`SuspensionPublicReadsTest`、`SuspensionVisibilityServiceTest`、`StoreLoginSuspensionTest`、`StoreVisibilityTest`、`StoreVisibilityGuardTest`、`StompSessionRegistryTest`、`CutSessionOutboundInterceptorTest`、`StompSessionListenerTest`、`AccountSuspensionCutListenerTest`、`StoreSuspensionPaymentGuardTest`，以及 `AccountStatusTest`、`AdminServiceTest`、`BrandServiceApprovalTest` 的新增案例。
+- Java 測試已在 CI 上通過（`ea1531d`，[run 39535734153](https://github.com/Leo0049/projectLab_2/actions/runs/39535734153)，460 個測試、84 個類別，失敗 0）。本機無法執行 Maven，還原驗證改在 CI 上做：十組破壞中六組被具名測試抓到，四組（G、I、J、K）當時沒有任何測試轉紅，列於上方「已知缺口」。2026-10-21 補上測試後重跑，四組全數轉紅（見 README「2026-10-21 補測試後還原驗證（Java，CI）」）；2026-10-20 的結果與各 run 連結見 README「2026-10-20 還原驗證（Java，CI）」。

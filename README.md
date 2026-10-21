@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：460 個 `@Test`，84 個測試類別（JUnit 5 + Mockito；11 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：467 個 `@Test`，85 個測試類別（JUnit 5 + Mockito；11 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：43 個 HTML 頁面全數普掃（共 55 次載入，顧客主頁有資料與空狀態各掃一次；管理員後台四頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -330,7 +330,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 460 個 `@Test`（84 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 467 個 `@Test`（85 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -358,7 +358,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（460 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（467 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 43 個頁面全頁面普掃（55 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -707,11 +707,37 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 - 每個分支只有一組破壞，所以每一支轉紅的測試都可以歸因到該組，沒有互相遮蔽的情況。
 - 「通過」只代表沒有任何測試因此失敗，也就是這條守衛沒有被斷言；不代表被破壞的行為是正確的。失敗的 run 在 `mvn test` 即停止，之後的打包、API 與 UI 層都被略過；通過的 run（G、I、J、K）完整跑完所有步驟。
 - C 只被單元測試抓到。整合測試抓不到，是因為 A 所保護的版本遞增已讓舊的分店權杖失效，而品牌停用期間也無法登入。這條規則目前有版本這道防線，但直接斷言它的只有 `AccountStatusTest`。
-- G、I、J、K 是**測試缺口，不是程式錯誤**。程式碼中的實作與 ADR-0012 一致，只是沒有測試斷言它們：
+- G、I、J、K 是**測試缺口，不是程式錯誤**。程式碼中的實作與 ADR-0012 一致，只是當時沒有測試斷言它們（2026-10-21 已補上，見下一節）：
   - G：`AccountSuspensionCutListenerTest` 直接呼叫 `onAccountsSuspended`，沒有經過交易，因此 `AFTER_COMMIT` 階段與「交易回滾時不切斷」都沒有測試。
-  - I、J、K：停用期間的付款守衛（個人結帳、團員付款、補款、揪團商品驗證）沒有任何測試斷言它們會回 400。
-- 補上這四組的測試後，應依 CLAUDE.md 的做法在修補前後各跑一次。是否在合併前補測試，由負責人決定。
+  - I、J、K：停用期間的付款守衛（個人結帳、團員付款、補款、揪團商品驗證）當時沒有任何測試斷言它們會回 400。
+- 測試已於 2026-10-21 補上，修補前後的還原驗證見下一節「2026-10-21 補測試後還原驗證（Java，CI）」。
 - scratch 分支 `main-verif-stage6-A` 至 `-K` 在讀取結果後即應刪除；遠端刪除需由擁有者處理。
+
+### 2026-10-21 補測試後還原驗證（Java，CI）
+
+2026-10-20 的還原驗證中，G、I、J、K 四組沒有任何測試轉紅（見上一節）。本次補上斷言，並對同一組破壞重跑一次：
+
+- `StoreSuspensionPaymentGuardTest`（新增，6 個）：停用的分店或品牌時，個人結帳（`createOrder`）、單人下單（`placeOrder`）、團員付款（`getMemberUnpaidTotalAndMarkPaid`）、補款（`repayToHost`）與建立揪團（`createGroupOrderV2`）都回 400。付款路徑另外斷言未付款品項沒有被鎖定。
+- `AccountSuspensionCutListenerTest`（+1）：讀取 `onAccountsSuspended` 的註解，固定階段為 `AFTER_COMMIT`。
+
+測試在 PR #14（分支 `test/stage6-payment-guards`，頭 `af00c72`）上。未破壞的對照是同一個頭的 [run 39581843911](https://github.com/Leo0049/projectLab_2/actions/runs/39581843911)：`mvn test` 為 467 個測試、85 個類別，失敗 0、錯誤 0、略過 0。
+
+破壞分支從 `af00c72` 切出，分支名稱為 `main-verif-stage6b-<編號>`，commit 標題以 `scratch:` 開頭，每組只改一條守衛（與 2026-10-20 相同的破壞）。
+
+| 編號 | 破壞 | scratch commit | CI run | 結果 | 轉紅的測試與失敗訊息 |
+|------|------|----------------|--------|------|---------------------|
+| G | 切斷監聽器改為 `BEFORE_COMMIT` | `b1e3109` | [39582956591](https://github.com/Leo0049/projectLab_2/actions/runs/39582956591) | 失敗（1 筆） | `AccountSuspensionCutListenerTest.cutIsBoundToTheAfterCommitPhase`（`expected: <AFTER_COMMIT> but was: <BEFORE_COMMIT>`） |
+| I | 團員付款與補款拿掉分店停用守衛 | `80a5d81` | [39582961296](https://github.com/Leo0049/projectLab_2/actions/runs/39582961296) | 失敗（2 筆） | `memberPaymentRefusesASuspendedStore`、`repaymentRefusesASuspendedStore`（守衛缺失後，程式走到未付款品項的讀取並拋出 `RuntimeException`） |
+| J | 個人結帳與單人下單拿掉分店停用守衛 | `5cf0399` | [39582967538](https://github.com/Leo0049/projectLab_2/actions/runs/39582967538) | 失敗（3 筆） | `individualCheckoutRefusesASuspendedStore`、`individualCheckoutRefusesAStoreUnderASuspendedBrand`、`soloOrderRefusesASuspendedStore`（`expected: <Store is not accepting new orders> but was: <Store is not associated with a brand>`） |
+| K | 揪團建立的分店驗證拿掉分店停用守衛 | `02b3caa` | [39582971699](https://github.com/Leo0049/projectLab_2/actions/runs/39582971699) | 失敗（1 筆） | `groupCreationRefusesASuspendedStore`（`expected: <分店目前不接受新訂單> but was: <分店未關聯有效品牌>`） |
+
+讀取時要注意的幾點：
+
+- 修補前（破壞）四組皆紅；修補後（`af00c72`）全綠。每組只有對應的測試轉紅，其他測試不受影響。
+- 斷言同時要求例外型別（`CustomException`）、錯誤碼與訊息都相符。所以守衛缺失時，無論程式在別處拋出的是 `RuntimeException`（I）或另一個 400（J），測試都會失敗。
+- G 只固定註解上的階段，沒有整合測試驗證交易回滾時不切斷；回滾語意由 Spring 的 `AFTER_COMMIT` 保證。
+- 本次只重跑 G、I、J、K。其餘六組（A、C、D、E、F、H）的測試沒有改動，結果沿用 2026-10-20 的紀錄。
+- scratch 分支 `main-verif-stage6b-G`、`-I`、`-J`、`-K` 需由擁有者刪除；2026-10-20 的 `main-verif-stage6-A` 至 `-K` 同樣待刪除。
 
 ### 拆出可測試的規則
 
@@ -801,7 +827,7 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 - 個人訂單的錢包扣款說明（`OrderService.createOrder` 的 `WALLET` 分支）寫成「已扣除團員已付部分」，個人訂單的帳本會顯示這段文字。尚未處理。
 - 品牌自助註冊已改為審核制（N-28，2026-10-18）：新品牌為 `PENDING`，未核准不能登入，也不出現在公開列表。管理員審核的後台頁面已加入（`frontend/Admin/`，路徑 `/Admin/login.html`），資料仍只經 `/api/admin/**`；是否另加邀請碼仍待業務決定。
 - 品牌與分店停用（stage 6，2026-10-20，ADR-0012）的已知缺口：（a）收藏清單仍會列出已停用的分店，只是顯示，無法下單；（b）購物車加入不檢查停用，結帳才會擋下；（c）停用前已建立的揪團仍可由成員檢視，商品驗證、團員付款與補款會擋；（d）即時切斷只作用於收到停用事件的那台實例，其他實例上既有的 WebSocket 訂閱要等連線結束（見 `docs/DEPLOYMENT.md` 第 30 項）。
-- 停用的付款守衛（個人結帳、團員付款、補款、揪團商品驗證）與切斷的 `AFTER_COMMIT` 階段沒有測試（2026-10-20 還原驗證的 G、I、J、K）。補測試後需再做一次還原驗證。
+- 停用的付款守衛與切斷的 `AFTER_COMMIT` 階段已於 2026-10-21 補上測試（`StoreSuspensionPaymentGuardTest`、`AccountSuspensionCutListenerTest`），還原驗證見「2026-10-21 補測試後還原驗證（Java，CI）」。交易回滾不切斷沒有整合測試，語意依賴 Spring 的 `AFTER_COMMIT`。
 - 依賴漏洞稽核（npm 與 Maven）與 CI action 版本查證尚未完成（N-29、N-20），需在有網路的環境執行。
 
 ---
