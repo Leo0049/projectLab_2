@@ -146,7 +146,8 @@ class StoreSuspensionIntegrationTest {
         assertTrue(usableStore(sibling, siblingVersion));
         assertTrue(listedByBrand(sibling));
         assertTrue(usableBrand(brand, brand.getTokenVersion()));
-        assertEquals("404", assertThrows(CustomException.class,
+        // 重複停用是衝突（409），不是查無此分店（404）；見 AdminService.suspendStore
+        assertEquals("409", assertThrows(CustomException.class,
                 () -> adminService.suspendStore(0L, suspended.getId())).getCode());
 
         adminService.reinstateStore(0L, suspended.getId());

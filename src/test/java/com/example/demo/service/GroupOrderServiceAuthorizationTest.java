@@ -12,6 +12,7 @@ import com.example.demo.repository.OrderItemRepository;
 import com.example.demo.repository.OrderItemToppingRepository;
 import com.example.demo.repository.ProductTemplateRepository;
 import com.example.demo.repository.StoreProductStatusRepository;
+import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.entity.StoreProductStatus;
 import com.example.demo.entity.StoreProductStatusId;
@@ -41,6 +42,8 @@ class GroupOrderServiceAuthorizationTest {
     @Mock private UserRepository userRepository;
     @Mock private ProductTemplateRepository productTemplateRepository;
     @Mock private StoreProductStatusRepository storeProductStatusRepository;
+    // requireNotSuspended 會查品牌是否停用（stage 6）；未設定時 Mockito 回傳 false，即視為未停用
+    @Mock private StoreRepository storeRepository;
     @Mock private PricingService pricingService;
     @InjectMocks private GroupOrderService groupOrderService;
 
