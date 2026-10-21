@@ -58,7 +58,7 @@ public final class AccountStatus {
             return stores.findById(userId)
                     .map(store -> !store.isSuspended()
                             && isCurrent(store.getRole(), store.getTokenVersion(), role, tokenVersion)
-                            && !stores.isBrandSuspended(userId))
+                            )
                     .orElse(false);
         }
         if ("ADMIN".equalsIgnoreCase(role)) {
