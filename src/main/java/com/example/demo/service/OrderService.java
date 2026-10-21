@@ -20,6 +20,7 @@ import com.example.demo.repository.ProductTemplateRepository;
 import com.example.demo.repository.StoreRepository;
 import com.example.demo.repository.StoreProductStatusRepository;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.common.StoreVisibility;
 import com.example.demo.service.order.OrderStatusGuard;
 import com.example.demo.service.order.CheckoutFailure;
 import com.example.demo.service.wallet.TxType;
@@ -368,6 +369,10 @@ public class OrderService {
         if (!"active".equalsIgnoreCase(store.getStatus())) {
             throw new CustomException("400", "Store is not accepting new orders");
         }
+        // stage 6：分店或品牌被停用時不接受新訂單（與營業狀態分開檢查）
+        if (!StoreVisibility.isReachable(store.isSuspended(), storeRepository.isBrandSuspended(storeId))) {
+            throw new CustomException("400", "Store is not accepting new orders");
+        }
         if (store.getBrand() == null) {
             throw new CustomException("400", "Store is not associated with a brand");
         }
@@ -435,6 +440,10 @@ public class OrderService {
                 .orElseThrow(() -> new CustomException("404", "Store not found"));
 
         if (!"active".equals(store.getStatus())) {
+            throw new CustomException("400", "Store is not accepting new orders");
+        }
+        // stage 6：分店或品牌被停用時不接受新訂單
+        if (!StoreVisibility.isReachable(store.isSuspended(), storeRepository.isBrandSuspended(store.getId()))) {
             throw new CustomException("400", "Store is not accepting new orders");
         }
         if (store.getBrand() == null) {

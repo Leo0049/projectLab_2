@@ -75,7 +75,7 @@ module.exports = async function run() {
       JOIN_TOKEN: store.token, token: store.token,
     }, { width: 1440, height: 900 });
 
-    await sweep('管理員後台', '/Admin', ['login', 'brands'], { adminToken: admin.token }, MOBILE);
+    await sweep('管理員後台', '/Admin', ['login', 'brands', 'managed', 'stores'], { adminToken: admin.token }, MOBILE);
 
     console.log(`\n  ${total} 個頁面，有問題的 ${bad} 個`);
   } finally {

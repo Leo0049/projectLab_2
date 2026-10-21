@@ -1,9 +1,10 @@
 /**
- * 流程五：管理員審核（沒有權杖 → 錯誤密碼 → 登入 → 核准 → 退件 → 併發 409 → 輸出端轉義 → 登出）
+ * 流程五：管理員審核（沒有權杖 → 錯誤密碼 → 登入 → 核准 → 退件 → 併發 409 → 輸出端轉義 → 停用與恢復 → 登出）
  *
  * 三個待審品牌由 API 註冊，之後都由管理員在後台頁面操作。核准後品牌可以登入、出現在公開品牌列表；
  * 退件後登入回 403、不出現。併發那一步模擬「另一位管理員先處理了」：清單還是舊的，
- * 按下核准應回 409，畫面提示並重新載入。最後用攔截的假資料確認品牌名稱以文字顯示、不被當成 HTML 執行。
+ * 按下核准應回 409，畫面提示並重新載入。接著用攔截的假資料確認品牌名稱以文字顯示、不被當成 HTML 執行。
+ * 最後在「已核准品牌」頁停用再恢復甲，確認登入、公開列表與分店頁的狀態跟著變。
  */
 const { FE, api, adminLogin, ADMIN_USERNAME, ADMIN_PASSWORD, launch, newSession, projectErrors } = require('./harness');
 const report = require('./report');
@@ -11,8 +12,8 @@ const report = require('./report');
 const LOGIN_URL = /\/Admin\/login\.html$/;
 const BRANDS_URL = /\/Admin\/brands\.html$/;
 
-/** 從目前的頁沿著「下一頁」往後找，找到含該品牌的那一頁就停在那裡；找不到回 false。 */
-async function findOnPendingList(page, name, maxPages = 50) {
+/** 待審清單與已核准清單共用（兩頁的清單與分頁元件 id 相同）：從目前的頁沿著「下一頁」往後找，找到含該品牌的那一頁就停在那裡；找不到回 false。 */
+async function findOnBrandList(page, name, maxPages = 50) {
   for (let i = 0; i < maxPages; i++) {
     const names = await page.$$eval('#brand-list button[data-brand-name]', (els) => els.map((e) => e.dataset.brandName));
     if (names.includes(name)) return true;
@@ -103,15 +104,15 @@ module.exports = async function run() {
     ).catch(() => {});
     const savedToken = await page.evaluate(() => localStorage.getItem('adminToken'));
     if (!savedToken) fail('登入成功後應存下 adminToken');
-    const foundA = await findOnPendingList(page, A.name);
-    const foundB = await findOnPendingList(page, B.name);
-    const foundC = await findOnPendingList(page, C.name);
+    const foundA = await findOnBrandList(page,A.name);
+    const foundB = await findOnBrandList(page,B.name);
+    const foundC = await findOnBrandList(page,C.name);
     if (!foundA || !foundB || !foundC) fail(`待審清單應找得到三個測試品牌（甲：${foundA}，乙：${foundB}，丙：${foundC}）`);
     log(`正確密碼：進入待審清單，測試品牌可見（甲${foundA ? '✓' : '✗'} 乙${foundB ? '✓' : '✗'} 丙${foundC ? '✓' : '✗'}）`);
 
     // 4. 核准甲：清單移除；之後品牌可以登入、出現在公開品牌列表
     if (foundA) {
-      await findOnPendingList(page, A.name);
+      await findOnBrandList(page,A.name);
       await actionButton(page, A.name, 'approve').click();
       if (!(await waitForNotice(page, `已核准「${A.name}」`))) fail('核准後應顯示「已核准」的提示');
       if (!(await waitForRowGone(page, A.name))) fail('核准後該品牌應從待審清單移除');
@@ -125,7 +126,7 @@ module.exports = async function run() {
 
     // 5. 退件乙：確認視窗需要接受；清單移除；之後品牌登入回 403、不出現在公開列表
     if (foundB) {
-      await findOnPendingList(page, B.name);
+      await findOnBrandList(page,B.name);
       const dialogs = [];
       page.once('dialog', async (d) => {
         dialogs.push(d.message());
@@ -145,7 +146,7 @@ module.exports = async function run() {
 
     // 6. 併發：另一位管理員先核准了丙，清單還是舊的；按下核准應回 409、提示並重新載入
     if (foundC) {
-      await findOnPendingList(page, C.name);
+      await findOnBrandList(page,C.name);
       const cId = await actionButton(page, C.name, 'approve').getAttribute('data-brand-id');
       const other = await adminLogin();
       const approvedElsewhere = await api(`/api/admin/brands/${cId}/approve`, { method: 'POST', token: other.token });
@@ -192,7 +193,72 @@ module.exports = async function run() {
     if (!probe.shown) fail('品牌名稱含標籤時應以原文字顯示');
     log(`輸出端：含標籤的品牌名稱${probe.injected || probe.triggered ? '被執行（失敗）' : '以原文字顯示、未執行'}`);
 
-    // 8. 登出：權杖清除、回到登入頁；直接再進清單頁也會被導向登入頁
+    // 8. 停用與恢復（品牌甲）：在「已核准品牌」頁停用（需要確認）→ 登入回 403、公開列表消失、分店頁顯示品牌停用
+    //    → 恢復（不需確認）→ 登入可再次使用、公開列表重新出現
+    if (foundA) {
+      await page.goto(FE + '/Admin/managed.html', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+      await page.waitForFunction(
+        () => /^共 \d+ 個已核准品牌$/.test(document.getElementById('brand-count')?.textContent || ''),
+        null,
+        { timeout: 15000 },
+      ).catch(() => {});
+      if (!(await findOnBrandList(page, A.name))) {
+        fail('已核准品牌清單中應找得到測試品牌甲');
+      } else {
+        const aId = await actionButton(page, A.name, 'suspend').getAttribute('data-brand-id');
+        const dialogs = [];
+        page.once('dialog', async (d) => {
+          dialogs.push(d.message());
+          await d.accept();
+        });
+        await actionButton(page, A.name, 'suspend').click();
+        if (!(await waitForNotice(page, `已停用「${A.name}」`))) fail('停用後應顯示「已停用」的提示');
+        if (!(await actionButton(page, A.name, 'reinstate').waitFor({ timeout: 10000 }).then(() => true, () => false))) {
+          fail('停用後該品牌的按鈕應變為「恢復」');
+        }
+        if (!dialogs.some((m) => m.includes(A.name))) fail('停用前的確認提示應包含品牌名稱');
+        const suspendedLogin = await api('/api/brand-auth/login', { method: 'POST', body: { account: A.account, password: A.password } });
+        const suspendedPub = await api('/api/brands');
+        const listedWhileSuspended = ((suspendedPub && suspendedPub.data) || []).some((b) => b.brandName === A.name);
+        if (String(suspendedLogin.code) !== '403') fail(`停用後品牌登入應回 403，實際 code=${suspendedLogin.code}`);
+        if (listedWhileSuspended) fail('停用後品牌不應出現在公開品牌列表');
+
+        await page.goto(FE + `/Admin/stores.html?brandId=${aId}`, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+        const bannerShown = await page.waitForFunction(
+          () => !document.getElementById('brand-banner')?.classList.contains('hidden'),
+          null,
+          { timeout: 10000 },
+        ).then(() => true, () => false);
+        const emptyShown = await page.waitForFunction(
+          () => !document.getElementById('store-empty')?.classList.contains('hidden'),
+          null,
+          { timeout: 10000 },
+        ).then(() => true, () => false);
+        if (!bannerShown) fail('品牌停用時，分店頁應顯示停用提示');
+        if (!emptyShown) fail('品牌沒有分店時，分店頁應顯示空狀態');
+
+        await page.goto(FE + '/Admin/managed.html', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+        await page.waitForFunction(
+          () => /^共 \d+ 個已核准品牌$/.test(document.getElementById('brand-count')?.textContent || ''),
+          null,
+          { timeout: 15000 },
+        ).catch(() => {});
+        if (!(await findOnBrandList(page, A.name))) fail('恢復前，已核准品牌清單應仍找得到測試品牌甲');
+        await actionButton(page, A.name, 'reinstate').click();
+        if (!(await waitForNotice(page, `已恢復「${A.name}」`))) fail('恢復後應顯示「已恢復」的提示');
+        if (!(await actionButton(page, A.name, 'suspend').waitFor({ timeout: 10000 }).then(() => true, () => false))) {
+          fail('恢復後該品牌的按鈕應變回「停用」');
+        }
+        const relogin = await api('/api/brand-auth/login', { method: 'POST', body: { account: A.account, password: A.password } });
+        const pubAgain = await api('/api/brands');
+        const listedAgain = ((pubAgain && pubAgain.data) || []).some((b) => b.brandName === A.name);
+        if (String(relogin.code) !== '200') fail(`恢復後品牌應可登入，實際 code=${relogin.code}`);
+        if (!listedAgain) fail('恢復後品牌應重新出現在公開品牌列表');
+        log(`停用與恢復甲：停用後登入 ${suspendedLogin.code}、公開列表${listedWhileSuspended ? '仍可見' : '不可見'}；恢復後登入 ${relogin.code}、公開列表${listedAgain ? '可見' : '不可見'}`);
+      }
+    }
+
+    // 9. 登出：權杖清除、回到登入頁；直接再進清單頁也會被導向登入頁
     await page.click('#logout-btn');
     await page.waitForURL(LOGIN_URL, { timeout: 10000 }).catch(() => {});
     const tokenAfterLogout = await page.evaluate(() => localStorage.getItem('adminToken'));

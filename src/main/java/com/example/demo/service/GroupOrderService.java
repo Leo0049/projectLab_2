@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.common.SafeText;
+import com.example.demo.common.StoreVisibility;
 import com.example.demo.dto.GroupOrderDTO;
 import com.example.demo.service.order.CouponEligibility;
 import com.example.demo.service.order.GroupRefundPolicy;
@@ -548,8 +549,22 @@ public class GroupOrderService {
         if (store == null || !"active".equalsIgnoreCase(store.getStatus())) {
             throw new CustomException("400", "分店目前不接受新訂單");
         }
+        requireNotSuspended(store);
         if (store.getBrand() == null || store.getBrand().getId() == null) {
             throw new CustomException("400", "分店未關聯有效品牌");
+        }
+    }
+
+    /**
+     * 停用中的分店（分店或品牌）不接受新的付款：團員結帳、團長結帳與補款都會經過這裡。
+     * 退款與取消不經過此檢查，停用後仍須能把錢退回（stage 6）。
+     */
+    private void requireNotSuspended(Store store) {
+        if (store == null || store.getId() == null) {
+            return;
+        }
+        if (!StoreVisibility.isReachable(store.isSuspended(), storeRepository.isBrandSuspended(store.getId()))) {
+            throw new CustomException("400", "分店目前不接受新訂單");
         }
     }
 
@@ -928,6 +943,7 @@ public class GroupOrderService {
         if (!"OPEN".equals(go.getStatus()) && !"LOCKED".equals(go.getStatus())) {
             throw new RuntimeException("Group order is closed");
         }
+        requireNotSuspended(go.getStore());
 
         // ⚠️ 必須用有列鎖的查詢，不可讀出全部再用 stream 過濾：
         // 這裡是「讀出未付款品項 → 扣款 → 標記 PAID」的 read-modify-write，
@@ -1220,6 +1236,7 @@ public class GroupOrderService {
         if (userId.equals(go.getInitiator().getId())) {
             throw new RuntimeException("Host does not need to repay themselves.");
         }
+        requireNotSuspended(go.getStore());
 
         // 修正：送單後任何進行中或已完成狀態皆可補款
         // 原邏輯要求 CLOSED，但系統從未產生此狀態，故調整如下

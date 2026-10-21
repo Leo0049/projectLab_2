@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.common.GeoBounds;
+import com.example.demo.common.StoreVisibility;
 import com.example.demo.dto.BrandSummary;
 import com.example.demo.entity.Brand;
 import com.example.demo.entity.Store;
@@ -99,9 +100,10 @@ public class PublicService {
             // 原本這裡忽略 page／size，會把全部店家回傳給呼叫端。
             // 評分篩選需要距離排序的查詢路徑，無定位時不套用（見 API.md）。
             PageRequest page = PageRequest.of(pageIndex, size);
+            // 可見條件（營業中、分店與品牌都未停用）在查詢內套用，分頁才正確
             List<Store> stores = (brandId == null)
-                    ? storeRepository.findByStatusOrderByIdAsc("active", page)
-                    : storeRepository.findByStatusAndBrandIdOrderByIdAsc("active", brandId, page);
+                    ? storeRepository.findVisibleOrderByIdAsc(page)
+                    : storeRepository.findVisibleByBrandIdOrderByIdAsc(brandId, page);
             List<Map<String, Object>> cards = new ArrayList<>(stores.size());
             for (Store s : stores) {
                 cards.add(buildStoreCard(s, null, favorites));
@@ -143,7 +145,7 @@ public class PublicService {
 
     // ─── 地圖店家 ──────────────────────────────────────────
     public List<Map<String, Object>> getMapStores(Double lat, Double lng) {
-        List<Store> stores = storeRepository.findByStatus("active");
+        List<Store> stores = storeRepository.findAllVisible();
         List<Map<String, Object>> result = new ArrayList<>();
         for (Store s : stores) {
             Map<String, Object> m = new HashMap<>();
@@ -219,6 +221,9 @@ public class PublicService {
     public Map<String, Object> getStoreDetail(Long storeId, Long userId) {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new CustomException("404", "找不到店家"));
+        // stage 6：分店或其品牌被停用時，對外視同不存在
+        if (!StoreVisibility.isReachable(store))
+            throw new CustomException("404", "找不到店家");
 
         Map<String, Object> result = buildStoreCard(store, null, favoritesOf(userId));
 
@@ -241,8 +246,8 @@ public class PublicService {
      * 回傳的 record 欄位名稱就是前端讀取的 JSON key，契約見 {@link BrandSummary}。
      */
     public List<BrandSummary> getBrands() {
-        // N-28：待審與未通過的品牌不進入公開列表
-        return brandRepository.findByApprovalStatus(BrandApproval.APPROVED).stream()
+        // N-28：待審與未通過的品牌不進入公開列表；stage 6：已停用的品牌也不列出
+        return brandRepository.findByApprovalStatusAndSuspendedFalse(BrandApproval.APPROVED).stream()
                 .map(b -> new BrandSummary(b.getId(), b.getName(), b.getLogoUrl()))
                 .toList();
     }
@@ -254,7 +259,12 @@ public class PublicService {
         // N-28：未核准的品牌對外視同不存在
         if (!BrandApproval.isApproved(brand.getApprovalStatus()))
             throw new CustomException("404", "找不到品牌");
-        List<Store> stores = storeRepository.findByBrandId(brandId);
+        // stage 6：已停用的品牌對外視同不存在；其底下已停用的分店不列出
+        if (brand.isSuspended())
+            throw new CustomException("404", "找不到品牌");
+        List<Store> stores = storeRepository.findByBrandId(brandId).stream()
+                .filter(StoreVisibility::isReachable)
+                .toList();
 
         Map<String, Object> result = new HashMap<>();
         result.put("brandId", brand.getId());

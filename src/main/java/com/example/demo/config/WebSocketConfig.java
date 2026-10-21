@@ -26,6 +26,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final UserRepository userRepository;
     private final BrandRepository brandRepository;
     private final StoreRepository storeRepository;
+    private final StompSessionRegistry sessionRegistry;
 
     /** 與 SecurityConfig 共用同一份白名單，避免兩邊漂移 */
     @Value("${app.cors.allowed-origins}")
@@ -59,5 +60,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(new StompAuthInterceptor(jwtUtils, groupOrderRepository, orderItemRepository,
                 userRepository, brandRepository, storeRepository));
+    }
+
+    /**
+     * 出站通道：帳號停用後，既有的工作階段不再收到推播（stage 6）。
+     * 見 {@link CutSessionOutboundInterceptor}。
+     */
+    @Override
+    public void configureClientOutboundChannel(ChannelRegistration registration) {
+        registration.interceptors(new CutSessionOutboundInterceptor(sessionRegistry));
     }
 }
