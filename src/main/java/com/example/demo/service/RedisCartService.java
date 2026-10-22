@@ -103,7 +103,6 @@ public class RedisCartService {
 
     /** 寫入後刷新購物車鍵的保留期，並更新活躍索引 */
     private void touchCart(String key, String token) {
-        redisTemplate.expire(key, RETENTION);
         updateActiveCartTimestamp(token);
     }
 
@@ -114,8 +113,6 @@ public class RedisCartService {
     private void updateActiveCartTimestamp(String token) {
         long nowMillis = Instant.now().toEpochMilli();
         redisTemplate.opsForZSet().add(ACTIVE_CARTS_KEY, token, (double) nowMillis);
-        redisTemplate.opsForZSet().removeRangeByScore(
-                ACTIVE_CARTS_KEY, 0, (double) (nowMillis - RETENTION.toMillis()));
         redisTemplate.expire(ACTIVE_CARTS_KEY, RETENTION);
     }
 }
