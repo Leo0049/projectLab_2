@@ -5,6 +5,7 @@ import com.example.demo.dto.GroupOrderDTO;
 import com.example.demo.entity.GroupOrder;
 import com.example.demo.entity.OrderItem;
 import com.example.demo.service.GroupOrderService;
+import com.example.demo.service.IdempotencyService;
 import com.example.demo.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,8 +17,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Tag(name = "GroupOrder / 揪團", description = "揪團訂單管理。團長建立 → 分享連結 → 團員加入 → 團長送單。")
@@ -36,6 +39,9 @@ public class GroupOrderController {
 
     @Autowired(required = false)
     private OrderService orderService;
+
+    @Autowired
+    private IdempotencyService idempotencyService;
 
     /**
      * 團長與團員結帳接受的付款方式，須與團購頁實際送出的值一致。
@@ -316,55 +322,100 @@ public class GroupOrderController {
 
     @PostMapping("/api/group-orders/{token}/checkout")
     public ResponseEntity<?> checkout(@PathVariable String token, HttpServletRequest httpRequest,
-            @RequestBody CheckoutRequest request) {
+            @RequestBody CheckoutRequest request,
+            @RequestHeader(value = IdempotencyService.HEADER, required = false) String idempotencyKey) {
+        // ⚠️ 身分只認 token。原本寫成「取不到就改用 body 的 hostId／userId」，
+        // 那正是 S-2／S-6 的成因：只要讓前者取不到，檢查就整段被跳過。
+        Long resolvedHostId = getUserId(httpRequest);
+        if (resolvedHostId == null)
+            return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
+
+        // ⚠️ 付款方式不可為空。舊版未驗證：paymentMethod 為 null 時結帳會先成功提交，之後回應組裝的
+        //    Map.of 遇到 null 直接 NPE，客戶端看到失敗而重送，又因已結帳而回 409。
+        //    只接受 ALLOWED_PAYMENT_METHODS 內的值，任意字串會被當成非錢包付款寫入。STORE_CREDIT 由前端映射為 WALLET；
+        //    CASH／CREDIT_CARD 的已付款語意維持原行為，屬於金流產品決定（見審查報告 N-15、N-22）。
+        String paymentMethod = request.getPaymentMethod();
+        if (paymentMethod == null || paymentMethod.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "paymentMethod 不可為空"));
+        }
+        if (!isAllowedPaymentMethod(paymentMethod)) {
+            return ResponseEntity.badRequest().body(Map.of("error", PAYMENT_METHOD_NOT_ALLOWED));
+        }
+
+        // 冪等鍵是選用的（ADR-0005）：沒有帶就照舊執行；帶了就保證同一把鍵只會真的結帳一次。
+        // 鍵的範圍包含團的 token：同一把鍵用在另一團時，不會被當成重送而回放別團的結果。
+        if (idempotencyKey == null) {
+            return placeHostCheckout(token, request, resolvedHostId);
+        }
+        return idempotencyService.execute("group-checkout:" + token, resolvedHostId, idempotencyKey, request,
+                () -> placeHostCheckout(token, request, resolvedHostId));
+    }
+
+    /**
+     * 團長結帳的實際流程：送單（扣款或代墊、套用優惠券）、回傳金額、推播通知。
+     *
+     * <p>交易邊界：{@code groupOrderService.checkout} 自己是一個交易，回傳時結帳已經提交。
+     * 所以提交之後的步驟（讀取通知資訊、推播）失敗時只記 log，照常回傳成功。原本它們與送單共用同一個 try，
+     * 任一失敗都回 400：前端會當成失敗，但送單其實已完成；重送即使帶了冪等鍵也只會得到 400
+     * （佔位已釋放，第二次送單被服務層拒絕），無法回放成功的結果。
+     *
+     * <p>提交之前的失敗（業務拒絕等）回 400。沒有提交，所以冪等佔位會釋放，同一把鍵可以重試。
+     */
+    private ResponseEntity<?> placeHostCheckout(String token, CheckoutRequest request, Long hostId) {
+        // 優先使用單一 address 欄位，若無則組合 city/district/street
+        String fullAddress = request.getAddress();
+        if (fullAddress == null || fullAddress.isBlank()) {
+            fullAddress = (request.getCity() != null)
+                    ? (request.getCity() + request.getDistrict() + request.getStreet())
+                    : "";
+        }
+        String paymentMethod = request.getPaymentMethod();
+
+        Long orderId;
         try {
-            // ⚠️ 身分只認 token。原本寫成「取不到就改用 body 的 hostId／userId」，
-            // 那正是 S-2／S-6 的成因：只要讓前者取不到，檢查就整段被跳過。
-            Long resolvedHostId = getUserId(httpRequest);
-            if (resolvedHostId == null)
-                return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
-
-            // ⚠️ 付款方式不可為空。舊版未驗證：paymentMethod 為 null 時結帳會先成功提交，之後回應組裝的
-            //    Map.of 遇到 null 直接 NPE，客戶端看到失敗而重送，又因已結帳而回 409。
-            //    只接受 ALLOWED_PAYMENT_METHODS 內的值，任意字串會被當成非錢包付款寫入。STORE_CREDIT 由前端映射為 WALLET；
-            //    CASH／CREDIT_CARD 的已付款語意維持原行為，屬於金流產品決定（見審查報告 N-15、N-22）。
-            String paymentMethod = request.getPaymentMethod();
-            if (paymentMethod == null || paymentMethod.isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "paymentMethod 不可為空"));
-            }
-            if (!isAllowedPaymentMethod(paymentMethod)) {
-                return ResponseEntity.badRequest().body(Map.of("error", PAYMENT_METHOD_NOT_ALLOWED));
-            }
-
-            // 優先使用單一 address 欄位，若無則組合 city/district/street
-            String fullAddress = request.getAddress();
-            if (fullAddress == null || fullAddress.isBlank()) {
-                fullAddress = (request.getCity() != null)
-                        ? (request.getCity() + request.getDistrict() + request.getStreet())
-                        : "";
-            }
-            Long orderId = groupOrderService.checkout(token, resolvedHostId,
+            orderId = groupOrderService.checkout(token, hostId,
                     request.getCouponId(), paymentMethod, fullAddress, request.getNote());
-            // 通知所需資訊在交易內讀出：控制器不拿 entity 出去再 getStore()（不在交易內會踩 LAZY，
-            // 而那發生在結帳已 commit 之後，客戶端只會看到 400；見 CLAUDE.md「open-in-view」）
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", Objects.toString(e.getMessage(), "結帳失敗")));
+        }
+
+        // 以下結帳已提交：讀取金額或推播失敗只記 log，回應仍為成功。
+        BigDecimal totalAmount = null;
+        try {
+            // 通知所需資訊在交易內讀出：控制器不拿 entity 出去再 getStore()（見 CLAUDE.md「open-in-view」）
             Map<String, Object> info = groupOrderService.getCheckoutNotifyInfo(token);
             Long storeId = (Long) info.get("storeId");
-            BigDecimal totalAmount = (BigDecimal) info.get("totalAmount");
-
+            totalAmount = (BigDecimal) info.get("totalAmount");
             if (messagingTemplate != null && storeId != null) {
                 messagingTemplate.convertAndSend("/topic/store/" + storeId,
-                        Map.of("type", "NEW_ORDER", "data", Map.of("id", orderId, "totalAmount", totalAmount,
-                                "paymentMethod", paymentMethod)));
+                        Map.of("type", "NEW_ORDER", "data", newOrderData(orderId, totalAmount, paymentMethod)));
             }
+        } catch (RuntimeException e) {
+            log.error("揪團結帳已提交（orderId={}），門市通知未送出；回應仍為成功", orderId, e);
+        }
+        try {
             if (messagingTemplate != null) {
                 messagingTemplate.convertAndSend("/topic/group/" + token,
                         Map.of("orderId", orderId, "paymentMethod", paymentMethod));
             }
-            return ResponseEntity.ok(Map.of("message", "Group Order checked out successfully", "orderId", orderId,
-                    "totalAmount", totalAmount));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (RuntimeException e) {
+            log.error("揪團結帳已提交（orderId={}），揪團推播未送出；回應仍為成功", orderId, e);
         }
+
+        // LinkedHashMap：totalAmount 讀取失敗時為 null，而 Map.of 不接受 null 值
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", "Group Order checked out successfully");
+        body.put("orderId", orderId);
+        body.put("totalAmount", totalAmount);
+        return ResponseEntity.ok(body);
+    }
+
+    private static Map<String, Object> newOrderData(Long orderId, BigDecimal totalAmount, String paymentMethod) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("id", orderId);
+        data.put("totalAmount", totalAmount);
+        data.put("paymentMethod", paymentMethod);
+        return data;
     }
 
     @Operation(summary = "依據訂單 ID 取得揪團詳情", description = "供訂單確認頁面使用。")
@@ -442,7 +493,8 @@ public class GroupOrderController {
     }
 
     @Data
-    private static class CheckoutRequest {
+    // package-private：GroupOrderCheckoutIdempotencyTest 需要建構請求主體
+    static class CheckoutRequest {
         private Long hostId;      // 舊欄位，保留相容性
         private Long userId;      // 前端實際送出的欄位名稱
         private Long couponId;
