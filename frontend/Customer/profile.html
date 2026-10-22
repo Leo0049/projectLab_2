@@ -290,6 +290,17 @@
                                     更新密碼
                                 </button>
                             </div>
+
+                            <div class="mt-12 pt-8 border-t border-gray-100 dark:border-gray-800">
+                                <h2 class="text-lg font-bold mb-2">登出所有裝置</h2>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                                    其他瀏覽器與 App 上的登入會立即失效，包含目前這個瀏覽器。之後需要重新登入。
+                                </p>
+                                <button id="logout-all-btn" type="button"
+                                    class="px-8 py-3 border border-red-300 text-red-600 rounded-xl font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                    登出所有裝置
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Wallet Section -->
@@ -800,6 +811,19 @@ function escHtmlSafe(value) {
                 } catch (error) {
                     showToast('修改失敗: ' + error.message, 'error');
                 }
+            });
+
+            // --- Logout All Devices (stage 8) ---
+            document.getElementById('logout-all-btn').addEventListener('click', async () => {
+                if (!window.confirm('確定要登出所有裝置嗎？其他瀏覽器與 App 上的登入會立即失效，目前這個瀏覽器也需要重新登入。')) return;
+                try {
+                    await NavAuth.fetchAPI(`/api/users/${userId}/logout-all`, { method: 'POST' });
+                } catch (error) {
+                    showToast('登出失敗: ' + error.message, 'error');
+                    return;
+                }
+                // 伺服器已撤銷所有權杖（N13）；清除本機登入狀態後回到登入頁
+                NavAuth.logout();
             });
 
             // --- Address Management ---

@@ -175,11 +175,11 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-22，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：470 個 `@Test`，分布在 85 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-22，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：477 個 `@Test`，分布在 87 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
-| 授權與路由 | `AuthorizationTest`（21） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、拿他人 userId 結帳、竄改 finalPrice、跨帳號讀寫收藏、消耗他人優惠券、debug 與門市傾印端點已移除；非 ADMIN 權杖不可進入管理員後台、管理員權杖可讀待審清單（N-28） |
+| 授權與路由 | `AuthorizationTest`（23） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、拿他人 userId 結帳、竄改 finalPrice、跨帳號讀寫收藏、消耗他人優惠券、debug 與門市傾印端點已移除；非 ADMIN 權杖不可進入管理員後台、管理員權杖可讀待審清單（N-28）；登出所有裝置（stage 8）：不可撤銷他人的權杖，撤銷自己的權杖後同一權杖即被拒絕 |
 | 授權與路由 | `AuthorizationRouteInventoryTest`（3） | 列舉全部路由：非公開路由匿名呼叫必須回 401／403；公開清單的每一條都必須真的存在（ADR-0003） |
 | 授權與路由 | `GroupOrderSecurityTest`（5） | 揪團 H-1～H-3：伺服器重算價格與歸屬；他人的 couponId 被拒；非團長不可改他人揪團狀態；團長本人的截單與重開可行，亂打的狀態被白名單擋下 |
 | 授權與路由 | `GroupOrderServiceAuthorizationTest`（10） | 揪團讀取與加入：只有發起人能取得分享 token；非成員不可讀數字 id 的明細；舊版加入必須帶正確的 token；拒絕他品牌的商品與門市停售的商品 |
@@ -197,6 +197,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `CutSessionOutboundInterceptorTest`（2） | 切斷的工作階段的訊息一律丟棄，其他工作階段不受影響；沒有工作階段 id 的訊息（例如系統訊息）原樣放行（stage 6） |
 | 授權與路由 | `StompSessionListenerTest`（3） | CONNECT 後的工作階段登錄（stage 6）：可使用的帳號登錄且不被切斷；登錄時帳號已被停用（停用交易早於登錄）時立即切斷；未經認證的連線直接切斷 |
 | 授權與路由 | `AccountSuspensionCutListenerTest`（2） | 停用事件（`AccountsSuspendedEvent`）切斷列出的帳號所有工作階段，其他帳號不受影響（stage 6，`AFTER_COMMIT`）；切斷綁在 `AFTER_COMMIT`，以反射讀取註解固定（2026-10-21） |
+| 授權與路由 | `TokenRevocationCutListenerTest`（2） | 登出所有裝置的切斷（stage 8，純邏輯）：撤銷事件只切斷列出的顧客帳號，同 id 的門市與其他顧客不受影響；切斷綁在 `AFTER_COMMIT`，以反射讀取註解固定（2026-10-22） |
 | 授權與路由 | `JwtAuthenticationFilterTest`（15） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒；改密碼前簽發的顧客或門市 token 被拒、改密碼後簽發的通過（N13）；角色已改變的顧客 token 被拒（N13）；待審品牌的 token 被拒（N-28）；管理員 token 須存在且版本相符（N-28） |
 | 帳號與登入 | `BrandApprovalTest`（3） | 品牌審核狀態的純規則（N-28）：只有完全等於 APPROVED 才算已核准，空值與大小寫不同一律拒絕；只有 PENDING 可被核准或退件；登入被擋下的說明依狀態而異 |
 | 帳號與登入 | `BrandServiceApprovalTest`（6） | 品牌自助註冊與登入（N-28）：註冊一律建立為 PENDING；待審或退件即使密碼正確也不發放權杖（403）；密碼錯誤一律 401，不因審核狀態改變回應；核准後取得權杖；被停用的品牌不可登入（403，stage 6） |
@@ -210,6 +211,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 帳號與登入 | `JwtUtilsProdGuardTest`（4） | JWT 密鑰：dev 可用預設值；prod 拒絕預設值與空白密鑰；prod 接受隨機密鑰 |
 | 帳號與登入 | `JwtTokenVersionTest`（3） | 權杖的帳號版本聲明（N13）：簽發時的版本可原樣解析；沒有版本聲明的舊權杖視為版本 0，部署後既有登入不被強制登出。需要 jjwt，只在 CI 執行 |
 | 帳號與登入 | `UserTokenVersionTest`（4） | 改密碼與撤銷權杖會遞增帳號版本（N13）；撤銷只動版本、不動密碼；新帳號從版本 0 開始 |
+| 帳號與登入 | `UserServiceLogoutAllTest`（3） | 登出所有裝置的服務層（stage 8，Mockito）：遞增權杖版本並寫回；發布的撤銷事件列出該顧客（角色 CUSTOMER）；找不到帳號回 404，不寫入、不發布事件（2026-10-22） |
 | 帳號與登入 | `DemoDataSeederProdGuardTest`（2） | prod profile 不植入示範帳號，即使 `DEMO_DATA_ENABLED=true` |
 | 帳號與登入 | `LoginAttemptLimiterTest`（10） | 登入／OTP 固定視窗限流（ADR-0004）；偽造的 `X-Forwarded-For` 不改變識別；Redis 不可用時退回本地計數；Redis 拋例外時仍以本地計數擋下第三次 |
 | 帳號與登入 | `PhoneProofRateLimitGuardTest`（1） | 手機驗證端點全部限流（文字掃描）：重設密碼、設定密碼、綁定、建立帳號共五條路由都必須呼叫 `loginAttemptLimiter.check` |
@@ -265,7 +267,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 `applyDefaultTimeZone()` 把 JVM 預設時區設為 Asia/Taipei，不經過 `main()` |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 74 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 76 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -691,12 +693,12 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 ## 2026-10-15 新增的不變量與約定
 
 - **權杖在改密碼與刪除帳號後失效（N13）**：權杖帶 `tokenVersion` 聲明（`JwtUtils.generateToken` 的四參數版本）。`AccountStatus.isActive` 比對資料庫目前的版本與角色，HTTP 與 STOMP（CONNECT、每次 SUBSCRIBE）共用這一條規則。
-- **改密碼一律呼叫 `User.changePasswordHash()`**，它會換掉雜湊並遞增版本。`setPasswordHash` 只用於建立新帳號（註冊、新增分店）與示範資料。需要強制登出的路徑（如刪除帳號）呼叫 `revokeIssuedTokens()`。
+- **改密碼一律呼叫 `User.changePasswordHash()`**，它會換掉雜湊並遞增版本。`setPasswordHash` 只用於建立新帳號（註冊、新增分店）與示範資料。需要強制登出的路徑（如登出所有裝置，見 2026-10-22 節）呼叫 `revokeIssuedTokens()`。
 - **改密碼 API 回傳新權杖**（`POST /api/users/{userId}/change-password` 回傳 `{ message, token }`）。前端必須換上（`profile.html` 已處理）；其他裝置上的舊權杖在下一次需要登入的請求即被拒絕。
 - **品牌與門市目前沒有改密碼路徑**。停用路徑已於 2026-10-20 加入（見該節），停用時會遞增版本。日後新增改密碼路徑時，必須遞增版本，否則舊權杖不會失效。
 - **沒有版本聲明的舊權杖視為版本 0**，欄位預設 0，部署時既有登入不會被強制登出。
 - **部署前必須先手動加欄位**：`users`、`brands`、`stores` 新增 `token_version INT NOT NULL DEFAULT 0`。prod 為 `ddl-auto: validate`，欄位不存在時啟動會失敗（SQL 見 `DATABASE.md`「結構變更方式」）。
-- **登出仍只在前端清除 token**，伺服器端不撤銷；「登出所有裝置」尚未實作，待產品決定。已建立的 STOMP 訂閱不會因版本改變而即時中斷，直到連線結束（與 N12 同一缺口）；新的 SUBSCRIBE 會被拒絕。
+- **2026-10-15 時登出只在前端清除 token**；「登出所有裝置」已於 2026-10-22 實作（見該節，僅限顧客）。改密碼不切斷既有的 STOMP 訂閱，要等連線結束（與 N12 同一缺口）；新的 SUBSCRIBE 會被拒絕。
 - **手機驗證權杖只能成功使用一次**（`FirebaseTokenReplayGuard`，見 ADR-0009）：`verifyFirebasePhone` 在號碼比對通過後呼叫 `claimOnce`，同一張在 2 小時內再用一律 401。`verifyOnly`（前端註冊頁的 `firebase-verify`）與 `MOCK_TOKEN` 都不記錄。Redis 鍵是 `fbtoken:<SHA-256>`，權杖本身不入庫。新增手機驗證端點時必須走 `verifyFirebasePhone`，不要另寫比對。
 - **社群權杖不在此規則內**（已知缺口）：Google、Facebook 權杖在整合流程的多個步驟中重複使用。通過號碼比對之後的失敗（例如第三方與權杖不符）也會燒掉手機驗證權杖，使用者需要重新取得驗證碼；這是刻意的取捨。
 - **Redis 故障期間只保證單一實例內正確**：`ClaimStore` 一律先寫本地，有 Redis 時再寫遠端；遠端拋例外時退回本地並寫警告。多實例之間不共享，與限流相同的退避策略。
@@ -765,3 +767,10 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 ## 2026-10-22 新增的不變量與約定
 
 - **購物車 Redis 鍵保留 30 天（stage 7）**：`cart:items:<token>` 與 `carts:active` 在每次寫入（`saveItem`、`removeItem`）時刷新為 `RedisCartService.RETENTION`（30 天，從最後一次更新起算）；`carts:active` 寫入時修剪超過保留期的成員。寫入一律經 `touchCart`，不要直接對這兩把鍵呼叫 Redis。這些鍵沒有讀取端，過期不影響功能；日後若要讀回購物車，必須接受快照可能已過期，缺值時以資料庫為準。三個新案例的還原驗證見 README「2026-10-22 購物車保留期還原驗證（CI）」。
+
+## 2026-10-22（stage 8）新增的不變量與約定
+
+- **登出所有裝置只限顧客（stage 8）**：`POST /api/users/{userId}/logout-all` 先以 `requireSelf` 確認是本人，再呼叫 `UserService.logoutAllDevices`：`findByIdForUpdate` 列鎖 → `User.revokeIssuedTokens()`（版本 +1）→ 發布 `AccountsRevokedEvent`。既有權杖（含目前這個瀏覽器）立即失效（N13）。品牌與門市沒有此端點；日後新增時，必須同樣遞增 `token_version` 並發布事件。
+- **撤銷與停用的切斷分開命名**：`AccountsRevokedEvent`（登出所有裝置）由 `TokenRevocationCutListener` 處理；`AccountsSuspendedEvent`（停用）仍由 `AccountSuspensionCutListener` 處理。兩者都以 `AFTER_COMMIT` 呼叫 `StompSessionRegistry.cut`，交易回滾就不切斷。
+- **切斷只作用於處理請求的實例**：`StompSessionRegistry` 只存在單一實例的記憶體中（與 ADR-0012 的代價相同）。權杖失效是全域的（版本存在資料庫），但其他實例上既有的 STOMP 連線要等到連線結束；新的 CONNECT 與 SUBSCRIBE 一律被拒絕。
+- **前端只在伺服器回應成功後才清除本機登入**：`profile.html` 的「登出所有裝置」請求失敗時保留登入狀態並顯示錯誤，不做只清本機的假登出。

@@ -488,4 +488,39 @@ class AuthorizationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.brands").isArray());
     }
+
+    // ── stage 8：登出所有裝置 ─────────────────────────────────────
+
+    @Test
+    @DisplayName("登出所有裝置：不得撤銷他人的權杖")
+    void cannotLogOutAnotherUsersDevices() throws Exception {
+        String victimToken = jwtUtils.generateToken(victimId, "CUSTOMER", "0900000002", 0);
+
+        mockMvc.perform(post("/api/users/" + victimId + "/logout-all")
+                        .header("Authorization", bearer()))
+                .andExpect(status().isForbidden());
+
+        // 被拒絕的請求不得遞增受害者的版本，受害者的權杖仍然有效
+        mockMvc.perform(get("/api/users/" + victimId)
+                        .header("Authorization", "Bearer " + victimToken))
+                .andExpect(status().isOk());
+        if (userRepository.findById(victimId).orElseThrow().getTokenVersion() != 0) {
+            throw new AssertionError("他人的權杖版本被遞增了");
+        }
+    }
+
+    @Test
+    @DisplayName("登出所有裝置：撤銷目前這個權杖，之後的請求一律被拒絕")
+    void logoutAllDevicesRevokesTheCallersOwnToken() throws Exception {
+        mockMvc.perform(get("/api/users/" + attackerId).header("Authorization", bearer()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/users/" + attackerId + "/logout-all")
+                        .header("Authorization", bearer()))
+                .andExpect(status().isOk());
+
+        // 同一個權杖現在版本已落後，必須被拒絕（N13）
+        mockMvc.perform(get("/api/users/" + attackerId).header("Authorization", bearer()))
+                .andExpect(status().isForbidden());
+    }
 }

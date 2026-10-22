@@ -154,6 +154,7 @@
 | PUT | `/api/users/{userId}/avatar` | 更新頭像 URL |
 | PUT | `/api/users/{userId}/profile` | 更新個人資料 |
 | POST | `/api/users/{userId}/change-password` | 修改密碼；回傳 `{ message, token }`。改密碼後其他裝置的舊權杖失效，前端須換上新 token（N13） |
+| POST | `/api/users/{userId}/logout-all` | 登出所有裝置（僅限本人，他人帳號回 403）：撤銷此帳號所有已簽發的權杖（含目前這個瀏覽器），並切斷該實例上既有的 WebSocket 連線。回傳 `{ message }`。之後需重新登入（N13，stage 8） |
 | GET | `/api/users/{userId}/address` | 取得使用者常用地址列表 |
 | POST | `/api/users/{userId}/addresses` | 新增常用地址 Body: `{ city, district, street, label?, latitude?, longitude? }` |
 | PUT | `/api/users/{userId}/addresses/{addressId}` | 更新指定地址 |
