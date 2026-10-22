@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -22,6 +23,11 @@ import java.time.Instant;
  * <p>⚠️ 同步移除死碼 getCartItems／getRecentActiveCarts（全專案零呼叫端，
  * 已於 2026-08 安全審查時 grep 證實）。日後要讀回購物車請反序列化成
  * CartItemSnapshot，不要再綁回 entity。
+ *
+ * <p>⚠️ 保留期（2026-10-22）：每次寫入都把 {@code cart:items:<token>} 的過期時間刷新為
+ * {@link #RETENTION}，從最後一次更新起算 30 天；{@code carts:active} 同樣刷新保留期，
+ * 並在寫入時修剪超過保留期的成員。這些鍵目前沒有讀取端，過期只會清掉已無人使用的快照。
+ * 日後若要讀回購物車，必須接受快照可能已過期，缺值時以資料庫為準。
  */
 @Slf4j
 @Service
@@ -43,6 +49,9 @@ public class RedisCartService {
 
     private static final String CART_HASH_PREFIX = "cart:items:";
     private static final String ACTIVE_CARTS_KEY = "carts:active";
+
+    /** 購物車鍵的保留期，從最後一次寫入起算（見類別說明） */
+    static final Duration RETENTION = Duration.ofDays(30);
 
     @Autowired
     public RedisCartService(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
@@ -67,7 +76,7 @@ public class RedisCartService {
             String value = objectMapper.writeValueAsString(snapshot);
 
             redisTemplate.opsForHash().put(key, field, value);
-            updateActiveCartTimestamp(token);
+            touchCart(key, token);
 
             log.debug("Saved item {} to Redis cart: {}", item.getId(), token);
         } catch (JsonProcessingException e) {
@@ -79,7 +88,7 @@ public class RedisCartService {
     public void removeItem(String token, Long itemId) {
         String key = CART_HASH_PREFIX + token;
         redisTemplate.opsForHash().delete(key, String.valueOf(itemId));
-        updateActiveCartTimestamp(token);
+        touchCart(key, token);
 
         log.debug("Removed item {} from Redis cart: {}", itemId, token);
     }
@@ -92,9 +101,21 @@ public class RedisCartService {
         log.debug("Cleared Redis cart: {}", token);
     }
 
-    /** 更新活躍揪團的時間戳 (Sorted Set)，供未來的清理排程使用 */
+    /** 寫入後刷新購物車鍵的保留期，並更新活躍索引 */
+    private void touchCart(String key, String token) {
+        redisTemplate.expire(key, RETENTION);
+        updateActiveCartTimestamp(token);
+    }
+
+    /**
+     * 更新活躍揪團的時間戳 (Sorted Set)。寫入時修剪超過保留期的成員，並刷新索引本身的保留期：
+     * 寫入停止超過保留期後，索引內所有成員都已超過保留期，整把鍵可以一起過期。
+     */
     private void updateActiveCartTimestamp(String token) {
-        double score = (double) Instant.now().toEpochMilli();
-        redisTemplate.opsForZSet().add(ACTIVE_CARTS_KEY, token, score);
+        long nowMillis = Instant.now().toEpochMilli();
+        redisTemplate.opsForZSet().add(ACTIVE_CARTS_KEY, token, (double) nowMillis);
+        redisTemplate.opsForZSet().removeRangeByScore(
+                ACTIVE_CARTS_KEY, 0, (double) (nowMillis - RETENTION.toMillis()));
+        redisTemplate.expire(ACTIVE_CARTS_KEY, RETENTION);
     }
 }

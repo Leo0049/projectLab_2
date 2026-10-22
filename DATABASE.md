@@ -550,14 +550,14 @@ Redis 7.4（見 `docker-compose.yml`）。下表是程式中實際寫入的鍵�
 | `lock:spin:<userId>` | String（token）| 10 秒 | `DailySpinService` | 同一使用者的轉盤併發保護 |
 | `spin:done:<userId>:<yyyy-MM-dd>` | String（token）| 到當日午夜（至少 1 秒）| `DailySpinService` | 今日已抽標記 |
 | `ratelimit:<scope>:<identity>` | Integer 計數 | 視窗秒數（預設 300），第一次計數時設定 | `LoginAttemptLimiter` | 登入與 OTP 的固定視窗限流（ADR-0004）|
-| `cart:items:<cartToken>` | Hash（field = 品項 id，value = JSON 快照）| **無 TTL** | `RedisCartService` | 購物車品項快照 |
-| `carts:active` | Sorted Set（member = cartToken，score = 最後更新的毫秒時間戳）| 無 | `RedisCartService` | 預留給清理排程；目前沒有消費者（已知缺口）|
+| `cart:items:<cartToken>` | Hash（field = 品項 id，value = JSON 快照）| 30 天，每次寫入刷新（`RedisCartService.RETENTION`）| `RedisCartService` | 購物車品項快照；沒有讀取端 |
+| `carts:active` | Sorted Set（member = cartToken，score = 最後更新的毫秒時間戳）| 30 天，每次寫入刷新 | `RedisCartService` | 活躍購物車索引；寫入時修剪超過保留期的成員；沒有讀取端 |
 
 說明：
 
 - `lock:*` 的值是隨機 token，釋放時以 Lua 腳本比對 token 後才刪除，避免誤刪他人的鎖。
 - Redis 不可用時，鎖與計數退回 JVM 內的本地實作，**只在單實例下正確**（ADR-0006）。
-- `cart:items:*` 與 `carts:active` 目前沒有過期時間，也沒有清理排程；只會在 `clearCart` 等明確操作時刪除。這是已知缺口，列於 `docs/IMPROVEMENT_ASSESSMENT.md`。
+- `cart:items:*` 與 `carts:active` 自 2026-10-22 起每次寫入刷新 30 天的保留期，過期後由 Redis 自動清除；`clearCart` 等明確操作仍會立即刪除。沒有獨立的清理排程。`carts:active` 的成員只在下一次寫入時修剪，因此過期前可能短暫留有超過保留期的成員，不影響功能。
 - 目前所有環境若共用同一個 Redis，鍵會互相干擾。正式環境應使用獨立的 Redis 實例。
 
 ## 🧭 結構變更方式
