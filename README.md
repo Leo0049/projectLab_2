@@ -776,6 +776,33 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 - R2 與 R3 只有單元層級的驗證：發布事件、註解階段與切斷邏輯各自被測試，但從交易提交到切斷的整段流程沒有整合測試。`AFTER_COMMIT` 的「回滾不切斷」語意依賴 Spring，與 stage 6 相同的既有缺口。
 - scratch 分支 `main-verif-stage8-X`、`main-verif-stage8-Y`、`main-verif-stage8-Z` 需由擁有者刪除，本次未刪。
 
+### 2026-10-22 群組結帳冪等還原驗證（CI）
+
+IMPROVEMENT_ASSESSMENT 第 7 項（團購結帳沒有冪等鍵）實作於 `fix/stage9-group-checkout-idempotency`（PR #17，程式碼頭 `f45d797`）。`GroupOrderCheckoutIdempotencyTest`（8）不載入 Spring context；`scripts/ui/flow-group.js` 的中斷情境新增一組 UI 斷言。未破壞的對照是同一個程式碼頭的 [run 39755878928](https://github.com/Leo0049/projectLab_2/actions/runs/39755878928)：`mvn test` 為 485 個測試、88 個類別，失敗 0、錯誤 0、略過 0；UI 流程全綠。
+
+首次 CI（[run 39754356636](https://github.com/Leo0049/projectLab_2/actions/runs/39754356636)，頭 `1e9b184`）在 UI 步驟失敗：中斷的請求讓前端記下兩行預期中的錯誤（`NavAuth.fetchAPI` 的 fetch 錯誤與結帳的 catch），被 `projectErrors` 當成失敗。`f45d797` 只抵銷這兩行，且各只抵銷一次、只看中斷之後的紀錄；其他錯誤照常回報。
+
+破壞分支從 `f45d797` 切出，分支名稱為 `main-verif-stage9-<編號>`，commit 標題以 `scratch:` 開頭。每組破壞都在獨立分支上執行，沒有兩組合併。
+
+| 編號 | 破壞 | scratch commit | CI run | 結果 | 轉紅的測試與失敗訊息 |
+|------|------|----------------|--------|------|---------------------|
+| A | 提交之後的失敗改回 400：`placeHostCheckout` 的兩個 catch 不再只記 log | `d969150` | [39859619996](https://github.com/Leo0049/projectLab_2/actions/runs/39859619996) | 失敗（2 筆） | `notifyInfoFailureAfterCommitStillReportsSuccess`（`expected: <200> but was: <400>`）；`messagingFailureAfterCommitStillReportsSuccess`（`expected: <200> but was: <400>`） |
+| B | 冪等範圍拿掉團的 token（`group-checkout:` + token 改為 `group-checkout`） | `ac8b44b` | [39859650239](https://github.com/Leo0049/projectLab_2/actions/runs/39859650239) | 失敗（1 筆） | `sameKeyOnAnotherGroupIsIndependent`（`expected: <43> but was: <42>`，另一團的同一把鍵被當成重送回放） |
+| C | 有鍵的請求繞過 `IdempotencyService.execute`，直接執行 | `1029316` | [39859669889](https://github.com/Leo0049/projectLab_2/actions/runs/39859669889) | 失敗（5 筆） | `sameKeyReplaysTheFirstSuccessWithoutCheckingOutAgain`、`notifyInfoFailureAfterCommitStillReportsSuccess`、`messagingFailureAfterCommitStillReportsSuccess`（`Idempotent-Replayed` 缺失，`expected: <true> but was: <null>`）；`sameKeyWithAnotherBodyIsRejectedWithoutExecuting`（`expected: <422> but was: <200>`）；`malformedKeyIsRejectedBeforeAnyCheckout`（未丟出 `CustomException`） |
+| D | 非 2xx 不釋放佔位：`IdempotencyService.execute` 拿掉 `else` 分支的 `release` | `a4d6281` | [39859685215](https://github.com/Leo0049/projectLab_2/actions/runs/39859685215) | 失敗（2 筆） | `rejectedAttemptReleasesTheKeySoTheSameKeyCanRetry`（`expected: <200> but was: <409>`）；`IdempotencyServiceTest.failedAttemptReleasesTheKey`（`expected: <2> but was: <1>`，共用服務的既有測試） |
+| E | 前端每次送出都產生新的鍵：`hostCheckoutIdempotencyKeyFor` 永遠呼叫 `makeHostCheckoutIdempotencyKey` | `9da8cb9` | [39859703396](https://github.com/Leo0049/projectLab_2/actions/runs/39859703396) | UI 失敗（1 項）；Java 485 個全綠 | `揪團流程`：`團長結帳重送應沿用同一把 Idempotency-Key，實際為 [兩把不同的鍵]` |
+| F | 前端失敗後不恢復送出鈕：`handleHostCheckout` 的 catch 拿掉 `disabled = false` | `dc909d9` | [39859719507](https://github.com/Leo0049/projectLab_2/actions/runs/39859719507) | UI 失敗（3 項）；Java 485 個全綠 | `網路中斷後送出鈕沒有恢復，無法重送`；`團長結帳重送應沿用同一把 Idempotency-Key，實際為 [只有一把]`；`結帳後揪團狀態是 LOCKED（預期 SUBMITTED）` |
+
+讀取時要注意的幾點：
+
+- A 同時改了兩個 catch，無法從這一組分開看出各自的效果。`messagingFailureAfterCommitStillReportsSuccess` 中兩則推播都丟例外，第二個 catch 也會被經過，所以它的回歸同樣會被這個測試抓到（未另外單獨跑）。
+- D 另外讓共用的 `IdempotencyServiceTest.failedAttemptReleasesTheKey` 轉紅，這是 ADR-0005 既有的規則，多一層保護。
+- E、F 的 Java 步驟全綠，只有 UI 步驟能抓到前端回歸。F 的三個 UI 失敗同源（送出鈕沒恢復，所以只送出一次，狀態停在 LOCKED），不是三個獨立的破壞。
+- UI 的中斷是 `route.abort`，請求從未到達伺服器。因此 UI 只證明前端沿用同一把鍵；「請求已提交、回應遺失」後的回放只由 `sameKeyReplaysTheFirstSuccessWithoutCheckingOutAgain` 覆蓋。
+- F 的 UI 步驟約 20 分鐘，E 約 8 分鐘，原因未查明。
+- 團員付款（`member-checkout`）尚未接受 `Idempotency-Key`，留給後續 PR（見 ADR-0005 的 2026-10-22 追加）。
+- scratch 分支 `main-verif-stage9-A` 至 `-F` 需由擁有者刪除，本次未刪。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
