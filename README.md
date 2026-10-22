@@ -761,7 +761,7 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 
 2026-10-17 的決定之七（登出所有裝置，僅限顧客）實作於 `fix/stage8-logout-all-devices`（PR #16，頭 `a0763cd`）。新增 `UserServiceLogoutAllTest`（3）與 `TokenRevocationCutListenerTest`（2），`AuthorizationTest` 新增 2 個。未破壞的對照是同一個頭的 [run 39716448316](https://github.com/Leo0049/projectLab_2/actions/runs/39716448316)：`mvn test` 為 477 個測試、87 個類別，失敗 0、錯誤 0、略過 0。
 
-破壞分支從 `a0763cd` 切出，分支名稱為 `main-verif-stage8-<編號>`，commit 標題以 `scratch:` 開頭。每一處替換都要求恰好命中一次，否則腳本不寫入。
+破壞分支從 `a0763cd` 切出，分支名稱為 `main-verif-stage8-<編號>`，commit 標題以 `scratch:` 開頭。每一處替換都要求恰好命中一次；不符時腳本停止並回報。本次七處替換皆一次命中。
 
 | 編號 | 破壞 | scratch commit | CI run | 結果 | 轉紅的測試與失敗訊息 |
 |------|------|----------------|--------|------|---------------------|
