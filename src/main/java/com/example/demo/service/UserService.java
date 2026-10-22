@@ -94,7 +94,7 @@ public class UserService {
     @Transactional
     public void logoutAllDevices(Long userId) {
         // 列鎖：與改密碼的版本遞增互斥，兩者併發時版本不會少算
-        User user = userRepository.findByIdForUpdate(userId)
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException("404", "找不到使用者"));
         user.revokeIssuedTokens();
         userRepository.save(user);

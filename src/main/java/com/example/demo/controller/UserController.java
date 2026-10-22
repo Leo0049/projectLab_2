@@ -673,7 +673,6 @@ public class UserController {
     @PostMapping("/api/users/{userId}/logout-all")
     public ResponseEntity<?> logoutAllDevices(@PathVariable Long userId,
             @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
-        requireSelf(userId, currentUserId);
         if (userService == null) {
             return ResponseEntity.status(500).body("UserService not available");
         }

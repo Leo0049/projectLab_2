@@ -22,7 +22,7 @@ public class TokenRevocationCutListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAccountsRevoked(AccountsRevokedEvent event) {
         for (AccountRef account : event.accounts()) {
-            sessions.cut(account);
+            // mutated: no cut
         }
     }
 }
