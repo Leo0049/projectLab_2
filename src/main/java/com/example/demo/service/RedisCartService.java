@@ -116,6 +116,5 @@ public class RedisCartService {
         redisTemplate.opsForZSet().add(ACTIVE_CARTS_KEY, token, (double) nowMillis);
         redisTemplate.opsForZSet().removeRangeByScore(
                 ACTIVE_CARTS_KEY, 0, (double) (nowMillis - RETENTION.toMillis()));
-        redisTemplate.expire(ACTIVE_CARTS_KEY, RETENTION);
     }
 }
