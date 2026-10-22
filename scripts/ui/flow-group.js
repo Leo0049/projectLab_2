@@ -179,6 +179,7 @@ module.exports = async function run() {
         // stage 9：第一次送出在送達伺服器前被中斷（模擬網路失敗）。前端應恢復送出鈕，
         // 重按時必須沿用同一把 Idempotency-Key，伺服器才能據此回放第一次的結果、不重複結帳。
         const checkoutKeys = [];
+        const errorsBeforeAbort = H.errors.length;
         await H.page.route('**/api/group-orders/*/checkout', async (route, req) => {
           checkoutKeys.push(req.headers()['idempotency-key'] || '');
           if (checkoutKeys.length === 1) return route.abort('failed');
@@ -195,6 +196,15 @@ module.exports = async function run() {
         }
         await H.page.waitForTimeout(2000);
         await H.page.unroute('**/api/group-orders/*/checkout');
+        // 第一次送出被刻意中斷，前端依設計各記一行錯誤（fetchAPI 的 fetch 錯誤，以及結帳的 catch）。
+        // 只抵銷中斷之後、這兩種各一行；其餘錯誤照常回報。
+        for (const expected of [
+          /^\[console\] Fetch error for \S+\/checkout: TypeError: Failed to fetch/,
+          /^\[console\] Host checkout error: TypeError: Failed to fetch/,
+        ]) {
+          const i = H.errors.findIndex((e, idx) => idx >= errorsBeforeAbort && expected.test(e));
+          if (i >= 0) H.errors.splice(i, 1);
+        }
         if (checkoutKeys.length !== 2 || !checkoutKeys[0] || checkoutKeys[0] !== checkoutKeys[1])
           fail(`團長結帳重送應沿用同一把 Idempotency-Key，實際為 ${JSON.stringify(checkoutKeys)}`);
         const ok2 = await H.page.$('#confirm-ok-btn');
