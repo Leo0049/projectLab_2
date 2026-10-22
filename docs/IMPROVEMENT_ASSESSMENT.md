@@ -70,7 +70,7 @@
 3. [已處理 2026-10-17] **冪等結帳不比對請求內容**：同一把鍵搭配不同 body 會回放第一次的結果（ADR-0005）。金額已由伺服器重算，風險被限縮，但應補上 body 指紋。處理：請求主體的 SHA-256 指紋已納入佔位與完成紀錄，內容不同回 422；舊格式紀錄在過期前仍照舊重播。
 4. **轉盤的當日標記在資料庫寫入之前寫入**：寫入失敗時標記不回收，使用者會失去當天的機會（ADR-0007）。修正需要把標記與寫入放進同一個可回滾的單位。
 5. [已處理 2026-10-17] **結帳的使用者鎖忙碌時回 400，不是 503**：`OrderService.createOrder` 拋出的是 `RuntimeException`，`OrderController` 的 catch 把它轉成 400。應改為 `CustomException("503", …)`，並讓 `OrderController` 不把它吞成 400。處理：忙碌時拋出 `CustomException("503", …)`，`OrderController` 原樣拋出；業務拒絕仍為 400（判斷見 `service/order/CheckoutFailure`）。
-6. **購物車的 Redis 鍵沒有過期時間**：`cart:items:*` 與 `carts:active` 沒有清理排程，`carts:active` 目前沒有消費者（見 DATABASE.md 的 Redis 鍵一覽）。
+6. [已處理 2026-10-22] **購物車的 Redis 鍵沒有過期時間**：`cart:items:*` 與 `carts:active` 沒有清理排程，`carts:active` 目前沒有消費者（見 DATABASE.md 的 Redis 鍵一覽）。處理：每次寫入刷新 30 天的保留期（`RedisCartService.RETENTION`），`carts:active` 寫入時修剪超過保留期的成員；沒有讀取端，過期不影響功能。
 7. **團購結帳沒有冪等鍵**：重送不會重複扣款（列鎖與狀態守衛保證），但也不會回放第一次的成功結果，前端需要自行處理重送後的回應。
 8. **Redis 沒有環境隔離**：多個環境共用同一台 Redis 時，鍵會互相干擾。正式環境應使用獨立的實例（見 DEPLOYMENT.md）。
 9. [已處理 2026-10-17] **`run-all.js` 的失敗名稱靠攔截 `console.log` 取得**：這是脆弱的做法，之後應改為由 harness 直接記錄檢查結果。處理：各套件改由 `scripts/ui/report.js` 登記，`run-all.js` 不再攔截 `console.log`。

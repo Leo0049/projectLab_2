@@ -12,6 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -73,5 +74,32 @@ class RedisCartServiceTest {
         com.example.demo.entity.OrderItem item = newItem();
         service.saveItem("T2", item);
         verify(hashOps).put(eq("cart:items:T2"), eq("7"), anyString());
+    }
+
+    @Test
+    void saveItemRefreshesThirtyDayExpiryOnTheCartHash() {
+        service.saveItem("T1", newItem());
+
+        verify(redisTemplate).expire("cart:items:T1", Duration.ofDays(30));
+    }
+
+    @Test
+    void removeItemRefreshesThirtyDayExpiryOnTheCartHash() {
+        service.removeItem("T1", 7L);
+
+        verify(redisTemplate).expire("cart:items:T1", Duration.ofDays(30));
+    }
+
+    @Test
+    void activeCartIndexIsTrimmedToTheRetentionWindowAndExpires() {
+        long before = System.currentTimeMillis();
+        service.saveItem("T1", newItem());
+        long after = System.currentTimeMillis();
+        long retention = Duration.ofDays(30).toMillis();
+
+        // 修剪上界 = 寫入當下 − 30 天；前後兩次讀時鐘夾住它，避免只驗證「有呼叫」
+        verify(zSetOps).removeRangeByScore(eq("carts:active"), eq(0d),
+                doubleThat(cutoff -> cutoff >= before - retention && cutoff <= after - retention));
+        verify(redisTemplate).expire("carts:active", Duration.ofDays(30));
     }
 }
