@@ -347,8 +347,7 @@ public class GroupOrderController {
         if (idempotencyKey == null) {
             return placeHostCheckout(token, request, resolvedHostId);
         }
-        return idempotencyService.execute("group-checkout:" + token, resolvedHostId, idempotencyKey, request,
-                () -> placeHostCheckout(token, request, resolvedHostId));
+        return placeHostCheckout(token, request, resolvedHostId);
     }
 
     /**
