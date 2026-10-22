@@ -1955,7 +1955,6 @@
                 } catch (error) {
                     console.error('Host checkout error:', error);
                     showToast('結帳失敗: ' + (error.message || '請稍後再試'), 'error');
-                    btnMainAction.disabled = false;
                     btnMainAction.innerHTML = '確認付款並送出訂單 <i data-lucide="arrow-right" class="w-5 h-5"></i>';
                     if (typeof lucide !== 'undefined') lucide.createIcons();
                 }
