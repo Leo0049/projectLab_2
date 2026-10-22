@@ -391,7 +391,7 @@ public class GroupOrderController {
                         Map.of("type", "NEW_ORDER", "data", newOrderData(orderId, totalAmount, paymentMethod)));
             }
         } catch (RuntimeException e) {
-            log.error("揪團結帳已提交（orderId={}），門市通知未送出；回應仍為成功", orderId, e);
+            return ResponseEntity.badRequest().body(Map.of("error", "結帳後通知失敗"));
         }
         try {
             if (messagingTemplate != null) {
@@ -399,7 +399,7 @@ public class GroupOrderController {
                         Map.of("orderId", orderId, "paymentMethod", paymentMethod));
             }
         } catch (RuntimeException e) {
-            log.error("揪團結帳已提交（orderId={}），揪團推播未送出；回應仍為成功", orderId, e);
+            return ResponseEntity.badRequest().body(Map.of("error", "結帳後推播失敗"));
         }
 
         // LinkedHashMap：totalAmount 讀取失敗時為 null，而 Map.of 不接受 null 值
