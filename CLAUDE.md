@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-22，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：470 個 `@Test`，分布在 85 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-22，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：470 個 `@Test`，分布在 85 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -764,4 +764,4 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 
 ## 2026-10-22 新增的不變量與約定
 
-- **購物車 Redis 鍵保留 30 天（stage 7）**：`cart:items:<token>` 與 `carts:active` 在每次寫入（`saveItem`、`removeItem`）時刷新為 `RedisCartService.RETENTION`（30 天，從最後一次更新起算）；`carts:active` 寫入時修剪超過保留期的成員。寫入一律經 `touchCart`，不要直接對這兩把鍵呼叫 Redis。這些鍵沒有讀取端，過期不影響功能；日後若要讀回購物車，必須接受快照可能已過期，缺值時以資料庫為準。
+- **購物車 Redis 鍵保留 30 天（stage 7）**：`cart:items:<token>` 與 `carts:active` 在每次寫入（`saveItem`、`removeItem`）時刷新為 `RedisCartService.RETENTION`（30 天，從最後一次更新起算）；`carts:active` 寫入時修剪超過保留期的成員。寫入一律經 `touchCart`，不要直接對這兩把鍵呼叫 Redis。這些鍵沒有讀取端，過期不影響功能；日後若要讀回購物車，必須接受快照可能已過期，缺值時以資料庫為準。三個新案例的還原驗證見 README「2026-10-22 購物車保留期還原驗證（CI）」。

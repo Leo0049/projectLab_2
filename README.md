@@ -739,6 +739,24 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 - 本次只重跑 G、I、J、K。其餘六組（A、C、D、E、F、H）的測試沒有改動，結果沿用 2026-10-20 的紀錄。
 - scratch 分支 `main-verif-stage6b-G`、`-I`、`-J`、`-K` 需由擁有者刪除；2026-10-20 的 `main-verif-stage6-A` 至 `-K` 同樣待刪除。
 
+### 2026-10-22 購物車保留期還原驗證（CI）
+
+2026-10-17 的決定之三（購物車 Redis 鍵保留 30 天）實作於 `fix/stage7-cart-redis-ttl`（PR #15，頭 `a35411b`）。`RedisCartServiceTest` 新增三個案例（共 5 個）。未破壞的對照是同一個頭的 [run 39712451888](https://github.com/Leo0049/projectLab_2/actions/runs/39712451888)：`mvn test` 為 470 個測試、85 個類別，失敗 0、錯誤 0、略過 0。
+
+本機沒有可用的 Maven 相依（父 POM `spring-boot-starter-parent` 不在快取中），所以破壞也在 CI 上執行。破壞分支從 `a35411b` 切出，分支名稱為 `main-verif-stage7-<編號>`，commit 標題以 `scratch:` 開頭。
+
+| 編號 | 破壞 | scratch commit | CI run | 結果 | 轉紅的測試與失敗訊息 |
+|------|------|----------------|--------|------|---------------------|
+| A+B | `touchCart` 拿掉購物車鍵的 `expire`（A）；`updateActiveCartTimestamp` 拿掉索引修剪（B） | `efeb095` | [39713235881](https://github.com/Leo0049/projectLab_2/actions/runs/39713235881) | 失敗（3 筆） | `saveItemRefreshesThirtyDayExpiryOnTheCartHash`、`removeItemRefreshesThirtyDayExpiryOnTheCartHash`（A：`expire("cart:items:T1", PT720H)` 未被呼叫）；`activeCartIndexIsTrimmedToTheRetentionWindowAndExpires`（B：`removeRangeByScore` 未被呼叫） |
+| C | 拿掉索引本身的 `expire` | `fbb9de9` | [39713252808](https://github.com/Leo0049/projectLab_2/actions/runs/39713252808) | 失敗（1 筆） | `activeCartIndexIsTrimmedToTheRetentionWindowAndExpires`（`expire("carts:active", PT720H)` 未被呼叫） |
+
+讀取時要注意的幾點：
+
+- A 與 B 各自只影響不同的案例（A 影響前兩個，B 影響第三個案例的第一個 `verify`），合併在同一組破壞中仍能分別辨認。
+- C 另開一組：它與 B 同在第三個案例，若合併，案例會在 B 的 `verify` 失敗，就看不出 C 是否被抓到。
+- 三組破壞都沒有改變既有兩個案例的結果（`saveItemStoresFlatSnapshotWithoutLazyFields`、`saveItemSurvivesNullProduct` 仍為綠）。
+- scratch 分支 `main-verif-stage7-AB`、`main-verif-stage7-C` 需由擁有者刪除。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
