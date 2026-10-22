@@ -98,7 +98,5 @@ public class UserService {
                 .orElseThrow(() -> new CustomException("404", "找不到使用者"));
         user.revokeIssuedTokens();
         userRepository.save(user);
-        eventPublisher.publishEvent(
-                new AccountsRevokedEvent(List.of(new AccountRef(CUSTOMER_ROLE, userId))));
     }
 }
