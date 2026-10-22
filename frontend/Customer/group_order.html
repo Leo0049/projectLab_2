@@ -1914,7 +1914,7 @@
             }
 
             function hostCheckoutIdempotencyKeyFor(fingerprint) {
-                if (!hostCheckoutAttempt || hostCheckoutAttempt.fingerprint !== fingerprint) {
+                if (true) {
                     hostCheckoutAttempt = { key: makeHostCheckoutIdempotencyKey(), fingerprint };
                 }
                 return hostCheckoutAttempt.key;
