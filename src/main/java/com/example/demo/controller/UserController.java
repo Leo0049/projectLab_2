@@ -668,6 +668,19 @@ public class UserController {
         return ResponseEntity.ok(records);
     }
 
+    @Operation(summary = "登出所有裝置",
+            description = "撤銷此帳號所有已簽發的權杖（含目前這個瀏覽器），並切斷既有的 WebSocket 連線。之後需要重新登入（N13）。")
+    @PostMapping("/api/users/{userId}/logout-all")
+    public ResponseEntity<?> logoutAllDevices(@PathVariable Long userId,
+            @RequestAttribute(value = "currentUserId", required = false) Long currentUserId) {
+        requireSelf(userId, currentUserId);
+        if (userService == null) {
+            return ResponseEntity.status(500).body("UserService not available");
+        }
+        userService.logoutAllDevices(userId);
+        return ResponseEntity.ok(Map.of("message", "已登出所有裝置"));
+    }
+
     @Operation(summary = "修改密碼", description = "使用者修改密碼。")
     @PostMapping("/api/users/{userId}/change-password")
     public ResponseEntity<?> changePassword(@PathVariable Long userId, @Valid @RequestBody PasswordRequest request,
