@@ -774,3 +774,5 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **撤銷與停用的切斷分開命名**：`AccountsRevokedEvent`（登出所有裝置）由 `TokenRevocationCutListener` 處理；`AccountsSuspendedEvent`（停用）仍由 `AccountSuspensionCutListener` 處理。兩者都以 `AFTER_COMMIT` 呼叫 `StompSessionRegistry.cut`，交易回滾就不切斷。
 - **切斷只作用於處理請求的實例**：`StompSessionRegistry` 只存在單一實例的記憶體中（與 ADR-0012 的代價相同）。權杖失效是全域的（版本存在資料庫），但其他實例上既有的 STOMP 連線要等到連線結束；新的 CONNECT 與 SUBSCRIBE 一律被拒絕。
 - **前端只在伺服器回應成功後才清除本機登入**：`profile.html` 的「登出所有裝置」請求失敗時保留登入狀態並顯示錯誤，不做只清本機的假登出。
+- **已知缺口**：從交易提交到切斷的整段流程沒有整合測試，`AFTER_COMMIT` 的「回滾不切斷」語意依賴 Spring（與 stage 6 相同）。切斷只作用於處理請求的實例（ADR-0012）。
+- **還原驗證**：`UserServiceLogoutAllTest`、`TokenRevocationCutListenerTest` 與 `AuthorizationTest` 的兩個新案例，結果見 README「2026-10-22 登出所有裝置還原驗證（CI）」。

@@ -757,6 +757,25 @@ M-a 與 M-d 同在 `AccountStatus`，但分屬 BRAND 與 ADMIN 兩個分支，�
 - 三組破壞都沒有改變既有兩個案例的結果（`saveItemStoresFlatSnapshotWithoutLazyFields`、`saveItemSurvivesNullProduct` 仍為綠）。
 - scratch 分支 `main-verif-stage7-AB`、`main-verif-stage7-C` 需由擁有者刪除。
 
+### 2026-10-22 登出所有裝置還原驗證（CI）
+
+2026-10-17 的決定之七（登出所有裝置，僅限顧客）實作於 `fix/stage8-logout-all-devices`（PR #16，頭 `a0763cd`）。新增 `UserServiceLogoutAllTest`（3）與 `TokenRevocationCutListenerTest`（2），`AuthorizationTest` 新增 2 個。未破壞的對照是同一個頭的 [run 39716448316](https://github.com/Leo0049/projectLab_2/actions/runs/39716448316)：`mvn test` 為 477 個測試、87 個類別，失敗 0、錯誤 0、略過 0。
+
+破壞分支從 `a0763cd` 切出，分支名稱為 `main-verif-stage8-<編號>`，commit 標題以 `scratch:` 開頭。每一處替換都要求恰好命中一次，否則腳本不寫入。
+
+| 編號 | 破壞 | scratch commit | CI run | 結果 | 轉紅的測試與失敗訊息 |
+|------|------|----------------|--------|------|---------------------|
+| X | R1：拿掉 `user.revokeIssuedTokens()`（版本不遞增）；R5：`CUSTOMER_ROLE` 改為 `STORE`（事件列錯角色） | `a20ab51` | [39717197056](https://github.com/Leo0049/projectLab_2/actions/runs/39717197056) | 失敗（3 筆） | `bumpsTheTokenVersionAndSavesTheRow`（`expected: <4> but was: <3>`）；`publishesARevocationEventForTheCustomer`（事件的角色為 `STORE`）；`AuthorizationTest.logoutAllDevicesRevokesTheCallersOwnToken`（登出後同一權杖仍回 200，預期 403） |
+| Y | R2：拿掉 `publishEvent(AccountsRevokedEvent)`；R3：監聽器改為 `BEFORE_COMMIT` | `192e290` | [39717199634](https://github.com/Leo0049/projectLab_2/actions/runs/39717199634) | 失敗（2 筆） | `publishesARevocationEventForTheCustomer`（`Wanted but not invoked`）；`cutIsBoundToTheAfterCommitPhase`（`expected: <AFTER_COMMIT> but was: <BEFORE_COMMIT>`） |
+| Z | R4：`findByIdForUpdate` 改為 `findById`（無列鎖）；R6：拿掉控制器的 `requireSelf`；R7：監聽器不呼叫 `sessions.cut` | `46cc3b1` | [39717202459](https://github.com/Leo0049/projectLab_2/actions/runs/39717202459) | 失敗 2、錯誤 3 | `bumpsTheTokenVersionAndSavesTheRow` 與 `publishesARevocationEventForTheCustomer`（R4：未 stub 的 `findById` 回空，丟出 404）；`unknownUserIsRejectedWithoutSideEffects`（R4：列鎖的 stub 未被使用，`UnnecessaryStubbingException`）；`cannotLogOutAnotherUsersDevices`（R6：他人帳號回 200，預期 403）；`cutsOnlyTheListedCustomer`（R7：顧客的工作階段未被切斷） |
+
+讀取時要注意的幾點：
+
+- R4 與 R5 都會影響 `publishesARevocationEventForTheCustomer`，所以分開在 Z 與 X 各跑一次，沒有合併在同一組破壞中。R1 與 R5 同在 X，但 R1 只影響版本與整合測試，不碰事件內容，兩者互不遮蔽。
+- 三組破壞都沒有讓不相關的測試轉紅：例如 X 中 `cannotLogOutAnotherUsersDevices` 與 `cutsOnlyTheListedCustomer` 仍為綠。
+- R2 與 R3 只有單元層級的驗證：發布事件、註解階段與切斷邏輯各自被測試，但從交易提交到切斷的整段流程沒有整合測試。`AFTER_COMMIT` 的「回滾不切斷」語意依賴 Spring，與 stage 6 相同的既有缺口。
+- scratch 分支 `main-verif-stage8-X`、`main-verif-stage8-Y`、`main-verif-stage8-Z` 需由擁有者刪除，本次未刪。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
