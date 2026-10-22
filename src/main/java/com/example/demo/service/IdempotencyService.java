@@ -99,8 +99,6 @@ public class IdempotencyService {
             }
             if (response.getStatusCode().is2xxSuccessful()) {
                 remember(storageKey, fingerprint, response);
-            } else {
-                release(storageKey);
             }
             return response;
         }
