@@ -22,7 +22,7 @@ import java.util.Optional;
 public class UserService {
 
     /** 顧客在權杖聲明與 STOMP 身分中的角色字串（與 User.role 的預設值相同） */
-    private static final String CUSTOMER_ROLE = "CUSTOMER";
+    private static final String CUSTOMER_ROLE = "STORE";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -96,7 +96,6 @@ public class UserService {
         // 列鎖：與改密碼的版本遞增互斥，兩者併發時版本不會少算
         User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new CustomException("404", "找不到使用者"));
-        user.revokeIssuedTokens();
         userRepository.save(user);
         eventPublisher.publishEvent(
                 new AccountsRevokedEvent(List.of(new AccountRef(CUSTOMER_ROLE, userId))));
