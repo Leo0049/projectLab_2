@@ -45,3 +45,10 @@
 - `scripts/e2e-verify.js` 的冪等區段：同一把鍵結帳兩次，應得到相同的 `orderId`，第二次帶有 `Idempotent-Replayed`；不合規的鍵回傳 400。
 - 2026-10-17 還原驗證（README「2026-10-17 還原驗證（CI）」）：M6 把請求指紋改為常數，使 `IdempotencyServiceTest` 的五支 422 測試轉紅；M5 與 M9 分別確認忙碌時的例外型別與控制器的回應。
 - 結帳頁的實際流程由 `scripts/ui/` 的 UI 流程測試覆蓋。
+
+## 2026-10-22 追加（stage 9）：團長結帳與提交後的失敗
+
+- **範圍擴充到團長結帳**：`POST /api/group-orders/{token}/checkout` 同樣接受 `Idempotency-Key`。儲存鍵為 `idem:group-checkout:<token>:<userId>:<key>`，範圍包含團的 token。同一把鍵用在另一團時不會被當成重送；否則請求內容相同時會回放別團的結果。團員付款（`member-checkout`）目前不接受此標頭。
+- **提交之後的失敗不回 400**：送單與建單都是在自己的交易內提交，之後才讀取通知資訊、推播。這些步驟失敗時原本會回 400，前端會當成失敗而重送；重送即使帶了鍵也只會得到 400（佔位已釋放，第二次被服務層拒絕），無法回放成功的結果。個人結帳已於 2026-10-12 處理（第 4 項）；團長結帳本次一併修正，現在只記 log，回應仍為成功。
+- **前端**：`frontend/Customer/group_order.html` 的團長結帳與 `checkout.html` 相同，內容不變時沿用同一把鍵，只存於記憶體，成功後清除。
+- **驗證**：`GroupOrderCheckoutIdempotencyTest`（8，不載入 Spring context）守住重送回放、4xx 釋放、提交後的讀取與推播失敗、422、跨團獨立、未帶鍵與格式檢查。`scripts/ui/flow-group.js` 在團長送出時模擬一次網路中斷，確認重按沿用同一把鍵。還原驗證見 README「2026-10-22 群組結帳冪等還原驗證（CI）」。
