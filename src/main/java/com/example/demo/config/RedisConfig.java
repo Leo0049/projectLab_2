@@ -61,7 +61,6 @@ public class RedisConfig {
      * 只替換鍵的序列化器；hash 欄位與 value 維持 Spring 預設的字串序列化。
      */
     @Bean
-    @Primary
     public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory redisConnectionFactory,
                                                    Environment environment,
                                                    @Value("${app.redis.key-namespace:}") String keyNamespace) {
