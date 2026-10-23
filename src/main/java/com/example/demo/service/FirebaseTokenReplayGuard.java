@@ -47,7 +47,7 @@ public class FirebaseTokenReplayGuard {
      */
     @Autowired
     public FirebaseTokenReplayGuard(
-            @Qualifier(RedisConfig.GLOBAL_STRING_TEMPLATE) ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
+            ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
         StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
         ClaimStore.Remote remote = redisTemplate == null
                 ? null
