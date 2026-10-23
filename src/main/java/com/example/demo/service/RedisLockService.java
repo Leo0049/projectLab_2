@@ -88,7 +88,7 @@ public class RedisLockService {
         }
         if (redisTemplate != null) {
             try {
-                redisTemplate.execute(UNLOCK_SCRIPT, List.of(lockKey), token);
+                new StringRedisTemplate(redisTemplate.getConnectionFactory()).execute(UNLOCK_SCRIPT, List.of(lockKey), token);
                 return;
             } catch (Exception e) {
                 log.warn("Redis unavailable while releasing lock: {}", e.getMessage());
