@@ -803,6 +803,41 @@ IMPROVEMENT_ASSESSMENT 第 7 項（團購結帳沒有冪等鍵）實作於 `fix/
 - 團員付款（`member-checkout`）尚未接受 `Idempotency-Key`，留給後續 PR（見 ADR-0005 的 2026-10-22 追加）。
 - scratch 分支 `main-verif-stage9-A` 至 `-F` 需由擁有者刪除，本次未刪。
 
+### 2026-10-22 Redis 鍵命名空間還原驗證（CI）
+
+ADR-0013 與 IMPROVEMENT_ASSESSMENT 第 8 項（Redis 沒有環境隔離）實作於 `fix/stage10-redis-key-namespace`（PR #18，程式碼頭 `a9c34fa`）。未破壞的對照是同一個程式碼頭的 [run 39893649269](https://github.com/Leo0049/projectLab_2/actions/runs/39893649269)：`mvn test` 為 512 個測試、92 個類別，失敗 0、錯誤 0、略過 0；UI 流程與 API 端對端全綠。此後提交的文件 commit 不改動被測程式碼。
+
+破壞分支從 `a9c34fa` 切出，分支名稱為 `main-verif-stage10-<編號>`，commit 標題以 `scratch:` 開頭。每組破壞都在獨立分支上執行，沒有兩組合併，因為不同的破壞可能互相遮蔽。
+
+R1 至 R6 是第一批。之後逐條對照宣稱與紅燈，發現有幾條沒有任何對應的破壞，因此補上 R7 至 R13：加鎖測試在加鎖斷言就失敗，解鎖斷言一直沒被驗證（R7）；fbtoken 豁免（R8）、格式檢查（R9）、hash 欄位與 value 不加前綴（R10、R11）、空白命名空間不加前綴（R12）、`@Primary`（R13）原本都沒有單獨的破壞。
+
+| 編號 | 破壞 | scratch commit | CI run | 結果 | 轉紅的測試與失敗訊息 |
+|------|------|----------------|--------|------|---------------------|
+| R1 | 序列化器不加前綴：`serialize` 直接回傳原鍵 | `f5ea88d` | [39894426490](https://github.com/Leo0049/projectLab_2/actions/runs/39894426490) | 失敗（9 筆） | 整合：`stringTemplateWritesTheNamespacedKeyOnTheServer`（`expected: <v1> but was: <null>`）、`sameLogicalKeyInTwoNamespacesDoesNotCollide`（`expected: <from-a> but was: <from-b>`）、`hashFieldsAreDataAndStayUnprefixed`、`genericTemplateUsesTheSameNamespace`、`lockIsAcquiredAndReleasedThroughTheNamespacedKey`（加鎖斷言）；接線：`stringTemplateNamespacesKeysAndNothingElse`、`productionWithNamespaceUsesIt`、`genericTemplateNamespacesKeysAndKeepsHashFieldsPlain`；序列化：`serializedKeyCarriesTheNamespacePrefixOnTheWire` |
+| R2 | 主要字串模板不設定鍵序列化器 | `c155978` | [39894429472](https://github.com/Leo0049/projectLab_2/actions/runs/39894429472) | 失敗（8 筆） | 整合：`stringTemplateWritesTheNamespacedKeyOnTheServer`、`sameLogicalKeyInTwoNamespacesDoesNotCollide`、`hashFieldsAreDataAndStayUnprefixed`、`lockIsAcquiredAndReleasedThroughTheNamespacedKey`（加鎖斷言）；接線：`stringTemplateNamespacesKeysAndNothingElse`、`productionWithNamespaceUsesIt`、`productionWithoutNamespaceRefusesToStart`（未丟出例外）、`malformedNamespaceRefusesToStartOutsideProduction`（未丟出例外） |
+| R3 | prod 防呆拿掉：`resolveForProfile` 不再要求命名空間 | `3c6f350` | [39894432398](https://github.com/Leo0049/projectLab_2/actions/runs/39894432398) | 失敗（2 筆） | `RedisKeyNamespaceTest.productionRequiresANamespace`、`RedisConfigWiringTest.productionWithoutNamespaceRefusesToStart`（皆為未丟出 `IllegalStateException`） |
+| R4 | `deserialize` 不去掉前綴 | `3131699` | [39894434741](https://github.com/Leo0049/projectLab_2/actions/runs/39894434741) | 失敗（2 筆） | `deserializeRestoresTheLogicalKey`（`expected: <spin:done:1:2026-10-22> but was: <prod:spin:done:1:2026-10-22>`）、`keysContainingColonsSurviveTheRoundTrip` |
+| R5 | 通用模板的鍵不加前綴 | `020b402` | [39894438274](https://github.com/Leo0049/projectLab_2/actions/runs/39894438274) | 失敗（3 筆） | 整合：`genericTemplateUsesTheSameNamespace`；接線：`genericTemplateNamespacesKeysAndKeepsHashFieldsPlain`、`productionWithoutNamespaceRefusesToStart`（未丟出例外） |
+| R6 | fbtoken 守衛改用主要模板（拿掉 `@Qualifier`） | `1dbcf90` | [39894440787](https://github.com/Leo0049/projectLab_2/actions/runs/39894440787) | 失敗（1 筆） | `fbtokenGuardReadsItsTemplateFromTheGlobalBean`（`fbtoken 守衛的模板參數必須標 @Qualifier…`） |
+| R7 | 解鎖改用不加前綴的新模板 | `4610370` | [39894798596](https://github.com/Leo0049/projectLab_2/actions/runs/39894798596) | 失敗（1 筆） | `lockIsAcquiredAndReleasedThroughTheNamespacedKey`（解鎖斷言：`expected: <false> but was: <true>`） |
+| R8 | 全域 fbtoken 模板加上命名空間 | `b84a0f6` | [39894800999](https://github.com/Leo0049/projectLab_2/actions/runs/39894800999) | 失敗（2 筆） | 整合：`fbtokenKeyIsNotPrefixed`（`fbtoken: 必須是不加前綴的鍵`）；接線：`globalTemplateDoesNotPrefixKeys`（`expected: <11> but was: <16>`） |
+| R9 | 格式檢查關掉：`validate` 接受任何值 | `4865fd8` | [39894804630](https://github.com/Leo0049/projectLab_2/actions/runs/39894804630) | 失敗（3 筆） | `RedisKeyNamespaceTest.malformedNamespacesAreRejectedInEveryProfile`（首個失敗值 `Prod`）、`NamespacedRedisKeySerializerTest.malformedNamespaceIsRejectedAtConstruction`、`RedisConfigWiringTest.malformedNamespaceRefusesToStartOutsideProduction` |
+| R10 | 字串模板的 hash 欄位加上前綴 | `f607b01` | [39895118885](https://github.com/Leo0049/projectLab_2/actions/runs/39895118885) | 失敗（2 筆） | 整合：`hashFieldsAreDataAndStayUnprefixed`；接線：`stringTemplateNamespacesKeysAndNothingElse`（hash 欄位斷言：`expected: <11> but was: <16>`） |
+| R11 | 字串模板的 value 與 zset 成員加上前綴 | `d8f77d5` | [39895122003](https://github.com/Leo0049/projectLab_2/actions/runs/39895122003) | 失敗（2 筆） | 整合：`stringTemplateWritesTheNamespacedKeyOnTheServer`（`expected: <v1> but was: <it-832ffd80:v1>`）；接線：`stringTemplateNamespacesKeysAndNothingElse`（value 斷言：`expected: <1> but was: <6>`） |
+| R12 | 空白命名空間也加前綴：`prefixFor("")` 回傳 `none:` | `d5afc19` | [39895125124](https://github.com/Leo0049/projectLab_2/actions/runs/39895125124) | 失敗（3 筆） | `RedisKeyNamespaceTest.blankOrMissingNamespaceMeansNoPrefix`（`expected: <> but was: <none:>`）、`NamespacedRedisKeySerializerTest.emptyNamespaceLeavesKeysUnchanged`、`RedisConfigWiringTest.noNamespaceOutsideProductionMeansNoPrefix` |
+| R13 | 主要字串模板拿掉 `@Primary` | `5d7489b` | [39895133828](https://github.com/Leo0049/projectLab_2/actions/runs/39895133828) | 失敗（錯誤 66 筆，無斷言失敗） | 列出的失敗皆為 Spring context 載入失敗（`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`WebSocketWiringTest`、`DemoApplicationTests`），根因：`NoUniqueBeanDefinitionException … expected single matching bean but found 2: stringRedisTemplate,globalStringRedisTemplate` |
+
+13 組破壞都讓至少一支預期的測試轉紅，且 `a9c34fa` 本身全綠。
+
+讀取時要注意的幾點：
+
+- R2 與 R5 讓 `productionWithoutNamespaceRefusesToStart` 轉紅是預期的：拿掉的序列化器同時是 prod 檢查所在。
+- `hashFieldsAreDataAndStayUnprefixed` 在 R1、R2 下因鍵沒有加前綴而失敗，無法單獨證明欄位本身沒有被加前綴；欄位被加前綴時的紅燈是 R10。
+- `@Primary` 沒有直接的單元測試，由 R13 證明其必要性：沒有它，兩個 `StringRedisTemplate` 無法決定注入哪一個，應用程式無法啟動。
+- R13 的 run 有兩筆由同一個 push 觸發（相隔 3 秒，同一 commit）。較早的 [39895129842](https://github.com/Leo0049/projectLab_2/actions/runs/39895129842) 被 concurrency 取消，結果以 [39895133828](https://github.com/Leo0049/projectLab_2/actions/runs/39895133828) 為準。
+- 本機無法執行 Maven，上述所有結果都來自 CI。
+- scratch 分支 `main-verif-stage10-R1` 至 `-R13` 需由擁有者刪除，本次未刪。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
