@@ -67,6 +67,7 @@ public class RedisConfig {
                                                    @Value("${app.redis.key-namespace:}") String keyNamespace) {
         StringRedisTemplate template = new StringRedisTemplate(redisConnectionFactory);
         template.setKeySerializer(namespacedKeys(environment, keyNamespace));
+        template.setValueSerializer(namespacedKeys(environment, keyNamespace));
         template.afterPropertiesSet();
         return template;
     }
