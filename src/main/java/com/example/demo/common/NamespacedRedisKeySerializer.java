@@ -34,7 +34,7 @@ public final class NamespacedRedisKeySerializer implements RedisSerializer<Strin
         if (key == null) {
             return null;
         }
-        return delegate.serialize(prefix + key);
+        return delegate.serialize(key);
     }
 
     @Override
