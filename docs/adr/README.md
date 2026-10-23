@@ -16,6 +16,7 @@
 | [0010](0010-brand-approval-and-admin-role.md) | 品牌自助註冊須經管理員審核；管理員為獨立帳號與權杖 | Accepted | 安全、授權、帳號 |
 | [0011](0011-server-side-auto-reject.md) | 待接單逾時自動拒單改由伺服器排程執行（列鎖、鎖內重判、退款沿用整單取消） | Accepted | 一致性、金流、排程 |
 | [0012](0012-brand-and-store-suspension.md) | 品牌與門市由管理員停用，既有權杖立即失效（條件式更新、恢復不遞增版本、可見性只有一份定義） | Accepted | 授權、帳號、一致性 |
+| [0013](0013-redis-key-namespace.md) | Redis 鍵加上環境命名空間（prod 必填）；`fbtoken:` 刻意不加前綴以保留跨環境的單次使用 | Accepted | 多環境、部署、一致性 |
 
 ## 格式
 

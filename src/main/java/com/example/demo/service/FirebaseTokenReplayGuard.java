@@ -2,9 +2,11 @@ package com.example.demo.service;
 
 import com.example.demo.common.ClaimStore;
 import com.example.demo.common.TokenFingerprint;
+import com.example.demo.config.RedisConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -39,9 +41,13 @@ public class FirebaseTokenReplayGuard {
     /**
      * ⚠️ 必須標 {@code @Autowired}：類別另有一個套件內建構子（測試用），Spring 不標註就不知道該用哪一個。
      * 與 {@code LoginAttemptLimiter} 同樣的理由。
+     *
+     * <p>⚠️ 必須使用 {@code globalStringRedisTemplate}（不加命名空間）：單次使用紀錄跨環境共用，見 ADR-0013。
+     * 改用主要模板會讓同一張權杖在另一個環境再被接受一次。
      */
     @Autowired
-    public FirebaseTokenReplayGuard(ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
+    public FirebaseTokenReplayGuard(
+            @Qualifier(RedisConfig.GLOBAL_STRING_TEMPLATE) ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
         StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
         ClaimStore.Remote remote = redisTemplate == null
                 ? null

@@ -90,6 +90,10 @@ admin:
 
 app:
   reset_password_url: ${RESET_PASSWORD_URL:http://localhost:5173/Resetpassword}
+  redis:
+    # 鍵命名空間（ADR-0013）：每個環境各自一個值，鍵會以 <值>: 開頭。
+    # prod 必填（未設定即拒絕啟動）；非 prod 留空即不加前綴。格式：小寫英文開頭，小寫英數與連字號，最長 32 字元。
+    key-namespace: ${REDIS_KEY_NAMESPACE:}
   upload:
     # 未設定 Cloudinary 憑證時，圖片改存到這個目錄，並由 WebConfig 以 /uploads/** 提供。
     # 因此不需要任何第三方帳號也能使用頭像、品牌 logo、門市封面與優惠券圖片。
