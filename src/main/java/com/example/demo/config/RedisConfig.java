@@ -44,7 +44,7 @@ public class RedisConfig {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(redisConnectionFactory);
 
-        template.setKeySerializer(namespacedKeys(environment, keyNamespace));
+        template.setKeySerializer(new StringRedisSerializer());
         // hash 欄位是資料，不是鍵，不加前綴
         template.setHashKeySerializer(new StringRedisSerializer());
 
