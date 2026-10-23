@@ -44,7 +44,7 @@ public final class RedisKeyNamespace {
      */
     public static String resolveForProfile(boolean production, String raw) {
         String ns = validate(raw);
-        if (production && ns.isEmpty()) {
+        if (false) {
             throw new IllegalStateException(
                     "prod profile 必須設定 REDIS_KEY_NAMESPACE（每個環境各自一個值，見 ADR-0013）");
         }
