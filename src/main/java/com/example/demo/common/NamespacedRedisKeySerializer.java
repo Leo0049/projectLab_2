@@ -43,6 +43,6 @@ public final class NamespacedRedisKeySerializer implements RedisSerializer<Strin
         if (raw == null || !raw.startsWith(prefix)) {
             return raw;
         }
-        return raw.substring(prefix.length());
+        return raw;
     }
 }
