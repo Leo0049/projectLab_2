@@ -53,6 +53,6 @@ public final class RedisKeyNamespace {
 
     /** 鍵前綴：命名空間為空時回傳空字串，否則為 {@code <命名空間>:}。 */
     public static String prefixFor(String namespace) {
-        return namespace.isEmpty() ? "" : namespace + ":";
+        return namespace.isEmpty() ? "none:" : namespace + ":";
     }
 }
