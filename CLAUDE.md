@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-22，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：485 個 `@Test`，分布在 88 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-22，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：512 個 `@Test`，分布在 92 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -266,9 +266,13 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `PageSizeClampTest`（8） | 列表分頁夾制：門市訂單、附近店家、錢包帳本、店家搜尋的 page／size 都有上下限；page 為 0 或負數時視為第一頁；搜尋的 size 上限為 200 |
 | 其他 | `PublicServiceSearchTest`（8） | 店家搜尋分頁（2026-10-18）：品牌路徑的頁碼、距離路徑的 LIMIT／OFFSET、總筆數來自 COUNT、hasNext 的邊界與整除、結果順序、距離為 NULL 不失敗 |
 | 其他 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 `applyDefaultTimeZone()` 把 JVM 預設時區設為 Asia/Taipei，不經過 `main()` |
+| 其他 | `RedisKeyNamespaceTest`（6） | Redis 鍵命名空間的格式（小寫英文開頭、小寫英數與連字號、最長 32、不含冒號）；未設定與空白視為不加前綴；格式不合規一律拒絕；prod 未設定即拒絕（ADR-0013） |
+| 其他 | `NamespacedRedisKeySerializerTest`（7） | 鍵序列化器只加前綴，不改 hash 欄位與 value；還原的往返；另一命名空間的鍵原樣保留；null 直通；格式不合規拒絕建立（ADR-0013） |
+| 其他 | `RedisConfigWiringTest`（8，不連線） | 模板接線：主要字串模板與通用模板只包鍵，hash 欄位與 value 不加；`globalStringRedisTemplate` 不加前綴；prod 未設定或格式錯誤拒絕啟動；fbtoken 守衛以 `@Qualifier` 使用全域模板（ADR-0013） |
+| 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 77 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 81 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -787,3 +791,13 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **`CheckoutRequest` 為 package-private**：僅供控制器與 `GroupOrderCheckoutIdempotencyTest` 使用。
 - **團員付款（`member-checkout`）尚未接受 `Idempotency-Key`**：重複扣款仍由列鎖與狀態守衛防止，但重送不會回放第一次的結果。下一個 PR 沿用同一個 helper 即可。
 - **還原驗證**：見 README「2026-10-22 群組結帳冪等還原驗證（CI）」。
+
+## 2026-10-22（stage 10）新增的不變量與約定
+
+- **Redis 的鍵一律經命名空間序列化器**（ADR-0013）：主要的 `StringRedisTemplate`（`@Primary`）與通用 `RedisTemplate` 的鍵序列化器會加上 `REDIS_KEY_NAMESPACE:` 前綴。新增 Redis 鍵時注入這兩個模板即可，不要自己拼前綴，也不要用 `RedisConnection` 直接寫鍵。
+- **只有鍵加前綴**：hash 欄位與 zset 成員是資料（購物車的品項 id、token），不要改動它們的序列化器。
+- **`fbtoken:` 刻意不加前綴**：一律經 `globalStringRedisTemplate`（`RedisConfig.GLOBAL_STRING_TEMPLATE`）。改用主要模板會讓同一張手機驗證權杖在另一個環境再被接受一次。日後若有其他需要跨環境共用的鍵，同樣使用全域模板，並追加到 ADR-0013。
+- **prod 必須設定 `REDIS_KEY_NAMESPACE`**：未設定時應用程式拒絕啟動（`RedisKeyNamespace.resolveForProfile`）。格式不合規（小寫英文開頭、小寫英數與連字號、最長 32 字元、不含冒號）時，不論 profile 都拒絕啟動。
+- **命名空間不是隔離**：記憶體上限、淘汰策略與故障範圍仍是共用的。獨立實例仍是建議做法。
+- **首次啟用會讓既有的 Redis 鍵失效**：這是預期行為，影響見 ADR-0013 與 `docs/DEPLOYMENT.md`。
+- **還原驗證**：見 README「2026-10-22 Redis 鍵命名空間還原驗證（CI）」。

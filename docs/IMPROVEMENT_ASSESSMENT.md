@@ -72,7 +72,7 @@
 5. [已處理 2026-10-17] **結帳的使用者鎖忙碌時回 400，不是 503**：`OrderService.createOrder` 拋出的是 `RuntimeException`，`OrderController` 的 catch 把它轉成 400。應改為 `CustomException("503", …)`，並讓 `OrderController` 不把它吞成 400。處理：忙碌時拋出 `CustomException("503", …)`，`OrderController` 原樣拋出；業務拒絕仍為 400（判斷見 `service/order/CheckoutFailure`）。
 6. [已處理 2026-10-22] **購物車的 Redis 鍵沒有過期時間**：`cart:items:*` 與 `carts:active` 沒有清理排程，`carts:active` 目前沒有消費者（見 DATABASE.md 的 Redis 鍵一覽）。處理：每次寫入刷新 30 天的保留期（`RedisCartService.RETENTION`），`carts:active` 寫入時修剪超過保留期的成員；沒有讀取端，過期不影響功能。
 7. [已處理 2026-10-22，stage 9] **團購結帳沒有冪等鍵**：重送不會重複扣款（列鎖與狀態守衛保證），但也不會回放第一次的成功結果。處理：團長結帳（`POST /api/group-orders/{token}/checkout`）接受 `Idempotency-Key`，範圍為使用者加上團的 token，重送回放第一次的成功結果；提交之後的讀取金額或推播失敗改為只記 log、回應仍為成功（原本會回 400，前端重送即失敗）。前端團長結帳沿用同一把鍵直到成功。團員付款（`member-checkout`）尚未接上，屬於另一個 PR。
-8. **Redis 沒有環境隔離**：多個環境共用同一台 Redis 時，鍵會互相干擾。正式環境應使用獨立的實例（見 DEPLOYMENT.md）。
+8. [已處理 2026-10-22，stage 10] **Redis 沒有環境隔離**：多個環境共用同一台 Redis 時，鍵會互相干擾。正式環境應使用獨立的實例（見 DEPLOYMENT.md）。處理：所有 Redis 鍵（`fbtoken:` 除外）加上 `REDIS_KEY_NAMESPACE:` 前綴，prod 未設定即拒絕啟動，格式不合規一律拒絕（ADR-0013）。`fbtoken:` 刻意不加前綴，以保留跨環境的單次使用保證。命名空間不隔離記憶體上限與故障範圍，獨立實例仍是建議做法。
 9. [已處理 2026-10-17] **`run-all.js` 的失敗名稱靠攔截 `console.log` 取得**：這是脆弱的做法，之後應改為由 harness 直接記錄檢查結果。處理：各套件改由 `scripts/ui/report.js` 登記，`run-all.js` 不再攔截 `console.log`。
 10. **上傳目錄 `/uploads/**` 維持 `permitAll`**：上傳端已限制為 png／jpg／jpeg／gif／webp 並以 magic bytes 驗證（M-1 修補），圖片可直接顯示。若將來允許 SVG 或 HTML，必須重新評估儲存型 XSS 風險。
 

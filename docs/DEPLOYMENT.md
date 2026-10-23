@@ -17,6 +17,7 @@
 - `JWT_SECRET`：至少 64 個 UTF-8 位元組的隨機密鑰。prod profile 若仍使用空值或內建開發密鑰，應用會拒絕啟動。
 - `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USERNAME`、`DB_PASSWORD`：正式 MySQL 連線。不得使用 compose 的 `joindrink` / `joindrink` 開發帳密。
 - `REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`：正式 Redis 連線與密碼；Redis 不可公開暴露。
+- `REDIS_KEY_NAMESPACE`：**prod 必填**（ADR-0013）。每個環境各自一個值，例如 `prod`、`staging`；小寫英文開頭，之後為小寫英數與連字號，最長 32 字元。未設定時應用程式拒絕啟動。**首次設定會讓既有的 Redis 鍵全部改名**：部署當天已抽過轉盤的使用者可以再抽一次，部署前 24 小時內的結帳冪等紀錄不再回放，進行中的結帳鎖與排程鎖失效，登入與 OTP 的限流計數歸零。建議在低峰時段部署，並確認沒有進行中的結帳。`fbtoken:`（手機驗證權杖的單次使用紀錄）不受影響。詳見 `docs/adr/0013-redis-key-namespace.md`。
 - `CORS_ALLOWED_ORIGINS`：前端正式來源的完整 origin，包含 `https://`，多筆以逗號分隔。未設定時會退回 `application.yml` 的預設值（只含本機來源），因此正式環境**必須**設定。
 - `SERVER_FORWARD_HEADERS_STRATEGY`（預設 `native`）：後端如何信任反向代理送來的 `X-Forwarded-*`，見下方「反向代理與來源 IP」。
 - `DEMO_DATA_ENABLED=false`、`WALLET_MOCK_TOPUP_ENABLED=false`：正式環境不可植入示範帳號或開啟未付款儲值；後端也會強制拒絕 prod 模式的模擬儲值。
