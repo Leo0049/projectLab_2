@@ -80,6 +80,7 @@ public class RedisConfig {
     @Bean(name = GLOBAL_STRING_TEMPLATE)
     public StringRedisTemplate globalStringRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
         StringRedisTemplate template = new StringRedisTemplate(redisConnectionFactory);
+        template.setKeySerializer(new NamespacedRedisKeySerializer("prod"));
         template.afterPropertiesSet();
         return template;
     }
