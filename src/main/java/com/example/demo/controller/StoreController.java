@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.common.BrandReference;
 import com.example.demo.common.Result;
 
 import com.example.demo.dto.StoreDTO;
@@ -260,10 +261,20 @@ public class StoreController {
     public Result toggleStoreTopping(@RequestAttribute("currentUserId") Long storeId,
             @PathVariable Long brandToppingId,
             @RequestBody Map<String, Boolean> body) {
-        storeRepository.findById(storeId)
+        Boolean isAvailable = body.get("isAvailable");
+        if (isAvailable == null) {
+            throw new CustomException("400", "isAvailable 必填");
+        }
+        Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new CustomException("404", "店家不存在"));
-        brandToppingSettingRepository.findById(brandToppingId)
+        com.example.demo.entity.BrandToppingSetting topping = brandToppingSettingRepository.findById(brandToppingId)
                 .orElseThrow(() -> new CustomException("404", "配料不存在"));
+        // N-33：只能切換本品牌的配料；他品牌與不存在的 id 回同一訊息，不洩漏 id 是否存在
+        if (!BrandReference.belongsToBrand(
+                topping.getBrand() == null ? null : topping.getBrand().getId(),
+                store.getBrand() == null ? null : store.getBrand().getId())) {
+            throw new CustomException("404", "配料不存在");
+        }
 
         StoreToppingStatusId statusId = new StoreToppingStatusId();
         statusId.setStoreId(storeId);
@@ -282,7 +293,7 @@ public class StoreController {
                     return s;
                 });
 
-        status.setIsOutOfStock(!body.get("isAvailable"));
+        status.setIsOutOfStock(!isAvailable);
         storeToppingStatusRepository.save(status);
 
         Map<String, Object> result = new java.util.HashMap<>();
