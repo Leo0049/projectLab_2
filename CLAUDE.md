@@ -811,6 +811,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **流程的選擇器不依賴轉換後的參數文字**：只用函式名稱與固定的參數字面值（`, 1)`、`, -1)`）定位控制項。否則破壞參數會變成「找不到控制項」，而不是行為檢查失敗。
 - **選擇器要限定在該列之內**：導覽列的購物車下拉也有一顆 `removeItem` 按鈕，帶著 `data-index`（N-14 之前沒有），而且在 DOM 中排在前面、平時隱藏。沒限定範圍時 `.first()` 會抓到它，點擊逾時（2026-10-23 實際發生）。流程一律先用 `[class~="group/item"]` 定位第 n 列，再在列內找按鈕。
 - **移除類的檢查要比對剩下的品項名稱**：只數筆數抓不到「移到錯的品項」，例如索引被破壞後移除了第 1 項。
+- **非同步的 UI 狀態要等，不能讀一次**：前端在回應回來之後才改樣式（例如收藏的愛心），斷言要用 `until`。否定式檢查（「不該導覽」）要先等一小段時間，讓不該發生的事有機會發生。慢的 CI 會放大這種競態（2026-10-23 的 run 40078222826）。
 - **導覽前等請求靜止**：流程的頁面跳轉一律經 `visit()`（內含 `settle()`）。頁面還有 fetch 時離開，Chromium 會記成「Failed to fetch」，那是測試時機造成的假陽性，不是專案的錯。
 - **除錯開關**：`FLOW_ONLY=關鍵字` 只跑名稱含該關鍵字的區段；`FLOW_DEBUG=1` 印出完整的 Playwright 錯誤。
 - **已讀取審查、未改的**：`Brand/js/hq-specs-api.js` 的 innerHTML 模板對名稱與單價使用 `escapeHtml`；`Brand/js/hq-store-api.js` 與 `hq-specs-and-toppings-create-modals.js` 的 innerHTML 只寫入靜態字串。這是逐行讀取的結論，不是自動化檢查。

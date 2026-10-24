@@ -840,9 +840,9 @@ R1 至 R6 是第一批。之後逐條對照宣稱與紅燈，發現有幾條沒�
 
 ### 2026-10-23 N-14 還原驗證
 
-N-14（inline 事件屬性插入 `${…}`）實作於 `fix/stage11-inline-event-interpolation`（PR #19，程式碼頭 `811ce8a`）。HEAD 的 `frontend/` 在 `on…=` 事件屬性的值內有 36 處 `${` 插值（35 行、9 個檔案）。改用 `data-*` 加上 `this.dataset` 之後，寫入端守門測試 `InlineHandlerInterpolationGuardTest`（3）與行為流程 `scripts/ui/flow-inline-controls.js`（9 個區段）都通過。
+N-14（inline 事件屬性插入 `${…}`）實作於 `fix/stage11-inline-event-interpolation`（PR #19，程式碼頭 `9f9b82a`）。HEAD 的 `frontend/` 在 `on…=` 事件屬性的值內有 36 處 `${` 插值（35 行、9 個檔案）。改用 `data-*` 加上 `this.dataset` 之後，寫入端守門測試 `InlineHandlerInterpolationGuardTest`（3）與行為流程 `scripts/ui/flow-inline-controls.js`（9 個區段）都通過。
 
-CI 結果：同一個程式碼頭的 [run 40077641128](https://github.com/Leo0049/projectLab_2/actions/runs/40077641128) 全綠，`mvn test` 為 515 個測試、93 個類別，失敗 0、錯誤 0、略過 0；API 端對端與 UI 流程全綠。此後提交的文件 commit 不改動被測程式碼。
+CI 結果：程式碼頭 `9f9b82a` 的 [run 40079079136](https://github.com/Leo0049/projectLab_2/actions/runs/40079079136) 全綠，`mvn test` 為 515 個測試、93 個類別，失敗 0、錯誤 0、略過 0；API 端對端與 UI 流程全綠。較早的 `811ce8a`（[run 40077641128](https://github.com/Leo0049/projectLab_2/actions/runs/40077641128)）也全綠；文件 commit `8732f2d`（[run 40078222826](https://github.com/Leo0049/projectLab_2/actions/runs/40078222826)）的 UI 流程因愛心顏色檢查失敗，原因見下方，已於 `9f9b82a` 修正。此後提交的文件 commit 不改動被測程式碼。
 
 以下的破壞驗證與行為流程的分項結果是本機的。本機無法執行 Maven，Java 測試是以 javac 21 編譯、搭配本機的 JUnit 介面存根，再以反射跑 `@Test` 方法的驅動程式執行，不是 JUnit 引擎。流程以 Playwright 對本機靜態伺服器（5500）執行，API 全部是攔截的假回應。
 
@@ -874,6 +874,7 @@ CI 結果：同一個程式碼頭的 [run 40077641128](https://github.com/Leo004
 - 完整流程抓到一個單一破壞抓不到的問題。N-14 讓導覽列購物車下拉的移除按鈕也帶上了 `data-index`，它在 DOM 中排在前面，平時隱藏。結帳的移除步驟原本用 `button[onclick*="removeItem"][data-index="1"]`，`.first()` 因此命中隱藏的那一顆，點擊逾時。修正是把選擇器限定在紅茶那一列之內。這是 N-14 的程式碼造成的測試衝突，產品行為沒有錯；單一區段的破壞驗證沒有抓到它，因為那些破壞都在這一步之前就失敗了。
 - 移除的檢查改為比對剩下的品項名稱。只數筆數分不出刪掉的是哪一項（刪第 1 項或第 2 項，結果都是剩 1 項）。`checkout-remove-wrong-item` 就是為了證明這一點而加的：固定刪第 1 項時，名稱比對會紅。
 - `checkout-remove-index` 讓移除沒有發生（傳入 `NaN`），證明的是「有沒有移除」；上一點證明的是「移除了哪一項」，兩者互補。
+- 愛心顏色檢查在 CI 失敗（`8732f2d`，run 40078222826）。`toggleStoreFavorite` 要等 POST 回應處理完才加上 `text-brand-orange`，流程卻在送出請求後立刻讀取，慢的 runner 就會失敗。本機把 toggle 的回應延遲 1.5 秒重現：修正前的流程在店家列表與搜尋結果兩個區段都失敗，修正後通過。這是流程的競態，產品行為沒有錯。
 - 流程用攔截的 API 回應，只驗證前端。後端的行為由 `e2e-verify.js` 與 Java 測試負責。
 - 每組破壞都在 scratchpad 的副本上執行，工作樹的 `frontend/` 與 `scripts/ui/flow-inline-controls.js` 在執行期間都沒有改動。
 
