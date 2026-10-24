@@ -205,8 +205,10 @@ async function sectionStoreList(browser, ok, name) {
   ok(posted && post && post.body && post.body.storeId === 1002 && post.body.userId === USER_ID,
     `${name}：收藏請求的 storeId 與 userId 應為數字 1002 與 ${USER_ID}`,
     `實際：${JSON.stringify(post && post.body)}`);
-  ok(await heart.evaluate((b) => b.classList.contains('text-brand-orange')),
+  // 愛心要等回應回來才變色（toggleStoreFavorite 先 await 才 classList.add），所以要等，不能只讀一次
+  ok(await until(() => heart.evaluate((b) => b.classList.contains('text-brand-orange'))),
     `${name}：收藏成功後愛心應變色`);
+  await sleep(700); // 否定式檢查：給「不該發生」的導覽一個發生的機會（與搜尋區段的守衛檢查相同）
   ok(S.page.url().includes('store_list.html'),
     `${name}：點愛心不應觸發卡片導覽`, `實際網址：${S.page.url()}`);
 
@@ -246,7 +248,7 @@ async function sectionSearch(browser, ok, name) {
   const post = calls.find(isToggle);
   ok(posted && post && post.body && post.body.storeId === 3001,
     `${name}：收藏請求的 storeId 應為數字 3001`, `實際：${JSON.stringify(post && post.body)}`);
-  ok(await heart.evaluate((b) => b.classList.contains('text-brand-orange')),
+  ok(await until(() => heart.evaluate((b) => b.classList.contains('text-brand-orange'))),
     `${name}：收藏成功後愛心應變色`);
 
   finish(S, ok, name);
