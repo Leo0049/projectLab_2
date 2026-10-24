@@ -364,7 +364,7 @@
                 card.innerHTML = `
                     <div class="relative h-56 bg-slate-100 overflow-hidden">
                         <img alt="${escapeHtml(order.storeName)}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                            src="${escapeHtml(storeImg)}" onerror="this.src='${fallbackImg}'" loading="lazy" />
+                            src="${escapeHtml(storeImg)}" data-fallback="${escapeHtml(fallbackImg)}" onerror="this.src=this.dataset.fallback" loading="lazy" />
                         <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent"></div>
                         <div class="absolute top-4 left-4 flex gap-2">
                             ${order.isGroup || order.group ? `
@@ -406,7 +406,7 @@
                                     <i data-lucide="star" class="w-3.5 h-3.5 fill-slate-300 text-slate-300"></i> 已評星
                                 </button>
                                 ` : `
-                                <button onclick="event.stopPropagation(); location.href='order_details.html?id=${order.orderId}&rate=1'"
+                                <button data-order-id="${escapeHtml(order.orderId)}" onclick="event.stopPropagation(); location.href='order_details.html?id=' + encodeURIComponent(this.dataset.orderId) + '&rate=1'"
                                     class="flex-1 py-2.5 bg-yellow-50 text-yellow-500 font-bold rounded-xl text-sm hover:bg-yellow-100 transition-all flex items-center justify-center gap-1">
                                     ★ 評星
                                 </button>

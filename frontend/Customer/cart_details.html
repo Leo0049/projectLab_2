@@ -301,6 +301,13 @@ function escHtmlSafe(value) {
     .replace(/'/g, '&#39;');
 }
 
+    // data-* 的值是字串；還原成原本未加引號的 JS 字面值（數字、null、undefined）
+    function numArg(v) {
+      if (v === 'null') return null;
+      if (v === 'undefined') return undefined;
+      return Number(v);
+    }
+
     // HTML 跳脫工具函數，防止 XSS
     function escapeHtml(str) {
       return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
@@ -598,7 +605,9 @@ function escHtmlSafe(value) {
           const isSelected = cart.isGroup ? (selectedToken === cart.token) : (!selectedToken && selectedStoreId === String(cart.storeId));
           const logoUrl = cart.logoUrl || 'images/logo.png';
 
-          const clickHandler = cart.isGroup ? `onclick="switchCartByToken('${cart.token}')"` : `onclick="switchCartById('${cart.storeId}')"`;
+          const clickHandler = cart.isGroup
+            ? `onclick="switchCartByToken(this.dataset.token)" data-token="${escHtmlSafe(String(cart.token))}"`
+            : `onclick="switchCartById(this.dataset.storeId)" data-store-id="${escHtmlSafe(String(cart.storeId))}"`;
 
           // 選取/非選取 狀態樣式 (還原舊版配色)
           const selectionStyle = isSelected
@@ -607,7 +616,7 @@ function escHtmlSafe(value) {
 
           const isHostOrLocal = (cart.isGroup && cart.isHost) || (!cart.isGroup && cart.isHost);
           const deleteBtnHtml = isHostOrLocal
-            ? `<button onclick="handleDeleteGroup('${cart.token}', event, '${cart.id}', '${cart.storeId}')" class="absolute top-3 left-3 p-1.5 bg-red-50 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all shadow-sm border border-red-100 group/del" title="移除購物車">
+            ? `<button data-token="${escHtmlSafe(String(cart.token))}" data-order-id="${escHtmlSafe(String(cart.id))}" data-store-id="${escHtmlSafe(String(cart.storeId))}" onclick="handleDeleteGroup(this.dataset.token, event, this.dataset.orderId, this.dataset.storeId)" class="absolute top-3 left-3 p-1.5 bg-red-50 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-all shadow-sm border border-red-100 group/del" title="移除購物車">
                   <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                </button>`
             : '';
@@ -940,6 +949,7 @@ function escHtmlSafe(value) {
           const itemId = item.id || item.cartItemId || 'null';
           const isLocal = item.isLocal === true;
           const localIdx = isLocal ? item.localIndex : 'null';
+          const ctxAttrs = `data-sid="${escHtmlSafe(String(sid))}" data-local-idx="${escHtmlSafe(String(localIdx))}" data-item-id="${escHtmlSafe(String(itemId))}" data-token="${escHtmlSafe(String(cartData.token || 'null'))}"`;
 
           return `
             <div class="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group/item">
@@ -961,15 +971,15 @@ function escHtmlSafe(value) {
                 ${!cartData.isGroup ? `
                 <div class="flex items-center gap-4">
                     <div class="flex items-center gap-1 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
-                        <button onclick="changeQty('${sid}', ${localIdx}, ${qty - 1}, ${itemId}, '${cartData.token || 'null'}')" class="size-9 flex items-center justify-center rounded-lg bg-white text-slate-400 hover:text-primary transition-all">
+                        <button ${ctxAttrs} data-new-qty="${escHtmlSafe(qty - 1)}" onclick="changeQty(this.dataset.sid, numArg(this.dataset.localIdx), Number(this.dataset.newQty), numArg(this.dataset.itemId), this.dataset.token)" class="size-9 flex items-center justify-center rounded-lg bg-white text-slate-400 hover:text-primary transition-all">
                             <i data-lucide="minus" class="w-4 h-4"></i>
                         </button>
                         <span class="w-10 text-center font-black text-lg">${qty}</span>
-                        <button onclick="changeQty('${sid}', ${localIdx}, ${qty + 1}, ${itemId}, '${cartData.token || 'null'}')" class="size-9 flex items-center justify-center rounded-lg bg-white text-slate-400 hover:text-primary transition-all">
+                        <button ${ctxAttrs} data-new-qty="${escHtmlSafe(qty + 1)}" onclick="changeQty(this.dataset.sid, numArg(this.dataset.localIdx), Number(this.dataset.newQty), numArg(this.dataset.itemId), this.dataset.token)" class="size-9 flex items-center justify-center rounded-lg bg-white text-slate-400 hover:text-primary transition-all">
                             <i data-lucide="plus" class="w-4 h-4"></i>
                         </button>
                     </div>
-                    <button onclick="removeCartItem('${sid}', ${localIdx}, ${itemId}, '${cartData.token || 'null'}')" class="p-3 text-slate-300 hover:text-red-500 transition-all">
+                    <button ${ctxAttrs} onclick="removeCartItem(this.dataset.sid, numArg(this.dataset.localIdx), numArg(this.dataset.itemId), this.dataset.token)" class="p-3 text-slate-300 hover:text-red-500 transition-all">
                         <i data-lucide="trash-2" class="w-5 h-5"></i>
                     </button>
                 </div>` : `<div class="font-black text-slate-400 px-4">x ${qty}</div>`}

@@ -1194,11 +1194,11 @@ function escHtmlSafe(value) {
                     <div class="flex flex-col items-end justify-between self-stretch shrink-0 min-w-[70px]">
                         <div class="font-bold text-primary text-lg mb-2">$${item.price * item.quantity}</div>
                         <div class="flex items-center gap-1 bg-gray-50 rounded-lg p-1 border border-gray-200">
-                            <button onclick="updateItemQty(${index}, -1)" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-white hover:text-primary hover:shadow-sm rounded transition-all focus:outline-none">
+                            <button data-index="${escHtmlSafe(index)}" onclick="updateItemQty(Number(this.dataset.index), -1)" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-white hover:text-primary hover:shadow-sm rounded transition-all focus:outline-none">
                                 <i data-lucide="minus" class="w-3.5 h-3.5"></i>
                             </button>
                             <span class="w-5 text-center font-bold text-sm text-slate-700">${item.quantity}</span>
-                            <button onclick="updateItemQty(${index}, 1)" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-white hover:text-primary hover:shadow-sm rounded transition-all focus:outline-none">
+                            <button data-index="${escHtmlSafe(index)}" onclick="updateItemQty(Number(this.dataset.index), 1)" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-white hover:text-primary hover:shadow-sm rounded transition-all focus:outline-none">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
                             </button>
                         </div>
@@ -1206,10 +1206,10 @@ function escHtmlSafe(value) {
                     
                     <!-- Absolute edit and delete buttons -->
                     <div class="absolute -top-2.5 -right-2.5 hidden group-hover/item:flex items-center gap-1 bg-white shadow-md rounded-lg p-1 border border-gray-100 z-10">
-                        <button onclick="openEditModal(${index})" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-all" title="修改客製化">
+                        <button data-index="${escHtmlSafe(index)}" onclick="openEditModal(Number(this.dataset.index))" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-all" title="修改客製化">
                             <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
                         </button>
-                        <button onclick="removeItem(${index})" class="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-all" title="刪除品項">
+                        <button data-index="${escHtmlSafe(index)}" onclick="removeItem(Number(this.dataset.index))" class="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-all" title="刪除品項">
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         </button>
                     </div>
@@ -1561,7 +1561,7 @@ function escHtmlSafe(value) {
                 }
             } catch (e) {
                 console.error('Failed to fetch customization:', e);
-                container.innerHTML = `<div class="text-center py-10"><p class="text-red-500 mb-2">抱歉，無法載入選項</p><button onclick="openEditModal(${index})" class="text-sm text-primary underline">重新嘗試</button></div>`;
+                container.innerHTML = `<div class="text-center py-10"><p class="text-red-500 mb-2">抱歉，無法載入選項</p><button data-index="${escHtmlSafe(index)}" onclick="openEditModal(Number(this.dataset.index))" class="text-sm text-primary underline">重新嘗試</button></div>`;
             }
             if (typeof lucide !== 'undefined') lucide.createIcons();
         };
@@ -1638,7 +1638,7 @@ function escHtmlSafe(value) {
                 }
 
                 container.innerHTML = userCoupons.map((c, idx) => `
-                    <div onclick="selectCoupon(${idx})" id="coupon-card-${idx}"
+                    <div data-idx="${escHtmlSafe(idx)}" onclick="selectCoupon(Number(this.dataset.idx))" id="coupon-card-${idx}"
                         class="rounded-2xl overflow-hidden border-2 border-transparent hover:border-primary cursor-pointer transition-all relative group">
                         ${c.couponImageUrl
                         ? `<img src="${escHtmlSafe(c.couponImageUrl)}" alt="${escapeHtml(c.productName)}" class="w-full block object-cover">`

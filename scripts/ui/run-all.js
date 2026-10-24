@@ -17,6 +17,7 @@ const suites = [
   ['揪團流程', './flow-group'],
   ['搜尋分頁流程', './flow-search'],
   ['管理員審核流程', './flow-admin'],
+  ['內嵌事件控制項流程', './flow-inline-controls'],
   ['輸出端跳逸', './check-output-escaping'],
 ];
 
