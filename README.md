@@ -838,6 +838,43 @@ R1 至 R6 是第一批。之後逐條對照宣稱與紅燈，發現有幾條沒�
 - 本機無法執行 Maven，上述所有結果都來自 CI。
 - scratch 分支 `main-verif-stage10-R1` 至 `-R13` 需由擁有者刪除，本次未刪。
 
+### 2026-10-23 N-14 還原驗證（本機）
+
+N-14（inline 事件屬性插入 `${…}`）實作於 `fix/stage11-inline-event-interpolation`。HEAD 的 `frontend/` 在 `on…=` 事件屬性的值內有 36 處 `${` 插值（35 行、9 個檔案）。改用 `data-*` 加上 `this.dataset` 之後，寫入端守門測試 `InlineHandlerInterpolationGuardTest`（3）與行為流程 `scripts/ui/flow-inline-controls.js`（9 個區段）都通過。
+
+這一節的結果全部來自本機，沒有一項來自 CI。本機無法執行 Maven，Java 測試是以 javac 21 編譯、搭配本機的 JUnit 介面存根，再以反射跑 `@Test` 方法的驅動程式執行，不是 JUnit 引擎。流程以 Playwright 對本機靜態伺服器（5500）執行，API 全部是攔截的假回應。CI 的結果另記於後續的文件 commit。
+
+- 寫入端守門：工作樹 3／3 通過；HEAD 的 `frontend/` 快照失敗，36 處匹配、35 行、9 個檔案。
+- 行為流程：完整 9 個區段通過（exit 0）。
+
+破壞副本複製自工作樹，每組只改一處（checkout 與 cart 的 +／− 按鈕有相同呼叫，允許改兩處），每組只跑對應的區段（`FLOW_ONLY`），預期該區段失敗並出現指定的檢查訊息。
+
+| 編號 | 破壞 | 區段 | 轉紅的檢查（節錄，實際值取自執行紀錄） |
+|------|------|------|---------------------------------------|
+| control | 無 | 店家列表 | 無 ✗，通過 |
+| store-list-favorite-wiring | 收藏的 `data-store-id` 讀成 `storeid` | 店家列表 | 收藏請求的 storeId 與 userId 應為數字 1002 與 9001：實際 `{"userId":9001,"storeId":null}` |
+| search-unavailable-guard | 拿掉暫停接單卡片的點擊守衛 | 搜尋結果 | 暫停接單的卡片點擊不應導覽（守衛）：實際網址為 `store.html?id=3002` |
+| index-hue-read | 占位圖色相讀成 `this.dataset.hues` | 首頁 | 占位圖的色相應由 `this.dataset.hue` 套用：hue=17 filter= |
+| nav-dropdown-index | 導覽列移除讀成 `this.dataset.idx` | 導覽列購物車下拉 | 移除第 2 項後應只剩「珍珠奶茶」：實際 `["珍珠奶茶","紅茶"]` |
+| cart-local-index | 購物車 +／− 讀成 `this.dataset.localidx` | 購物車頁 | + 後珍珠奶茶的數量應為 3：實際 2 |
+| checkout-edit-index | 結帳編輯讀成 `this.dataset.idx` | 結帳頁 | 編輯第 2 項應開啟紅茶的彈窗：實際標題「飲品名稱」 |
+| checkout-remove-index | 結帳移除讀成 `this.dataset.idx`（傳入 NaN） | 結帳頁 | 確認移除第 2 項後購物車應只剩「珍珠奶茶」：實際 `["珍珠奶茶","紅茶"]` |
+| checkout-remove-wrong-item | 結帳移除固定傳入 `0` | 結帳頁 | 確認移除第 2 項後購物車應只剩「珍珠奶茶」：實際 `["紅茶"]` |
+| group-qty-not-number | 團購 +1 不經 `Number()` | 團購頁 | + 應送出數量 3（數字）：實際 PUT `[{"qty":"21"}]` |
+| orders-fallback-read | 訂單封面退回圖讀成 `this.dataset.fallbak` | 訂單列表 | 訂單封面 404 時應退回內建占位圖（onerror）：實際 src 為 `undefined` |
+| profile-address-roundtrip | 地址編輯讀成 `el.dataset.addres` | 個人資料 | 編輯地址後表單應帶回原字串（data-* 往返）：實際為空 |
+| profile-default-card-not-number | 設為預設不經 `Number()` | 個人資料 | 設為預設後，第 2 張應為預設、第 1 張不是 |
+
+13 列全部符合預期：control 無 ✗，12 組破壞都讓該區段失敗，並出現指定的訊息。
+
+讀取時要注意的幾點：
+
+- 完整流程抓到一個單一破壞抓不到的問題。N-14 讓導覽列購物車下拉的移除按鈕也帶上了 `data-index`，它在 DOM 中排在前面，平時隱藏。結帳的移除步驟原本用 `button[onclick*="removeItem"][data-index="1"]`，`.first()` 因此命中隱藏的那一顆，點擊逾時。修正是把選擇器限定在紅茶那一列之內。這是 N-14 的程式碼造成的測試衝突，產品行為沒有錯；單一區段的破壞驗證沒有抓到它，因為那些破壞都在這一步之前就失敗了。
+- 移除的檢查改為比對剩下的品項名稱。只數筆數分不出刪掉的是哪一項（刪第 1 項或第 2 項，結果都是剩 1 項）。`checkout-remove-wrong-item` 就是為了證明這一點而加的：固定刪第 1 項時，名稱比對會紅。
+- `checkout-remove-index` 讓移除沒有發生（傳入 `NaN`），證明的是「有沒有移除」；上一點證明的是「移除了哪一項」，兩者互補。
+- 流程用攔截的 API 回應，只驗證前端。後端的行為由 `e2e-verify.js` 與 Java 測試負責。
+- 每組破壞都在 scratchpad 的副本上執行，工作樹的 `frontend/` 與 `scripts/ui/flow-inline-controls.js` 在執行期間都沒有改動。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
