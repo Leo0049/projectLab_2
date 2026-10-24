@@ -75,7 +75,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/audit"
           LOG="$RUNNER_TEMP/audit/owasp-mvn.log"
           java -version 2>&1 | tee "$LOG"
-          mvn -B -ntp -e -Pdependency-audit org.owasp:dependency-check-maven:13.0.0:check 2>&1 | tee -a "$LOG"
+          # 版本須與 pom.xml 的 dependency-audit profile 一致（13.0.0 沒有 NVD_API_KEY 時會中止）
+          mvn -B -ntp -e -Pdependency-audit org.owasp:dependency-check-maven:12.1.6:check 2>&1 | tee -a "$LOG"
 
       # 排查用：把 mvn 的錯誤行與尾段轉成註解。只整理輸出，不影響判定。
       - name: 整理 mvn 輸出（註解，供排查）
