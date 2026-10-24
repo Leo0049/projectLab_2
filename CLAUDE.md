@@ -294,7 +294,7 @@ node e2e-verify.js      # API 端對端，12 個面向（逐項通過數由腳�
 node ui/run-all.js      # 43 個 HTML 頁普掃（55 次載入）+ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核＋內嵌事件控制項（Playwright）
 ```
 
-`.github/workflows/ci.yml` 會依序跑完這三層。**改完動到序列化、交易邊界或前端流程的
+`.github/workflows/ci.yml` 會依序跑完這三層。相依稽核另由 `.github/workflows/dependency-audit.yml` 執行（報告模式，非必要檢查，見下方「2026-10-24（stage 13）」）。**改完動到序列化、交易邊界或前端流程的
 程式碼後，請至少跑一次第二三層**——九次 `LazyInitializationException` 裡有兩次
 （下單完成頁、揪團成員清單）是單獨 curl 端點會過、實際走流程才炸的。
 
@@ -829,3 +829,15 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **授權審計的結論（2026-10-24）**：品牌端所有 path id 都在 service 以 `getBrand().getId().equals(brandId)` 檢查（分類、商品、規格、配料、分店更新）。顧客端的購物車品項（`CartService.updateItem`、`deleteItem`）、常用地址（`requireSelf` 加上 `addr.getUser()` 比對）、訂單明細、時間軸、評分與再訂購都檢查擁有者或參與者。`@RequestBody` 沒有直接綁定 JPA entity。結帳路徑（`CartService`、`OrderService`、`GroupOrderService`）檢查商品屬於門市品牌。新增 path id 端點時照同樣的寫法：先確認 path id 屬於 token 的主體，再進入方法。
 - **同型 XSS 清單已過期**：`docs/REVIEW_2026-10-11.md` 的「同型未修的位置」四處（`search_result.html`、`orders.html`、`order_confirm.html`、`profile.html`）已於 2026-10-24 核實皆已 `escapeHtml`。grep 找出的其餘 `${…}` 候選多數在變數層已轉義（例如 `const name = escapeHtml(brand.name)`）。判斷是否轉義要看變數的定義，不能只看 `${` 那一行。
 - **還原驗證**：`BrandReferenceTest` 的四組破壞見 README「2026-10-24 N-33 還原驗證」；兩支 Mockito 測試以 CI 驗證（run 40098422977 全綠；scratch run 40099082368 同時停用四個守衛，失敗 5 個，與預期一致）。
+
+## 2026-10-24（stage 13）新增的不變量與約定
+
+- **相依稽核是報告模式（N-29）**：`.github/workflows/dependency-audit.yml` 只寫報告（步驟摘要，以及 `maven-owasp-report`、`npm-audit-report` artifact），發現漏洞不讓工作流失敗。它不是必要檢查；必要檢查仍是 `ci.yml` 的 verify 與 docker。只有稽核工具沒有產出可讀的報告時，工作流才會變紅。
+- **Maven 稽核只在 `dependency-audit` profile 內執行**：`pom.xml` 的 profile 預設不啟用，`mvn test`、`package` 不會下載 NVD 資料。
+- **dependency-check 版本固定為 12.1.6，profile 與工作流必須一致**：13.0.0 在沒有 `NVD_API_KEY` 時送出空白金鑰而中止（`Invalid API Key, length of 0`，run 40124147894）。升版前要先在 CI 跑完一次，確認無金鑰時能取得 NVD 資料。
+- **不要加回 `failOnError=false`**：它會讓分析失敗的 mvn 以 BUILD SUCCESS 結束，失敗就只剩「沒有報告」，原因要到日誌才看得到。
+- **NVD 無金鑰時首次同步很慢，也可能 524**：實測首次同步約 71 分鐘（run 40125083745 第二次嘗試）；第一次嘗試在約 12 分鐘後遇到 NVD 524（Cloudflare 逾時）而中止。成功的執行會存下 `owasp-nvd-` 快取，之後的執行從快取接續。失敗的執行不存快取（run 40124147894 的 post 步驟為 skipped），因此不會把不完整的資料庫帶到下一次。
+- **排查不需要下載日誌**：mvn 的完整輸出存為 `owasp-mvn-log` artifact；錯誤行與尾段由 `scripts/ci/log_annotations.py` 轉成 `::notice::` 註解，可由 REST API 的 `repos/{owner}/{repo}/check-runs/{id}/annotations` 讀取。這支腳本的 `%`、CR、LF 轉義不可改，否則註解會被截斷或錯位。
+- **`scripts/ci/audit_summary.py` 的結束碼只回答報告是否可讀**：有漏洞仍回 0；找不到報告、不是 JSON、OWASP 報告沒有相依項目，或 npm audit 自己回報錯誤，才回 1。
+- **待決定：repo secret `NVD_API_KEY`（選用）**：設定後首次同步明顯變快，也較不容易遇到 524。未設定時工作流仍會執行，只是慢，且可能失敗。
+- **驗證**：本階段沒有新增 Java 測試。工作流的驗證是 CI 實際執行，記錄見 `docs/REVIEW_2026-10-13.md` 的 N-29 列。

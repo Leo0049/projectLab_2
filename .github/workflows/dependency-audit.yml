@@ -9,7 +9,8 @@ name: 相依稽核（報告模式）
 # 註解也能由 REST API 讀取，不必下載日誌。
 #
 # Maven：pom.xml 的 dependency-audit profile 預設不啟用，mvn test／package 不會下載 NVD 資料。
-# NVD_API_KEY（repo secret，選用）：有設定時 NVD 的首次下載快很多；沒有設定仍會執行，只是較慢。
+# NVD_API_KEY（repo secret，選用）：有設定時 NVD 的首次下載快很多。沒有設定仍會執行，但 2026-10-24 實測首次同步約 71 分鐘，
+# 且 NVD 可能回 524 使執行中止（同日另一次嘗試約 12 分鐘後失敗）。成功的執行會存下 NVD 快取，之後的執行從快取接續。
 # npm：scripts/ 的 npm audit，安裝步驟與 ci.yml 的 verify 相同。
 
 on:
