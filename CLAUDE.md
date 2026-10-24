@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-23，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：515 個 `@Test`，分布在 93 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-24，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：530 個 `@Test`，分布在 96 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -193,6 +193,9 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `SuspensionVisibilityServiceTest`（5） | 停用對公開讀取的影響（stage 6，純邏輯）：品牌列表只查已核准且未停用的品牌；停用的品牌詳情回 404，底下已停用的分店不列出；分店詳情與地圖清單只走可見查詢；分店或品牌停用時分店菜單回 404，不讀取菜單 |
 | 授權與路由 | `SuspensionPublicReadsTest`（4） | 停用對商品與轉盤的影響（stage 6，純邏輯）：分店停用時上架商品清單為空，且不查詢商品；品牌停用時商品詳情回 404，規格與客製化選項不對外；客製化選項帶入已停用的分店時回 null；品牌停用時轉盤分類為空、不能抽獎（不取得鎖、不寫入今日標記） |
 | 授權與路由 | `StoreSuspensionIntegrationTest`（3，載入 Spring context） | 停用的資料庫層驗證（stage 6，真實資料庫）：停用品牌後分店立即不可見，品牌與分店的舊權杖失效，恢復後舊權杖仍無效；單一分店停用只影響該分店；待審品牌不可停用（409） |
+| 授權與路由 | `BrandReferenceTest`（6） | 品牌參照（N-33，純函式）：同一品牌相符；不同品牌不符；被參照的品項或分店任一方沒有品牌時不符（fail-closed）；以值比較而非物件參照（超過 Long 快取範圍的 id 也相符） |
+| 授權與路由 | `AnalyticsServiceToggleDrinkSupplyTest`（5，Mockito） | 門市切換飲品供應（N-33）：本品牌的飲品寫入供應狀態；他品牌與不存在的飲品回同一個 404 且不寫入；分店沒有品牌時任何飲品都不能切換；isAvailable 缺少回 400，且在查詢任何資料前拒絕 |
+| 授權與路由 | `StoreControllerToggleToppingTest`（4，Mockito） | 門市切換配料供應（N-33）：本品牌的配料寫入缺貨狀態；他品牌與不存在的配料回同一個 404 且不寫入；isAvailable 缺少回 400，且在查詢任何資料前拒絕 |
 | 授權與路由 | `StompSessionRegistryTest`（5） | WebSocket 工作階段登錄表（stage 6，純邏輯）：切斷某帳號只影響該帳號；顧客與門市 id 相同時互不影響（N13）；角色比對不分大小寫；工作階段結束後移除切斷旗標；null 一律忽略 |
 | 授權與路由 | `CutSessionOutboundInterceptorTest`（2） | 切斷的工作階段的訊息一律丟棄，其他工作階段不受影響；沒有工作階段 id 的訊息（例如系統訊息）原樣放行（stage 6） |
 | 授權與路由 | `StompSessionListenerTest`（3） | CONNECT 後的工作階段登錄（stage 6）：可使用的帳號登錄且不被切斷；登錄時帳號已被停用（停用交易早於登錄）時立即切斷；未經認證的連線直接切斷 |
@@ -273,7 +276,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 82 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 85 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -815,3 +818,12 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **導覽前等請求靜止**：流程的頁面跳轉一律經 `visit()`（內含 `settle()`）。頁面還有 fetch 時離開，Chromium 會記成「Failed to fetch」，那是測試時機造成的假陽性，不是專案的錯。
 - **除錯開關**：`FLOW_ONLY=關鍵字` 只跑名稱含該關鍵字的區段；`FLOW_DEBUG=1` 印出完整的 Playwright 錯誤。
 - **已讀取審查、未改的**：`Brand/js/hq-specs-api.js` 的 innerHTML 模板對名稱與單價使用 `escapeHtml`；`Brand/js/hq-store-api.js` 與 `hq-specs-and-toppings-create-modals.js` 的 innerHTML 只寫入靜態字串。這是逐行讀取的結論，不是自動化檢查。
+
+## 2026-10-24（stage 12）新增的不變量與約定
+
+- **門市切換供應狀態只限本品牌（N-33）**：`StoreController.toggleStoreTopping`（配料）與 `AnalyticsService.toggleDrinkSupply`（飲品）以 `common/BrandReference.belongsToBrand` 檢查被切換的品項是否屬於門市所屬的品牌。分店沒有品牌、或品項沒有品牌時拒絕（fail-closed）。他品牌與不存在的 id 回同一個 404 訊息，不洩漏 id 是否存在。新增同類端點時照做，不要只查 id 存在。
+- **`isAvailable` 必填**：供應切換缺少此欄位回 400，且在查詢任何資料前拒絕。原本 `null` 會在解包時拋出 NPE，變成 500。
+- **懶載入的品牌只在交易內讀取**：`AnalyticsService` 沒有類別層級的交易註解，`toggleDrinkSupply` 讀取 `product.getBrand()`，所以方法自己要標 `@Transactional`。
+- **授權審計的結論（2026-10-24）**：品牌端所有 path id 都在 service 以 `getBrand().getId().equals(brandId)` 檢查（分類、商品、規格、配料、分店更新）。顧客端的購物車品項（`CartService.updateItem`、`deleteItem`）、常用地址（`requireSelf` 加上 `addr.getUser()` 比對）、訂單明細、時間軸、評分與再訂購都檢查擁有者或參與者。`@RequestBody` 沒有直接綁定 JPA entity。結帳路徑（`CartService`、`OrderService`、`GroupOrderService`）檢查商品屬於門市品牌。新增 path id 端點時照同樣的寫法：先確認 path id 屬於 token 的主體，再進入方法。
+- **同型 XSS 清單已過期**：`docs/REVIEW_2026-10-11.md` 的「同型未修的位置」四處（`search_result.html`、`orders.html`、`order_confirm.html`、`profile.html`）已於 2026-10-24 核實皆已 `escapeHtml`。grep 找出的其餘 `${…}` 候選多數在變數層已轉義（例如 `const name = escapeHtml(brand.name)`）。判斷是否轉義要看變數的定義，不能只看 `${` 那一行。
+- **還原驗證**：`BrandReferenceTest` 的四組破壞見 README「2026-10-24 N-33 還原驗證」；兩支 Mockito 測試以 CI 驗證。

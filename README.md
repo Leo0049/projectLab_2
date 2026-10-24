@@ -878,6 +878,32 @@ CI 結果：程式碼頭 `9f9b82a` 的 [run 40079079136](https://github.com/Leo0
 - 流程用攔截的 API 回應，只驗證前端。後端的行為由 `e2e-verify.js` 與 Java 測試負責。
 - 每組破壞都在 scratchpad 的副本上執行，工作樹的 `frontend/` 與 `scripts/ui/flow-inline-controls.js` 在執行期間都沒有改動。
 
+### 2026-10-24 N-33 還原驗證
+
+門市切換供應狀態的品牌參照（N-33，`fix/stage12-store-supply-brand-reference`）。審計授權時發現：`StoreController.toggleStoreTopping`（配料）與 `AnalyticsService.toggleDrinkSupply`（飲品）只檢查 id 存在，沒有檢查品項是否屬於門市所屬的品牌。品牌端的同類端點（分類、商品、規格、配料）都已檢查 `getBrand().getId().equals(brandId)`，這兩處是唯一的缺口。
+
+影響範圍：門市只能寫入自己分店的狀態列（以門市 id 為鍵），不會影響其他門市、也不外洩資料；點單與結帳的品牌一致性由 `CartService`、`OrderService`、`GroupOrderService` 另外檢查。但寫入他品牌的 id 會留下無意義的列，未知 id 會因外鍵錯誤回 500，而 404 與 500 的差別可以用來列舉 id。因此列為低影響的完整性與一致性修正。
+
+修補：
+
+- `common/BrandReference.belongsToBrand` 是純函式，任一方缺少品牌 id 一律不符（fail-closed）。
+- 兩個端點先查分店與品項；不符時回 404，訊息與不存在的 id 相同。
+- `isAvailable` 缺少時回 400，且在查詢任何資料前拒絕（原本解包 `null` 會拋出 NPE，變成 500）。
+- `toggleDrinkSupply` 加上 `@Transactional`，因為它讀取 `product.getBrand()`，交易外的懶載入會拋出 `LazyInitializationException`。
+
+本機驗證：`BrandReferenceTest`（6 個）是純 JUnit 測試，本機以 javac 21 編譯，搭配 JUnit 介面存根，再以反射跑 `@Test` 方法。原始版本 6／6 通過；四組破壞都讓對應的測試轉紅：
+
+| 編號 | 破壞 | 轉紅的測試 |
+|------|------|-----------|
+| M1-no-referenced-null-check | 拿掉被參照品項的 null 檢查 | `missingReferencedBrandDoesNotMatch`（NullPointerException） |
+| M2-reference-compare | `equals` 改為 `==` | `comparesValueNotReference` |
+| M3-always-true | 永遠回 true | `missingReferencedBrandDoesNotMatch`、`missingStoreBrandDoesNotMatch`、`otherBrandDoesNotMatch`、`bothMissingDoesNotMatch` |
+| M4-null-equals-null | 兩邊都是 null 時回 true | `bothMissingDoesNotMatch` |
+
+`AnalyticsServiceToggleDrinkSupplyTest`（5 個）與 `StoreControllerToggleToppingTest`（4 個）以 Mockito 驗證端點行為。本機無法執行 Maven，這兩支由 CI 驗證。
+
+CI 結果：待 PR 的 CI 完成後補上。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
