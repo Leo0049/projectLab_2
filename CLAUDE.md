@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-24，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：530 個 `@Test`，分布在 96 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-24，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：530 個 `@Test`，分布在 96 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -826,4 +826,4 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **懶載入的品牌只在交易內讀取**：`AnalyticsService` 沒有類別層級的交易註解，`toggleDrinkSupply` 讀取 `product.getBrand()`，所以方法自己要標 `@Transactional`。
 - **授權審計的結論（2026-10-24）**：品牌端所有 path id 都在 service 以 `getBrand().getId().equals(brandId)` 檢查（分類、商品、規格、配料、分店更新）。顧客端的購物車品項（`CartService.updateItem`、`deleteItem`）、常用地址（`requireSelf` 加上 `addr.getUser()` 比對）、訂單明細、時間軸、評分與再訂購都檢查擁有者或參與者。`@RequestBody` 沒有直接綁定 JPA entity。結帳路徑（`CartService`、`OrderService`、`GroupOrderService`）檢查商品屬於門市品牌。新增 path id 端點時照同樣的寫法：先確認 path id 屬於 token 的主體，再進入方法。
 - **同型 XSS 清單已過期**：`docs/REVIEW_2026-10-11.md` 的「同型未修的位置」四處（`search_result.html`、`orders.html`、`order_confirm.html`、`profile.html`）已於 2026-10-24 核實皆已 `escapeHtml`。grep 找出的其餘 `${…}` 候選多數在變數層已轉義（例如 `const name = escapeHtml(brand.name)`）。判斷是否轉義要看變數的定義，不能只看 `${` 那一行。
-- **還原驗證**：`BrandReferenceTest` 的四組破壞見 README「2026-10-24 N-33 還原驗證」；兩支 Mockito 測試以 CI 驗證。
+- **還原驗證**：`BrandReferenceTest` 的四組破壞見 README「2026-10-24 N-33 還原驗證」；兩支 Mockito 測試以 CI 驗證（run 40098422977 全綠；scratch run 40099082368 同時停用四個守衛，失敗 5 個，與預期一致）。

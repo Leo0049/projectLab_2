@@ -902,7 +902,19 @@ CI 結果：程式碼頭 `9f9b82a` 的 [run 40079079136](https://github.com/Leo0
 
 `AnalyticsServiceToggleDrinkSupplyTest`（5 個）與 `StoreControllerToggleToppingTest`（4 個）以 Mockito 驗證端點行為。本機無法執行 Maven，這兩支由 CI 驗證。
 
-CI 結果：待 PR 的 CI 完成後補上。
+CI 結果：
+
+- PR 頭 `bff384f` 的 [run 40098422977](https://github.com/Leo0049/projectLab_2/actions/runs/40098422977) 全綠；`mvn test` 為 530 個測試、96 個類別，失敗 0、錯誤 0、略過 0。
+- Mockito 測試的還原驗證：在 `main-verif-stage12`（scratch 提交 `6b8904e`，只用於驗證，不屬於 PR 分支）同時停用四個守衛，[run 40099082368](https://github.com/Leo0049/projectLab_2/actions/runs/40099082368) 的 `mvn test` 失敗 5 個、錯誤 0，與預期的 5 組一致：
+
+| 編號 | 破壞 | 轉紅的測試 |
+|------|------|-----------|
+| G1 | `StoreController.toggleStoreTopping` 拿掉品牌檢查 | `otherBrandToppingIsRejectedWithoutWriting`（沒有拋出） |
+| G2 | `AnalyticsService.toggleDrinkSupply` 拿掉品牌檢查 | `otherBrandDrinkIsRejectedWithoutWriting`、`storeWithoutBrandCannotToggleAnyDrink`（沒有拋出） |
+| G3 | `AnalyticsService.toggleDrinkSupply` 拿掉 `isAvailable` 檢查 | `missingAvailabilityIsRejectedBeforeAnyLookup`（404 而非 400） |
+| G4 | `StoreController.toggleStoreTopping` 拿掉 `isAvailable` 檢查 | `missingAvailabilityIsRejectedBeforeAnyLookup`（404 而非 400） |
+
+四個守衛各自都有測試轉紅。`main-verif-stage12` 這個遠端分支在驗證後保留，可以刪除。
 
 ### 拆出可測試的規則
 
