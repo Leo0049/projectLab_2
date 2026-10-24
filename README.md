@@ -838,11 +838,13 @@ R1 至 R6 是第一批。之後逐條對照宣稱與紅燈，發現有幾條沒�
 - 本機無法執行 Maven，上述所有結果都來自 CI。
 - scratch 分支 `main-verif-stage10-R1` 至 `-R13` 需由擁有者刪除，本次未刪。
 
-### 2026-10-23 N-14 還原驗證（本機）
+### 2026-10-23 N-14 還原驗證
 
-N-14（inline 事件屬性插入 `${…}`）實作於 `fix/stage11-inline-event-interpolation`。HEAD 的 `frontend/` 在 `on…=` 事件屬性的值內有 36 處 `${` 插值（35 行、9 個檔案）。改用 `data-*` 加上 `this.dataset` 之後，寫入端守門測試 `InlineHandlerInterpolationGuardTest`（3）與行為流程 `scripts/ui/flow-inline-controls.js`（9 個區段）都通過。
+N-14（inline 事件屬性插入 `${…}`）實作於 `fix/stage11-inline-event-interpolation`（PR #19，程式碼頭 `811ce8a`）。HEAD 的 `frontend/` 在 `on…=` 事件屬性的值內有 36 處 `${` 插值（35 行、9 個檔案）。改用 `data-*` 加上 `this.dataset` 之後，寫入端守門測試 `InlineHandlerInterpolationGuardTest`（3）與行為流程 `scripts/ui/flow-inline-controls.js`（9 個區段）都通過。
 
-這一節的結果全部來自本機，沒有一項來自 CI。本機無法執行 Maven，Java 測試是以 javac 21 編譯、搭配本機的 JUnit 介面存根，再以反射跑 `@Test` 方法的驅動程式執行，不是 JUnit 引擎。流程以 Playwright 對本機靜態伺服器（5500）執行，API 全部是攔截的假回應。CI 的結果另記於後續的文件 commit。
+CI 結果：同一個程式碼頭的 [run 40077641128](https://github.com/Leo0049/projectLab_2/actions/runs/40077641128) 全綠，`mvn test` 為 515 個測試、93 個類別，失敗 0、錯誤 0、略過 0；API 端對端與 UI 流程全綠。此後提交的文件 commit 不改動被測程式碼。
+
+以下的破壞驗證與行為流程的分項結果是本機的。本機無法執行 Maven，Java 測試是以 javac 21 編譯、搭配本機的 JUnit 介面存根，再以反射跑 `@Test` 方法的驅動程式執行，不是 JUnit 引擎。流程以 Playwright 對本機靜態伺服器（5500）執行，API 全部是攔截的假回應。
 
 - 寫入端守門：工作樹 3／3 通過；HEAD 的 `frontend/` 快照失敗，36 處匹配、35 行、9 個檔案。
 - 行為流程：完整 9 個區段通過（exit 0）。
