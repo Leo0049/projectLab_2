@@ -882,13 +882,13 @@ CI 結果：程式碼頭 `9f9b82a` 的 [run 40079079136](https://github.com/Leo0
 
 門市切換供應狀態的品牌參照（N-33，`fix/stage12-store-supply-brand-reference`）。審計授權時發現：`StoreController.toggleStoreTopping`（配料）與 `AnalyticsService.toggleDrinkSupply`（飲品）只檢查 id 存在，沒有檢查品項是否屬於門市所屬的品牌。品牌端的同類端點（分類、商品、規格、配料）都已檢查 `getBrand().getId().equals(brandId)`，這兩處是唯一的缺口。
 
-影響範圍：門市只能寫入自己分店的狀態列（以門市 id 為鍵），不會影響其他門市、也不外洩資料；點單與結帳的品牌一致性由 `CartService`、`OrderService`、`GroupOrderService` 另外檢查。但寫入他品牌的 id 會留下無意義的列，未知 id 會因外鍵錯誤回 500，而 404 與 500 的差別可以用來列舉 id。因此列為低影響的完整性與一致性修正。
+影響範圍：門市只能寫入自己分店的狀態列（以門市 id 為鍵），不會影響其他門市、也不外洩資料；點單與結帳的品牌一致性由 `CartService`、`OrderService`、`GroupOrderService` 另外檢查。但寫入他品牌的 id 會留下無意義的列，未知 id 會因外鍵錯誤回 500，而 404 與 500 的差別可以用來列舉 id。舊版飲品路徑還可能把 NULL 寫進供應列，使該門市的公開菜單回 500（見修補），影響同樣只限於該門市。因此列為低影響的完整性與一致性修正。
 
 修補：
 
 - `common/BrandReference.belongsToBrand` 是純函式，任一方缺少品牌 id 一律不符（fail-closed）。
 - 兩個端點先查分店與品項；不符時回 404，訊息與不存在的 id 相同。
-- `isAvailable` 缺少時回 400，且在查詢任何資料前拒絕（原本解包 `null` 會拋出 NPE，變成 500）。
+- `isAvailable` 缺少時回 400，且在查詢任何資料前拒絕。舊版兩條路徑不同：配料解包 `null` 拋出 NPE（500，未寫入）；飲品把 `NULL` 寫進 `store_product_settings.is_enabled`，之後公開菜單與門市飲品列表會 500。既有的 NULL 列不會被這次修改修正，部署前後的檢查見 CLAUDE.md 的 stage 12 段落。
 - `toggleDrinkSupply` 加上 `@Transactional`，因為它讀取 `product.getBrand()`，交易外的懶載入會拋出 `LazyInitializationException`。
 
 本機驗證：`BrandReferenceTest`（6 個）是純 JUnit 測試，本機以 javac 21 編譯，搭配 JUnit 介面存根，再以反射跑 `@Test` 方法。原始版本 6／6 通過；四組破壞都讓對應的測試轉紅：

@@ -822,7 +822,9 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 ## 2026-10-24（stage 12）新增的不變量與約定
 
 - **門市切換供應狀態只限本品牌（N-33）**：`StoreController.toggleStoreTopping`（配料）與 `AnalyticsService.toggleDrinkSupply`（飲品）以 `common/BrandReference.belongsToBrand` 檢查被切換的品項是否屬於門市所屬的品牌。分店沒有品牌、或品項沒有品牌時拒絕（fail-closed）。他品牌與不存在的 id 回同一個 404 訊息，不洩漏 id 是否存在。新增同類端點時照做，不要只查 id 存在。
-- **`isAvailable` 必填**：供應切換缺少此欄位回 400，且在查詢任何資料前拒絕。原本 `null` 會在解包時拋出 NPE，變成 500。
+- **`isAvailable` 必填**：供應切換缺少此欄位回 400，且在查詢任何資料前拒絕。舊版兩條路徑的行為不同：配料在解包時拋出 NPE（500，未寫入）；飲品把 `NULL` 寫進 `store_product_settings.is_enabled`（欄位允許 NULL），之後公開菜單 `GET /api/menu/store/{storeId}`（`MenuService.getStoreMenu` 的 `!s.getIsEnabled()`）與門市飲品列表 `GET /api/stores/menu/drinks`（`Collectors.toMap` 不接受 null 值）都會拋出 NullPointerException，回 500。
+- **既有的 NULL 列不會被這次修改修正**：部署前後請執行 `SELECT store_id, product_id FROM store_product_settings WHERE is_enabled IS NULL;`。有結果時由維運決定處理方式；建議語意是「缺值視為供應中」，與分店沒有列時的預設一致（`getStoreMenuDrinks` 的 `getOrDefault(…, true)`）。`OrderService.getUnavailableProductIds` 與 `GroupOrderService.getUnavailableProductIds` 用 `Boolean.FALSE.equals`，對 NULL 安全，結帳不受影響。
+- **`toggleProductStock` 目前沒有呼叫者（死碼）**：`AnalyticsService.toggleProductStock` 沒有品牌檢查，也沒有路由。若要接上路由，必須先補 `BrandReference` 檢查，並處理 `!sps.getIsEnabled()` 對 NULL 列的 NPE。
 - **懶載入的品牌只在交易內讀取**：`AnalyticsService` 沒有類別層級的交易註解，`toggleDrinkSupply` 讀取 `product.getBrand()`，所以方法自己要標 `@Transactional`。
 - **授權審計的結論（2026-10-24）**：品牌端所有 path id 都在 service 以 `getBrand().getId().equals(brandId)` 檢查（分類、商品、規格、配料、分店更新）。顧客端的購物車品項（`CartService.updateItem`、`deleteItem`）、常用地址（`requireSelf` 加上 `addr.getUser()` 比對）、訂單明細、時間軸、評分與再訂購都檢查擁有者或參與者。`@RequestBody` 沒有直接綁定 JPA entity。結帳路徑（`CartService`、`OrderService`、`GroupOrderService`）檢查商品屬於門市品牌。新增 path id 端點時照同樣的寫法：先確認 path id 屬於 token 的主體，再進入方法。
 - **同型 XSS 清單已過期**：`docs/REVIEW_2026-10-11.md` 的「同型未修的位置」四處（`search_result.html`、`orders.html`、`order_confirm.html`、`profile.html`）已於 2026-10-24 核實皆已 `escapeHtml`。grep 找出的其餘 `${…}` 候選多數在變數層已轉義（例如 `const name = escapeHtml(brand.name)`）。判斷是否轉義要看變數的定義，不能只看 `${` 那一行。
