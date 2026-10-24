@@ -1588,11 +1588,11 @@
                                                 ${canEdit ? `
                                                     <!-- 提供直覺的 + / - 數量調整按鈕 -->
                                                     <div class="flex items-center gap-1 bg-gray-50 rounded-lg p-1 border border-gray-200">
-                                                        <button onclick="updateItemQty('${item.representativeId}', ${qty}, -1)" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-white hover:text-primary hover:shadow-sm rounded transition-all focus:outline-none">
+                                                        <button data-item-id="${esc(item.representativeId)}" data-qty="${esc(qty)}" onclick="updateItemQty(this.dataset.itemId, Number(this.dataset.qty), -1)" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-white hover:text-primary hover:shadow-sm rounded transition-all focus:outline-none">
                                                             <i data-lucide="minus" class="w-3.5 h-3.5"></i>
                                                         </button>
                                                         <span class="w-5 text-center font-bold text-sm text-slate-700">${qty}</span>
-                                                        <button onclick="updateItemQty('${item.representativeId}', ${qty}, 1)" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-white hover:text-primary hover:shadow-sm rounded transition-all focus:outline-none">
+                                                        <button data-item-id="${esc(item.representativeId)}" data-qty="${esc(qty)}" onclick="updateItemQty(this.dataset.itemId, Number(this.dataset.qty), 1)" class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-white hover:text-primary hover:shadow-sm rounded transition-all focus:outline-none">
                                                             <i data-lucide="plus" class="w-3.5 h-3.5"></i>
                                                         </button>
                                                     </div>
@@ -1604,13 +1604,13 @@
                                             <!-- Absolute edit (Ice/Sugar) and delete buttons -->
                                             ${canEdit ? `
                                                 <div class="absolute -top-2.5 -right-2.5 hidden group-hover/item:flex items-center gap-1 bg-white shadow-md rounded-lg p-1 border border-gray-100 z-10">
-                                                    <button onclick="openEditModal('${item.representativeId}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-all" title="修改冰塊甜度">
+                                                    <button data-item-id="${esc(item.representativeId)}" onclick="openEditModal(this.dataset.itemId)" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-md transition-all" title="修改冰塊甜度">
                                                         <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
                                                     </button>
                                                     <button data-item-id="${esc(item.representativeId)}" data-item-name="${esc(item.productName)}" onclick="openItemCouponModal(this.dataset.itemId, this.dataset.itemName)" class="p-1.5 text-orange-500 hover:bg-orange-50 rounded-md transition-all" title="使用優惠券">
                                                         <i data-lucide="ticket" class="w-3.5 h-3.5"></i>
                                                     </button>
-                                                    <button onclick="removeItem('${item.representativeId}')" class="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-all" title="刪除整項">
+                                                    <button data-item-id="${esc(item.representativeId)}" onclick="removeItem(this.dataset.itemId)" class="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-all" title="刪除整項">
                                                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                                     </button>
                                                 </div>
@@ -2283,7 +2283,7 @@
                     }
 
                     innerHTML += goUserCoupons.map((c, idx) => `
-                        <div onclick="goSelectCoupon(${idx})" class="p-4 rounded-2xl border-2 border-dashed border-gray-100 bg-white hover:border-primary cursor-pointer transition-all group flex items-center justify-between">
+                        <div data-idx="${esc(idx)}" onclick="goSelectCoupon(Number(this.dataset.idx))" class="p-4 rounded-2xl border-2 border-dashed border-gray-100 bg-white hover:border-primary cursor-pointer transition-all group flex items-center justify-between">
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
                                     <span class="px-2 py-0.5 bg-orange-100 text-brand-orange text-[10px] font-bold rounded-full">${esc(c.brandName || '品牌券')}</span>
@@ -2729,7 +2729,7 @@
                     }
                 } catch (e) {
                     console.error('Failed to fetch customization:', e);
-                    specContainer.innerHTML = `<div class="text-center py-10"><p class="text-red-500 mb-2">抱歉，無法載入選項</p><button onclick="openEditModal('${itemId}')" class="text-sm text-primary underline">重新嘗試</button></div>`;
+                    specContainer.innerHTML = `<div class="text-center py-10"><p class="text-red-500 mb-2">抱歉，無法載入選項</p><button data-item-id="${esc(itemId)}" onclick="openEditModal(this.dataset.itemId)" class="text-sm text-primary underline">重新嘗試</button></div>`;
                 }
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             };

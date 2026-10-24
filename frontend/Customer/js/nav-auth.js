@@ -719,7 +719,7 @@ const NavAuth = {
                                         </div>
                                         <div class="text-right">
                                             <p class="text-xs font-bold text-brand-orange">$${item.price * item.quantity}</p>
-                                            <button onclick="event.preventDefault(); Cart.removeItem(${cart.storeId}, ${index})" class="text-[10px] text-gray-300 hover:text-red-500 transition-colors">移除</button>
+                                            <button data-store-id="${esc(cart.storeId)}" data-index="${esc(index)}" onclick="event.preventDefault(); Cart.removeItem(Number(this.dataset.storeId), Number(this.dataset.index))" class="text-[10px] text-gray-300 hover:text-red-500 transition-colors">移除</button>
                                         </div>
                                     </div>
                                 `).join('')}

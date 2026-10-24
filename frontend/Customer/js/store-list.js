@@ -34,16 +34,17 @@
     const hasBrandBadge = !!(store.brandLogoUrl || store.brandName);
     return `
       <div
-        onclick="location.href='store.html?id=${store.id}'"
+        onclick="location.href='store.html?id=' + encodeURIComponent(this.dataset.storeId)"
         class="bg-white rounded-[24px] overflow-hidden card-shadow group cursor-pointer hover:-translate-y-1 transition-all duration-300 relative"
-        data-store-id="${store.id}"
+        data-store-id="${esc(store.id)}"
         data-store-name="${esc(store.name || store.storeName || '').toLowerCase()}"
         data-brand-name="${esc(store.brandName || '').toLowerCase()}"
         data-rating="${store.rating || 0}">
 
         <!-- 收藏按鈕 -->
         <button
-          onclick="event.stopPropagation(); toggleStoreFavorite(this, ${store.id})"
+          data-store-id="${esc(store.id)}"
+          onclick="event.stopPropagation(); toggleStoreFavorite(this, Number(this.dataset.storeId))"
           class="absolute top-3 left-3 z-20 w-11 h-11 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-all text-gray-400">
           <i data-lucide="heart" class="w-5 h-5"></i>
         </button>
