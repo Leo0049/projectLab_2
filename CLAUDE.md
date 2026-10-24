@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-22，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：512 個 `@Test`，分布在 92 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-23，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：515 個 `@Test`，分布在 93 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -256,6 +256,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 輸入與輸出安全 | `StorePhoneExposureTest`（2） | 分店回應不洩漏店長手機（N6）：公開的分店資料只含店家電話；店家後台本人的 profile 仍有店長手機供表單使用 |
 | 輸入與輸出安全 | `PhoneMaskTest`（7） | 記錄檔用的手機遮罩（N17）：只保留末三碼、輸出只含星號與數字（防止偽造 log 行）；沒有手機時標示為（無） |
 | 輸入與輸出安全 | `LogPhoneGuardTest`（1） | 記錄檔不得含原始手機（N17）：掃描 `src/main/java` 內所有 `log.*(` 呼叫，提到手機的必須經過 `PhoneMask.mask()` |
+| 輸入與輸出安全 | `InlineHandlerInterpolationGuardTest`（3） | 前端 inline 事件屬性不得插入 `${…}`（N-14）：掃描 `frontend/` 下的 `.html`、`.js`（排除 `vendor/`），同一個屬性值內出現 `${` 即違規；`data-*` 與屬性之外的插值不誤判 |
 | 輸入與輸出安全 | `SafeImageUrlTest`（7） | 圖片網址白名單：擋 `x" onerror=…`、`javascript:`、`../`、控制字元 |
 | 輸入與輸出安全 | `SafeTextTest`（9） | 會顯示給他人看的名稱：拒絕 `< > " \`` 與控制字元、上限 30 字；第三方登入名稱只清理、不拒絕；標籤型欄位（規格、分類、商品等）另有 50／100 字上限，並同樣拒絕標籤字元（`normalizeLabel`） |
 | 輸入與輸出安全 | `UploadControllerTest`（4） | 通用圖片上傳以檔案內容（magic bytes）判斷，副檔名改成 .png 的 HTML 被拒；副檔名白名單；5 MB 上限；內容為 PNG 時成功並交給儲存服務 |
@@ -272,7 +273,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 81 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 82 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -287,7 +288,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 ```bash
 cd scripts && npm install
 node e2e-verify.js      # API 端對端，12 個面向（逐項通過數由腳本輸出）
-node ui/run-all.js      # 43 個 HTML 頁普掃（55 次載入）+ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright）
+node ui/run-all.js      # 43 個 HTML 頁普掃（55 次載入）+ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核＋內嵌事件控制項（Playwright）
 ```
 
 `.github/workflows/ci.yml` 會依序跑完這三層。**改完動到序列化、交易邊界或前端流程的
@@ -801,3 +802,15 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **命名空間不是隔離**：記憶體上限、淘汰策略與故障範圍仍是共用的。獨立實例仍是建議做法。
 - **首次啟用會讓既有的 Redis 鍵失效**：這是預期行為，影響見 ADR-0013 與 `docs/DEPLOYMENT.md`。
 - **還原驗證**：見 README「2026-10-22 Redis 鍵命名空間還原驗證（CI）」。
+
+## 2026-10-23（stage 11）新增的不變量與約定
+
+- **事件屬性不插入值（N-14）**：`onclick`、`onerror` 等 inline 事件屬性的值是 JavaScript 字串，HTML 轉義擋不住字串跳脫。使用者可控或伺服器產生的值一律放進 `data-*`，由事件函式以 `this.dataset` 讀取，例如 `<button data-id="${esc(id)}" onclick="removeItem(this.dataset.id)">`。
+- **`dataset` 只回字串**：要傳數字的參數，在呼叫端寫 `Number(this.dataset.x)`（例如 `setDefaultCard(Number(this.dataset.id))`）。函式內若用嚴格比對（`c.id === id`）或拿去加減，字串會靜默出錯（`"2" + 1` 得 `"21"`）。
+- **守門兩層**：`InlineHandlerInterpolationGuardTest` 以文字掃描守住寫入端（`frontend/` 下的 `.html`、`.js`，排除 `vendor/`；同一個屬性值內出現 `${` 即違規）。`scripts/ui/flow-inline-controls.js`（`run-all.js` 的「內嵌事件控制項流程」）守住行為：逐一點下改過的控制項，檢查送出的參數型別、DOM、網址與購物車狀態。
+- **流程的選擇器不依賴轉換後的參數文字**：只用函式名稱與固定的參數字面值（`, 1)`、`, -1)`）定位控制項。否則破壞參數會變成「找不到控制項」，而不是行為檢查失敗。
+- **選擇器要限定在該列之內**：導覽列的購物車下拉也有一顆 `removeItem` 按鈕，帶著 `data-index`（N-14 之前沒有），而且在 DOM 中排在前面、平時隱藏。沒限定範圍時 `.first()` 會抓到它，點擊逾時（2026-10-23 實際發生）。流程一律先用 `[class~="group/item"]` 定位第 n 列，再在列內找按鈕。
+- **移除類的檢查要比對剩下的品項名稱**：只數筆數抓不到「移到錯的品項」，例如索引被破壞後移除了第 1 項。
+- **導覽前等請求靜止**：流程的頁面跳轉一律經 `visit()`（內含 `settle()`）。頁面還有 fetch 時離開，Chromium 會記成「Failed to fetch」，那是測試時機造成的假陽性，不是專案的錯。
+- **除錯開關**：`FLOW_ONLY=關鍵字` 只跑名稱含該關鍵字的區段；`FLOW_DEBUG=1` 印出完整的 Playwright 錯誤。
+- **已讀取審查、未改的**：`Brand/js/hq-specs-api.js` 的 innerHTML 模板對名稱與單價使用 `escapeHtml`；`Brand/js/hq-store-api.js` 與 `hq-specs-and-toppings-create-modals.js` 的 innerHTML 只寫入靜態字串。這是逐行讀取的結論，不是自動化檢查。
