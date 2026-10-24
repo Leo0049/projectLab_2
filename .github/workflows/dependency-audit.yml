@@ -1,0 +1,152 @@
+name: 相依稽核（報告模式）
+
+# N-29：相依套件的已知漏洞稽核。
+#
+# 報告模式：結果寫進步驟摘要與 artifact。發現漏洞不會讓這個工作流失敗，
+# 它也不是 PR 的必要檢查（必要檢查只有 ci.yml 的 verify 與 docker）。
+# 只有稽核工具本身沒有產出可讀的報告時，這個工作流才會變紅。
+# 排查：mvn 的完整輸出存成 artifact（owasp-mvn-log）；錯誤行與尾段以註解呈現，
+# 註解也能由 REST API 讀取，不必下載日誌。
+#
+# Maven：pom.xml 的 dependency-audit profile 預設不啟用，mvn test／package 不會下載 NVD 資料。
+# NVD_API_KEY（repo secret，選用）：有設定時 NVD 的首次下載快很多。沒有設定仍會執行，但 2026-10-24 實測首次同步約 71 分鐘，
+# 且 NVD 可能回 524 使執行中止（同日另一次嘗試約 12 分鐘後失敗）。成功的執行會存下 NVD 快取，之後的執行從快取接續。
+# npm：scripts/ 的 npm audit，安裝步驟與 ci.yml 的 verify 相同。
+
+on:
+  pull_request:
+    paths:
+      - 'pom.xml'
+      - 'scripts/package.json'
+      - 'scripts/package-lock.json'
+      - 'scripts/ci/audit_summary.py'
+      - 'scripts/ci/log_annotations.py'
+      - '.github/workflows/dependency-audit.yml'
+  schedule:
+    # 每週一 03:20 UTC（台北時間 11:20）
+    - cron: '20 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  maven-owasp:
+    name: Maven 相依稽核（OWASP，報告模式）
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 設定 JDK 17
+        uses: actions/setup-java@v6
+        with:
+          java-version: '17'
+          distribution: temurin
+          # 刻意不開 cache: maven：NVD 資料庫很大，不與 verify 工作共用 Maven 快取
+
+      # NVD 資料庫可跨次執行沿用。每次執行都存成新的快取，restore-keys 取最近的一份。
+      - name: 快取 NVD 資料庫
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: owasp-nvd-${{ github.run_id }}
+          restore-keys: |
+            owasp-nvd-
+
+      # 失敗不直接讓工作流變紅：是否有可讀的報告由下一步判定。
+      # mvn 輸出同時顯示在日誌與檔案中；檔案供下方的排查步驟與 artifact 使用。
+      - name: 執行 OWASP dependency-check（報告模式）
+        id: owasp
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          if [ -z "${NVD_API_KEY:-}" ]; then
+            unset NVD_API_KEY
+            echo "未設定 NVD_API_KEY，以無金鑰模式執行（NVD 首次下載較慢）"
+          fi
+          mkdir -p "$RUNNER_TEMP/audit"
+          LOG="$RUNNER_TEMP/audit/owasp-mvn.log"
+          java -version 2>&1 | tee "$LOG"
+          # 版本須與 pom.xml 的 dependency-audit profile 一致（13.0.0 沒有 NVD_API_KEY 時會中止）
+          mvn -B -ntp -e -Pdependency-audit org.owasp:dependency-check-maven:12.1.6:check 2>&1 | tee -a "$LOG"
+
+      # 排查用：把 mvn 的錯誤行與尾段轉成註解。只整理輸出，不影響判定。
+      - name: 整理 mvn 輸出（註解，供排查）
+        if: always()
+        shell: bash
+        run: python3 scripts/ci/log_annotations.py "$RUNNER_TEMP/audit/owasp-mvn.log"
+
+      - name: 稽核摘要與判定
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 scripts/ci/audit_summary.py owasp target/dependency-check-report.json | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: 上傳 HTML 與 JSON 報告
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: maven-owasp-report
+          path: |
+            target/dependency-check-report.html
+            target/dependency-check-report.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: 上傳 mvn 輸出（供排查）
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: owasp-mvn-log
+          path: ${{ runner.temp }}/audit/owasp-mvn.log
+          if-no-files-found: warn
+          retention-days: 30
+
+  npm-audit:
+    name: npm 相依稽核（報告模式）
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 設定 Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: 安裝相依套件（與 verify 相同）
+        working-directory: scripts
+        run: npm install --no-audit --no-fund
+
+      # npm audit 有漏洞時會以非 0 結束；報告模式下由下一步判定，這一步不失敗
+      - name: npm audit（JSON）
+        working-directory: scripts
+        shell: bash
+        run: npm audit --json > "$RUNNER_TEMP/npm-audit.json" || true
+
+      - name: 稽核摘要與判定
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 scripts/ci/audit_summary.py npm "$RUNNER_TEMP/npm-audit.json" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: 上傳 npm 稽核結果
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: npm-audit-report
+          path: ${{ runner.temp }}/npm-audit.json
+          if-no-files-found: warn
+          retention-days: 30

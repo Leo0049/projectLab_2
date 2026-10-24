@@ -178,4 +178,33 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- N-29：Maven 相依稽核（報告模式）。預設不啟用，mvn test／package 不會下載 NVD 資料。
+         CI 以 .github/workflows/dependency-audit.yml 執行：
+           mvn -Pdependency-audit org.owasp:dependency-check-maven:12.1.6:check
+         版本固定為 12.1.6：13.0.0 在沒有 NVD_API_KEY 時送出空白金鑰而中止（2026-10-24 CI 實測，
+         錯誤為 "Invalid API Key, length of 0"）。
+         failBuildOnCVSS=11：發現漏洞只寫入報告，不讓建置失敗。分析本身失敗時建置照常失敗，由稽核步驟判定。 -->
+    <profiles>
+        <profile>
+            <id>dependency-audit</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.owasp</groupId>
+                        <artifactId>dependency-check-maven</artifactId>
+                        <version>12.1.6</version>
+                        <configuration>
+                            <failBuildOnCVSS>11</failBuildOnCVSS>
+                            <formats>
+                                <format>HTML</format>
+                                <format>JSON</format>
+                            </formats>
+                            <prettyPrint>true</prettyPrint>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
