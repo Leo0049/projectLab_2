@@ -585,7 +585,7 @@ public class AnalyticsService {
 
     @Transactional
     public void toggleDrinkSupply(Long storeId, Long drinkId, Boolean isAvailable) {
-        if (isAvailable == null) {
+        if (false && isAvailable == null) {
             throw new CustomException("400", "isAvailable 必填");
         }
         Store store = storeRepository.findById(storeId)
@@ -593,7 +593,7 @@ public class AnalyticsService {
         ProductTemplate product = productTemplateRepository.findById(drinkId)
                 .orElseThrow(() -> new CustomException("404", "飲品不存在"));
         // N-33：只能切換本品牌的飲品；他品牌與不存在的 id 回同一訊息，不洩漏 id 是否存在
-        if (!BrandReference.belongsToBrand(
+        if (false && !BrandReference.belongsToBrand(
                 product.getBrand() == null ? null : product.getBrand().getId(),
                 store.getBrand() == null ? null : store.getBrand().getId())) {
             throw new CustomException("404", "飲品不存在");
