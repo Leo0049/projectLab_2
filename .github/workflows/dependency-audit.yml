@@ -5,6 +5,8 @@ name: 相依稽核（報告模式）
 # 報告模式：結果寫進步驟摘要與 artifact。發現漏洞不會讓這個工作流失敗，
 # 它也不是 PR 的必要檢查（必要檢查只有 ci.yml 的 verify 與 docker）。
 # 只有稽核工具本身沒有產出可讀的報告時，這個工作流才會變紅。
+# 排查：mvn 的完整輸出存成 artifact（owasp-mvn-log）；錯誤行與尾段以註解呈現，
+# 註解也能由 REST API 讀取，不必下載日誌。
 #
 # Maven：pom.xml 的 dependency-audit profile 預設不啟用，mvn test／package 不會下載 NVD 資料。
 # NVD_API_KEY（repo secret，選用）：有設定時 NVD 的首次下載快很多；沒有設定仍會執行，只是較慢。
@@ -17,6 +19,7 @@ on:
       - 'scripts/package.json'
       - 'scripts/package-lock.json'
       - 'scripts/ci/audit_summary.py'
+      - 'scripts/ci/log_annotations.py'
       - '.github/workflows/dependency-audit.yml'
   schedule:
     # 每週一 03:20 UTC（台北時間 11:20）
@@ -57,17 +60,28 @@ jobs:
           restore-keys: |
             owasp-nvd-
 
-      # 失敗不直接讓工作流變紅：是否有可讀的報告由下一步判定
+      # 失敗不直接讓工作流變紅：是否有可讀的報告由下一步判定。
+      # mvn 輸出同時顯示在日誌與檔案中；檔案供下方的排查步驟與 artifact 使用。
       - name: 執行 OWASP dependency-check（報告模式）
         id: owasp
         continue-on-error: true
         shell: bash
         run: |
+          set -o pipefail
           if [ -z "${NVD_API_KEY:-}" ]; then
             unset NVD_API_KEY
             echo "未設定 NVD_API_KEY，以無金鑰模式執行（NVD 首次下載較慢）"
           fi
-          mvn -B -ntp -Pdependency-audit org.owasp:dependency-check-maven:13.0.0:check
+          mkdir -p "$RUNNER_TEMP/audit"
+          LOG="$RUNNER_TEMP/audit/owasp-mvn.log"
+          java -version 2>&1 | tee "$LOG"
+          mvn -B -ntp -e -Pdependency-audit org.owasp:dependency-check-maven:13.0.0:check 2>&1 | tee -a "$LOG"
+
+      # 排查用：把 mvn 的錯誤行與尾段轉成註解。只整理輸出，不影響判定。
+      - name: 整理 mvn 輸出（註解，供排查）
+        if: always()
+        shell: bash
+        run: python3 scripts/ci/log_annotations.py "$RUNNER_TEMP/audit/owasp-mvn.log"
 
       - name: 稽核摘要與判定
         if: always()
@@ -84,6 +98,15 @@ jobs:
           path: |
             target/dependency-check-report.html
             target/dependency-check-report.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: 上傳 mvn 輸出（供排查）
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: owasp-mvn-log
+          path: ${{ runner.temp }}/audit/owasp-mvn.log
           if-no-files-found: warn
           retention-days: 30
 
