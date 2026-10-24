@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.common.BrandReference;
 import com.example.demo.entity.*;
 import com.example.demo.exception.CustomException;
 import com.example.demo.repository.*;
@@ -582,14 +583,34 @@ public class AnalyticsService {
         }).collect(Collectors.toList());
     }
 
+    @Transactional
     public void toggleDrinkSupply(Long storeId, Long drinkId, Boolean isAvailable) {
-        StoreProductStatusId id = new StoreProductStatusId(); id.setStoreId(storeId); id.setProductId(drinkId);
+        if (isAvailable == null) {
+            throw new CustomException("400", "isAvailable 必填");
+        }
+        Store store = storeRepository.findById(storeId)
+                .orElseThrow(() -> new CustomException("404", "店家不存在"));
+        ProductTemplate product = productTemplateRepository.findById(drinkId)
+                .orElseThrow(() -> new CustomException("404", "飲品不存在"));
+        // N-33：只能切換本品牌的飲品；他品牌與不存在的 id 回同一訊息，不洩漏 id 是否存在
+        if (!BrandReference.belongsToBrand(
+                product.getBrand() == null ? null : product.getBrand().getId(),
+                store.getBrand() == null ? null : store.getBrand().getId())) {
+            throw new CustomException("404", "飲品不存在");
+        }
+
+        StoreProductStatusId id = new StoreProductStatusId();
+        id.setStoreId(storeId);
+        id.setProductId(drinkId);
         StoreProductStatus sps = storeProductStatusRepository.findById(id).orElseGet(() -> {
-            Store st = storeRepository.getReferenceById(storeId); ProductTemplate pt = productTemplateRepository.getReferenceById(drinkId);
-            StoreProductStatus s = new StoreProductStatus(); s.setId(id); s.setStore(st); s.setProduct(pt);
+            StoreProductStatus s = new StoreProductStatus();
+            s.setId(id);
+            s.setStore(store);
+            s.setProduct(product);
             return s;
         });
-        sps.setIsEnabled(isAvailable); storeProductStatusRepository.save(sps);
+        sps.setIsEnabled(isAvailable);
+        storeProductStatusRepository.save(sps);
     }
 
     // 分店 報表與財務
