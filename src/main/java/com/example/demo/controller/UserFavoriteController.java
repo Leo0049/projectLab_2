@@ -137,8 +137,6 @@ public class UserFavoriteController {
                 return ResponseEntity.badRequest().body(response);
             }
             // stage 17：停用的分店或品牌不可新增收藏。移除收藏不受限制（見上方 existing 分支）
-            if (!StoreVisibility.isReachable(store.isSuspended(), storeRepository.isBrandSuspended(store.getId())))
-                throw new CustomException("400", "此分店目前停用，無法收藏");
             UserFavorite uf = new UserFavorite();
             uf.setUser(user);
             uf.setStore(store);
