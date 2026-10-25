@@ -447,11 +447,8 @@ public class GroupOrderController {
 
         // 冪等鍵是選用的（ADR-0005）：沒有帶就照舊執行；帶了就保證同一把鍵只會真的付款一次。
         // 範圍包含團的 token 與付款的使用者：同一把鍵用在另一團、或另一位團員，不會被當成重送。
-        if (idempotencyKey == null) {
-            return placeMemberCheckout(token, request, uid);
-        }
-        return idempotencyService.execute("group-member-checkout:" + token, uid, idempotencyKey, request,
-                () -> placeMemberCheckout(token, request, uid));
+        // SCRATCH BREAK A: Idempotency-Key ignored
+        return placeMemberCheckout(token, request, uid);
     }
 
     /**
