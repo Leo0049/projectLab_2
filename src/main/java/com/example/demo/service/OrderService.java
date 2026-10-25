@@ -23,6 +23,7 @@ import com.example.demo.repository.UserRepository;
 import com.example.demo.common.StoreVisibility;
 import com.example.demo.service.order.OrderStatusGuard;
 import com.example.demo.service.order.CheckoutFailure;
+import com.example.demo.service.wallet.LedgerDescriptions;
 import com.example.demo.service.wallet.TxType;
 import jakarta.transaction.Transactional;
 import com.example.demo.repository.UserCouponRepository;
@@ -292,7 +293,7 @@ public class OrderService {
 
             if ("WALLET".equals(paymentMethod)) {
                 transactionRecordService.updateStoreCredit(userId, amountToCharge.negate(), TxType.ESCROW,
-                        "訂單 #" + order.getId() + " 結帳扣款 (已扣除團員已付部分)", LocalDateTime.now());
+                        LedgerDescriptions.personalOrderPayment(order.getId()), LocalDateTime.now());
             }
 
             // --- 固定規格防竄改 (Fixed Specification Anti-Tamper) ---
@@ -548,7 +549,7 @@ public class OrderService {
         if (creditTotal.compareTo(BigDecimal.ZERO) > 0) {
             // 使用 TransactionRecordService 進行扣款，內部會檢查餘額並儲存紀錄
             transactionRecordService.updateStoreCredit(userId, creditTotal.negate(),
-                    TxType.PAYMENT, "個人訂單 #" + order.getId() + " 結帳扣款", LocalDateTime.now());
+                    TxType.PAYMENT, LedgerDescriptions.personalOrderPayment(order.getId()), LocalDateTime.now());
 
             // 將品項狀態改為 PAID
             for (OrderItem item : orderItems) {

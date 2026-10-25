@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-26，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：539 個 `@Test`，分布在 97 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-26，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：541 個 `@Test`，分布在 98 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -237,6 +237,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 金流與併發 | `StoreSuspensionPaymentGuardTest`（6） | 停用期間的付款守衛（stage 6，ADR-0012 決策 5，不載入 Spring context）：停用的分店或品牌時，個人結帳（`createOrder`）、單人下單（`placeOrder`）、團員付款、補款與建立揪團（`createGroupOrderV2`）都回 400，且付款路徑不鎖定未付款品項 |
 | 金流與併發 | `ExclusiveJobRunnerTest`（3） | 排程互斥（ADR-0006）：他人持鎖時略過；取得鎖時執行並以同一 token 釋放；任務拋出例外仍釋放 |
 | 金流與併發 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要能拆回兩欄、補款靠正負號分辨收付方 |
+| 金流與併發 | `LedgerDescriptionsTest`（2） | 個人訂單扣款說明（stage 16）：精確文字「個人訂單 #N 結帳扣款」；`OrderService.java` 不得含揪團的團員字樣，且兩處個人扣款都必須經 `LedgerDescriptions`（文字掃描） |
 | 金流與併發 | `GroupOrderServiceCancelRefundTest`（5） | 整單取消（N-32，2026-10-19）：個人訂單取消只靠 escrow 退一次，不逐品項再退；券全額折抵時不退款；揪團取消還原未付款品項的券；PREPARING 不取消也不退款 |
 | 金流與併發 | `AnalyticsServiceAutoRejectTest`（8） | 店家接單與拒單、逾時自動拒單（N-32）：逾時且仍 SUBMITTED 以列鎖讀取、退款一次、改為 REJECTED；剛好 10 分鐘不拒單；鎖內發現已接單不拒單；接單後拒單回 409；他店 403 |
 | 金流與併發 | `OrderAutoRejectJobTest`（3） | 逐筆自動拒單（N-32）：只推播真的被拒的訂單；單筆失敗不影響其他筆；沒有逾時訂單時不做事 |
@@ -277,7 +278,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 86 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 87 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -861,3 +862,11 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **`MemberCheckoutRequest` 為 package-private**：僅供控制器與 `GroupMemberCheckoutIdempotencyTest` 使用，與 `CheckoutRequest` 相同。
 - **測試**：`GroupMemberCheckoutIdempotencyTest`（9，不載入 Spring context）。CLAUDE.md 測試表與總數已同步為 539 個 `@Test`、97 個測試類別。
 - **還原驗證**：見 README「2026-10-26 團員付款冪等還原驗證（CI）」。
+
+## 2026-10-26（stage 16）新增的不變量與約定
+
+- **個人訂單的帳本說明只經 `service/wallet/LedgerDescriptions.personalOrderPayment()`**：建單的 escrow 扣款與逐品項扣款兩處都呼叫它，說明統一為「個人訂單 #N 結帳扣款」。不要在 `OrderService` 內另寫字串。
+- **「已扣除團員已付部分」只屬於揪團結帳**（`GroupOrderService`，團長的扣款確實已扣掉團員已付的部分）。個人訂單沒有團員：目前所有呼叫端都走 `createOrder` 的 8 參數版本，它固定傳入 `BigDecimal.ZERO`，所以個人訂單上這段字樣一律不成立。
+- **文字掃描守住回歸**：`LedgerDescriptionsTest` 的第二支確認 `OrderService.java` 不含團員字樣，且兩處個人扣款都經過 helper。改動這兩處時，這支測試會跟著紅。
+- **既有帳本列不改寫**：2026-10-26 以前寫入的列仍顯示舊文字，不做資料遷移。
+- **還原驗證**：見 README「2026-10-26 個人訂單扣款說明還原驗證（CI）」。
