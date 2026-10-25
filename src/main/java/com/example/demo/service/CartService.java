@@ -150,8 +150,6 @@ public class CartService {
         User user = userRepository.findById(userId).orElseThrow(() -> new CustomException("404", "找不到用戶"));
         Store store = storeRepository.findById(storeId).orElseThrow(() -> new CustomException("404", "找不到店家"));
         // stage 17：停用的分店或品牌不可加入購物車。結帳也會擋，但那時顧客已經加了品項才發現不能買
-        if (!StoreVisibility.isReachable(store))
-            throw new CustomException("400", "此分店目前停用，無法加入購物車");
         ProductTemplate product = productTemplateRepository.findById(productId)
                 .orElseThrow(() -> new CustomException("404", "找不到商品"));
         if (store.getBrand() == null || product.getBrand() == null
