@@ -948,6 +948,24 @@ CI 結果：
 - 既有帳本列不在測試範圍內：2026-10-26 之前寫入的資料仍顯示舊文字（見 CLAUDE.md「2026-10-26（stage 16）」節）。
 - scratch 分支 `main-verif-stage16-A`、`main-verif-stage16-B` 需由擁有者刪除，本次未刪。
 
+### 2026-10-26 收藏與購物車停用還原驗證（CI）
+
+階段 17 實作於 `fix/stage17-stopped-store-favorites-cart`（PR #25，程式碼頭 `3037b6e`）。`UserFavoriteVisibilityTest`（4）與 `CartSuspensionGuardTest`（3）以 Mockito 執行，不載入 Spring context。未破壞的對照是同一個程式碼頭的 [run 40218516253](https://github.com/Leo0049/projectLab_2/actions/runs/40218516253)：`mvn test` 為 548 個測試、100 個類別，失敗 0、錯誤 0、略過 0。
+
+破壞分支從 `3037b6e` 切出，分支名稱為 `main-verif-stage17-<編號>`，commit 標題以 `scratch:` 開頭。三組破壞各自在獨立分支上執行，沒有合併。本機無法執行 Maven，三組全部在 CI 上驗證。
+
+| 編號 | 破壞內容 | 位置 | commit | run | 結果 | 失敗的具名測試 |
+|------|---------|------|--------|-----|------|----------------|
+| A | 收藏清單不再過濾停用的分店與品牌 | `UserFavoriteController.getUserFavorites` | `663457c` | [40244184561](https://github.com/Leo0049/projectLab_2/actions/runs/40244184561) | 失敗（1 項） | `UserFavoriteVisibilityTest.listHidesSuspendedStoresAndStoresUnderASuspendedBrand`（expected 1，實際 3） |
+| B | 收藏切換不再拒絕停用的分店與品牌 | `UserFavoriteController.toggleFavorite` | `87f2feb` | [40244204275](https://github.com/Leo0049/projectLab_2/actions/runs/40244204275) | 失敗（2 項） | `UserFavoriteVisibilityTest.toggleRefusesToFavoriteASuspendedStore`、`toggleRefusesToFavoriteAStoreUnderASuspendedBrand`（皆為未拋出 `CustomException`） |
+| C | 購物車加入不再拒絕停用的分店 | `CartService.addItem` | `8f1f30c` | [40244215604](https://github.com/Leo0049/projectLab_2/actions/runs/40244215604) | 失敗（2 項） | `CartSuspensionGuardTest.addItemRefusesASuspendedStore`、`addItemRefusesAStoreUnderASuspendedBrand`（expected 400，實際 404） |
+
+- 各組的紅燈與事先推論的集合完全相同：A 的 1 項、B 的 2 項、C 的 2 項，沒有預期外的紅燈。
+- 其餘測試維持綠燈：A 為 547 項，B 與 C 為 546 項。`toggleStillRemovesAFavoriteWhenItsStoreIsSuspended`（移除收藏不受限）與 `addItemLetsAReachableStorePastTheGuard`（可用的分店仍通過守衛）驗的是不應改變的行為，在各組都保持綠燈。
+- 具名失敗來自 verify job 的 check-run annotation。步驟日誌在本環境無法下載，因此改用 annotation 讀取。
+- 產品決定（停用的分店在收藏清單中隱藏、移除收藏不受限、單一分店規則不看營業狀態）見 ADR-0012「2026-10-26 追加（stage 17）」。
+- scratch 分支 `main-verif-stage17-A`、`main-verif-stage17-B`、`main-verif-stage17-C` 需由擁有者刪除，本次未刪。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
