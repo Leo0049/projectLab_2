@@ -932,6 +932,22 @@ CI 結果：
 - 具名失敗來自 check-run annotation（`scripts/ci/failure_annotations.py`）。步驟日誌在本環境無法下載，因此改用 annotation 讀取。
 - scratch 分支 `main-verif-stage15-A`、`main-verif-stage15-B` 需由擁有者刪除，本次未刪。
 
+### 2026-10-26 個人訂單扣款說明還原驗證（CI）
+
+階段 16 實作於 `fix/stage16-personal-ledger-text`（PR #24，程式碼頭 `309672d`）。`LedgerDescriptionsTest`（2）不載入 Spring context。未破壞的對照是同一個程式碼頭的 [run 40215884263](https://github.com/Leo0049/projectLab_2/actions/runs/40215884263)：`mvn test` 為 541 個測試、98 個類別，失敗 0、錯誤 0、略過 0。
+
+破壞分支從 `309672d` 切出，分支名稱為 `main-verif-stage16-<編號>`，commit 標題以 `scratch:` 開頭。兩組破壞各自在獨立分支上執行，沒有合併。
+
+| 編號 | 破壞內容 | 位置 | commit | run | 結果 | 失敗的具名測試 |
+|------|---------|------|--------|-----|------|----------------|
+| A | 說明文字改回含「已扣除團員已付部分」的舊字串 | `LedgerDescriptions.personalOrderPayment` | `8a6a869` | [40216629063](https://github.com/Leo0049/projectLab_2/actions/runs/40216629063) | 失敗（1 項） | `personalOrderPaymentNamesTheOrderOnly`（expected「個人訂單 #12 結帳扣款」，實際含舊字樣） |
+| B | 建單的 escrow 扣款繞過 helper，改回舊字面值 | `OrderService.createOrder` | `05769e0` | [40216631112](https://github.com/Leo0049/projectLab_2/actions/runs/40216631112) | 失敗（1 項） | `orderServiceUsesThePersonalWordingEverywhere`（`OrderService` 含揪團字樣） |
+
+- 各組只有一項紅燈，且恰為對應的測試；其餘 540 項維持綠燈。
+- 這兩支測試以精確比對與文字掃描運作，不需要資料庫。本機另以 JUnit 替身（stub）先行跑過相同的兩組破壞，結果一致；那些輔助檔不入庫。
+- 既有帳本列不在測試範圍內：2026-10-26 之前寫入的資料仍顯示舊文字（見 CLAUDE.md「2026-10-26（stage 16）」節）。
+- scratch 分支 `main-verif-stage16-A`、`main-verif-stage16-B` 需由擁有者刪除，本次未刪。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
