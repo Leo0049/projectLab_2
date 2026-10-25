@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.common.StoreVisibility;
 import com.example.demo.entity.Store;
 import com.example.demo.exception.CustomException;
 import com.example.demo.entity.User;
@@ -50,7 +51,8 @@ public class UserFavoriteController {
         List<UserFavoriteDTO> dtos = favorites.stream()
                 .map(f -> {
                     Store store = f.getStore();
-                    if (store == null)
+                    // stage 17：停用的分店或品牌不列出（與公開列表一致）。收藏仍在資料庫，分店恢復後會再出現
+                    if (store == null || !StoreVisibility.isReachable(store))
                         return null;
                     return new UserFavoriteDTO(store, f.getCreatedAt());
                 })
@@ -134,6 +136,9 @@ public class UserFavoriteController {
                 response.put("message", "User or Store not found");
                 return ResponseEntity.badRequest().body(response);
             }
+            // stage 17：停用的分店或品牌不可新增收藏。移除收藏不受限制（見上方 existing 分支）
+            if (!StoreVisibility.isReachable(store.isSuspended(), storeRepository.isBrandSuspended(store.getId())))
+                throw new CustomException("400", "此分店目前停用，無法收藏");
             UserFavorite uf = new UserFavorite();
             uf.setUser(user);
             uf.setStore(store);

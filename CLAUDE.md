@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-26，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：541 個 `@Test`，分布在 98 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-26，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：548 個 `@Test`，分布在 100 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -192,6 +192,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `StoreVisibilityGuardTest`（1） | 文字掃描（反射）（stage 6）：`StoreRepository` 每一條公開列出分店的 `@Query`（含計數查詢）都必須套用 `StoreVisibility.FILTER`，漏掉條件的查詢會紅 |
 | 授權與路由 | `SuspensionVisibilityServiceTest`（5） | 停用對公開讀取的影響（stage 6，純邏輯）：品牌列表只查已核准且未停用的品牌；停用的品牌詳情回 404，底下已停用的分店不列出；分店詳情與地圖清單只走可見查詢；分店或品牌停用時分店菜單回 404，不讀取菜單 |
 | 授權與路由 | `SuspensionPublicReadsTest`（4） | 停用對商品與轉盤的影響（stage 6，純邏輯）：分店停用時上架商品清單為空，且不查詢商品；品牌停用時商品詳情回 404，規格與客製化選項不對外；客製化選項帶入已停用的分店時回 null；品牌停用時轉盤分類為空、不能抽獎（不取得鎖、不寫入今日標記） |
+| 授權與路由 | `UserFavoriteVisibilityTest`（4，Mockito） | 停用對收藏的影響（stage 17）：收藏清單不列出停用的分店與品牌底下的分店；新增收藏時分店或品牌停用回 400 且不寫入；移除收藏不受停用限制 |
 | 授權與路由 | `StoreSuspensionIntegrationTest`（3，載入 Spring context） | 停用的資料庫層驗證（stage 6，真實資料庫）：停用品牌後分店立即不可見，品牌與分店的舊權杖失效，恢復後舊權杖仍無效；單一分店停用只影響該分店；待審品牌不可停用（409） |
 | 授權與路由 | `BrandReferenceTest`（6） | 品牌參照（N-33，純函式）：同一品牌相符；不同品牌不符；被參照的品項或分店任一方沒有品牌時不符（fail-closed）；以值比較而非物件參照（超過 Long 快取範圍的 id 也相符） |
 | 授權與路由 | `AnalyticsServiceToggleDrinkSupplyTest`（5，Mockito） | 門市切換飲品供應（N-33）：本品牌的飲品寫入供應狀態；他品牌與不存在的飲品回同一個 404 且不寫入；分店沒有品牌時任何飲品都不能切換；isAvailable 缺少回 400，且在查詢任何資料前拒絕 |
@@ -253,6 +254,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 訂單規則 | `PricingServiceTest`（5） | 定價：規格與加料取用伺服器價格；拒絕未設定的規格與加料；加料數量上限與重複選取 |
 | 訂單規則 | `QuantityLimitsTest`（1） | 數量只接受範圍內的整數 |
 | 訂單規則 | `CartServiceTest`（1） | 購物車小計 = 單價 × 數量 |
+| 訂單規則 | `CartSuspensionGuardTest`（3，Mockito） | 停用對購物車加入的影響（stage 17）：分店或品牌停用時加入回 400，且在查商品與寫入品項之前就拒絕；可用的分店通過守衛 |
 | 訂單規則 | `RedisCartServiceTest`（5） | Redis 購物車的快照不含 LAZY 欄位；品項的 product 為 null 也能存；寫入與移除後刷新購物車鍵的 30 天保留期；活躍索引修剪到保留期內並刷新其保留期（2026-10-22） |
 | 訂單規則 | `BrandServiceReferenceTest`（2） | 品牌參照：拒絕引用他品牌的分類、規格與加料 id |
 | 訂單規則 | `OrderNoFormatTest`（2） | 訂單編號格式為 ORD＋MMdd＋10 位十六進位；同一天 300 張單不重複 |
@@ -278,7 +280,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 87 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 89 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -870,3 +872,11 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **文字掃描守住回歸**：`LedgerDescriptionsTest` 的第二支確認 `OrderService.java` 不含團員字樣，且兩處個人扣款都經過 helper。改動這兩處時，這支測試會跟著紅。
 - **既有帳本列不改寫**：2026-10-26 以前寫入的列仍顯示舊文字，不做資料遷移。
 - **還原驗證**：見 README「2026-10-26 個人訂單扣款說明還原驗證（CI）」。
+
+## 2026-10-26（stage 17）新增的不變量與約定
+
+- **收藏清單只列出可連到的分店**：`GET /api/user-favorites/user/{userId}` 以 `StoreVisibility.isReachable(store)` 過濾，分店與品牌都未停用才列出。這是單筆讀取的規則，不套用列表的營業狀態條件，因此關店中的分店仍會列出。收藏列保留在資料庫，分店恢復後會再出現。
+- **新增收藏與加入購物車，停用時回 400**：`POST /api/user-favorites/toggle` 不是交易，因此以 `storeRepository.isBrandSuspended` 搭配分店旗標判斷；`CartService.addItem` 在交易內，直接用實體版本。兩處都在寫入之前拒絕。
+- **移除收藏不檢查停用**，與取消退款同理：已停用分店的既有收藏仍可刪除（`UserFavoriteVisibilityTest` 第四支）。
+- **結帳的守衛不變**：停用的分店仍無法完成訂單（stage 6 的付款守衛），本階段只是把拒絕提前到加入的時候。
+- **還原驗證**：見 README「2026-10-26 收藏與購物車停用還原驗證（CI）」。
