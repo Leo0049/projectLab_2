@@ -468,24 +468,14 @@ public class GroupOrderController {
         try {
             totalAmount = groupOrderService.getMemberUnpaidTotalAndMarkPaid(token, uid,
                     request.getPaymentMethod(), request.getCouponId());
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", Objects.toString(e.getMessage(), "付款失敗")));
-        }
-
-        // 以下付款已提交：失敗只記 log，回應仍為成功。
-        try {
-            // 個人結帳後清空快照以更新付款狀態
+            // SCRATCH BREAK B: post-commit steps moved back inside the payment try
             redisCartService.clearCart(token);
-        } catch (RuntimeException e) {
-            log.error("團員付款已提交（token={}，userId={}），購物車快照未清除；回應仍為成功", token, uid, e);
-        }
-        try {
             if (messagingTemplate != null) {
                 messagingTemplate.convertAndSend("/topic/group/" + token,
                         Map.of("type", "CART_UPDATED", "message", "Member payment completed", "userId", uid));
             }
-        } catch (RuntimeException e) {
-            log.error("團員付款已提交（token={}，userId={}），揪團推播未送出；回應仍為成功", token, uid, e);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", Objects.toString(e.getMessage(), "付款失敗")));
         }
 
         // LinkedHashMap：與 Map.of 不同，允許 null 值
