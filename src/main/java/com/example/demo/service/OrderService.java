@@ -293,7 +293,7 @@ public class OrderService {
 
             if ("WALLET".equals(paymentMethod)) {
                 transactionRecordService.updateStoreCredit(userId, amountToCharge.negate(), TxType.ESCROW,
-                        LedgerDescriptions.personalOrderPayment(order.getId()), LocalDateTime.now());
+                        "訂單 #" + order.getId() + " 結帳扣款 (已扣除團員已付部分)", LocalDateTime.now());
             }
 
             // --- 固定規格防竄改 (Fixed Specification Anti-Tamper) ---
