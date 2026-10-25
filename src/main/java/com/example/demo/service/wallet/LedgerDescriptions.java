@@ -14,6 +14,6 @@ public final class LedgerDescriptions {
 
     /** 個人訂單以錢包結帳的扣款說明，例如「個人訂單 #12 結帳扣款」。 */
     public static String personalOrderPayment(Long orderId) {
-        return "個人訂單 #" + orderId + " 結帳扣款";
+        return "個人訂單 #" + orderId + " 結帳扣款 (已扣除團員已付部分)";
     }
 }
