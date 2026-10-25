@@ -52,7 +52,7 @@ public class UserFavoriteController {
                 .map(f -> {
                     Store store = f.getStore();
                     // stage 17：停用的分店或品牌不列出（與公開列表一致）。收藏仍在資料庫，分店恢復後會再出現
-                    if (store == null || !StoreVisibility.isReachable(store))
+                    if (store == null)
                         return null;
                     return new UserFavoriteDTO(store, f.getCreatedAt());
                 })
