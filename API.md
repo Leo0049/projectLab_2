@@ -1,6 +1,6 @@
 # JoinDrink API 技術手冊 (v4.1)
 
-> **最後更新**：2026-10-18（補充：店家搜尋分頁；冪等結帳、轉盤狀態碼、附近店家分頁與座標檢查、健康檢查、`X-Request-Id`；移除不存在的 SSE 端點）
+> **最後更新**：2026-10-25（補充：逐一對照 controller 路由，補上未記載的端點，修正 `merge/bind-social` 的認證與請求格式；`/topic/group/{token}` 推播改為僅限成員；揪團、訂單與收藏端點的 `userId`／`hostId` 查詢參數不採信（身分一律取自 token）；controller 清單補上 AdminController。前次 2026-10-18 補充：店家搜尋分頁；冪等結帳、轉盤狀態碼、附近店家分頁與座標檢查、健康檢查、`X-Request-Id`；移除不存在的 SSE 端點）
 > **Base URL**：`http://localhost:8082`
 > **認證方式**：`Authorization: Bearer <JWT>`
 > **統一回應格式**：`{ "code": "200", "msg": "請求成功", "data": { ... } }`
@@ -31,7 +31,9 @@
 | POST | `/api/auth/firebase-verify` | 無 | Firebase Token 預檢 Body: `{ idToken }` |
 | POST | `/api/auth/reset-password-firebase` | 無 | 重設密碼 Body: `{ idToken, phone, newPassword }` |
 | POST | `/api/auth/merge/set-password` | 無 | 帳號整合：三方帳號設密碼 Body: `{ idToken, phone, newPassword }` |
-| POST | `/api/auth/merge/bind-social` | 無 | 帳號整合：傳統帳號綁三方 Body: `{ idToken, phone, providerUid, provider }` |
+| POST | `/api/auth/merge/bind-social` | CUSTOMER | 帳號整合：已登入的傳統帳號綁定三方（需先以既有會員身分登入，並提供與 providerUid 相符的 Firebase 社群登入 token）。Body: `{ idToken, providerUid, provider }` |
+| POST | `/api/auth/merge/complete` | 無 | 帳號整合：以手機 OTP 驗證會員身分，同時設定密碼並綁定已驗證的社群帳號。Body: `{ phoneIdToken, phone, newPassword, socialIdToken, providerUid, provider }`。密碼 8～16 字元；受登入限流（`auth-phone-proof`）|
+| POST | `/api/auth/merge/bind-social-phone` | 無 | 帳號整合：以手機驗證綁定三方。Body: `{ phoneIdToken, phone, idToken, providerUid, provider }`；受登入限流（`auth-phone-proof`）|
 | PUT | `/api/auth/update` | CUSTOMER | 更新個人資料（暱稱、頭像）。Body: `{ name?, picUrl? }`。**變更手機號碼已停用**（回 400，需走手機驗證流程）。暱稱不可含 `< > " \`` 或控制字元，最多 30 字 |
 
 ---
@@ -67,7 +69,7 @@
 ### 菜單
 | Method | Path | 說明 |
 |--------|------|------|
-| GET | `/api/menu/store/{storeId}` | 取得分店完整菜單（分類、飲品、規格、配料、售完狀態）|
+| GET | `/api/menu/store/{storeId}` | 取得分店完整菜單（分類、飲品、規格、配料、售完狀態）。公開端點，無需登入 |
 
 ### 訂單（舊版 / UserController）
 | Method | Path | 說明 |
@@ -93,7 +95,7 @@
 | POST | `/api/orders/checkout` | 結帳下單。選擇性標頭 `Idempotency-Key`：重送時回放第一次的結果（見 §7）|
 | PUT | `/api/orders/{orderId}/status` | 更新訂單狀態 Query: `?status=`。僅限訂單發起人；門市請改用 `/api/stores/dashboard/orders/{id}/*` |
 | PUT | `/api/orders/{orderId}/cancel/v2` | 取消訂單 V2（ResponseEntity 格式）。僅限發起人（團員則取消自己的品項）|
-| GET | `/api/orders` | 訂單列表 Query: `?userId=` |
+| GET | `/api/orders` | 我的訂單卡片列表。身分取自 token；`userId` 參數不採信 |
 
 ### 揪團（V1）
 | Method | Path | 說明 |
@@ -110,15 +112,15 @@
 | Method | Path | 說明 |
 |--------|------|------|
 | POST | `/api/group-orders/v2` | 建立揪團 V2 |
-| GET | `/api/group-orders/{token}` | CUSTOMER | 依 token 取得揪團資訊（雙 mapping 含 `/join/{token}`）|
-| GET | `/api/group-orders/active` | 進行中揪團 Query: `?userId=&storeId=`（storeId 可選）|
+| GET | `/api/group-orders/{token}` | 依 token 取得揪團資訊（雙 mapping 含 `/join/{token}`）。團內資料僅團長與團員可見 |
+| GET | `/api/group-orders/active` | 進行中揪團。Query: `?storeId=`（可選）；身分取自 token，`userId` 參數不採信 |
 | GET | `/api/group-orders/by-order/{orderId}` | 依 orderId 查詢揪團實體 |
-| DELETE | `/api/group-orders/token/{token}` | 永久刪除揪團（V2）Query: `?hostId=` |
+| DELETE | `/api/group-orders/token/{token}` | 永久刪除揪團（V2）。團長身分取自 token；`hostId` 參數不採信 |
 | POST | `/api/group-orders/{token}/items` | 新增品項至揪團 |
-| DELETE | `/api/group-orders/{token}/items/{itemId}` | 移除揪團品項 Query: `?userId=` |
-| PUT | `/api/group-orders/{token}/items/{itemId}` | 更新揪團品項 Query: `?userId=` |
+| DELETE | `/api/group-orders/{token}/items/{itemId}` | 移除揪團品項。身分取自 token；`userId` 參數不採信 |
+| PUT | `/api/group-orders/{token}/items/{itemId}` | 更新揪團品項。身分取自 token；`userId` 參數不採信 |
 | POST | `/api/group-orders/{token}/items/{itemId}/apply-coupon` | 套用優惠券至品項 |
-| PUT | `/api/group-orders/{token}/status` | 設定揪團狀態 Query: `?status=&hostId=` |
+| PUT | `/api/group-orders/{token}/status` | 設定揪團狀態 Query: `?status=`。團長身分取自 token；`hostId` 參數不採信 |
 | POST | `/api/group-orders/{token}/checkout` | 團長結帳。選擇性標頭 `Idempotency-Key`：重送時回放第一次的結果（見 §7）|
 | POST | `/api/group-orders/{token}/member-checkout` | 團員付款 |
 | POST | `/api/group-orders/{token}/repay` | 補繳款項 |
@@ -168,9 +170,9 @@
 ### 收藏店家
 | Method | Path | 說明 |
 |--------|------|------|
-| GET | `/api/user-favorites/user/{userId}` | 使用者收藏店家列表 |
-| GET | `/api/user-favorites/check` | 檢查是否已收藏 Query: `?userId=&storeId=` |
-| POST | `/api/user-favorites/toggle` | 切換收藏狀態 Body: `{ userId, storeId }` |
+| GET | `/api/user-favorites/user/{userId}` | 使用者收藏店家列表（僅限本人，他人回 403）|
+| GET | `/api/user-favorites/check` | 檢查是否已收藏 Query: `?storeId=`；身分取自 token，`userId` 參數不採信 |
+| POST | `/api/user-favorites/toggle` | 切換收藏狀態 Body: `{ storeId }`；身分取自 token，body 的 `userId` 不採信 |
 
 ---
 
@@ -202,6 +204,9 @@
 | POST | `/api/brand/categories` | 批量建立分類 Body: `{ names: ["奶茶", "果茶"] }` |
 | PUT | `/api/brand/categories/{categoryId}` | 重新命名分類 Body: `{ name: "新名稱" }` |
 | DELETE | `/api/brand/categories/{categoryId}` | 刪除分類（連帶刪除飲品與優惠券）|
+| PATCH | `/api/brand/categories/{categoryId}/move-up` | 分類上移一位 |
+| PATCH | `/api/brand/categories/{categoryId}/move-down` | 分類下移一位 |
+| PATCH | `/api/brand/categories/reorder` | 依傳入順序重新排序分類 Body: `{ orderedCategoryIds: [3,1,2] }`。須列出本品牌的全部分類；缺少、重複或他品牌的 id 回 400 |
 
 ### 飲品管理
 | Method | Path | 說明 |
@@ -211,6 +216,8 @@
 | POST | `/api/brand/products` | 新增飲品 Body: `{ categoryId, name, basePrice, maxToppings?, logoUrl? }` |
 | PUT | `/api/brand/products/{productId}` | 更新飲品（欄位皆選填）|
 | DELETE | `/api/brand/products/{productId}` | 刪除飲品 |
+| PATCH | `/api/brand/products/{productId}/move-up` | 飲品上移一位 |
+| PATCH | `/api/brand/products/{productId}/move-down` | 飲品下移一位 |
 
 ### 規格管理
 | Method | Path | 說明 |
@@ -270,12 +277,12 @@
 | Method | Path | 說明 |
 |--------|------|------|
 | GET | `/api/stores/{id}` | 取得分店公開資訊（無需登入）|
-| PUT | `/api/stores/update` | 更新分店資料 Body: `{ id, storeName?, coverUrl? }` |
+| PUT | `/api/stores/update` | 更新分店資料（分店 id 取自 JWT；body 帶入的 `id` 與登入身分不符回 403）。Body: `{ storeName?, coverUrl?, managerName?, managerPhone?, address?, latitude?, longitude?, openingHours?, regionId? }` |
 | PUT | `/api/stores/status` | 切換營業狀態 Body: `{ status: active\|closed }`（白名單驗證，其餘值回 400）|
 | GET | `/api/stores/settings/profile` | 取得分店完整設定 |
 | PUT | `/api/stores/settings/business-hours` | 更新營業時間 Body: `{ openingHours: "09:00-22:00" }` |
 | PATCH | `/api/stores/settings/delivery-config` | 更新外送設定 Body: `{ allowsDelivery, maxDeliveryKm, minDeliveryAmount, deliveryStartTime, deliveryEndTime }` |
-| GET | `/api/stores/brand/{brandId}` | 透過品牌 ID 查詢分店列表 |
+| GET | `/api/stores/brand/{brandId}` | 透過品牌 ID 查詢分店列表（公開，無需登入）|
 
 ### 訂單管理
 | Method | Path | 說明 |
@@ -294,7 +301,7 @@
 | GET | `/api/stores/menu/drinks` | 分店飲品清單與供應狀態 |
 | PATCH | `/api/stores/menu/drinks/{drinkId}/toggle` | 切換飲品供應狀態 Body: `{ isAvailable: true\|false }` |
 | GET | `/api/stores/menu/toppings` | 分店配料供應狀態 |
-| PATCH | `/api/stores/menu/toppings/{brandToppingId}/toggle` | 切換配料供應狀態 |
+| PATCH | `/api/stores/menu/toppings/{brandToppingId}/toggle` | 切換配料供應狀態 Body: `{ isAvailable: true\|false }`（必填，缺少回 400）。只能切換本品牌的配料，他品牌與不存在的配料回 404 |
 
 ### Dashboard
 | Method | Path | 說明 |
@@ -394,10 +401,10 @@
 ### 即時推播（WebSocket／STOMP）
 
 - 端點：`/ws-cart`（SockJS）。CONNECT 必須帶 `Authorization: Bearer <JWT>`。
-- 帳號仍須可使用（與 HTTP 相同規則）：已刪除的帳號、待審或退件的品牌，以及 ADMIN 權杖一律拒絕連線（N-28）。
+- 帳號仍須可使用（與 HTTP 相同規則）：權杖已過期、帳號已刪除或已停用、權杖版本已失效（改密碼或登出所有裝置之後）、品牌待審或退件者，一律拒絕連線（N7、N13、N-28、stage 6）。ADMIN 權杖一律拒絕連線（N-28）。
 - SUBSCRIBE 規則：
   - `/topic/order/{orderId}`：顧客，且為該訂單的發起人或參與者。
-  - `/topic/group/{token}`：顧客（token 本身即分享憑證）。
+  - `/topic/group/{token}`：該揪團的成員（團長，或已在團內有品項的團員）。只持有分享連結、尚未加入的人不可訂閱（N12）。
   - `/topic/store/{storeId}`：該門市本人（角色 STORE 且 id 相符）。
   - 其他目的地一律拒絕。
 - 推播來源為 `messagingTemplate.convertAndSend`，涵蓋訂單狀態、揪團品項異動與門市的新訂單通知。
@@ -432,7 +439,7 @@
 4. **分店菜單 toggle**：`store_product_settings.is_enabled=false` 表示不供應；`store_topping_settings.is_out_of_stock=true` 表示配料售完。
 5. **訂單評分**：`order_ratings`（星級，可即時更新）管理評分，`order_reviews` 表已停用移除。
 6. **轉盤路由**：實際路由為 `/api/coupons/spin`（執行）、`/api/coupons/spin-status`（狀態）、`/api/game-wheel/brands`（品牌列表）、`/api/game-wheel/menu/{brandId}`（轉盤選項），**非** `/api/daily-spin/*`。
-7. **Controllers 清單**（14 個）：`UserController`、`GroupOrderController`、`BrandController`、`BrandSpecOrderController`、`StoreController`、`CartController`、`PublicController`、`LocationController`、`CouponController`、`DailySpinController`、`OrderController`、`ProductController`、`UploadController`、`UserFavoriteController`。本專案沒有 SSE 控制器。
+7. **Controllers 清單**（15 個）：`UserController`、`GroupOrderController`、`BrandController`、`BrandSpecOrderController`、`StoreController`、`CartController`、`PublicController`、`LocationController`、`CouponController`、`DailySpinController`、`OrderController`、`ProductController`、`UploadController`、`UserFavoriteController`、`AdminController`（N-28）。本專案沒有 SSE 控制器。
 8. **即時推播**：WebSocket／STOMP（`/ws-cart`），訂閱規則見 §7。
 9. **GroupOrder V2**：V2 路由統一使用 `token` 作為 path variable，支援品項 CRUD、結帳、補款等完整流程。刪除路由為 `/api/group-orders/token/{token}`（加 `token/` 前綴避免衝突）。
 10. **常用地址 API**：新增 `/api/users/{userId}/address`（GET）、`/api/users/{userId}/addresses`（POST）、`/api/users/{userId}/addresses/{addressId}`（PUT/DELETE）對應 `user_addresses` 表。
