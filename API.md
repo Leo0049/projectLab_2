@@ -139,7 +139,7 @@
 | Method | Path | 說明 |
 |--------|------|------|
 | GET | `/api/cart` | 取得購物車 |
-| POST | `/api/cart/items` | 新增品項（不同店家會回傳 409）|
+| POST | `/api/cart/items` | 新增品項（不同店家會回傳 409；分店或品牌停用時回 400）|
 | PUT | `/api/cart/items/{itemId}` | 修改品項 |
 | DELETE | `/api/cart/items/{itemId}` | 刪除單一品項 |
 | DELETE | `/api/cart` | 清空購物車 |
@@ -170,9 +170,9 @@
 ### 收藏店家
 | Method | Path | 說明 |
 |--------|------|------|
-| GET | `/api/user-favorites/user/{userId}` | 使用者收藏店家列表（僅限本人，他人回 403）|
+| GET | `/api/user-favorites/user/{userId}` | 使用者收藏店家列表（僅限本人，他人回 403；停用的分店或品牌不列出）|
 | GET | `/api/user-favorites/check` | 檢查是否已收藏 Query: `?storeId=`；身分取自 token，`userId` 參數不採信 |
-| POST | `/api/user-favorites/toggle` | 切換收藏狀態 Body: `{ storeId }`；身分取自 token，body 的 `userId` 不採信 |
+| POST | `/api/user-favorites/toggle` | 切換收藏狀態 Body: `{ storeId }`；身分取自 token，body 的 `userId` 不採信；新增時分店或品牌停用回 400，移除不受限 |
 
 ---
 

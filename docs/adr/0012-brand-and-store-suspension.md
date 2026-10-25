@@ -44,8 +44,8 @@
 
 ## 已知缺口
 
-- 收藏清單（`UserFavoriteController`）仍會列出已停用的分店。這只是顯示，無法下單。
-- 購物車加入不檢查停用，但結帳會檢查，因此無法完成訂單。
+- 收藏清單（`UserFavoriteController`）仍會列出已停用的分店。這只是顯示，無法下單。（2026-10-26 已修正，見下方追加。）
+- 購物車加入不檢查停用，但結帳會檢查，因此無法完成訂單。（2026-10-26 已修正，見下方追加。）
 - 停用前已建立的揪團仍可由成員檢視；揪團的商品驗證、團員付款與補款會檢查停用。
 - 多實例的即時切斷（見上）。
 - 測試缺口（2026-10-20 還原驗證）已於 2026-10-21 補上：停用期間的個人結帳、單人下單、團員付款、補款與揪團建立，由 `StoreSuspensionPaymentGuardTest` 斷言會被拒絕（I、J、K）；`AFTER_COMMIT` 階段由反射固定（G）。交易回滾不切斷沒有整合測試，語意依賴 Spring。這些原本是測試缺口，不是程式錯誤。
@@ -55,3 +55,13 @@
 - 本機：`node --check` 與內嵌腳本檢查通過。以 Chromium 對假的管理員 API 跑管理員頁面的 39 項檢查，並以六組故意破壞確認檢查會轉紅（見 README「2026-10-20 還原驗證（本機）」）。
 - Java 測試：`StoreSuspensionIntegrationTest`（真實資料庫：條件式更新、版本、可見性、登入，以及恢復後舊權杖仍失效）、`SuspensionPublicReadsTest`、`SuspensionVisibilityServiceTest`、`StoreLoginSuspensionTest`、`StoreVisibilityTest`、`StoreVisibilityGuardTest`、`StompSessionRegistryTest`、`CutSessionOutboundInterceptorTest`、`StompSessionListenerTest`、`AccountSuspensionCutListenerTest`、`StoreSuspensionPaymentGuardTest`，以及 `AccountStatusTest`、`AdminServiceTest`、`BrandServiceApprovalTest` 的新增案例。
 - Java 測試已在 CI 上通過（`ea1531d`，[run 39535734153](https://github.com/Leo0049/projectLab_2/actions/runs/39535734153)，460 個測試、84 個類別，失敗 0）。本機無法執行 Maven，還原驗證改在 CI 上做：十組破壞中六組被具名測試抓到，四組（G、I、J、K）當時沒有任何測試轉紅，列於上方「已知缺口」。2026-10-21 補上測試後重跑，四組全數轉紅（見 README「2026-10-21 補測試後還原驗證（Java，CI）」）；2026-10-20 的結果與各 run 連結見 README「2026-10-20 還原驗證（Java，CI）」。
+
+## 2026-10-26 追加（stage 17）：收藏與購物車加入
+
+上方「已知缺口」的前兩條已修正：
+
+- **收藏清單只列出可連到的分店**：`GET /api/user-favorites/user/{userId}` 以 `StoreVisibility.isReachable(store)` 過濾，與公開列表一致。收藏列保留在資料庫，分店恢復後會再出現。
+- **新增收藏與加入購物車，停用時回 400**：收藏切換不是交易，以 `isBrandSuspended` 搭配分店旗標判斷；購物車在交易內，直接用實體版本。兩處都在寫入之前拒絕。
+- **移除收藏不受限**：與取消退款同理，已停用分店的既有收藏仍可刪除。
+- **結帳的守衛沒有改變**：停用的分店仍無法完成訂單，本次只是把拒絕提前到加入的時候。
+- **驗證**：`UserFavoriteVisibilityTest`（4）、`CartSuspensionGuardTest`（3，不載入 Spring context）。還原驗證見 README「2026-10-26 收藏與購物車停用還原驗證（CI）」。
