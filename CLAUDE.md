@@ -841,3 +841,11 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **`scripts/ci/audit_summary.py` 的結束碼只回答報告是否可讀**：有漏洞仍回 0；找不到報告、不是 JSON、OWASP 報告沒有相依項目，或 npm audit 自己回報錯誤，才回 1。
 - **待決定：repo secret `NVD_API_KEY`（選用）**：設定後首次同步明顯變快，也較不容易遇到 524。未設定時工作流仍會執行，只是慢，且可能失敗。
 - **驗證**：本階段沒有新增 Java 測試。工作流的驗證是 CI 實際執行，記錄見 `docs/REVIEW_2026-10-13.md` 的 N-29 列。
+
+## 2026-10-25（stage 14）新增的不變量與約定
+
+- **`API.md` 與 controller 路由保持一致**：表格列的 method 與 path 要對應到 controller 的 `@XxxMapping`（含類別層級的 `@RequestMapping` 前綴）。新增、改名或刪除端點時，同一個 PR 更新 `API.md`。`/actuator/health` 由 Actuator 提供，不在 controller 內。
+- **「認證」欄要與 `SecurityConfig` 一致**：permitAll 的路徑寫「無」，其餘寫實際需要的角色。`/api/auth/merge/bind-social` 需要 CUSTOMER（先前誤寫為無認證）。
+- **不採信參數的端點要寫明**：揪團（團長身分與品項）、訂單列表與收藏端點的 `userId`／`hostId` 查詢參數只為相容舊前端保留，身分一律取自 token；`API.md` 已逐列標示。
+- **群組推播訂閱只限成員**：`API.md` 已與 N12 一致，持分享連結、尚未加入的人不可訂閱。
+- **驗證**：2026-10-25 以一次性腳本比對 controller 路由與 `API.md` 表格：PHANTOM 0（唯一例外 `/actuator/health`）、METHOD 0、UNDOC 0；33 個表格的欄數逐列檢查，0 筆不符。腳本未入庫，是否把比對接進 CI 尚待決定。
