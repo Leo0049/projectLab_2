@@ -122,7 +122,7 @@
 | POST | `/api/group-orders/{token}/items/{itemId}/apply-coupon` | 套用優惠券至品項 |
 | PUT | `/api/group-orders/{token}/status` | 設定揪團狀態 Query: `?status=`。團長身分取自 token；`hostId` 參數不採信 |
 | POST | `/api/group-orders/{token}/checkout` | 團長結帳。選擇性標頭 `Idempotency-Key`：重送時回放第一次的結果（見 §7）|
-| POST | `/api/group-orders/{token}/member-checkout` | 團員付款 |
+| POST | `/api/group-orders/{token}/member-checkout` | 團員付款。選擇性標頭 `Idempotency-Key`：重送時回放第一次的結果（見 §7）|
 | POST | `/api/group-orders/{token}/repay` | 補繳款項 |
 
 ### 優惠券與轉盤
@@ -363,7 +363,7 @@
 
 ### 冪等結帳（`Idempotency-Key`）
 
-`POST /api/orders/checkout` 與團長結帳 `POST /api/group-orders/{token}/checkout` 接受選擇性的標頭 `Idempotency-Key`；未帶時行為與舊版相同。
+`POST /api/orders/checkout`、團長結帳 `POST /api/group-orders/{token}/checkout` 與團員付款 `POST /api/group-orders/{token}/member-checkout` 接受選擇性的標頭 `Idempotency-Key`；未帶時行為與舊版相同。
 
 | 情況 | 回應 |
 |------|------|
@@ -375,8 +375,8 @@
 | 系統忙碌（結帳的使用者鎖取不到）| 503，沒有建單也沒有扣款；釋放此鍵，可稍後以同一把鍵重試 |
 | 首次失敗（非 2xx 或例外）| 釋放此鍵，可以用同一把鍵重試 |
 
-- 鍵的範圍是使用者；不同使用者可以使用相同字串，互不影響。團長結帳的範圍另外包含團的 token，同一把鍵用在另一團不會互相影響。
-- 提交之後的步驟（個人結帳的地址儲存與門市通知、團長結帳的通知）失敗只記 log，回應仍為成功，前端不會因此重送。團員付款（`member-checkout`）目前不接受此標頭。
+- 鍵的範圍是使用者；不同使用者可以使用相同字串，互不影響。團長結帳與團員付款的範圍另外包含團的 token，同一把鍵用在另一團不會互相影響。
+- 提交之後的步驟（個人結帳的地址儲存與門市通知、團長結帳與團員付款的通知、團員付款的購物車快照清除）失敗只記 log，回應仍為成功，前端不會因此重送。
 - 請求內容以 JSON 指紋（SHA-256）比對：同一把鍵搭配不同內容回 422，不執行、不改動既有紀錄。舊版紀錄沒有指紋，在過期（最多 24 小時）前仍照舊重播（見 ADR-0005）。
 
 ### 轉盤（`POST /api/coupons/spin`）狀態碼

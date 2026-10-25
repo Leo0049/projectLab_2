@@ -48,7 +48,15 @@
 
 ## 2026-10-22 追加（stage 9）：團長結帳與提交後的失敗
 
-- **範圍擴充到團長結帳**：`POST /api/group-orders/{token}/checkout` 同樣接受 `Idempotency-Key`。儲存鍵為 `idem:group-checkout:<token>:<userId>:<key>`，範圍包含團的 token。同一把鍵用在另一團時不會被當成重送；否則請求內容相同時會回放別團的結果。團員付款（`member-checkout`）目前不接受此標頭。
+- **範圍擴充到團長結帳**：`POST /api/group-orders/{token}/checkout` 同樣接受 `Idempotency-Key`。儲存鍵為 `idem:group-checkout:<token>:<userId>:<key>`，範圍包含團的 token。同一把鍵用在另一團時不會被當成重送；否則請求內容相同時會回放別團的結果。團員付款（`member-checkout`）於 2026-10-26 接上，見下一節。
 - **提交之後的失敗不回 400**：送單與建單都是在自己的交易內提交，之後才讀取通知資訊、推播。這些步驟失敗時原本會回 400，前端會當成失敗而重送；重送即使帶了鍵也只會得到 400（佔位已釋放，第二次被服務層拒絕），無法回放成功的結果。個人結帳已於 2026-10-12 處理（第 4 項）；團長結帳本次一併修正，現在只記 log，回應仍為成功。
 - **前端**：`frontend/Customer/group_order.html` 的團長結帳與 `checkout.html` 相同，內容不變時沿用同一把鍵，只存於記憶體，成功後清除。
 - **驗證**：`GroupOrderCheckoutIdempotencyTest`（8，不載入 Spring context）守住重送回放、4xx 釋放、提交後的讀取與推播失敗、422、跨團獨立、未帶鍵與格式檢查。`scripts/ui/flow-group.js` 在團長送出時模擬一次網路中斷，確認重按沿用同一把鍵。還原驗證見 README「2026-10-22 群組結帳冪等還原驗證（CI）」。
+
+## 2026-10-26 追加（stage 15）：團員付款
+
+- **範圍擴充到團員付款**：`POST /api/group-orders/{token}/member-checkout` 接受 `Idempotency-Key`。儲存鍵為 `idem:group-member-checkout:<token>:<userId>:<key>`。範圍與團長結帳分開（`group-checkout:`），同一把鍵用在另一團或另一位團員都不會被當成重送。
+- **佔位之前先檢查**：未登入與非白名單的付款方式在進入冪等服務之前就回應，不佔用鍵。
+- **提交之後的失敗不回 400**：團員付款的 `getMemberUnpaidTotalAndMarkPaid` 是自己的交易，回傳時付款已提交。購物車快照清除與推播失敗只記 log，回應仍為成功。原本它們與付款共用同一個 try，任一失敗都回 400；重送會因未付款品項已被標記而回 400，無法回放成功的結果。
+- **前端**：`frontend/Customer/group_order.html` 的團員付款與團長結帳相同，內容不變時沿用同一把鍵，只存於記憶體，成功後清除。
+- **驗證**：`GroupMemberCheckoutIdempotencyTest`（9，不載入 Spring context）。還原驗證見 README「2026-10-26 團員付款冪等還原驗證（CI）」。

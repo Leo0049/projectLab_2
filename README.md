@@ -800,7 +800,7 @@ IMPROVEMENT_ASSESSMENT 第 7 項（團購結帳沒有冪等鍵）實作於 `fix/
 - E、F 的 Java 步驟全綠，只有 UI 步驟能抓到前端回歸。F 的三個 UI 失敗同源（送出鈕沒恢復，所以只送出一次，狀態停在 LOCKED），不是三個獨立的破壞。
 - UI 的中斷是 `route.abort`，請求從未到達伺服器。因此 UI 只證明前端沿用同一把鍵；「請求已提交、回應遺失」後的回放只由 `sameKeyReplaysTheFirstSuccessWithoutCheckingOutAgain` 覆蓋。
 - F 的 UI 步驟約 20 分鐘，E 約 8 分鐘，原因未查明。
-- 團員付款（`member-checkout`）尚未接受 `Idempotency-Key`，留給後續 PR（見 ADR-0005 的 2026-10-22 追加）。
+- 團員付款（`member-checkout`）已於 2026-10-26（stage 15）接上 `Idempotency-Key`（見 ADR-0005 的 2026-10-26 追加）。
 - scratch 分支 `main-verif-stage9-A` 至 `-F` 需由擁有者刪除，本次未刪。
 
 ### 2026-10-22 Redis 鍵命名空間還原驗證（CI）

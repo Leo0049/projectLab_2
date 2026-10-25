@@ -2103,6 +2103,29 @@
                 });
             });
 
+            // ─── 團員付款冪等鍵（stage 15）──────────────────────────────────
+            // 付款內容與上一次相同（例如逾時後重按）就沿用同一把 Idempotency-Key，伺服器會回放第一次的結果。
+            // 只存於記憶體：重新整理頁面即視為新的嘗試。
+            let memberCheckoutAttempt = null; // { key, fingerprint }
+
+            function makeMemberCheckoutIdempotencyKey() {
+                const raw = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+                    ? crypto.randomUUID()
+                    : Date.now().toString(36) + Math.random().toString(36).slice(2);
+                let key = raw.replace(/[^A-Za-z0-9_-]/g, '');
+                if (key.length < 8) {
+                    key += Date.now().toString(36) + Math.random().toString(36).slice(2).replace(/[^A-Za-z0-9]/g, '');
+                }
+                return key.slice(0, 64);
+            }
+
+            function memberCheckoutIdempotencyKeyFor(fingerprint) {
+                if (!memberCheckoutAttempt || memberCheckoutAttempt.fingerprint !== fingerprint) {
+                    memberCheckoutAttempt = { key: makeMemberCheckoutIdempotencyKey(), fingerprint };
+                }
+                return memberCheckoutAttempt.key;
+            }
+
             btnConfirmMemberPay.addEventListener('click', async () => {
                 try {
                     const selectedMethod = document.querySelector('input[name="member-payment"]:checked').value;
@@ -2112,9 +2135,11 @@
                     btnConfirmMemberPay.disabled = true;
                     if (typeof lucide !== 'undefined') lucide.createIcons();
 
+                    // 付款內容與上一次相同（例如網路逾時後重按）就沿用同一把鍵，伺服器會回放第一次的結果，不會重複扣款
+                    const idempotencyKey = memberCheckoutIdempotencyKeyFor(JSON.stringify(req));
                     const res = await fetch(NavAuth.getApiUrl(`/api/group-orders/${groupOrderToken}/member-checkout`), {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
                         body: JSON.stringify(req)
                     });
 
@@ -2130,6 +2155,7 @@
                         throw new Error(data.error || '付款失敗');
                     }
 
+                    memberCheckoutAttempt = null;
                     // 直接顯示成功並更新 UI，不再導向其他頁面
                     showToast('付款完成！', 'success');
                     closeMemberModal();

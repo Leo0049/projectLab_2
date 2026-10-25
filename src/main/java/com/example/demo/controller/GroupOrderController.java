@@ -433,29 +433,66 @@ public class GroupOrderController {
     public ResponseEntity<?> memberCheckout(
             @PathVariable String token,
             @RequestBody MemberCheckoutRequest request,
-            HttpServletRequest httpRequest) {
+            HttpServletRequest httpRequest,
+            @RequestHeader(value = IdempotencyService.HEADER, required = false) String idempotencyKey) {
+        Long uid = getUserId(httpRequest);
+        if (uid == null)
+            return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
+
+        // 白名單同團長結帳。任意字串會被當成非錢包付款而標記為已付款，故一律拒絕。
+        // 在冪等佔位之前檢查：被拒的請求不會佔用鍵。
+        if (!isAllowedPaymentMethod(request.getPaymentMethod())) {
+            return ResponseEntity.badRequest().body(Map.of("error", PAYMENT_METHOD_NOT_ALLOWED));
+        }
+
+        // 冪等鍵是選用的（ADR-0005）：沒有帶就照舊執行；帶了就保證同一把鍵只會真的付款一次。
+        // 範圍包含團的 token 與付款的使用者：同一把鍵用在另一團、或另一位團員，不會被當成重送。
+        if (idempotencyKey == null) {
+            return placeMemberCheckout(token, request, uid);
+        }
+        return idempotencyService.execute("group-member-checkout:" + token, uid, idempotencyKey, request,
+                () -> placeMemberCheckout(token, request, uid));
+    }
+
+    /**
+     * 團員付款的實際流程：扣款或記帳、清除購物車快照、推播通知。
+     *
+     * <p>交易邊界：{@code getMemberUnpaidTotalAndMarkPaid} 自己是一個交易，回傳時付款已提交。
+     * 提交之前的失敗（例如已無未付款品項、餘額不足）回 400，冪等佔位釋放，同一把鍵可以重試。
+     *
+     * <p>提交之後的步驟（清除購物車快照、推播）失敗只記 log，回應仍為成功。原本它們與付款共用同一個 try，
+     * 任一失敗都回 400：前端會當成失敗，重送時卻只會得到 400（未付款品項已被標記），無法回放成功的結果。
+     */
+    private ResponseEntity<?> placeMemberCheckout(String token, MemberCheckoutRequest request, Long uid) {
+        BigDecimal totalAmount;
         try {
-            Long uid = getUserId(httpRequest);
-            if (uid == null)
-                return ResponseEntity.status(403).body(Map.of("error", "請先登入"));
-
-            // 白名單同團長結帳。任意字串會被當成非錢包付款而標記為已付款，故一律拒絕。
-            if (!isAllowedPaymentMethod(request.getPaymentMethod())) {
-                return ResponseEntity.badRequest().body(Map.of("error", PAYMENT_METHOD_NOT_ALLOWED));
-            }
-
-            BigDecimal totalAmount = groupOrderService.getMemberUnpaidTotalAndMarkPaid(token, uid,
+            totalAmount = groupOrderService.getMemberUnpaidTotalAndMarkPaid(token, uid,
                     request.getPaymentMethod(), request.getCouponId());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", Objects.toString(e.getMessage(), "付款失敗")));
+        }
+
+        // 以下付款已提交：失敗只記 log，回應仍為成功。
+        try {
             // 個人結帳後清空快照以更新付款狀態
             redisCartService.clearCart(token);
+        } catch (RuntimeException e) {
+            log.error("團員付款已提交（token={}，userId={}），購物車快照未清除；回應仍為成功", token, uid, e);
+        }
+        try {
             if (messagingTemplate != null) {
                 messagingTemplate.convertAndSend("/topic/group/" + token,
                         Map.of("type", "CART_UPDATED", "message", "Member payment completed", "userId", uid));
             }
-            return ResponseEntity.ok(Map.of("message", "Member items marked as paid", "totalAmount", totalAmount));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (RuntimeException e) {
+            log.error("團員付款已提交（token={}，userId={}），揪團推播未送出；回應仍為成功", token, uid, e);
         }
+
+        // LinkedHashMap：與 Map.of 不同，允許 null 值
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", "Member items marked as paid");
+        body.put("totalAmount", totalAmount);
+        return ResponseEntity.ok(body);
     }
 
     @PostMapping("/api/group-orders/{token}/repay")
@@ -513,7 +550,8 @@ public class GroupOrderController {
     }
 
     @Data
-    private static class MemberCheckoutRequest {
+    // package-private：GroupMemberCheckoutIdempotencyTest 需要建構請求主體
+    static class MemberCheckoutRequest {
         private Long userId;
         private String paymentMethod;
         private Long couponId;
