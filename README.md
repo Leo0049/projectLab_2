@@ -916,6 +916,22 @@ CI 結果：
 
 四個守衛各自都有測試轉紅。`main-verif-stage12` 這個遠端分支在驗證後保留，可以刪除。
 
+### 2026-10-26 團員付款冪等還原驗證（CI）
+
+階段 15 實作於 `fix/stage15-member-checkout-idempotency`（PR #23，程式碼頭 `c8defe8`）。`GroupMemberCheckoutIdempotencyTest`（9）不載入 Spring context。未破壞的對照是同一個程式碼頭的 [run 40212579054](https://github.com/Leo0049/projectLab_2/actions/runs/40212579054)：`mvn test` 為 539 個測試、97 個類別，失敗 0、錯誤 0、略過 0；UI 流程與 API 端對端全綠。此後提交的文件 commit 不改動被測程式碼。
+
+破壞分支從 `c8defe8` 切出，分支名稱為 `main-verif-stage15-<編號>`，commit 標題以 `scratch:` 開頭。兩組破壞各自在獨立分支上執行，沒有合併，因為不同的破壞可能互相遮蔽。
+
+| 編號 | 破壞內容 | 位置 | commit | run | 結果 | 失敗的具名測試 |
+|------|---------|------|--------|-----|------|----------------|
+| A | 忽略 `Idempotency-Key`，每次都直接付款 | `GroupOrderController.memberCheckout` | `f884c26` | [40212618438](https://github.com/Leo0049/projectLab_2/actions/runs/40212618438) | 失敗（5 項） | `sameKeyReplaysTheFirstSuccessWithoutPayingAgain`、`cartSnapshotFailureAfterPaymentStillReportsSuccess`、`notificationFailureAfterPaymentStillReportsSuccess`、`sameKeyWithAnotherPaymentMethodIsRejectedWithoutPayingAgain`（422 → 200）、`malformedKeyIsRejectedBeforeAnyPayment`（未拋出 `CustomException`） |
+| B | 購物車快照清除與推播移回付款的 try，失敗回 400 | `GroupOrderController.placeMemberCheckout` | `57407c3` | [40212621053](https://github.com/Leo0049/projectLab_2/actions/runs/40212621053) | 失敗（2 項） | `cartSnapshotFailureAfterPaymentStillReportsSuccess`、`notificationFailureAfterPaymentStillReportsSuccess`（200 → 400） |
+
+- 紅燈與事先推論的集合完全相同：A 的 5 項與 B 的 2 項，沒有預期外的紅燈。
+- 兩組破壞下都維持綠燈的 4 項：`rejectedPaymentReleasesTheKeySoTheSameKeyCanRetry`、`sameKeyOnAnotherGroupIsIndependent`、`withoutAKeyEveryAttemptRunsThePayment`、`disallowedPaymentMethodIsRejectedBeforeAnyPayment`。它們驗的是不會因破壞而改變的行為（4xx 釋放、跨團獨立、未帶鍵、白名單），所以綠燈是正確的。
+- 具名失敗來自 check-run annotation（`scripts/ci/failure_annotations.py`）。步驟日誌在本環境無法下載，因此改用 annotation 讀取。
+- scratch 分支 `main-verif-stage15-A`、`main-verif-stage15-B` 需由擁有者刪除，本次未刪。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
