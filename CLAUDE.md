@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-24，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：530 個 `@Test`，分布在 96 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-26，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：539 個 `@Test`，分布在 97 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -228,6 +228,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 金流與併發 | `WalletConcurrencyTest`（3） | 併發儲值不可短少、帳本與餘額必須相符、併發扣款不可透支、列鎖不被一級快取架空 |
 | 金流與併發 | `GroupCheckoutConcurrencyTest`（6） | 揪團四條金流路徑重複觸發時只能發生一次；同一張券不可用兩次 |
 | 金流與併發 | `GroupOrderCheckoutIdempotencyTest`（8） | 團長結帳的冪等鍵（stage 9，不載入 Spring context）：同鍵重送回放第一次的成功結果；4xx 釋放佔位、可以重試；提交之後的讀取或推播失敗仍回成功；同鍵搭配不同內容回 422；同鍵用在另一團互不影響；未帶鍵維持舊行為；格式不合規的鍵在送單前拒絕 |
+| 金流與併發 | `GroupMemberCheckoutIdempotencyTest`（9） | 團員付款的冪等鍵（stage 15，不載入 Spring context）：同鍵重送回放第一次的成功結果；4xx 釋放佔位、可以重試；付款提交之後的購物車快照清除或推播失敗仍回成功；同鍵搭配不同付款方式回 422；同鍵用在另一團互不影響；未帶鍵維持舊行為；格式不合規的鍵與非白名單的付款方式在付款前拒絕 |
 | 金流與併發 | `UserCouponUseTest`（4） | 優惠券使用（N10）：消耗是條件式原子更新，同一張券第二次使用回 400（即使讀取時仍為 unused）；非擁有者與已過期的券不嘗試消耗 |
 | 金流與併發 | `RatingConcurrencyTest`（2） | 併發評分不得死鎖、門市則數與平均分數要對得起來 |
 | 金流與併發 | `IdempotencyServiceTest`（14） | 結帳冪等（ADR-0005）：格式檢查、重送回放、進行中衝突、失敗與例外釋放、使用者之間互不影響；同一把鍵配不同內容回 422（請求指紋）；Redis 與本地兩條路徑；舊格式（無指紋）紀錄仍可重播 |
@@ -276,7 +277,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 85 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 86 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -793,7 +794,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **提交後才組裝的回應不用 `Map.of`**：`Map.of` 不接受 null 值，而團長結帳的 `totalAmount` 在讀取失敗時為 null，因此改用 `LinkedHashMap`。
 - **冪等指紋的輸入要有固定順序**：`Map.of` 的迭代順序每次 JVM 啟動都可能不同。目前的指紋是 `CheckoutRequest` 的 Jackson 序列化（欄位順序固定）；若改以 Map 作為指紋輸入，必須改用 `LinkedHashMap` 或 `TreeMap`，否則重啟後的重送會變成 422。
 - **`CheckoutRequest` 為 package-private**：僅供控制器與 `GroupOrderCheckoutIdempotencyTest` 使用。
-- **團員付款（`member-checkout`）尚未接受 `Idempotency-Key`**：重複扣款仍由列鎖與狀態守衛防止，但重送不會回放第一次的結果。下一個 PR 沿用同一個 helper 即可。
+- **團員付款（`member-checkout`）已於 2026-10-26（stage 15）接上 `Idempotency-Key`**：與團長結帳相同，重送回放第一次的結果；見下方 2026-10-26（stage 15）節。
 - **還原驗證**：見 README「2026-10-22 群組結帳冪等還原驗證（CI）」。
 
 ## 2026-10-22（stage 10）新增的不變量與約定
@@ -849,3 +850,14 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **不採信參數的端點要寫明**：揪團（團長身分與品項）、訂單列表與收藏端點的 `userId`／`hostId` 查詢參數只為相容舊前端保留，身分一律取自 token；`API.md` 已逐列標示。
 - **群組推播訂閱只限成員**：`API.md` 已與 N12 一致，持分享連結、尚未加入的人不可訂閱。
 - **驗證**：2026-10-25 以一次性腳本比對 controller 路由與 `API.md` 表格：PHANTOM 0（唯一例外 `/actuator/health`）、METHOD 0、UNDOC 0；33 個表格的欄數逐列檢查，0 筆不符。腳本未入庫，是否把比對接進 CI 尚待決定。
+
+## 2026-10-26（stage 15）新增的不變量與約定
+
+- **團員付款接受 `Idempotency-Key`**：`POST /api/group-orders/{token}/member-checkout`（`GroupOrderController.memberCheckout`）經 `IdempotencyService.execute` 包住，範圍為 `group-member-checkout:<token>` 加上使用者 id。與團長結帳的範圍（`group-checkout:`）分開；同一把鍵用在另一團或另一位團員不會互相影響。
+- **佔位之前先檢查身分與付款方式**：未登入（403）與非白名單的付款方式（400）在進入冪等服務之前就回應，不佔用鍵。格式不合規的鍵在付款前由冪等服務拒絕（400）。
+- **提交之後的步驟只記 log**：`getMemberUnpaidTotalAndMarkPaid` 是自己的交易，回傳時付款已提交。購物車快照清除（`redisCartService.clearCart`）與揪團推播失敗只記 log，回應仍為成功。這兩段不得再放回付款的 try 內：重送會因未付款品項已被標記而回 400，無法回放成功的結果。
+- **付款方式白名單共用 `isAllowedPaymentMethod`**：`checkout` 與 `memberCheckout` 都用同一個判斷與 `PAYMENT_METHOD_NOT_ALLOWED`，不可在任一端點另寫一份。
+- **前端**：`frontend/Customer/group_order.html` 的團員付款與團長結帳相同，內容不變時沿用同一把鍵，只存於記憶體，成功後清除。
+- **`MemberCheckoutRequest` 為 package-private**：僅供控制器與 `GroupMemberCheckoutIdempotencyTest` 使用，與 `CheckoutRequest` 相同。
+- **測試**：`GroupMemberCheckoutIdempotencyTest`（9，不載入 Spring context）。CLAUDE.md 測試表與總數已同步為 539 個 `@Test`、97 個測試類別。
+- **還原驗證**：見 README「2026-10-26 團員付款冪等還原驗證（CI）」。
