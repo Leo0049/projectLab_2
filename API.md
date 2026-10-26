@@ -444,3 +444,4 @@
 9. **GroupOrder V2**：V2 路由統一使用 `token` 作為 path variable，支援品項 CRUD、結帳、補款等完整流程。刪除路由為 `/api/group-orders/token/{token}`（加 `token/` 前綴避免衝突）。
 10. **常用地址 API**：新增 `/api/users/{userId}/address`（GET）、`/api/users/{userId}/addresses`（POST）、`/api/users/{userId}/addresses/{addressId}`（PUT/DELETE）對應 `user_addresses` 表。
 11. **CORS 白名單**：預設為 `localhost:5173`、`127.0.0.1:5500`、`localhost:5500`、`localhost:8082`、`127.0.0.1:8082`（與 `application.yml` 一致）。本機其他來源請放在 `application-local.yml`，或設定環境變數 `CORS_ALLOWED_ORIGINS`。
+| GET | `/api/scratch-phantom` | 無 | scratch |
