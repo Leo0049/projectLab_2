@@ -370,16 +370,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是 `ea1531d`（階段 6，PR #12）。PR #12 頭 `ea1531d` 上的完整 CI 執行是 [run 39535734153](https://github.com/Leo0049/projectLab_2/actions/runs/39535734153)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是 `660d11e`（階段 18，PR #26；PR 頭的程式碼頭為 `1e12cfd`，合併後在 main 上為 `660d11e`）。該程式碼頭上的完整 CI 執行是 [run 40282962565](https://github.com/Leo0049/projectLab_2/actions/runs/40282962565)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit（`cee2a47` 只改 README 與 CLAUDE.md），由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 39535734153（`pull_request`，commit `ea1531d`）：「測試與端對端驗證」475 秒、「容器映像建置（僅建置）」59 秒，皆成功 |
+| 執行 | run 40282962565（`pull_request`，commit `1e12cfd`）：「測試與端對端驗證」514 秒、「容器映像建置（僅建置）」57 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，71 秒。測試總計 **460 個測試、84 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
-| 打包與起服務 | 打包 8 秒；啟動後端 16 秒 |
-| API 端對端（第 2 層） | 通過，5 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，302 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
+| `mvn test`（第 1 層） | 通過，68 秒。測試總計 **552 個測試、100 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 7 秒；啟動後端 17 秒 |
+| API 端對端（第 2 層） | 通過，6 秒 |
+| UI 流程（第 3 層，斷網模式） | 通過，336 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -986,7 +986,7 @@ CI 結果：
 
 ### 拆出可測試的規則
 
-`GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
+抽出時 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
 這種尺寸沒辦法寫單元測試——要驗一條「甜度該落哪個值」的規則，得先備妥
 揪團、使用者、商品、規格關聯一整組資料。所以先把三條**與金額和防竄改有關**的規則
 從中抽出來，成為不依賴任何框架的純函式：
@@ -1001,8 +1001,8 @@ CI 結果：
 `ItemSpecResolver` 那條特別值得測：它是**防竄改**規則而不是顯示邏輯——
 少了它，攻擊者可以送出「冰的熱美式」，門市會收到一張做不出來的單。
 
-要說清楚的是：這只是起了個頭。`GroupOrderService` 仍有 1,300 行，
-`checkout`、`handleGroupOrderCancellation` 這些金流方法還是又長又難測。
+要說清楚的是：這只是起了個頭。目前 `GroupOrderService` 約 1,800 行，
+`checkout`（約 117 行）、`handleGroupOrderCancellation`（約 136 行）這些金流方法還是又長又難測。
 
 ---
 
@@ -1059,11 +1059,11 @@ CI 結果：
 
 刻意未處理，列在這裡是因為知道它們存在、也知道代價：
 
-- `GroupOrderService` 仍有約 1,600 行（最長的方法 `createGroupOrder` 約 127 行）、`BrandService` 約 1,200 行。
-  已先抽出三條規則並補上單元測試（見「拆出可測試的規則」），但金流方法
+- `GroupOrderService` 仍有約 1,800 行（最長的方法 `handleGroupOrderCancellation` 約 136 行，`createGroupOrder` 約 127 行）、`BrandService` 約 1,200 行。
+  已先抽出品項、退款與逾時等純規則並補上單元測試（見「拆出可測試的規則」），但金流方法
   （`checkout`、`handleGroupOrderCancellation`、`repayToHost`）還沒動，
   那幾條仍然只能靠端對端與 UI 流程從外面框住行為
-- 311 處 `Map<String, Object>`（其中 Service 層公開方法的回傳型別就有 89 處），失去編譯期型別檢查，Swagger 也無法描述結構
+- 342 處 `Map<String, Object>`（其中 Service 層公開方法的回傳型別就有 75 處），失去編譯期型別檢查，Swagger 也無法描述結構
 - V1／V2 端點並存，同一資源有多套格式
 - 輸入驗證目前只覆蓋金流與訂單路徑，其餘 DTO 尚未補齊
 - 待處理訂單的逾時拒單已改由伺服器排程執行（N-32，2026-10-19，`OrderAutoRejectJob`），不再依賴瀏覽器。已於 2026-10-26（stage 18）修正（a）：逾時的 SUBMITTED 不可再接單（回 409），拒單仍只由排程執行。尚未處理的項目：（b）接單後（PREPARING）拒單回 409、不退款，若要支援接單後退款需產品決定；（c）OPEN 的揪團刻意不自動拒單，團長不送單就會一直開著。
@@ -1073,7 +1073,7 @@ CI 結果：
 - 品牌自助註冊已改為審核制（N-28，2026-10-18）：新品牌為 `PENDING`，未核准不能登入，也不出現在公開列表。管理員審核的後台頁面已加入（`frontend/Admin/`，路徑 `/Admin/login.html`），資料仍只經 `/api/admin/**`；是否另加邀請碼仍待業務決定。
 - 品牌與分店停用（stage 6，2026-10-20，ADR-0012）的已知缺口：（a）（b）已於 2026-10-26（stage 17）修正：收藏清單不列出停用的分店，新增收藏與加入購物車在停用時回 400；（c）停用前已建立的揪團仍可由成員檢視，商品驗證、團員付款與補款會擋；（d）即時切斷只作用於收到停用事件的那台實例，其他實例上既有的 WebSocket 訂閱要等連線結束（見 `docs/DEPLOYMENT.md` 第 30 項）。
 - 停用的付款守衛與切斷的 `AFTER_COMMIT` 階段已於 2026-10-21 補上測試（`StoreSuspensionPaymentGuardTest`、`AccountSuspensionCutListenerTest`），還原驗證見「2026-10-21 補測試後還原驗證（Java，CI）」。交易回滾不切斷沒有整合測試，語意依賴 Spring 的 `AFTER_COMMIT`。
-- 依賴漏洞稽核（npm 與 Maven）與 CI action 版本查證尚未完成（N-29、N-20），需在有網路的環境執行。
+- 依賴漏洞稽核已於 stage 13 改為報告模式（npm 與 Maven，N-29）；是否設定 repo secret `NVD_API_KEY` 仍待決定（選用，見 `docs/REVIEW_2026-10-13.md` 第三節）。CI action 版本已由成功的 CI 執行驗證（N-20，2026-10-16 關閉）。
 
 ---
 

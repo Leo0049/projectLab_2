@@ -21,6 +21,7 @@
 - `Map<String, Object>` 以 `grep -rhoE 'Map<String,\s*Object>' src/main/java | wc -l` 計次，目前為 **311 處**。初版寫的 314 是更早的計數；本次以目前的工作樹重新量測。
 - 直接引用 `JOIN_TOKEN` 的前端檔案為 **11 個**，HTML 中的 inline `on*=` 事件屬性約 **100 處**。這兩個數字是評估 JWT 遷移與 CSP 收緊範圍的依據，見第 3 項。
 - 受版控的 JavaScript 為 **79 個**（不含 `frontend/vendor/`，其中 `frontend/` 為 71 個、`scripts/` 為 8 個；CI 的 `node --check` 涵蓋全部 79 個）；HTML 內嵌 script 為 **69 個**，分布在 **39 個** HTML 檔案中。初版寫的 78 個 JS 少算了一個。
+- 2026-10-26 重新量測（`grep -rhoE 'Map<String,\s*Object>' src/main/java | wc -l`）：`Map<String, Object>` 為 **342 處**；Service 層公開方法回傳 `Map<String, Object>` 的有 **75 個**。上文與逐項決策表中的 311 處是評估當時的計數，本次不改寫。
 
 ## 逐項決策
 
