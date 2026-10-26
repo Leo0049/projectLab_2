@@ -42,7 +42,7 @@
 
 | Method | Path | 說明 |
 |--------|------|------|
-| GET | `/api/home` | 首頁資料（banners、附近店家）Query: `?lat=&lng=` |
+| POST | `/api/home` | 首頁資料（banners、附近店家）Query: `?lat=&lng=` |
 | GET | `/api/stores/map` | 地圖所有營業中店家座標 |
 | GET | `/api/stores/nearby` | 附近店家分頁 Query: `?lat=&lng=&brandId=&minRating=&page=1&size=6`。有座標時依距離排序；無座標時 `minRating` 不生效（見 §7）|
 | GET | `/api/stores/search` | 關鍵字搜尋品牌/店家（分頁）Query: `?keyword=&lat=&lng=&page=1&size=50`。`size` 上限 200；回傳 `{stores, page, size, total, totalPages, hasNext}`（見 §7）|
