@@ -966,6 +966,24 @@ CI 結果：
 - 產品決定（停用的分店在收藏清單中隱藏、移除收藏不受限、單一分店規則不看營業狀態）見 ADR-0012「2026-10-26 追加（stage 17）」。
 - scratch 分支 `main-verif-stage17-A`、`main-verif-stage17-B`、`main-verif-stage17-C` 需由擁有者刪除，本次未刪。
 
+### 2026-10-26 逾時接單守衛還原驗證（CI）
+
+階段 18 實作於 `fix/stage18-accept-after-expiry`（PR #26，程式碼頭 `1e12cfd`）。新增的 4 個案例與既有的 `acceptUsesTheRowLock` 都在 `AnalyticsServiceAutoRejectTest`（12），不載入 Spring context。未破壞的對照是同一個程式碼頭的 [run 40282962565](https://github.com/Leo0049/projectLab_2/actions/runs/40282962565)：`mvn test` 為 552 個測試、100 個類別，失敗 0、錯誤 0、略過 0。
+
+破壞分支從 `1e12cfd` 切出，分支名稱為 `main-verif-stage18-<編號>`，commit 標題以 `scratch:` 開頭。三組破壞各自在獨立分支上執行，沒有合併。本機無法執行 Maven，三組全部在 CI 上驗證。
+
+| 編號 | 破壞內容 | 位置 | commit | run | 結果 | 失敗的具名測試 |
+|------|---------|------|--------|-----|------|----------------|
+| A | 移除接單的時限守衛 | `AnalyticsService.acceptOrder` | `96dfa3f` | [40283876689](https://github.com/Leo0049/projectLab_2/actions/runs/40283876689) | 失敗（1 項） | `acceptJustAfterTheDeadlineIsRefusedAndLeavesTheOrderUntouched`（未拋出 `CustomException`） |
+| B | 時限的計時起點改為建立時間 | `AnalyticsService.acceptOrder` | `a2cf6b5` | [40283887977](https://github.com/Leo0049/projectLab_2/actions/runs/40283887977) | 錯誤（2 項） | `acceptAtExactlyTheDeadlineStillWorks`、`deadlineIsMeasuredFromSubmissionNotCreation`（皆為拋出 409） |
+| C | 守衛不看訂單狀態，OPEN 也套用時限 | `AnalyticsService.acceptOrder` | `93530c5` | [40283911443](https://github.com/Leo0049/projectLab_2/actions/runs/40283911443) | 錯誤（1 項） | `openOrderIsNotSubjectToTheDeadline`（拋出 409） |
+
+- 各組的紅燈與事先推論的集合完全相同：A 的 1 項、B 的 2 項、C 的 1 項，沒有預期外的紅燈。
+- 其餘測試維持綠燈：A 為 551 項，B 為 550 項，C 為 551 項。既有的 `acceptUsesTheRowLock` 在三組下都綠燈，因為它的訂單在時限內，且傳入固定的 `now`。
+- B、C 的紅燈是「錯誤」而非「失敗」：破壞後守衛在斷言之前就拋出 409，測試以例外結束。
+- 具名失敗來自 verify job 的 check-run annotation。
+- scratch 分支 `main-verif-stage18-A`、`main-verif-stage18-B`、`main-verif-stage18-C` 需由擁有者刪除，本次未刪。
+
 ### 拆出可測試的規則
 
 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
