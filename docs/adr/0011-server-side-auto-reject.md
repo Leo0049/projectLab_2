@@ -63,3 +63,11 @@
 - 服務層（Mockito）：`AnalyticsServiceAutoRejectTest`（列鎖、鎖內重判、接單後 409、他店 403）、`GroupOrderServiceCancelRefundTest`（escrow 只退一次、券還原、PREPARING 不退款）、`OrderAutoRejectJobTest`（單筆失敗不影響其他筆、只有真的拒單才推播）、`ScheduledTasksAutoRejectTest`（經 `ExclusiveJobRunner` 執行）。
 - 還原驗證（把修補改回舊寫法時測試必須失敗）：見 README「2026-10-19 還原驗證（CI）」。
 - 端對端與 UI（CI）：`e2e-verify.js` 驗證取消後 escrow 原數退回、拒單後款項原數退回；`page-sweep` 與各 flow 會載入首頁與訂單頁。
+
+## 2026-10-26 追加（stage 18）：逾時後的接單
+
+- **問題**：排程每 30 秒掃描一次。在排程跑到之前（最多約 30 秒），逾時的 SUBMITTED 仍可被店家接單。2026-10-19 的設計只做了排程端的判斷，沒有在接單端套用同一條規則（見 README「已知技術債」的 N-32 項目（a））。
+- **決定**：`AnalyticsService.acceptOrder` 在列鎖之後以 `AutoRejectPolicy.isExpired` 判斷，逾時的 SUBMITTED 回 409，不改狀態、不寫入。拒單與退款仍只由 `OrderAutoRejectJob` 執行，推播路徑不變。接單與自動拒單共用同一把列鎖與同一條規則。
+- **替代方案**：接單時直接拒單並退款，再回 409。未採用：接單 API 會產生退款與推播等副作用，拒單的去重與推播邏輯會分散到兩處。
+- **代價**：逾時後最多約 30 秒內，訂單仍為 SUBMITTED 但店家已無法接單；之後由排程拒單並退款，與原本的排程行為一致。
+- **驗證**：`AnalyticsServiceAutoRejectTest` 新增 4 個案例（逾時一秒即拒絕、剛好 10 分鐘仍可接單、計時起點為送單時間、OPEN 不受時限）；既有的 `acceptUsesTheRowLock` 改為傳入固定的 `now`。還原驗證見 README「2026-10-26 逾時接單守衛還原驗證（CI）」。

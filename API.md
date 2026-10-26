@@ -290,7 +290,7 @@
 | GET | `/api/stores/orders` | 訂單列表 Query: `?status=OPEN\|SUBMITTED\|...&page=0&size=50`（`size` 上限 200；回傳 `{ orders, page, size, total, totalPages, hasNext }`）|
 | GET | `/api/stores/dashboard/orders/pending` | 待接單列表（status=OPEN）|
 | GET | `/api/stores/dashboard/orders/active` | 進行中訂單（OPEN/SUBMITTED/READY）|
-| POST | `/api/stores/dashboard/orders/{orderId}/accept` | 接單 OPEN → SUBMITTED |
+| POST | `/api/stores/dashboard/orders/{orderId}/accept` | 接單：OPEN 或 SUBMITTED → PREPARING；SUBMITTED 超過 10 分鐘回 409（改由排程自動拒單） |
 | POST | `/api/stores/dashboard/orders/{orderId}/reject` | 拒單 Body: `{ reason: "已打烊" }` |
 | POST | `/api/stores/dashboard/orders/{orderId}/complete-production` | 製作完成 SUBMITTED → READY |
 | POST | `/api/stores/dashboard/orders/{orderId}/finalize` | 結案 READY → COMPLETED |

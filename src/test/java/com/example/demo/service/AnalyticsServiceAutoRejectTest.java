@@ -16,6 +16,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -139,11 +140,63 @@ class AnalyticsServiceAutoRejectTest {
         GroupOrder order = newOrder(9L, 3L, "SUBMITTED", NOW.minusMinutes(2));
         when(groupOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(order));
 
-        analyticsService.acceptOrder(9L, 3L);
+        analyticsService.acceptOrder(9L, 3L, NOW);
 
         assertEquals("PREPARING", order.getStatus());
         verify(groupOrderRepository).save(order);
         verify(groupOrderRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("逾時一秒即不可接單（409）：不改狀態、不寫入，交給排程拒單")
+    void acceptJustAfterTheDeadlineIsRefusedAndLeavesTheOrderUntouched() {
+        GroupOrder order = newOrder(9L, 3L, "SUBMITTED", NOW.minusMinutes(10).minusSeconds(1));
+        when(groupOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(order));
+
+        CustomException e = assertThrows(CustomException.class, () -> analyticsService.acceptOrder(9L, 3L, NOW));
+
+        assertEquals("409", e.getCode());
+        verify(groupOrderRepository, never()).save(any());
+        verifyNoInteractions(groupOrderService);
+        assertEquals("SUBMITTED", order.getStatus());
+        assertNull(order.getPreparingAt());
+    }
+
+    @Test
+    @DisplayName("剛好滿 10 分鐘仍可接單，與自動拒單的邊界一致")
+    void acceptAtExactlyTheDeadlineStillWorks() {
+        GroupOrder order = newOrder(9L, 3L, "SUBMITTED", NOW.minusMinutes(10));
+        when(groupOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(order));
+
+        analyticsService.acceptOrder(9L, 3L, NOW);
+
+        assertEquals("PREPARING", order.getStatus());
+        assertEquals(NOW, order.getPreparingAt());
+        verify(groupOrderRepository).save(order);
+    }
+
+    @Test
+    @DisplayName("計時起點是送單時間：建立很久以前、送單剛剛，仍可接單")
+    void deadlineIsMeasuredFromSubmissionNotCreation() {
+        GroupOrder order = newOrder(9L, 3L, "SUBMITTED", NOW.minusMinutes(2));
+        order.setCreatedAt(NOW.minusMinutes(60));
+        when(groupOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(order));
+
+        analyticsService.acceptOrder(9L, 3L, NOW);
+
+        assertEquals("PREPARING", order.getStatus());
+    }
+
+    @Test
+    @DisplayName("OPEN 的揪團不受接單時限限制（時限只適用 SUBMITTED），即使建立已超過 10 分鐘")
+    void openOrderIsNotSubjectToTheDeadline() {
+        GroupOrder order = newOrder(9L, 3L, "OPEN", NOW.minusMinutes(60));
+        order.setSubmittedAt(null);
+        when(groupOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(order));
+
+        analyticsService.acceptOrder(9L, 3L, NOW);
+
+        assertEquals("PREPARING", order.getStatus());
     }
 
     private static GroupOrder newOrder(long id, long storeId, String status, LocalDateTime submittedAt) {

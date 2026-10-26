@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-26，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：548 個 `@Test`，分布在 100 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-26，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：552 個 `@Test`，分布在 100 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -240,7 +240,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 金流與併發 | `TxDisplayTest`（7） | 帳本種類正規化：舊的「標題\n說明」格式要能拆回兩欄、補款靠正負號分辨收付方 |
 | 金流與併發 | `LedgerDescriptionsTest`（2） | 個人訂單扣款說明（stage 16）：精確文字「個人訂單 #N 結帳扣款」；`OrderService.java` 不得含揪團的團員字樣，且兩處個人扣款都必須經 `LedgerDescriptions`（文字掃描） |
 | 金流與併發 | `GroupOrderServiceCancelRefundTest`（5） | 整單取消（N-32，2026-10-19）：個人訂單取消只靠 escrow 退一次，不逐品項再退；券全額折抵時不退款；揪團取消還原未付款品項的券；PREPARING 不取消也不退款 |
-| 金流與併發 | `AnalyticsServiceAutoRejectTest`（8） | 店家接單與拒單、逾時自動拒單（N-32）：逾時且仍 SUBMITTED 以列鎖讀取、退款一次、改為 REJECTED；剛好 10 分鐘不拒單；鎖內發現已接單不拒單；接單後拒單回 409；他店 403 |
+| 金流與併發 | `AnalyticsServiceAutoRejectTest`（12） | 店家接單與拒單、逾時自動拒單（N-32）：逾時且仍 SUBMITTED 以列鎖讀取、退款一次、改為 REJECTED；剛好 10 分鐘不拒單；鎖內發現已接單不拒單；接單後拒單回 409；他店 403；逾時一秒即不可接單（409，不寫入）、剛好 10 分鐘仍可接單、計時起點為送單時間、OPEN 不受時限（stage 18） |
 | 金流與併發 | `OrderAutoRejectJobTest`（3） | 逐筆自動拒單（N-32）：只推播真的被拒的訂單；單筆失敗不影響其他筆；沒有逾時訂單時不做事 |
 | 金流與併發 | `ScheduledTasksAutoRejectTest`（1） | 自動拒單排程經 `ExclusiveJobRunner`（`order-auto-reject`，120 秒租約）執行，取得鎖後才掃描 |
 | 訂單規則 | `ItemSpecResolverTest`（9） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）；非固定規格的自訂值拒絕標籤字元、控制字元與超過 50 字 |
@@ -880,3 +880,10 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **移除收藏不檢查停用**，與取消退款同理：已停用分店的既有收藏仍可刪除（`UserFavoriteVisibilityTest` 第四支）。
 - **結帳的守衛不變**：停用的分店仍無法完成訂單（stage 6 的付款守衛），本階段只是把拒絕提前到加入的時候。
 - **還原驗證**：見 README「2026-10-26 收藏與購物車停用還原驗證（CI）」。
+
+## 2026-10-26（stage 18）新增的不變量與約定
+
+- **逾時的待接單不可接單**：`AnalyticsService.acceptOrder` 在列鎖之後以 `AutoRejectPolicy.isExpired` 判斷，SUBMITTED 且超過 10 分鐘者回 409，不改狀態、不寫入。拒單與退款仍只由 `OrderAutoRejectJob` 執行。接單與自動拒單共用同一把列鎖與同一條規則，不可在任一端另寫判斷。
+- **接單的時間由呼叫端傳入**：`acceptOrder(orderId, storeId, now)` 供測試使用；控制器呼叫的兩參數版本以 `Asia/Taipei` 的牆上時鐘取值。時限判斷只使用傳入的 `now`，不另外讀取時鐘。
+- **只有 SUBMITTED 受時限**：OPEN 的揪團即使建立已超過 10 分鐘，仍可由店家接單（既有行為，`AutoRejectPolicy` 的範圍不變）。
+- **還原驗證**：見 README「2026-10-26 逾時接單守衛還原驗證（CI）」。
