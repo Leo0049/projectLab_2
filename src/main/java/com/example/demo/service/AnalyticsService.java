@@ -431,7 +431,7 @@ public class AnalyticsService {
         // 與逾時自動拒單共用列鎖：兩者同時發生時，後到的一方會讀到已更新的狀態
         GroupOrder order = getOrderForStoreForUpdate(orderId, storeId);
         String status = order.getStatus();
-        if (AutoRejectPolicy.isExpired(status, order.getSubmittedAt(), order.getCreatedAt(), now)) {
+        if (AutoRejectPolicy.isExpired(status, null, order.getCreatedAt(), now)) {
             throw new CustomException("409", "此訂單已超過 " + AutoRejectPolicy.PENDING_WINDOW.toMinutes() + " 分鐘接單時限，無法接單");
         }
         if ("OPEN".equals(status) || "SUBMITTED".equals(status)) {
