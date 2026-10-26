@@ -33,7 +33,7 @@ import java.util.Set;
 @RequestMapping("/api/upload")
 @Slf4j
 @RequiredArgsConstructor
-public class UploadController {
+class UploadController {
 
     private final ImageStorageService imageStorageService;
 
