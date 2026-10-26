@@ -417,12 +417,26 @@ public class AnalyticsService {
 
     @Transactional
     public void acceptOrder(Long orderId, Long storeId) {
+        acceptOrder(orderId, storeId, LocalDateTime.now(ZoneId.of("Asia/Taipei")));
+    }
+
+    /**
+     * 店家接單。{@code now} 由呼叫端傳入，讓逾時邊界可以被測試。
+     *
+     * <p>已逾時的待接單（SUBMITTED 且超過 {@link AutoRejectPolicy#PENDING_WINDOW}）回 409，不改狀態；
+     * 拒單與退款仍只由 {@code OrderAutoRejectJob} 執行。
+     */
+    @Transactional
+    public void acceptOrder(Long orderId, Long storeId, LocalDateTime now) {
         // 與逾時自動拒單共用列鎖：兩者同時發生時，後到的一方會讀到已更新的狀態
         GroupOrder order = getOrderForStoreForUpdate(orderId, storeId);
         String status = order.getStatus();
+        if (AutoRejectPolicy.isExpired(status, order.getSubmittedAt(), order.getCreatedAt(), now)) {
+            throw new CustomException("409", "此訂單已超過 " + AutoRejectPolicy.PENDING_WINDOW.toMinutes() + " 分鐘接單時限，無法接單");
+        }
         if ("OPEN".equals(status) || "SUBMITTED".equals(status)) {
             order.setStatus("PREPARING");
-            order.setPreparingAt(LocalDateTime.now(ZoneId.of("Asia/Taipei")));
+            order.setPreparingAt(now);
         } else {
             throw new CustomException("400", "只有 OPEN 或 SUBMITTED 狀態可以接單");
         }
