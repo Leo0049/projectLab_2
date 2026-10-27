@@ -175,12 +175,13 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-26，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：552 個 `@Test`，分布在 100 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-10-27，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：555 個 `@Test`，分布在 101 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
 | 授權與路由 | `AuthorizationTest`（23） | 未認證商品寫入、跨帳號讀寫個資／錢包／訂單、偽造參數與「不帶參數」兩種繞過、拿他人 userId 結帳、竄改 finalPrice、跨帳號讀寫收藏、消耗他人優惠券、debug 與門市傾印端點已移除；非 ADMIN 權杖不可進入管理員後台、管理員權杖可讀待審清單（N-28）；登出所有裝置（stage 8）：不可撤銷他人的權杖，撤銷自己的權杖後同一權杖即被拒絕 |
 | 授權與路由 | `AuthorizationRouteInventoryTest`（3） | 列舉全部路由：非公開路由匿名呼叫必須回 401／403；公開清單的每一條都必須真的存在（ADR-0003） |
+| 授權與路由 | `ApiDocRouteGuardTest`（3） | 文字掃描，不載入 Spring context（stage 20）：controller 的每條路由都必須列在 `API.md`（UNDOC）；`API.md` 的每一列都必須對應到 controller 的路由，方法也要相符（PHANTOM、METHOD；`GET /actuator/health` 為唯一例外）；掃描本身有效（每個 controller 檔都要解析到 `public class`，路由與表格列都不少於 100 筆） |
 | 授權與路由 | `GroupOrderSecurityTest`（5） | 揪團 H-1～H-3：伺服器重算價格與歸屬；他人的 couponId 被拒；非團長不可改他人揪團狀態；團長本人的截單與重開可行，亂打的狀態被白名單擋下 |
 | 授權與路由 | `GroupOrderServiceAuthorizationTest`（10） | 揪團讀取與加入：只有發起人能取得分享 token；非成員不可讀數字 id 的明細；舊版加入必須帶正確的 token；拒絕他品牌的商品與門市停售的商品 |
 | 授權與路由 | `GroupOrderControllerViewerTest`（2） | 揪團查詢的 viewer 只取自 JWT 寫入的 request attribute，不取自參數；匿名請求以無 viewer 查詢 |
@@ -280,7 +281,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 89 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 90 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -852,7 +853,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **「認證」欄要與 `SecurityConfig` 一致**：permitAll 的路徑寫「無」，其餘寫實際需要的角色。`/api/auth/merge/bind-social` 需要 CUSTOMER（先前誤寫為無認證）。
 - **不採信參數的端點要寫明**：揪團（團長身分與品項）、訂單列表與收藏端點的 `userId`／`hostId` 查詢參數只為相容舊前端保留，身分一律取自 token；`API.md` 已逐列標示。
 - **群組推播訂閱只限成員**：`API.md` 已與 N12 一致，持分享連結、尚未加入的人不可訂閱。
-- **驗證**：2026-10-25 以一次性腳本比對 controller 路由與 `API.md` 表格：PHANTOM 0（唯一例外 `/actuator/health`）、METHOD 0、UNDOC 0；33 個表格的欄數逐列檢查，0 筆不符。腳本未入庫，是否把比對接進 CI 尚待決定。
+- **驗證**：2026-10-25 以一次性腳本比對 controller 路由與 `API.md` 表格：PHANTOM 0（唯一例外 `/actuator/health`）、METHOD 0、UNDOC 0；33 個表格的欄數逐列檢查，0 筆不符。比對已於 stage 20 入庫為 `ApiDocRouteGuardTest`，見「2026-10-27（stage 20）」一節。
 
 ## 2026-10-26（stage 15）新增的不變量與約定
 
@@ -887,3 +888,14 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **接單的時間由呼叫端傳入**：`acceptOrder(orderId, storeId, now)` 供測試使用；控制器呼叫的兩參數版本以 `Asia/Taipei` 的牆上時鐘取值。時限判斷只使用傳入的 `now`，不另外讀取時鐘。
 - **只有 SUBMITTED 受時限**：OPEN 的揪團即使建立已超過 10 分鐘，仍可由店家接單（既有行為，`AutoRejectPolicy` 的範圍不變）。
 - **還原驗證**：見 README「2026-10-26 逾時接單守衛還原驗證（CI）」。
+
+## 2026-10-27（stage 20）新增的不變量與約定
+
+- **`API.md` 與 controller 路由由 CI 守住**：`ApiDocRouteGuardTest` 以文字掃描讀取 `src/main/java/com/example/demo/controller/*.java` 的 `@RequestMapping`、`@GetMapping` 等註解（含類別層級的前綴；只剝除註解，字串常值保留，因為路徑就在字串裡），與 `API.md` 表格的 method 與 path 比對。沒有改用 Spring 的 `RequestMappingHandlerMapping`，是為了不載入 context；代價是解析器只認得下面列出的寫法。
+  - UNDOC：controller 有、`API.md` 沒有 → 紅。
+  - PHANTOM、METHOD：`API.md` 有、controller 沒有，或 method 不符 → 紅。`GET /actuator/health` 是唯一例外，由 Actuator 提供。
+  - 掃描有效性：每個 controller 檔都要解析到 `public class`，且路由與表格列都不少於 100 筆。掃描失效時前兩條會空轉，這一條負責讓測試變紅。
+- **新增、改名、刪除端點時，同一個 PR 更新 `API.md`**：stage 14 的約定現在由 CI 強制。只有方法欄為裸的 GET、POST、PUT、PATCH 或 DELETE（不加反引號）、路徑以 `/` 開頭的列會被當成一列；格式不符的列不計入，對應的 controller 路由就會被判定為 UNDOC。
+- **比對規則**：路徑參數一律正規化為 `{}`（`{id}` 與 `{userId}` 視為相同），查詢字串（如 `?lat=&lng=`）不納入比對。
+- **解析器的限制**：目前所有 controller 只用字串字面值與字串陣列（例如 `GroupOrderController` 的 `@GetMapping({ "/api/group-orders/join/{token}", "/api/group-orders/{token}" })`），沒有 `produces`、`params`、`headers`、`name`、常數路徑，也沒有多行的 mapping 註解，且只認 GET、POST、PUT、PATCH、DELETE。日後若出現這些寫法，必須先擴充解析器；在那之前，這些路由不會被比對，測試也不會報錯。
+- **還原驗證**：四組破壞（未文件化的路由、幽靈列、非 public 的 controller、方法不符）各自讓預期的測試轉紅，見 README「2026-10-27 路由文件守衛還原驗證（CI）」。

@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：467 個 `@Test`，85 個測試類別（JUnit 5 + Mockito；11 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：555 個 `@Test`，101 個測試類別（JUnit 5 + Mockito；11 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：43 個 HTML 頁面全數普掃（共 55 次載入，顧客主頁有資料與空狀態各掃一次；管理員後台四頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -330,7 +330,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 467 個 `@Test`（85 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 555 個 `@Test`（101 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -358,7 +358,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（467 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（555 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 43 個頁面全頁面普掃（55 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -370,16 +370,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是 `660d11e`（階段 18，PR #26；PR 頭的程式碼頭為 `1e12cfd`，合併後在 main 上為 `660d11e`）。該程式碼頭上的完整 CI 執行是 [run 40282962565](https://github.com/Leo0049/projectLab_2/actions/runs/40282962565)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit（`cee2a47` 只改 README 與 CLAUDE.md），由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是階段 20（PR #28，程式碼頭 `c949894`，新增 `ApiDocRouteGuardTest`）。該程式碼頭上的完整 CI 執行是 [run 40350477035](https://github.com/Leo0049/projectLab_2/actions/runs/40350477035)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 40282962565（`pull_request`，commit `1e12cfd`）：「測試與端對端驗證」514 秒、「容器映像建置（僅建置）」57 秒，皆成功 |
+| 執行 | run 40350477035（`pull_request`，commit `c949894`）：「測試與端對端驗證」499 秒、「容器映像建置（僅建置）」73 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，68 秒。測試總計 **552 個測試、100 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
-| 打包與起服務 | 打包 7 秒；啟動後端 17 秒 |
-| API 端對端（第 2 層） | 通過，6 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，336 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
+| `mvn test`（第 1 層） | 通過，62 秒。測試總計 **555 個測試、101 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 6 秒；啟動後端 14 秒 |
+| API 端對端（第 2 層） | 通過，5 秒 |
+| UI 流程（第 3 層，斷網模式） | 通過，331 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -983,6 +983,26 @@ CI 結果：
 - B、C 的紅燈是「錯誤」而非「失敗」：破壞後守衛在斷言之前就拋出 409，測試以例外結束。
 - 具名失敗來自 verify job 的 check-run annotation。
 - scratch 分支 `main-verif-stage18-A`、`main-verif-stage18-B`、`main-verif-stage18-C` 需由擁有者刪除，本次未刪。
+
+### 2026-10-27 路由文件守衛還原驗證（CI）
+
+階段 20 實作於 `test/stage20-api-doc-route-guard`（PR #28，程式碼頭 `c949894`）。`ApiDocRouteGuardTest`（3）只讀取文件與原始碼，不載入 Spring context。未破壞的對照是同一個程式碼頭的 [run 40350477035](https://github.com/Leo0049/projectLab_2/actions/runs/40350477035)：`mvn test` 為 555 個測試、101 個類別，失敗 0、錯誤 0、略過 0。
+
+破壞分支從 `c949894` 切出，分支名稱為 `main-verif-stage20-<編號>`，commit 標題以 `scratch:` 開頭。四組破壞各自在獨立分支上執行，沒有合併。本機沒有 JUnit 依賴，四組全部在 CI 上驗證。
+
+| 編號 | 破壞內容 | 位置 | commit | run | 結果 | 失敗的具名測試 |
+|------|---------|------|--------|-----|------|----------------|
+| A | 新增一條沒有列在 API.md 的路由（`GET /api/scratch-undocumented`） | `controller/ScratchRouteController.java` | `c9956d1` | [40350453243](https://github.com/Leo0049/projectLab_2/actions/runs/40350453243) | 失敗（1 項） | `everyControllerRouteIsDocumented`（UNDOC） |
+| B | 在 API.md 加一列 controller 沒有的路由（`GET /api/scratch-phantom`） | `API.md` | `c4b958b` | [40350459862](https://github.com/Leo0049/projectLab_2/actions/runs/40350459862) | 失敗（1 項） | `everyDocumentedRouteExistsInAController`（PHANTOM） |
+| C | `UploadController` 改為非 public，掃描因此略過它 | `controller/UploadController.java` | `f50d5c1` | [40350464193](https://github.com/Leo0049/projectLab_2/actions/runs/40350464193) | 失敗（2 項） | `scanIsMeaningful`（找不到 `public class`）、`everyDocumentedRouteExistsInAController`（PHANTOM：`POST /api/upload`） |
+| D | 把 API.md 的 `GET /api/home` 改為 POST | `API.md` | `273e428` | [40350468819](https://github.com/Leo0049/projectLab_2/actions/runs/40350468819) | 失敗（2 項） | `everyDocumentedRouteExistsInAController`（METHOD）、`everyControllerRouteIsDocumented`（UNDOC：`GET /api/home`） |
+
+- 各組的紅燈與事先推論的集合完全相同：A 的 1 項、B 的 1 項、C 的 2 項、D 的 2 項，沒有預期外的紅燈。
+- 其餘測試維持綠燈：A 與 B 為 554 項，C 與 D 為 553 項。
+- C 的兩個紅燈是同一處改動的兩個後果：掃描略過 `UploadController`，`scanIsMeaningful` 因此紅；`POST /api/upload` 在程式側找不到，PHANTOM 也紅。
+- A 與 D 的 UNDOC 來源不同：A 是程式多了一條路由；D 是程式的 `GET /api/home` 在文件中被改成 POST，文件側不再列出它。
+- 具名失敗來自 verify job 的 check-run annotation。
+- scratch 分支 `main-verif-stage20-A` 至 `-D` 需由擁有者刪除，本次未刪。
 
 ### 拆出可測試的規則
 
