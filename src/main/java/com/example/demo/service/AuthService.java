@@ -212,8 +212,6 @@ public class AuthService {
         user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         // 交易提交後切斷該顧客既有的推播工作階段（stage 21）
-        eventPublisher.publishEvent(AccountsRevokedEvent.forCustomer(user.getId()));
-
         log.info("帳號整合成功（三方帳號設定密碼）：userId={} phone={}", user.getId(), PhoneMask.mask(phone));
         return Result.success(generateLoginResponse(user));
     }
