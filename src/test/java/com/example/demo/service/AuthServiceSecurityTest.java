@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -39,6 +40,7 @@ class AuthServiceSecurityTest {
     @Mock private UserRepository userRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtUtils jwtUtils;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private AuthService authService;
 
@@ -49,6 +51,7 @@ class AuthServiceSecurityTest {
         ReflectionTestUtils.setField(authService, "userRepository", userRepository);
         ReflectionTestUtils.setField(authService, "passwordEncoder", passwordEncoder);
         ReflectionTestUtils.setField(authService, "jwtUtils", jwtUtils);
+        ReflectionTestUtils.setField(authService, "eventPublisher", eventPublisher);
         ReflectionTestUtils.setField(authService, "smsMode", "mock");
         // 只記在本地（無 Redis）：手機驗證權杖的「只能使用一次」規則照常生效，每個測試各自從空白開始
         ReflectionTestUtils.setField(authService, "firebaseTokenReplayGuard",

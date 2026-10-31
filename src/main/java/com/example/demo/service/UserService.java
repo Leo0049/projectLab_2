@@ -1,6 +1,5 @@
 package com.example.demo.service;
 
-import com.example.demo.common.AccountRef;
 import com.example.demo.common.AccountsRevokedEvent;
 import com.example.demo.common.JwtUtils;
 import com.example.demo.entity.User;
@@ -14,15 +13,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class UserService {
-
-    /** 顧客在權杖聲明與 STOMP 身分中的角色字串（與 User.role 的預設值相同） */
-    private static final String CUSTOMER_ROLE = "CUSTOMER";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -71,6 +66,7 @@ public class UserService {
     /**
      * 修改密碼，回傳新權杖。改密碼會遞增 tokenVersion，之前簽發的權杖全部失效（N13）；
      * 目前這個瀏覽器拿到新權杖即可維持登入。
+     * 交易提交後，{@link AccountsRevokedEvent} 會切斷該帳號既有的推播工作階段（stage 21）。
      */
     @Transactional
     public String changePassword(Long userId, String oldPassword, String newPassword) {
@@ -84,6 +80,7 @@ public class UserService {
 
         user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        eventPublisher.publishEvent(AccountsRevokedEvent.forCustomer(user.getId()));
         return jwtUtils.generateToken(user.getId(), user.getRole(), user.getPhone(), user.getTokenVersion());
     }
 
@@ -98,7 +95,6 @@ public class UserService {
                 .orElseThrow(() -> new CustomException("404", "找不到使用者"));
         user.revokeIssuedTokens();
         userRepository.save(user);
-        eventPublisher.publishEvent(
-                new AccountsRevokedEvent(List.of(new AccountRef(CUSTOMER_ROLE, userId))));
+        eventPublisher.publishEvent(AccountsRevokedEvent.forCustomer(userId));
     }
 }

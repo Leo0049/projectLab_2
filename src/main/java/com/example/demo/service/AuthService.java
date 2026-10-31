@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.common.AccountsRevokedEvent;
 import com.example.demo.common.JwtUtils;
 import com.example.demo.common.PhoneMask;
 import com.example.demo.common.SafeImageUrl;
@@ -20,6 +21,7 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,8 @@ public class AuthService {
     @Autowired private StoreService storeService;
     /** 手機驗證權杖只能成功使用一次（見 FirebaseTokenReplayGuard） */
     @Autowired private FirebaseTokenReplayGuard firebaseTokenReplayGuard;
+    /** 改密碼、重設密碼之後發布撤銷事件，切斷該顧客既有的推播工作階段（stage 21） */
+    @Autowired private ApplicationEventPublisher eventPublisher;
 
     @Value("${sms.mode:firebase}")
     private String smsMode;
@@ -207,6 +211,8 @@ public class AuthService {
 
         user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        // 交易提交後切斷該顧客既有的推播工作階段（stage 21）
+        eventPublisher.publishEvent(AccountsRevokedEvent.forCustomer(user.getId()));
 
         log.info("帳號整合成功（三方帳號設定密碼）：userId={} phone={}", user.getId(), PhoneMask.mask(phone));
         return Result.success(generateLoginResponse(user));
@@ -314,6 +320,8 @@ public class AuthService {
         bindVerifiedSocialProvider(user, socialIdToken, providerUid, provider);
         user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        // 交易提交後切斷該顧客既有的推播工作階段（stage 21）
+        eventPublisher.publishEvent(AccountsRevokedEvent.forCustomer(user.getId()));
         return Result.success(generateLoginResponse(user));
     }
 
@@ -327,6 +335,8 @@ public class AuthService {
         ensureActiveUser(user);
         user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        // 交易提交後切斷該顧客既有的推播工作階段（stage 21）
+        eventPublisher.publishEvent(AccountsRevokedEvent.forCustomer(user.getId()));
         log.info("密碼重設成功：userId={} phone={}", user.getId(), PhoneMask.mask(phoneNumber));
     }
 
