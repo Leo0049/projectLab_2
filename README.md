@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：555 個 `@Test`，101 個測試類別（JUnit 5 + Mockito；11 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：564 個 `@Test`，105 個測試類別（JUnit 5 + Mockito；11 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：43 個 HTML 頁面全數普掃（共 55 次載入，顧客主頁有資料與空狀態各掃一次；管理員後台四頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -330,7 +330,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 555 個 `@Test`（101 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 564 個 `@Test`（105 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -358,7 +358,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（555 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（564 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 43 個頁面全頁面普掃（55 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -370,16 +370,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是階段 20（PR #28，程式碼頭 `c949894`，新增 `ApiDocRouteGuardTest`）。該程式碼頭上的完整 CI 執行是 [run 40350477035](https://github.com/Leo0049/projectLab_2/actions/runs/40350477035)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是階段 21（PR #29，程式碼頭 `16262c7`，新增客戶撤銷切斷與四個測試類別）。該程式碼頭上的完整 CI 執行是 [run 41227065670](https://github.com/Leo0049/projectLab_2/actions/runs/41227065670)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 40350477035（`pull_request`，commit `c949894`）：「測試與端對端驗證」499 秒、「容器映像建置（僅建置）」73 秒，皆成功 |
+| 執行 | run 41227065670（`pull_request`，commit `16262c7`）：「測試與端對端驗證」494 秒、「容器映像建置（僅建置）」86 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，62 秒。測試總計 **555 個測試、101 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
-| 打包與起服務 | 打包 6 秒；啟動後端 14 秒 |
+| `mvn test`（第 1 層） | 通過，64 秒。測試總計 **564 個測試、105 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 7 秒；啟動後端 17 秒 |
 | API 端對端（第 2 層） | 通過，5 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，331 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
+| UI 流程（第 3 層，斷網模式） | 通過，335 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -1003,6 +1003,28 @@ CI 結果：
 - A 與 D 的 UNDOC 來源不同：A 是程式多了一條路由；D 是程式的 `GET /api/home` 在文件中被改成 POST，文件側不再列出它。
 - 具名失敗來自 verify job 的 check-run annotation。
 - scratch 分支 `main-verif-stage20-A` 至 `-D` 需由擁有者刪除，本次未刪。
+
+### 2026-11-01 客戶撤銷切斷還原驗證（CI）
+
+階段 21 實作於 `fix/stage21-customer-revocation-cuts-sockets`（PR #29，程式碼頭 `16262c7`）。改密碼、重設密碼、帳號整合設定密碼與刪除帳號之後，該顧客既有的 STOMP 推播工作階段會被切斷，與 stage 8 的登出所有裝置一致。新增 `UserServiceChangePasswordTest`（2）、`UserProfileServiceDeleteTest`（2）、`AuthServicePasswordRevocationTest`（3）與 `CustomerRevocationCutGuardTest`（2）。未破壞的對照是同一個程式碼頭的 [run 41227065670](https://github.com/Leo0049/projectLab_2/actions/runs/41227065670)：`mvn test` 為 564 個測試、105 個類別，失敗 0、錯誤 0、略過 0。
+
+破壞分支從 `16262c7` 切出，分支名稱為 `main-verif-stage21-<編號>`，commit 標題以 `scratch:` 開頭。七組破壞各自在獨立分支上執行，每組只改一處（G 是把一處移到另一處），沒有合併。本機沒有 Maven 與 JUnit、Mockito、Spring 依賴，七組全部在 CI 上驗證。
+
+| 編號 | 破壞內容 | 位置 | commit | run | 結果 | 失敗的具名測試 |
+|------|---------|------|--------|-----|------|----------------|
+| A | `changePassword` 拿掉事件發布 | `service/UserService.java` | `e472f64` | [41228152092](https://github.com/Leo0049/projectLab_2/actions/runs/41228152092) | 失敗（2 項） | `UserServiceChangePasswordTest.changingThePasswordRevokesTheCustomersSessions`；`CustomerRevocationCutGuardTest.everyCustomerRevocationPublishesTheEvent` |
+| B | `deleteMe` 拿掉事件發布 | `service/UserProfileService.java` | `cad10d1` | [41228154389](https://github.com/Leo0049/projectLab_2/actions/runs/41228154389) | 失敗（2 項） | `UserProfileServiceDeleteTest.deletingTheAccountRevokesTheCustomersSessions`；`CustomerRevocationCutGuardTest.everyCustomerRevocationPublishesTheEvent` |
+| C | `resetPasswordWithFirebase` 拿掉事件發布 | `service/AuthService.java` | `ef43408` | [41228156923](https://github.com/Leo0049/projectLab_2/actions/runs/41228156923) | 失敗（2 項） | `AuthServicePasswordRevocationTest.resettingThePasswordRevokesTheCustomersSessions`；`CustomerRevocationCutGuardTest.everyCustomerRevocationPublishesTheEvent` |
+| D | `mergeSetPassword` 拿掉事件發布 | `service/AuthService.java` | `e9f1d45` | [41228159534](https://github.com/Leo0049/projectLab_2/actions/runs/41228159534) | 失敗（2 項） | `AuthServicePasswordRevocationTest.settingThePasswordDuringMergeRevokesTheCustomersSessions`；`CustomerRevocationCutGuardTest.everyCustomerRevocationPublishesTheEvent` |
+| E | `mergeSetPasswordAndBindSocial` 拿掉事件發布 | `service/AuthService.java` | `d88ca5b` | [41228161648](https://github.com/Leo0049/projectLab_2/actions/runs/41228161648) | 失敗（2 項） | `AuthServicePasswordRevocationTest.mergingWithASocialIdentityRevokesTheCustomersSessions`；`CustomerRevocationCutGuardTest.everyCustomerRevocationPublishesTheEvent` |
+| F | `resetPasswordWithFirebase` 拿掉 `@Transactional` | `service/AuthService.java` | `5f09730` | [41228164036](https://github.com/Leo0049/projectLab_2/actions/runs/41228164036) | 失敗（1 項） | `CustomerRevocationCutGuardTest.revocationMethodsRunInsideATransaction` |
+| G | `changePassword` 把事件發布移到舊密碼檢查之前 | `service/UserService.java` | `b723a01` | [41228166599](https://github.com/Leo0049/projectLab_2/actions/runs/41228166599) | 失敗（1 項） | `UserServiceChangePasswordTest.aWrongOldPasswordChangesNothingAndPublishesNothing` |
+
+- 各組的紅燈與事先推論的集合完全相同：A 至 E 各 2 項（一條具名的行為測試，加上守衛 `everyCustomerRevocationPublishesTheEvent`），F 與 G 各 1 項，沒有預期外的紅燈。其餘測試維持綠燈，每組的總數皆為 564 個測試、錯誤 0、略過 0。
+- 守衛的紅燈來自 A 至 E：守衛確實看得見「呼叫撤銷方法的成員卻沒有發布事件」的情形。
+- F 只被 `revocationMethodsRunInsideATransaction` 抓到：拿掉的是交易註解，事件仍在方法內發布，文字掃描因此維持綠燈，交易註解要由反射檢查。
+- G 只被 `aWrongOldPasswordChangesNothingAndPublishesNothing` 抓到：事件在舊密碼錯誤時也會發布，但事件仍在同一個成員內，文字掃描無法區分順序，只有行為測試看得出來。
+- scratch 分支 `main-verif-stage21-A` 至 `-G` 需由擁有者刪除，本次未刪。
 
 ### 拆出可測試的規則
 
