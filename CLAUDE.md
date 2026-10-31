@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-10-27，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：555 個 `@Test`，分布在 101 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-11-01，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：564 個 `@Test`，分布在 105 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -203,6 +203,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `StompSessionListenerTest`（3） | CONNECT 後的工作階段登錄（stage 6）：可使用的帳號登錄且不被切斷；登錄時帳號已被停用（停用交易早於登錄）時立即切斷；未經認證的連線直接切斷 |
 | 授權與路由 | `AccountSuspensionCutListenerTest`（2） | 停用事件（`AccountsSuspendedEvent`）切斷列出的帳號所有工作階段，其他帳號不受影響（stage 6，`AFTER_COMMIT`）；切斷綁在 `AFTER_COMMIT`，以反射讀取註解固定（2026-10-21） |
 | 授權與路由 | `TokenRevocationCutListenerTest`（2） | 登出所有裝置的切斷（stage 8，純邏輯）：撤銷事件只切斷列出的顧客帳號，同 id 的門市與其他顧客不受影響；切斷綁在 `AFTER_COMMIT`，以反射讀取註解固定（2026-10-22） |
+| 授權與路由 | `CustomerRevocationCutGuardTest`（2，文字掃描與反射） | 客戶撤銷的切斷守衛（stage 21，不載入 Spring context）：掃描 `src/main/java`（排除 `entity/User.java`）中呼叫 `changePasswordHash` 或 `revokeIssuedTokens` 的每個成員，都必須發布 `AccountsRevokedEvent.forCustomer`；已知六處都要被掃到；六個方法都必須標註 `@Transactional`（2026-11-01） |
 | 授權與路由 | `JwtAuthenticationFilterTest`（15） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒；改密碼前簽發的顧客或門市 token 被拒、改密碼後簽發的通過（N13）；角色已改變的顧客 token 被拒（N13）；待審品牌的 token 被拒（N-28）；管理員 token 須存在且版本相符（N-28） |
 | 帳號與登入 | `BrandApprovalTest`（3） | 品牌審核狀態的純規則（N-28）：只有完全等於 APPROVED 才算已核准，空值與大小寫不同一律拒絕；只有 PENDING 可被核准或退件；登入被擋下的說明依狀態而異 |
 | 帳號與登入 | `BrandServiceApprovalTest`（6） | 品牌自助註冊與登入（N-28）：註冊一律建立為 PENDING；待審或退件即使密碼正確也不發放權杖（403）；密碼錯誤一律 401，不因審核狀態改變回應；核准後取得權杖；被停用的品牌不可登入（403，stage 6） |
@@ -217,6 +218,9 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 帳號與登入 | `JwtTokenVersionTest`（3） | 權杖的帳號版本聲明（N13）：簽發時的版本可原樣解析；沒有版本聲明的舊權杖視為版本 0，部署後既有登入不被強制登出。需要 jjwt，只在 CI 執行 |
 | 帳號與登入 | `UserTokenVersionTest`（4） | 改密碼與撤銷權杖會遞增帳號版本（N13）；撤銷只動版本、不動密碼；新帳號從版本 0 開始 |
 | 帳號與登入 | `UserServiceLogoutAllTest`（3） | 登出所有裝置的服務層（stage 8，Mockito）：遞增權杖版本並寫回；發布的撤銷事件列出該顧客（角色 CUSTOMER）；找不到帳號回 404，不寫入、不發布事件（2026-10-22） |
+| 帳號與登入 | `UserServiceChangePasswordTest`（2，Mockito） | 改密碼的撤銷（stage 21）：成功時遞增權杖版本並寫回，且發布列出該顧客的 `AccountsRevokedEvent`；舊密碼錯誤時不寫入、不發布事件（2026-11-01） |
+| 帳號與登入 | `UserProfileServiceDeleteTest`（2，Mockito） | 刪除帳號的撤銷（stage 21）：標記已刪除、遞增權杖版本並發布撤銷事件；找不到帳號回 404，不寫入、不發布事件（2026-11-01） |
+| 帳號與登入 | `AuthServicePasswordRevocationTest`（3，Mockito） | 三條客戶設定密碼的路徑（stage 21）：重設密碼、帳號整合設定密碼、帳號整合綁定社群，成功後都發布列出該顧客的撤銷事件（2026-11-01） |
 | 帳號與登入 | `DemoDataSeederProdGuardTest`（2） | prod profile 不植入示範帳號，即使 `DEMO_DATA_ENABLED=true` |
 | 帳號與登入 | `LoginAttemptLimiterTest`（10） | 登入／OTP 固定視窗限流（ADR-0004）；偽造的 `X-Forwarded-For` 不改變識別；Redis 不可用時退回本地計數；Redis 拋例外時仍以本地計數擋下第三次 |
 | 帳號與登入 | `PhoneProofRateLimitGuardTest`（1） | 手機驗證端點全部限流（文字掃描）：重設密碼、設定密碼、綁定、建立帳號共五條路由都必須呼叫 `loginAttemptLimiter.check` |
@@ -281,7 +285,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 90 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 94 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -712,7 +716,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **品牌與門市目前沒有改密碼路徑**。停用路徑已於 2026-10-20 加入（見該節），停用時會遞增版本。日後新增改密碼路徑時，必須遞增版本，否則舊權杖不會失效。
 - **沒有版本聲明的舊權杖視為版本 0**，欄位預設 0，部署時既有登入不會被強制登出。
 - **部署前必須先手動加欄位**：`users`、`brands`、`stores` 新增 `token_version INT NOT NULL DEFAULT 0`。prod 為 `ddl-auto: validate`，欄位不存在時啟動會失敗（SQL 見 `DATABASE.md`「結構變更方式」）。
-- **2026-10-15 時登出只在前端清除 token**；「登出所有裝置」已於 2026-10-22 實作（見該節，僅限顧客）。改密碼不切斷既有的 STOMP 訂閱，要等連線結束（與 N12 同一缺口）；新的 SUBSCRIBE 會被拒絕。
+- **2026-10-15 時登出只在前端清除 token**；「登出所有裝置」已於 2026-10-22 實作（見該節，僅限顧客）。改密碼、重設密碼、帳號整合設定密碼與刪除帳號會切斷該顧客既有的推播工作階段（stage 21，見 2026-11-01 節）；新的 SUBSCRIBE 會被拒絕。
 - **手機驗證權杖只能成功使用一次**（`FirebaseTokenReplayGuard`，見 ADR-0009）：`verifyFirebasePhone` 在號碼比對通過後呼叫 `claimOnce`，同一張在 2 小時內再用一律 401。`verifyOnly`（前端註冊頁的 `firebase-verify`）與 `MOCK_TOKEN` 都不記錄。Redis 鍵是 `fbtoken:<SHA-256>`，權杖本身不入庫。新增手機驗證端點時必須走 `verifyFirebasePhone`，不要另寫比對。
 - **社群權杖不在此規則內**（已知缺口）：Google、Facebook 權杖在整合流程的多個步驟中重複使用。通過號碼比對之後的失敗（例如第三方與權杖不符）也會燒掉手機驗證權杖，使用者需要重新取得驗證碼；這是刻意的取捨。
 - **Redis 故障期間只保證單一實例內正確**：`ClaimStore` 一律先寫本地，有 Redis 時再寫遠端；遠端拋例外時退回本地並寫警告。多實例之間不共享，與限流相同的退避策略。
@@ -785,7 +789,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 ## 2026-10-22（stage 8）新增的不變量與約定
 
 - **登出所有裝置只限顧客（stage 8）**：`POST /api/users/{userId}/logout-all` 先以 `requireSelf` 確認是本人，再呼叫 `UserService.logoutAllDevices`：`findByIdForUpdate` 列鎖 → `User.revokeIssuedTokens()`（版本 +1）→ 發布 `AccountsRevokedEvent`。既有權杖（含目前這個瀏覽器）立即失效（N13）。品牌與門市沒有此端點；日後新增時，必須同樣遞增 `token_version` 並發布事件。
-- **撤銷與停用的切斷分開命名**：`AccountsRevokedEvent`（登出所有裝置）由 `TokenRevocationCutListener` 處理；`AccountsSuspendedEvent`（停用）仍由 `AccountSuspensionCutListener` 處理。兩者都以 `AFTER_COMMIT` 呼叫 `StompSessionRegistry.cut`，交易回滾就不切斷。
+- **撤銷與停用的切斷分開命名**：`AccountsRevokedEvent`（登出所有裝置，stage 21 起另含改密碼、重設密碼、帳號整合設定密碼與刪除帳號）由 `TokenRevocationCutListener` 處理；`AccountsSuspendedEvent`（停用）仍由 `AccountSuspensionCutListener` 處理。兩者都以 `AFTER_COMMIT` 呼叫 `StompSessionRegistry.cut`，交易回滾就不切斷。
 - **切斷只作用於處理請求的實例**：`StompSessionRegistry` 只存在單一實例的記憶體中（與 ADR-0012 的代價相同）。權杖失效是全域的（版本存在資料庫），但其他實例上既有的 STOMP 連線要等到連線結束；新的 CONNECT 與 SUBSCRIBE 一律被拒絕。
 - **前端只在伺服器回應成功後才清除本機登入**：`profile.html` 的「登出所有裝置」請求失敗時保留登入狀態並顯示錯誤，不做只清本機的假登出。
 - **已知缺口**：從交易提交到切斷的整段流程沒有整合測試，`AFTER_COMMIT` 的「回滾不切斷」語意依賴 Spring（與 stage 6 相同）。切斷只作用於處理請求的實例（ADR-0012）。
@@ -899,3 +903,14 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **比對規則**：路徑參數一律正規化為 `{}`（`{id}` 與 `{userId}` 視為相同），查詢字串（如 `?lat=&lng=`）不納入比對。
 - **解析器的限制**：目前所有 controller 只用字串字面值與字串陣列（例如 `GroupOrderController` 的 `@GetMapping({ "/api/group-orders/join/{token}", "/api/group-orders/{token}" })`），沒有 `produces`、`params`、`headers`、`name`、常數路徑，也沒有多行的 mapping 註解，且只認 GET、POST、PUT、PATCH、DELETE。日後若出現這些寫法，必須先擴充解析器；在那之前，這些路由不會被比對，測試也不會報錯。
 - **還原驗證**：四組破壞（未文件化的路由、幽靈列、非 public 的 controller、方法不符）各自讓預期的測試轉紅，見 README「2026-10-27 路由文件守衛還原驗證（CI）」。
+
+## 2026-11-01（stage 21）新增的不變量與約定
+
+- **客戶的撤銷路徑在交易內發布 `AccountsRevokedEvent.forCustomer(userId)`**：改密碼（`UserService.changePassword`）、重設密碼（`AuthService.resetPasswordWithFirebase`）、帳號整合設定密碼（`AuthService.mergeSetPassword`，即 `/merge/set-password`；以及 `AuthService.mergeSetPasswordAndBindSocial`，即 `/merge/complete`）與刪除帳號（`UserProfileService.deleteMe`）都與登出所有裝置（`UserService.logoutAllDevices`，stage 8）一樣發布事件。交易提交後，`TokenRevocationCutListener` 切斷該顧客既有的推播工作階段。
+- **顧客撤銷事件只由 `AccountsRevokedEvent.forCustomer(long)` 建立**：角色固定為 `CUSTOMER`。服務內不要自己組 `AccountRef`。
+- **守衛的範圍**：`CustomerRevocationCutGuardTest` 以文字掃描 `src/main/java`（排除 `entity/User.java`），要求每個呼叫 `changePasswordHash` 或 `revokeIssuedTokens` 的成員內都含 `AccountsRevokedEvent.forCustomer(`；`KNOWN_SITES` 列出的六處必須都被掃到（少於六處即紅，避免掃描失效時空轉）；這六個方法必須標註 `@Transactional`（或 jakarta 的同名註解）。這是以成員為單位的文字掃描，不做資料流分析：呼叫與發布必須在同一個成員內。新增撤銷路徑時，把它加進 `KNOWN_SITES`。
+- **失敗的路徑不發布**：舊密碼錯誤時不寫入、不發布（`UserServiceChangePasswordTest.aWrongOldPasswordChangesNothingAndPublishesNothing`）。事件在交易內發布，交易回滾就不切斷（與 stage 6、stage 8 相同）。
+- **測試用的 `User` 要先 `setId`**：撤銷事件的 `user.getId()` 會拆箱，`new User()` 沒有 id 時在 `publishEvent` 會 NPE。正式帳號一律有 id；`AuthServiceSecurityTest` 的兩個 fixture 已補上。
+- **切斷後的行為**：被切斷的工作階段不會被關閉，送往它的推播一律丟棄（`CutSessionOutboundInterceptor`），新的 SUBSCRIBE 會因權杖版本不符被拒絕。改密碼後前端會換上新權杖（`profile.html`），重新整理頁面即可以新權杖重新連線。
+- **已知缺口**：切斷只作用於處理請求的實例（ADR-0012）。N12 的殘餘（成員身分變動與 token 到期後，既有訂閱不會即時中斷）仍未處理，要先決定切斷粒度：整個工作階段，或逐一取消訂閱。
+- **驗證**：程式碼頭 `16262c7` 的 CI run 41227065670 為 564 個測試、105 個類別，失敗 0、錯誤 0、略過 0。還原驗證 A–G 見 README「2026-11-01 客戶撤銷切斷還原驗證（CI）」。

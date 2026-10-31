@@ -1,6 +1,6 @@
 # JoinDrink API 技術手冊 (v4.1)
 
-> **最後更新**：2026-10-25（補充：逐一對照 controller 路由，補上未記載的端點，修正 `merge/bind-social` 的認證與請求格式；`/topic/group/{token}` 推播改為僅限成員；揪團、訂單與收藏端點的 `userId`／`hostId` 查詢參數不採信（身分一律取自 token）；controller 清單補上 AdminController。前次 2026-10-18 補充：店家搜尋分頁；冪等結帳、轉盤狀態碼、附近店家分頁與座標檢查、健康檢查、`X-Request-Id`；移除不存在的 SSE 端點）
+> **最後更新**：2026-11-01（補充：改密碼、重設密碼、帳號整合設定密碼與刪除帳號會切斷該顧客既有的 WebSocket 推播（stage 21）。前次 2026-10-25 補充：逐一對照 controller 路由，補上未記載的端點，修正 `merge/bind-social` 的認證與請求格式；`/topic/group/{token}` 推播改為僅限成員；揪團、訂單與收藏端點的 `userId`／`hostId` 查詢參數不採信（身分一律取自 token）；controller 清單補上 AdminController。前次 2026-10-18 補充：店家搜尋分頁；冪等結帳、轉盤狀態碼、附近店家分頁與座標檢查、健康檢查、`X-Request-Id`；移除不存在的 SSE 端點）
 > **Base URL**：`http://localhost:8082`
 > **認證方式**：`Authorization: Bearer <JWT>`
 > **統一回應格式**：`{ "code": "200", "msg": "請求成功", "data": { ... } }`
@@ -29,10 +29,10 @@
 | POST | `/api/auth/corporate-login` | 無 | **品牌/分店統一登入入口**，自動辨識帳號身分 Body: `{ account, password }` |
 | GET | `/api/auth/check-phone` | 無 | 檢查手機是否已註冊 Query: `?phone=09xx` |
 | POST | `/api/auth/firebase-verify` | 無 | Firebase Token 預檢 Body: `{ idToken }` |
-| POST | `/api/auth/reset-password-firebase` | 無 | 重設密碼 Body: `{ idToken, phone, newPassword }` |
-| POST | `/api/auth/merge/set-password` | 無 | 帳號整合：三方帳號設密碼 Body: `{ idToken, phone, newPassword }` |
+| POST | `/api/auth/reset-password-firebase` | 無 | 重設密碼 Body: `{ idToken, phone, newPassword }`。成功後切斷該顧客既有的 WebSocket 推播（stage 21） |
+| POST | `/api/auth/merge/set-password` | 無 | 帳號整合：三方帳號設密碼 Body: `{ idToken, phone, newPassword }`。成功後切斷該顧客既有的 WebSocket 推播（stage 21） |
 | POST | `/api/auth/merge/bind-social` | CUSTOMER | 帳號整合：已登入的傳統帳號綁定三方（需先以既有會員身分登入，並提供與 providerUid 相符的 Firebase 社群登入 token）。Body: `{ idToken, providerUid, provider }` |
-| POST | `/api/auth/merge/complete` | 無 | 帳號整合：以手機 OTP 驗證會員身分，同時設定密碼並綁定已驗證的社群帳號。Body: `{ phoneIdToken, phone, newPassword, socialIdToken, providerUid, provider }`。密碼 8～16 字元；受登入限流（`auth-phone-proof`）|
+| POST | `/api/auth/merge/complete` | 無 | 帳號整合：以手機 OTP 驗證會員身分，同時設定密碼並綁定已驗證的社群帳號。Body: `{ phoneIdToken, phone, newPassword, socialIdToken, providerUid, provider }`。密碼 8～16 字元；受登入限流（`auth-phone-proof`）。成功後切斷該顧客既有的 WebSocket 推播（stage 21）|
 | POST | `/api/auth/merge/bind-social-phone` | 無 | 帳號整合：以手機驗證綁定三方。Body: `{ phoneIdToken, phone, idToken, providerUid, provider }`；受登入限流（`auth-phone-proof`）|
 | PUT | `/api/auth/update` | CUSTOMER | 更新個人資料（暱稱、頭像）。Body: `{ name?, picUrl? }`。**變更手機號碼已停用**（回 400，需走手機驗證流程）。暱稱不可含 `< > " \`` 或控制字元，最多 30 字 |
 
@@ -150,12 +150,12 @@
 |--------|------|------|
 | GET | `/api/users/me` | 取得會員資料與餘額 |
 | PUT | `/api/users/me` | 修改暱稱、頭像 Body: `{ name?, picUrl? }` |
-| DELETE | `/api/users/me` | 邏輯刪除帳號 |
+| DELETE | `/api/users/me` | 邏輯刪除帳號；既有權杖失效，並切斷該帳號既有的 WebSocket 推播（stage 21） |
 | POST | `/api/users/avatar` | 上傳頭像 Form: `avatar`（圖片）回傳: `{ avatarUrl }` |
 | GET | `/api/users/{userId}` | 取得使用者資料 |
 | PUT | `/api/users/{userId}/avatar` | 更新頭像 URL |
 | PUT | `/api/users/{userId}/profile` | 更新個人資料 |
-| POST | `/api/users/{userId}/change-password` | 修改密碼；回傳 `{ message, token }`。改密碼後其他裝置的舊權杖失效，前端須換上新 token（N13） |
+| POST | `/api/users/{userId}/change-password` | 修改密碼；回傳 `{ message, token }`。改密碼後其他裝置的舊權杖失效，前端須換上新 token（N13）；並切斷該帳號既有的 WebSocket 推播（stage 21） |
 | POST | `/api/users/{userId}/logout-all` | 登出所有裝置（僅限本人，他人帳號回 403）：撤銷此帳號所有已簽發的權杖（含目前這個瀏覽器），並切斷該實例上既有的 WebSocket 連線。回傳 `{ message }`。之後需重新登入（N13，stage 8） |
 | GET | `/api/users/{userId}/address` | 取得使用者常用地址列表 |
 | POST | `/api/users/{userId}/addresses` | 新增常用地址 Body: `{ city, district, street, label?, latitude?, longitude? }` |
