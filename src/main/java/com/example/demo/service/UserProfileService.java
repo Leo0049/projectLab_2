@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.common.AccountsRevokedEvent;
 import com.example.demo.common.SafeImageUrl;
 import com.example.demo.common.SafeText;
 import com.example.demo.entity.*;
@@ -9,6 +10,7 @@ import com.example.demo.service.wallet.TxDisplay;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -31,6 +33,8 @@ public class UserProfileService {
     @Autowired private TransactionRecordRepository transactionRecordRepository;
     @Autowired private ImageStorageService imageStorageService;
     @Autowired private Environment environment;
+    /** 刪除帳號時發布撤銷事件，切斷該顧客既有的推播工作階段（stage 21） */
+    @Autowired private ApplicationEventPublisher eventPublisher;
 
     @Value("${app.wallet.mock-top-up.enabled:false}")
     private boolean mockTopUpEnabled;
@@ -68,6 +72,8 @@ public class UserProfileService {
         // 邏輯刪除後，既有權杖即使日後帳號被還原也不再有效（N13）
         user.revokeIssuedTokens();
         userRepository.save(user);
+        // 既有的推播工作階段在交易提交後一併切斷（N7 只在 CONNECT／SUBSCRIBE 時檢查，stage 21）
+        eventPublisher.publishEvent(AccountsRevokedEvent.forCustomer(user.getId()));
     }
 
     // ─── 錢包餘額 ─────────────────────────────────────────
