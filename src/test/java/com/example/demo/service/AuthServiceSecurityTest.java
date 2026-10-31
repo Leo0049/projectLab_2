@@ -183,6 +183,7 @@ class AuthServiceSecurityTest {
     void verifiedPhoneTokenCanOnlyBeUsedOnce() throws Exception {
         String phone = "0912345678";
         User user = new User();
+        user.setId(9L);
         user.setPhone(phone);
         when(userRepository.findByPhone(phone)).thenReturn(Optional.of(user));
 
@@ -207,6 +208,7 @@ class AuthServiceSecurityTest {
     void preCheckDoesNotConsumeThePhoneToken() throws Exception {
         String phone = "0912345678";
         User user = new User();
+        user.setId(9L);
         user.setPhone(phone);
         when(userRepository.findByPhone(phone)).thenReturn(Optional.of(user));
 
