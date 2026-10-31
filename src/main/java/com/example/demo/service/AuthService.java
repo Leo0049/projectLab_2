@@ -327,7 +327,6 @@ public class AuthService {
 
     // ─── 重設密碼 ─────────────────────────────────────────────
     // ✅ 補上缺少的方法：UserController /api/auth/reset-password-firebase 呼叫此方法
-    @Transactional
     public void resetPasswordWithFirebase(String idToken, String phoneNumber, String newPassword) throws Exception {
         verifyFirebasePhone(idToken, phoneNumber);
         User user = userRepository.findByPhone(phoneNumber)
