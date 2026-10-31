@@ -74,13 +74,13 @@ public class UserService {
         User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        eventPublisher.publishEvent(AccountsRevokedEvent.forCustomer(user.getId()));
         if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
             throw new RuntimeException("舊密碼不正確");
         }
 
         user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-        eventPublisher.publishEvent(AccountsRevokedEvent.forCustomer(user.getId()));
         return jwtUtils.generateToken(user.getId(), user.getRole(), user.getPhone(), user.getTokenVersion());
     }
 
