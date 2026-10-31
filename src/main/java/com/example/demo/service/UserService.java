@@ -80,7 +80,6 @@ public class UserService {
 
         user.changePasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-        eventPublisher.publishEvent(AccountsRevokedEvent.forCustomer(user.getId()));
         return jwtUtils.generateToken(user.getId(), user.getRole(), user.getPhone(), user.getTokenVersion());
     }
 
