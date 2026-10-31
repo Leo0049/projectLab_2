@@ -73,7 +73,6 @@ public class UserProfileService {
         user.revokeIssuedTokens();
         userRepository.save(user);
         // 既有的推播工作階段在交易提交後一併切斷（N7 只在 CONNECT／SUBSCRIBE 時檢查，stage 21）
-        eventPublisher.publishEvent(AccountsRevokedEvent.forCustomer(user.getId()));
     }
 
     // ─── 錢包餘額 ─────────────────────────────────────────
