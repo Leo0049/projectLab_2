@@ -18,7 +18,7 @@ public class AccountSuspensionCutListener {
 
     private final StompSessionRegistry sessions;
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     public void onAccountsSuspended(AccountsSuspendedEvent event) {
         for (AccountRef account : event.accounts()) {
             sessions.cut(account);
