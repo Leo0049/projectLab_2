@@ -19,7 +19,7 @@ public class TokenRevocationCutListener {
 
     private final StompSessionRegistry sessions;
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     public void onAccountsRevoked(AccountsRevokedEvent event) {
         for (AccountRef account : event.accounts()) {
             sessions.cut(account);
