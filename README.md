@@ -376,7 +376,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 |------|------|
 | 執行 | run 41227065670（`pull_request`，commit `16262c7`）：「測試與端對端驗證」494 秒、「容器映像建置（僅建置）」86 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，64 秒。測試總計 **564 個測試、105 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| `mvn test`（第 1 層） | 通過，62 秒。測試總計 **574 個測試、106 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
 | 打包與起服務 | 打包 7 秒；啟動後端 17 秒 |
 | API 端對端（第 2 層） | 通過，5 秒 |
 | UI 流程（第 3 層，斷網模式） | 通過，335 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
@@ -1026,6 +1026,23 @@ CI 結果：
 - G 只被 `aWrongOldPasswordChangesNothingAndPublishesNothing` 抓到：事件在舊密碼錯誤時也會發布，但事件仍在同一個成員內，文字掃描無法區分順序，只有行為測試看得出來。
 - scratch 分支 `main-verif-stage21-A` 至 `-G` 需由擁有者刪除，本次未刪。
 
+### 2026-11-02 切斷的交易整合測試還原驗證（CI）
+
+階段 22 實作於 `test/stage22-cut-after-commit-integration`（PR #30，程式碼頭 `8b45003`）。只新增測試與文件，不改產品程式碼。新增 `SessionCutAfterCommitIntegrationTest`（10 個測試，載入 Spring context），以真實的 JPA 交易驗證撤銷與停用事件的四種結局：提交前不切斷、提交後才切斷（且只切斷列出的帳號，角色不同即使 id 相同也不切）、回滾不切斷、提交失敗不切斷。另有四個測試走真實服務：登出所有裝置、改密碼（成功與舊密碼錯誤）、停用品牌。未破壞的對照是同一個程式碼頭的 [run 41428831550](https://github.com/Leo0049/projectLab_2/actions/runs/41428831550)：`mvn test` 為 574 個測試、106 個類別，失敗 0、錯誤 0、略過 0。
+
+破壞分支從 `8b45003` 切出，分支名稱為 `main-verif-stage22-<編號>`，commit 標題以 `scratch:` 開頭。三組破壞各自在獨立分支上執行，每組只改一處，沒有合併。本機沒有 Maven 與 JUnit、Spring 依賴，三組全部在 CI 上驗證。
+
+| 編號 | 破壞內容 | 位置 | commit | run | 結果 | 失敗的具名測試 |
+|------|---------|------|--------|-----|------|----------------|
+| A | 撤銷監聽器改為 `BEFORE_COMMIT` | `config/TokenRevocationCutListener.java` | `e3f7a02` | [41430086076](https://github.com/Leo0049/projectLab_2/actions/runs/41430086076) | 失敗（2 項） | `SessionCutAfterCommitIntegrationTest.revocationIsNotCutWhenTheCommitFails`；`TokenRevocationCutListenerTest.cutIsBoundToTheAfterCommitPhase` |
+| B | 停用監聽器改為 `BEFORE_COMMIT` | `config/AccountSuspensionCutListener.java` | `aba6f4b` | [41430089499](https://github.com/Leo0049/projectLab_2/actions/runs/41430089499) | 失敗（2 項） | `SessionCutAfterCommitIntegrationTest.suspensionIsNotCutWhenTheCommitFails`；`AccountSuspensionCutListenerTest.cutIsBoundToTheAfterCommitPhase` |
+| D | 登錄表比對時忽略角色（只比 id） | `config/StompSessionRegistry.java` | `361d2c3` | [41430093558](https://github.com/Leo0049/projectLab_2/actions/runs/41430093558) | 失敗（4 項） | `SessionCutAfterCommitIntegrationTest.suspensionCutsOnlyTheListedRoleAfterTheCommit`；`SessionCutAfterCommitIntegrationTest.suspendBrandCutsTheBrandAndItsStoresOnceItReturns`；`StompSessionRegistryTest.sameIdAcrossRolesIsNotCut`；`TokenRevocationCutListenerTest.cutsOnlyTheListedCustomer` |
+
+- 各組的紅燈與事先推論的集合完全相同：A 與 B 各 2 項，D 4 項。其餘測試維持綠燈，每組的總數皆為 574 個測試、錯誤 0、略過 0。
+- A 與 B 在行為上只有「提交失敗」那條測試抓得到；另一項紅燈來自既有的反射測試，它只固定註解上的階段。原因寫在測試類別的 Javadoc：回滾（包括只設定 rollback-only）不會觸發 `BEFORE_COMMIT`，所以回滾測試分辨不出兩者。
+- D 的紅燈同時出現在整合測試與既有的 N13 單元測試，代表角色比對在兩個層級都有守衛。
+- scratch 分支 `main-verif-stage22-A`、`-B`、`-D` 需由擁有者刪除，本次未刪。
+
 ### 拆出可測試的規則
 
 抽出時 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
@@ -1114,7 +1131,7 @@ CI 結果：
 - 個人訂單的錢包扣款說明已於 2026-10-26（stage 16）修正：建單的 escrow 扣款與逐品項扣款都改經 `service/wallet/LedgerDescriptions`，統一為「個人訂單 #N 結帳扣款」；揪團結帳的「已扣除團員已付部分」保留。既有帳本列不改寫，舊資料仍顯示舊文字。
 - 品牌自助註冊已改為審核制（N-28，2026-10-18）：新品牌為 `PENDING`，未核准不能登入，也不出現在公開列表。管理員審核的後台頁面已加入（`frontend/Admin/`，路徑 `/Admin/login.html`），資料仍只經 `/api/admin/**`；是否另加邀請碼仍待業務決定。
 - 品牌與分店停用（stage 6，2026-10-20，ADR-0012）的已知缺口：（a）（b）已於 2026-10-26（stage 17）修正：收藏清單不列出停用的分店，新增收藏與加入購物車在停用時回 400；（c）停用前已建立的揪團仍可由成員檢視，商品驗證、團員付款與補款會擋；（d）即時切斷只作用於收到停用事件的那台實例，其他實例上既有的 WebSocket 訂閱要等連線結束（見 `docs/DEPLOYMENT.md` 第 30 項）。
-- 停用的付款守衛與切斷的 `AFTER_COMMIT` 階段已於 2026-10-21 補上測試（`StoreSuspensionPaymentGuardTest`、`AccountSuspensionCutListenerTest`），還原驗證見「2026-10-21 補測試後還原驗證（Java，CI）」。交易回滾不切斷沒有整合測試，語意依賴 Spring 的 `AFTER_COMMIT`。
+- 停用的付款守衛與切斷的 `AFTER_COMMIT` 階段已於 2026-10-21 補上測試（`StoreSuspensionPaymentGuardTest`、`AccountSuspensionCutListenerTest`），還原驗證見「2026-10-21 補測試後還原驗證（Java，CI）」。交易的四種結局（提交前、提交後、回滾、提交失敗）已於 2026-11-02（stage 22）以真實交易的整合測試守住（`SessionCutAfterCommitIntegrationTest`）。
 - 依賴漏洞稽核已於 stage 13 改為報告模式（npm 與 Maven，N-29）；是否設定 repo secret `NVD_API_KEY` 仍待決定（選用，見 `docs/REVIEW_2026-10-13.md` 第三節）。CI action 版本已由成功的 CI 執行驗證（N-20，2026-10-16 關閉）。
 
 ---
