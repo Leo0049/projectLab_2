@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-11-01，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：564 個 `@Test`，分布在 105 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-11-02，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：574 個 `@Test`，分布在 106 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -204,6 +204,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `AccountSuspensionCutListenerTest`（2） | 停用事件（`AccountsSuspendedEvent`）切斷列出的帳號所有工作階段，其他帳號不受影響（stage 6，`AFTER_COMMIT`）；切斷綁在 `AFTER_COMMIT`，以反射讀取註解固定（2026-10-21） |
 | 授權與路由 | `TokenRevocationCutListenerTest`（2） | 登出所有裝置的切斷（stage 8，純邏輯）：撤銷事件只切斷列出的顧客帳號，同 id 的門市與其他顧客不受影響；切斷綁在 `AFTER_COMMIT`，以反射讀取註解固定（2026-10-22） |
 | 授權與路由 | `CustomerRevocationCutGuardTest`（2，文字掃描與反射） | 客戶撤銷的切斷守衛（stage 21，不載入 Spring context）：掃描 `src/main/java`（排除 `entity/User.java`）中呼叫 `changePasswordHash` 或 `revokeIssuedTokens` 的每個成員，都必須發布 `AccountsRevokedEvent.forCustomer`；已知六處都要被掃到；六個方法都必須標註 `@Transactional`（2026-11-01） |
+| 授權與路由 | `SessionCutAfterCommitIntegrationTest`（10，載入 Spring context） | 切斷的交易整合（stage 22，真實 Spring 交易，以 `TransactionTemplate` 開啟）：撤銷與停用事件在提交前不切斷、提交後才切斷，且只切斷列出的帳號（角色不同即使 id 相同也不切，N13）；回滾不切斷；提交失敗不切斷（`BEFORE_COMMIT` 會在提交前就先切斷）；真實服務的登出所有裝置、改密碼（舊密碼錯誤時不切斷、版本不變）與停用品牌（品牌與分店一起切斷）（2026-11-02） |
 | 授權與路由 | `JwtAuthenticationFilterTest`（15） | JWT 過濾器：已刪除或不存在的帳號 token 被拒；有效的顧客、品牌、門市 token 通過；未知角色被拒；改密碼前簽發的顧客或門市 token 被拒、改密碼後簽發的通過（N13）；角色已改變的顧客 token 被拒（N13）；待審品牌的 token 被拒（N-28）；管理員 token 須存在且版本相符（N-28） |
 | 帳號與登入 | `BrandApprovalTest`（3） | 品牌審核狀態的純規則（N-28）：只有完全等於 APPROVED 才算已核准，空值與大小寫不同一律拒絕；只有 PENDING 可被核准或退件；登入被擋下的說明依狀態而異 |
 | 帳號與登入 | `BrandServiceApprovalTest`（6） | 品牌自助註冊與登入（N-28）：註冊一律建立為 PENDING；待審或退件即使密碼正確也不發放權杖（403）；密碼錯誤一律 401，不因審核狀態改變回應；核准後取得權杖；被停用的品牌不可登入（403，stage 6） |
@@ -285,7 +286,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 11 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`）之外，其餘 94 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 12 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`、`SessionCutAfterCommitIntegrationTest`）之外，其餘 94 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
