@@ -42,7 +42,7 @@ public class StompSessionRegistry {
     /** 切斷某帳號目前所有的工作階段。之後送往這些工作階段的訊息一律丟棄。 */
     public void cut(AccountRef account) {
         accountBySession.forEach((sessionId, ref) -> {
-            if (ref.equals(account)) {
+            if (ref.id() == account.id()) {
                 cutSessions.add(sessionId);
             }
         });
