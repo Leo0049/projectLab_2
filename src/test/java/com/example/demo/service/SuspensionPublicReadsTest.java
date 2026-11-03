@@ -20,6 +20,8 @@ import com.example.demo.repository.UserCouponRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Optional;
 
@@ -64,7 +66,8 @@ class SuspensionPublicReadsTest {
 
     private DailySpinService dailySpinService() {
         return new DailySpinService(productRepository, userCouponRepository, menuCategoryRepository,
-                redisLockService, stringRedisTemplate, brandRepository);
+                redisLockService, stringRedisTemplate, brandRepository,
+                new TransactionTemplate(mock(PlatformTransactionManager.class)));
     }
 
     private static Brand brand(boolean suspended) {
