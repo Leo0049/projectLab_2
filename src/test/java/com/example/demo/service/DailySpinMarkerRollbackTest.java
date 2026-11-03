@@ -127,6 +127,8 @@ class DailySpinMarkerRollbackTest {
     void emptyBrandNeverClaimsTodaysMarker() {
         arrangeApprovedBrand();
         when(redisLockService.acquireLock(LOCK_KEY, 10)).thenReturn("user-token");
+        // 今日標記可以取得（使用者今天還沒抽過）：只有內容檢查會讓 spin 失敗，順序斷言才是唯一的判準
+        when(redisLockService.acquireLock(eq(dailyKey), anyLong())).thenReturn("daily-token");
         when(productRepository.findByBrandId(BRAND)).thenReturn(List.of());
 
         CustomException e = assertThrows(CustomException.class, () -> service().spin(USER, BRAND));
