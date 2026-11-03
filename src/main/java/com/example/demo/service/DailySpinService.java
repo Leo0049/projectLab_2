@@ -118,19 +118,6 @@ public class DailySpinService {
      */
     private SpinResult spinInTransaction(Long userId, Long brandId, String dailyKey,
                                          AtomicReference<String> dailyToken) {
-        // 2. 先確認品牌有可抽獎的內容。
-        //    ⚠️ 必須在寫入「今日已轉」標記之前檢查：品牌沒有飲品時若標記已寫入，
-        //    使用者當天就再也抽不到，卻沒有拿到任何獎品（2026-10-12 評估中發現）。
-        List<ProductTemplate> allProducts = productRepository.findByBrandId(brandId);
-        if (allProducts.isEmpty()) {
-            throw new com.example.demo.exception.CustomException("422", "該品牌目前沒有可抽獎的飲品");
-        }
-        List<com.example.demo.entity.MenuCategory> categories =
-                menuCategoryRepository.findByBrandIdOrderBySortOrderAsc(brandId);
-        if (categories.isEmpty()) {
-            throw new com.example.demo.exception.CustomException("422", "該品牌目前沒有可抽獎的飲品分類");
-        }
-
         // 3. 使用 Redis 記錄今日已轉（TTL 到午夜）
         long ttl = getRemainingSecondsToday();
 
@@ -148,6 +135,19 @@ public class DailySpinService {
 
         if (!redisCheckPassed) {
             throw new com.example.demo.exception.CustomException("409", "你今日已參加過轉盤遊戲");
+        }
+
+        // 2. 先確認品牌有可抽獎的內容。
+        //    ⚠️ 必須在寫入「今日已轉」標記之前檢查：品牌沒有飲品時若標記已寫入，
+        //    使用者當天就再也抽不到，卻沒有拿到任何獎品（2026-10-12 評估中發現）。
+        List<ProductTemplate> allProducts = productRepository.findByBrandId(brandId);
+        if (allProducts.isEmpty()) {
+            throw new com.example.demo.exception.CustomException("422", "該品牌目前沒有可抽獎的飲品");
+        }
+        List<com.example.demo.entity.MenuCategory> categories =
+                menuCategoryRepository.findByBrandIdOrderBySortOrderAsc(brandId);
+        if (categories.isEmpty()) {
+            throw new com.example.demo.exception.CustomException("422", "該品牌目前沒有可抽獎的飲品分類");
         }
 
         // 4. 資料庫層級二次檢查（防止 Redis 重啟導致狀態遺失，或 Redis 故障）
