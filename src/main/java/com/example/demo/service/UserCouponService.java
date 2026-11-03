@@ -151,26 +151,6 @@ public class UserCouponService {
         );
     }
 
-    public List<Map<String, Object>> getGameWheelBrands() {
-        List<ProductTemplate> products = productTemplateRepository.findAll();
-        Set<Long> brandIds = new HashSet<>();
-        for (ProductTemplate p : products) {
-            if (p.getBrand() != null) brandIds.add(p.getBrand().getId());
-        }
-
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Long bid : brandIds) {
-            brandRepository.findById(bid).ifPresent(b -> {
-                Map<String, Object> m = new HashMap<>();
-                m.put("brandId", b.getId());
-                m.put("brandName", b.getName());
-                m.put("logoUrl", b.getLogoUrl());
-                result.add(m);
-            });
-        }
-        return result;
-    }
-
     public Map<String, Object> getGameWheelMenu(Long brandId) {
         Brand brand = brandRepository.findById(brandId)
                 .orElseThrow(() -> new CustomException("404", "找不到品牌"));

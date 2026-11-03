@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-11-02，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：574 個 `@Test`，分布在 106 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-11-03，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：576 個 `@Test`，分布在 107 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -284,9 +284,10 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `NamespacedRedisKeySerializerTest`（7） | 鍵序列化器只加前綴，不改 hash 欄位與 value；還原的往返；另一命名空間的鍵原樣保留；null 直通；格式不合規拒絕建立（ADR-0013） |
 | 其他 | `RedisConfigWiringTest`（8，不連線） | 模板接線：主要字串模板與通用模板只包鍵，hash 欄位與 value 不加；`globalStringRedisTemplate` 不加前綴；prod 未設定或格式錯誤拒絕啟動；fbtoken 守衛以 `@Qualifier` 使用全域模板（ADR-0013） |
 | 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
+| 其他 | `QueryCountGuardTest`（2，載入 Spring context） | N+1 守衛（stage 23，Hibernate 統計）：同一端點在資料量少與多時，JDBC 陳述式數必須相等；涵蓋分店菜單（`MenuService.getStoreMenu`，逐商品各查一次的寫法會紅）與公開品牌列表（`PublicService.getBrands`）；售罄旗標與售罄列一致；測試結束時清除自己建立的列（2026-11-03） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 12 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`、`SessionCutAfterCommitIntegrationTest`）之外，其餘 94 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 13 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`、`SessionCutAfterCommitIntegrationTest`、`QueryCountGuardTest`）之外，其餘 94 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -924,3 +925,14 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **真實服務的覆蓋**：登出所有裝置、改密碼（成功；舊密碼錯誤時不切斷、版本不變）、停用品牌（品牌與底下分店一起切斷）。
 - **已知缺口收斂**：stage 6、stage 8 與 stage 21 記錄的「交易提交到切斷沒有整合測試」已由本階段補上。仍未處理：切斷只作用於處理請求的實例（ADR-0012）。
 - **驗證**：程式碼頭 `8b45003` 的 CI run 41428831550 為 574 個測試、106 個類別，失敗 0、錯誤 0、略過 0。還原驗證 A、B、D 見 README「2026-11-02 切斷的交易整合測試還原驗證（CI）」。
+
+## 2026-11-03（stage 23）新增的不變量與約定
+
+- **分店菜單的售罄狀態一次查出**：`MenuService.getStoreMenu` 以 `StoreProductStatusRepository.findByStoreId` 取回整間店的列，再依商品 id 對應。不要改回逐商品 `findById`：商品越多，查詢越多（N+1）。`QueryCountGuardTest` 會抓到這個回歸。
+- **守衛量的是 JDBC 陳述式數，不是絕對次數**：`QueryCountGuardTest` 以 Hibernate 統計（`Statistics.getPrepareStatementCount()`）斷言，同一端點在資料量少與多時的陳述式數必須相等。數字不需要隨功能更新；新增的讀取端點若會逐列查詢，請在這裡加一個案例。
+- **守衛量的是生產設定**：生產的 `default_batch_fetch_size: 50` 會把懶載入的關聯依 50 筆一批載入，所以 50 筆以內的批次載入不會被誤判；迴圈內逐列各查一次的寫法（例如 `findById`）一定會被抓到。
+- **目前只涵蓋兩個端點**：分店菜單（`MenuService.getStoreMenu`）與公開品牌列表（`PublicService.getBrands`，`GET /api/game-wheel/brands` 的來源）。搜尋與附近店家、揪團詳情、訂單列表、收藏尚未納入；納入前要先建立夾具並確認實際的陳述式數。
+- **死碼已刪除**：`UserCouponService.getGameWheelBrands`（沒有呼叫者，且以 `findAll()` 讀入全部商品，再逐品牌 `findById`）與 `GroupOrderService.getItems`（沒有呼叫者）。轉盤的實際路徑是 `DailySpinController` 經 `DailySpinService`，品牌清單經 `PublicService.getBrands()`。
+- **仍是死碼，未處理**：`UserCouponService.getGameWheelMenu`、`UserCouponService.spin`、`UserCouponService.getSpinStatus`，都沒有呼叫者。刪除前請再確認沒有測試或反射使用。
+- **未納入守衛的逐列查詢**：（1）`BrandService` 的品牌評分分布，每個品牌最多 5 次（`limit(5)` 在查詢之前）；（2）`OrderService` 建單時的固定規格防竄改，`createOrder` 與 `placeOrder` 各有一處逐品項的 `findByIdProductId`，屬於寫入路徑，數量受訂單品項數限制。其他寫入路徑未逐一檢查。
+- **驗證**：CI 與還原驗證見 README「2026-11-03 N+1 守衛還原驗證（CI）」。
