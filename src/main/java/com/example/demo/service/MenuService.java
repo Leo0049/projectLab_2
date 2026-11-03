@@ -6,7 +6,6 @@ import com.example.demo.entity.MenuCategory;
 import com.example.demo.entity.ProductTemplate;
 import com.example.demo.entity.Store;
 import com.example.demo.entity.StoreProductStatus;
-import com.example.demo.entity.StoreProductStatusId;
 import com.example.demo.exception.CustomException;
 import com.example.demo.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,14 +35,16 @@ public class MenuService {
         List<MenuCategory> categories = menuCategoryRepository.findByBrandId(brandId);
         List<ProductTemplate> products = productTemplateRepository.findByBrandId(brandId);
 
-        // 查這間店的售罄狀態
+        // 查這間店的售罄狀態：一次取回整間店的列再依商品對應。
+        // 原本逐商品 findById，商品越多查詢越多（N+1）；守衛見 QueryCountGuardTest。
+        Map<Long, StoreProductStatus> statusByProductId = new HashMap<>();
+        for (StoreProductStatus s : storeProductStatusRepository.findByStoreId(storeId)) {
+            statusByProductId.put(s.getId().getProductId(), s);
+        }
         Map<Long, Boolean> outOfStockMap = new HashMap<>();
         for (ProductTemplate p : products) {
-            StoreProductStatusId sid = new StoreProductStatusId();
-            sid.setStoreId(storeId);
-            sid.setProductId(p.getId());
-            Optional<StoreProductStatus> status = storeProductStatusRepository.findById(sid);
-            outOfStockMap.put(p.getId(), status.map(s -> !s.getIsEnabled()).orElse(false));
+            StoreProductStatus status = statusByProductId.get(p.getId());
+            outOfStockMap.put(p.getId(), status != null && !status.getIsEnabled());
         }
 
         // 查此門市區域的分類加價

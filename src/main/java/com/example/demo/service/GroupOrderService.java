@@ -383,12 +383,6 @@ public class GroupOrderService {
         groupOrderRepository.delete(go);
     }
 
-    public List<OrderItem> getItems(Long groupOrderId) {
-        List<OrderItem> items = orderItemRepository.findByGroupOrderId(groupOrderId);
-        items.forEach(this::populateToppingIds);
-        return items;
-    }
-
     private void populateToppingIds(OrderItem item) {
         if (item.getId() == null)
             return;
