@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-11-03，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：576 個 `@Test`，分布在 107 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-11-03，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：576 個 `@Test`，分布在 107 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，2026-11-03 的 run 41593374056 為 576，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -935,4 +935,4 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **死碼已刪除**：`UserCouponService.getGameWheelBrands`（沒有呼叫者，且以 `findAll()` 讀入全部商品，再逐品牌 `findById`）與 `GroupOrderService.getItems`（沒有呼叫者）。轉盤的實際路徑是 `DailySpinController` 經 `DailySpinService`，品牌清單經 `PublicService.getBrands()`。
 - **仍是死碼，未處理**：`UserCouponService.getGameWheelMenu`、`UserCouponService.spin`、`UserCouponService.getSpinStatus`，都沒有呼叫者。刪除前請再確認沒有測試或反射使用。
 - **未納入守衛的逐列查詢**：（1）`BrandService` 的品牌評分分布，每個品牌最多 5 次（`limit(5)` 在查詢之前）；（2）`OrderService` 建單時的固定規格防竄改，`createOrder` 與 `placeOrder` 各有一處逐品項的 `findByIdProductId`，屬於寫入路徑，數量受訂單品項數限制。其他寫入路徑未逐一檢查。
-- **驗證**：CI 與還原驗證見 README「2026-11-03 N+1 守衛還原驗證（CI）」。
+- **驗證**：程式碼頭 `d4ce3dd` 的 CI run 41593374056 為 576 個測試、107 個類別，失敗 0、錯誤 0、略過 0。還原驗證 A（分店菜單改回逐商品查詢）見 README「2026-11-03 N+1 守衛還原驗證（CI）」，run 41594365570 紅燈 1 項。
