@@ -104,7 +104,6 @@ public class DailySpinService {
             return transactionTemplate.execute(status -> spinInTransaction(userId, brandId, dailyKey, dailyToken));
         } catch (RuntimeException e) {
             // 本次沒有提交：回收今日標記。沒有取得標記時 token 為 null，releaseLock 會直接略過。
-            redisLockService.releaseLock(dailyKey, dailyToken.get());
             throw e;
         } finally {
             // 先回收標記、再釋放使用者鎖：同一使用者的下一次請求只會在結果已定之後才進來。
