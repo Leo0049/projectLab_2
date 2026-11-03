@@ -376,7 +376,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 |------|------|
 | 執行 | run 41227065670（`pull_request`，commit `16262c7`）：「測試與端對端驗證」494 秒、「容器映像建置（僅建置）」86 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，62 秒。測試總計 **574 個測試、106 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| `mvn test`（第 1 層） | 通過，78 秒。測試總計 **576 個測試、107 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
 | 打包與起服務 | 打包 7 秒；啟動後端 17 秒 |
 | API 端對端（第 2 層） | 通過，5 秒 |
 | UI 流程（第 3 層，斷網模式） | 通過，335 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
@@ -1042,6 +1042,21 @@ CI 結果：
 - A 與 B 在行為上只有「提交失敗」那條測試抓得到；另一項紅燈來自既有的反射測試，它只固定註解上的階段。原因寫在測試類別的 Javadoc：回滾（包括只設定 rollback-only）不會觸發 `BEFORE_COMMIT`，所以回滾測試分辨不出兩者。
 - D 的紅燈同時出現在整合測試與既有的 N13 單元測試，代表角色比對在兩個層級都有守衛。
 - scratch 分支 `main-verif-stage22-A`、`-B`、`-D` 需由擁有者刪除，本次未刪。
+
+### 2026-11-03 N+1 守衛還原驗證（CI）
+
+階段 23 實作於 `test/stage23-n-plus-one-guard`（PR #31，程式碼頭 `d4ce3dd`）。盤點時發現 `MenuService.getStoreMenu` 逐商品查一次售罄狀態（N+1），因此先改為 `StoreProductStatusRepository.findByStoreId` 一次取回，再加上守衛。同時刪除兩個沒有呼叫者的死碼：`UserCouponService.getGameWheelBrands`（原計畫為批次查詢，改為刪除，因為它不在請求路徑上）與 `GroupOrderService.getItems`。新增 `QueryCountGuardTest`（2 個測試，載入 Spring context，開啟 Hibernate 統計）。未破壞的對照是同一個程式碼頭的 [run 41593374056](https://github.com/Leo0049/projectLab_2/actions/runs/41593374056)：`mvn test` 為 576 個測試、107 個類別，失敗 0、錯誤 0、略過 0。
+
+還原驗證（scratch 分支 `main-verif-stage23-A`，只把 `MenuService.getStoreMenu` 還原為逐商品 `findById` 的舊寫法，其餘不變）：
+
+| 組 | 破壞 | 位置 | Run | 結果 | 紅燈的測試與訊息 |
+|---|---|---|---|---|---|
+| A | 分店菜單改回逐商品 `findById` | `MenuService.getStoreMenu` | [41594365570](https://github.com/Leo0049/projectLab_2/actions/runs/41594365570) | 失敗（1 項） | `QueryCountGuardTest.menuQueryCountDoesNotGrowWithProducts`：`expected: <6> but was: <16>`，差值 10 正是多出的 10 次商品查詢 |
+
+- 公開品牌列表的案例在 A 組維持綠燈，符合預期：它所在的端點沒有被破壞。
+- A 組的測試總數仍為 576 個、錯誤 0、略過 0，只有上述 1 項失敗。
+- 本階段沒有改動 API 路由，`ApiDocRouteGuardTest` 與 `AuthorizationRouteInventoryTest` 不受影響。
+- `main-verif-stage23-A` 只存在於遠端，不合併、不刪除。
 
 ### 拆出可測試的規則
 
