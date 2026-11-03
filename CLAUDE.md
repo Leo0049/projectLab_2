@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-11-03，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：576 個 `@Test`，分布在 107 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，2026-11-03 的 run 41593374056 為 576，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-11-03，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：581 個 `@Test`，分布在 108 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，2026-11-03 的 run 41593374056 為 576，2026-11-03 的 run 41633935229（stage 24，程式碼頭 `9826267`）為 581，2026-11-03 的 run 41635593430（stage 24，程式碼頭 `2ff00b2`）為 581，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -237,6 +237,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 金流與併發 | `GroupOrderCheckoutIdempotencyTest`（8） | 團長結帳的冪等鍵（stage 9，不載入 Spring context）：同鍵重送回放第一次的成功結果；4xx 釋放佔位、可以重試；提交之後的讀取或推播失敗仍回成功；同鍵搭配不同內容回 422；同鍵用在另一團互不影響；未帶鍵維持舊行為；格式不合規的鍵在送單前拒絕 |
 | 金流與併發 | `GroupMemberCheckoutIdempotencyTest`（9） | 團員付款的冪等鍵（stage 15，不載入 Spring context）：同鍵重送回放第一次的成功結果；4xx 釋放佔位、可以重試；付款提交之後的購物車快照清除或推播失敗仍回成功；同鍵搭配不同付款方式回 422；同鍵用在另一團互不影響；未帶鍵維持舊行為；格式不合規的鍵與非白名單的付款方式在付款前拒絕 |
 | 金流與併發 | `UserCouponUseTest`（4） | 優惠券使用（N10）：消耗是條件式原子更新，同一張券第二次使用回 400（即使讀取時仍為 unused）；非擁有者與已過期的券不嘗試消耗 |
+| 金流與併發 | `DailySpinMarkerRollbackTest`（5） | 轉盤今日標記的回收（stage 24，見 IMPROVEMENT_ASSESSMENT「仍未做」第 4 項；不載入 Spring context）：寫入失敗與提交失敗時回收本次取得的標記，且先於使用者鎖釋放；提交成功時保留標記；標記已被佔用時回 409 且不回收別人的標記；品牌沒有可抽獎的飲品（422）在取得標記之前拒絕（2026-11-03） |
 | 金流與併發 | `RatingConcurrencyTest`（2） | 併發評分不得死鎖、門市則數與平均分數要對得起來 |
 | 金流與併發 | `IdempotencyServiceTest`（14） | 結帳冪等（ADR-0005）：格式檢查、重送回放、進行中衝突、失敗與例外釋放、使用者之間互不影響；同一把鍵配不同內容回 422（請求指紋）；Redis 與本地兩條路徑；舊格式（無指紋）紀錄仍可重播 |
 | 金流與併發 | `OrderServiceCheckoutLockTest`（1） | 結帳使用者鎖忙碌時回 503（`OrderService.createOrder`），不是一般的 RuntimeException（400） |
@@ -287,7 +288,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `QueryCountGuardTest`（2，載入 Spring context） | N+1 守衛（stage 23，Hibernate 統計）：同一端點在資料量少與多時，JDBC 陳述式數必須相等；涵蓋分店菜單（`MenuService.getStoreMenu`，逐商品各查一次的寫法會紅）與公開品牌列表（`PublicService.getBrands`）；售罄旗標與售罄列一致；測試結束時清除自己建立的列（2026-11-03） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 13 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`、`SessionCutAfterCommitIntegrationTest`、`QueryCountGuardTest`）之外，其餘 94 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 13 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`、`SessionCutAfterCommitIntegrationTest`、`QueryCountGuardTest`）之外，其餘 95 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -936,3 +937,13 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **仍是死碼，未處理**：`UserCouponService.getGameWheelMenu`、`UserCouponService.spin`、`UserCouponService.getSpinStatus`，都沒有呼叫者。刪除前請再確認沒有測試或反射使用。
 - **未納入守衛的逐列查詢**：（1）`BrandService` 的品牌評分分布，每個品牌最多 5 次（`limit(5)` 在查詢之前）；（2）`OrderService` 建單時的固定規格防竄改，`createOrder` 與 `placeOrder` 各有一處逐品項的 `findByIdProductId`，屬於寫入路徑，數量受訂單品項數限制。其他寫入路徑未逐一檢查。
 - **驗證**：程式碼頭 `d4ce3dd` 的 CI run 41593374056 為 576 個測試、107 個類別，失敗 0、錯誤 0、略過 0。還原驗證 A（分店菜單改回逐商品查詢）見 README「2026-11-03 N+1 守衛還原驗證（CI）」，run 41594365570 紅燈 1 項。
+
+## 2026-11-03（stage 24）新增的不變量與約定
+
+- **轉盤的今日標記與優惠券寫入是同一個工作單位**：`DailySpinService.spin` 以 `TransactionTemplate` 開啟交易，不標註 `@Transactional`。標註的交易要等方法返回之後才提交，提交失敗時已經離開 try，無法回收標記。新增會寫入今日狀態的流程時，寫入與提交都要在會回收的 try 之內。
+- **只回收自己取得的標記**：標記以 `RedisLockService.acquireLock` 取得，回收一律帶同一個 token，`releaseLock` 比對後才刪除。標記已被佔用（409）與內容檢查（422）都不會取得標記，因此不回收，也不會誤刪別人的標記。
+- **使用者鎖在回收之後才釋放**：同一使用者的下一次請求只會在結果已定之後才進來，不會在「標記尚未回收」的空窗期被誤判為已抽過。
+- **內容檢查（422）仍在取得標記之前**（2026-10-12 評估中發現，見 `spinInTransaction` 內的註解）。`DailySpinMarkerRollbackTest` 的第 5 個測試守著這個順序。
+- **建構子參數**：`DailySpinService` 多了 `TransactionTemplate`，`SuspensionPublicReadsTest` 的建構子呼叫已同步。
+- **殘留缺口**：程序在取得標記與提交之間崩潰（例如被強制終止），標記不會回收，當天的機會仍會遺失。要完全消除，需要以資料庫為最終防線（例如 WHEEL_GAME 的唯一索引），屬於 schema 變更，另案處理。
+- **還原驗證**：見 README「2026-11-03 轉盤標記回收還原驗證（CI）」。

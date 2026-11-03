@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：576 個 `@Test`，107 個測試類別（JUnit 5 + Mockito；13 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：581 個 `@Test`，108 個測試類別（JUnit 5 + Mockito；13 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：43 個 HTML 頁面全數普掃（共 55 次載入，顧客主頁有資料與空狀態各掃一次；管理員後台四頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -330,7 +330,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 576 個 `@Test`（107 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 581 個 `@Test`（108 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -358,7 +358,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（576 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（581 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 43 個頁面全頁面普掃（55 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -370,16 +370,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是階段 21（PR #29，程式碼頭 `16262c7`，新增客戶撤銷切斷與四個測試類別）。該程式碼頭上的完整 CI 執行是 [run 41227065670](https://github.com/Leo0049/projectLab_2/actions/runs/41227065670)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是階段 24（PR #32，程式碼頭 `2ff00b2`，轉盤今日標記的回收）。該程式碼頭上的完整 CI 執行是 [run 41635593430](https://github.com/Leo0049/projectLab_2/actions/runs/41635593430)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 41227065670（`pull_request`，commit `16262c7`）：「測試與端對端驗證」494 秒、「容器映像建置（僅建置）」86 秒，皆成功 |
+| 執行 | run 41635593430（`pull_request`，commit `2ff00b2`）：「測試與端對端驗證」524 秒、「容器映像建置（僅建置）」75 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，78 秒。測試總計 **576 個測試、107 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
-| 打包與起服務 | 打包 7 秒；啟動後端 17 秒 |
-| API 端對端（第 2 層） | 通過，5 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，335 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
+| `mvn test`（第 1 層） | 通過，82 秒。測試總計 **581 個測試、108 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 8 秒；啟動後端 16 秒 |
+| API 端對端（第 2 層） | 通過，6 秒 |
+| UI 流程（第 3 層，斷網模式） | 通過，337 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -1057,6 +1057,27 @@ CI 結果：
 - A 組的測試總數仍為 576 個、錯誤 0、略過 0，只有上述 1 項失敗。
 - 本階段沒有改動 API 路由，`ApiDocRouteGuardTest` 與 `AuthorizationRouteInventoryTest` 不受影響。
 - `main-verif-stage23-A` 只存在於遠端，不合併、不刪除。
+
+### 2026-11-03 轉盤標記回收還原驗證（CI）
+
+階段 24 實作於 `fix/stage24-spin-marker-rollback`（PR #32，程式碼頭 `2ff00b2`）。轉盤的「今日已轉」標記原本在優惠券寫入之前寫入，寫入失敗時不回收，使用者當天就失去抽獎機會（[IMPROVEMENT_ASSESSMENT](docs/IMPROVEMENT_ASSESSMENT.md)「仍未做」第 4 項）。修補把抽獎與標記放進同一個 `TransactionTemplate` 工作單位：寫入失敗、提交失敗，或取得標記後才發現今日已抽過時，回收本次取得的標記；使用者鎖在回收之後才釋放。新增 `DailySpinMarkerRollbackTest`（5 個測試，Mockito，不載入 Spring context）。未破壞的對照是同一個程式碼頭的 [run 41635593430](https://github.com/Leo0049/projectLab_2/actions/runs/41635593430)：`mvn test` 為 581 個測試、108 個類別，失敗 0、錯誤 0、略過 0。
+
+還原驗證（scratch 分支 `main-verif-stage24-A2`、`main-verif-stage24-B2`，只用於驗證，不屬於 PR 分支，保留於遠端）：
+
+| 組 | 破壞 | 位置 | Run | 結果 | 紅燈的測試與行號 |
+|---|---|---|---|---|---|
+| A2 | 移除寫入與提交失敗時的標記回收（等同舊行為） | `DailySpinService.spin` 的 catch | [41635611824](https://github.com/Leo0049/projectLab_2/actions/runs/41635611824) | 失敗（2 項） | `releasesTodaysMarkerWhenTheCouponWriteFails`（第 91 行）、`releasesTodaysMarkerWhenTheCommitFails`（第 106 行） |
+| B2 | 把標記取得移到內容檢查（422）之前 | `DailySpinService.spinInTransaction` | [41635615253](https://github.com/Leo0049/projectLab_2/actions/runs/41635615253) | 失敗（1 項） | `emptyBrandNeverClaimsTodaysMarker`（第 137 行，「不取得今日標記」的順序斷言） |
+
+- A2 的其餘測試維持綠燈，包括提交成功保留標記的 `keepsTodaysMarkerWhenTheSpinCommits`、不回收別人標記的 `alreadySpunTodayRejectsWithoutWritingOrReleasing`，以及 `SuspensionPublicReadsTest`。兩組的測試總數都是 581，錯誤 0、略過 0。
+- B2 只有順序斷言紅燈；第 136 行的 422 斷言仍通過，代表內容檢查本身沒有改變。
+- 第 5 個測試在 `2ff00b2` 補上今日標記的 stub。沒有這行時，破壞 B 會先因回 409 而非 422 失敗（推論，未實際跑出），順序斷言就無法單獨被驗證。
+- 首個程式碼頭 `9826267` 的破壞：A（scratch `cbbe37e`，[run 41633976739](https://github.com/Leo0049/projectLab_2/actions/runs/41633976739)）同樣讓第 91、106 行的兩個測試紅燈；B（scratch `8ca78e3`，[run 41635352381](https://github.com/Leo0049/projectLab_2/actions/runs/41635352381)）沒有完成即被取消，故以 B2 為準。`main-verif-stage24-A` 與 `main-verif-stage24-B` 同樣保留於遠端。
+
+**已知缺口（未處理）**：
+
+- 行程在取得標記之後、提交之前崩潰，標記不會回收，當天的機會仍會遺失。要完全消除，需要以資料庫為最終防線（例如 WHEEL_GAME 的唯一索引），屬於 schema 變更，另案處理。
+- Redis 故障時標記退回本地鎖。若回收時 Redis 已恢復，`RedisLockService.releaseLock` 只向 Redis 解鎖、不清除本地鎖，該筆本地標記要到午夜才過期；影響只限於同一個 JVM 之後再次遇到 Redis 故障的期間。
 
 ### 拆出可測試的規則
 
