@@ -55,7 +55,7 @@
 - **結帳的 catch-all 會把「已扣款之後」的失敗回報為 400**（已於第 4 項修正）。這會讓前端重送、造成重複建單。
 - **`/api/stores/nearby` 無定位時忽略 `size`／`page`**（已於第 7 項修正）。目前前端都會帶座標，實際影響限於 `/api/home`。
 - **`LoginAttemptLimiter` 的 `windowSeconds` 被忽略**（已於第 1 項修正）。目前唯一非 300 秒的呼叫端是 `check-phone`（60／300），其窗口實際上仍是 300 秒。
-- **`ScheduledTasks` 與 `CouponExpiryScheduler` 做同一件事**（00:00 與 00:01 兩次標記過期券）。本次只以互斥鎖保護，合併留待下一步。
+- [已處理 2026-11-04，stage 25] **`ScheduledTasks` 與 `CouponExpiryScheduler` 做同一件事**（00:00 與 00:01 兩次標記過期券）。處理：刪除 `CouponExpiryScheduler`，到期排程只剩 `ScheduledTasks.expireCouponsDaily`，時點保留 00:01（兩支合集的效果等同於 00:01 之前到期的券當天都會被標記），經 `ExclusiveJobRunner` 互斥，交給交易內的 `CouponService.expireOldCoupons`。`SchedulingLocationGuardTest` 守住「只能有一個入口」。
 - **`DailySpinService` 的使用者訊息是 `RuntimeException`**，若不先改，移除 catch 後訊息會消失（已於第 14 項處理）。
 - **`order_details.html` 的快取鍵是手動拼的**，與 `fetchAPI` 格式可能漂移（已於第 2 項改為共用 helper）。
 - **`PublicService.searchStores` 的 `page`／`size` 被忽略**：回傳全部符合者。已於 2026-10-18 改為分頁（見「仍未做」第 1 點）。
