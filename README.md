@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：586 個 `@Test`，110 個測試類別（JUnit 5 + Mockito；13 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：595 個 `@Test`，110 個測試類別（JUnit 5 + Mockito；13 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：43 個 HTML 頁面全數普掃（共 55 次載入，顧客主頁有資料與空狀態各掃一次；管理員後台四頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -324,13 +324,13 @@ docker compose up -d && mvn test
 | `RequestIdFilterTest`（5） | `X-Request-Id`：合規的 id 沿用，非法或長度不符的重新產生；請求結束後 MDC 清空 |
 | `BrandSummaryJsonTest`（2） | 前端契約：品牌摘要的 JSON 欄位固定為 brandId、brandName、logoUrl，沒有 logo 時 logoUrl 為 null |
 | `StompAuthInterceptorTest`（26） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團頻道只開放顧客 |
-| `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
+| `WebSocketWiringTest`（2） | 攔截器確實掛在 `clientInboundChannel` 與 `clientOutboundChannel` 上（載入 Spring context）；出站未掛載時，停用、撤銷與權杖到期後既有訂閱仍會收到推播 |
 | `OrderNoFormatTest`（2） | 訂單編號格式為 ORD＋MMdd＋10 位十六進位；同一天 300 張單不重複 |
 | `UploadControllerTest`（4） | 通用圖片上傳以檔案內容（magic bytes）判斷，副檔名改成 .png 的 HTML 被拒；副檔名白名單；5 MB 上限；內容為 PNG 時成功並交給儲存服務 |
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 586 個 `@Test`（110 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 595 個 `@Test`（110 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -358,7 +358,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（586 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（595 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 43 個頁面全頁面普掃（55 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -370,16 +370,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是階段 25（PR #33，程式碼頭 `3bd214b`，到期券排程合併為單一任務）。該程式碼頭上的完整 CI 執行是 [run 41786679322](https://github.com/Leo0049/projectLab_2/actions/runs/41786679322)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是階段 26（PR #34，程式碼頭 `73faf29`，推播權杖到期後不再送達）。該程式碼頭上的完整 CI 執行是 [run 41835020203](https://github.com/Leo0049/projectLab_2/actions/runs/41835020203)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 41786679322（`pull_request`，commit `3bd214b`）：「測試與端對端驗證」503 秒、「容器映像建置（僅建置）」79 秒，皆成功 |
+| 執行 | run 41835020203（`pull_request`，commit `73faf29`）：「測試與端對端驗證」511 秒、「容器映像建置（僅建置）」65 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，70 秒。測試總計 **586 個測試、110 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
-| 打包與起服務 | 打包 6 秒；啟動後端 14 秒 |
-| API 端對端（第 2 層） | 通過，6 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，333 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
+| `mvn test`（第 1 層） | 通過，60 秒。測試總計 **595 個測試、110 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 6 秒；啟動後端 12 秒 |
+| API 端對端（第 2 層） | 通過，5 秒 |
+| UI 流程（第 3 層，斷網模式） | 通過，331 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -1090,6 +1090,18 @@ CI 結果：
 | C：到期處理不改寫 `status` | `main-verif-stage25-C`（`3a47933`） | [41786963064](https://github.com/Leo0049/projectLab_2/actions/runs/41786963064) | 失敗 1 項：`CouponExpiryJobTest.expireOldCouponsMarksEveryDueUnusedCouponExpiredAndSavesIt`（`expected: <expired> but was: <unused>`）。守衛與接線測試維持綠燈。 |
 
 三個破壞各自一條 scratch 分支、各一次 CI，沒有互相遮蔽。這些分支保留於遠端，不屬於 PR 分支。本機的 Maven 無法取得相依套件（代理拒絕 Maven Central 的連線），因此所有測試數字都來自 CI。
+
+### 2026-11-04 推播權杖到期還原驗證（CI）
+
+階段 26 實作於 `fix/stage26-stomp-token-expiry`（PR #34，程式碼頭 `73faf29`）。這是 N12 的殘餘之一：權杖到期後，既有的 STOMP 訂閱仍會一直收到推播，直到連線結束。修補讓出站端在每則訊息送出前詢問 `StompSessionRegistry.mayDeliver`，已登錄的工作階段在權杖到期後不再送達，判斷與 SUBSCRIBE 相同。未破壞的對照是同一個程式碼頭的 [run 41835020203](https://github.com/Leo0049/projectLab_2/actions/runs/41835020203)：`mvn test` 為 595 個測試、110 個類別，失敗 0、錯誤 0、略過 0。
+
+| 破壞 | scratch 分支（commit） | run | 結果 |
+|------|----------------------|-----|------|
+| A：`mayDeliver` 忽略到期時間，只看切斷旗標 | `main-verif-stage26-A`（`cb68dc0`） | [41836501154](https://github.com/Leo0049/projectLab_2/actions/runs/41836501154) | 失敗 6 項：`StompSessionRegistryTest.expiredSessionIsNotDeliverable`、`StompSessionRegistryTest.expiryAffectsOnlyTheExpiredSession`、`CutSessionOutboundInterceptorTest.messagesStopOnceTheSessionTokenExpires`、`CutSessionOutboundInterceptorTest.expiryOnlyAffectsTheExpiredSession`、`CutSessionOutboundInterceptorTest.subscriberStopsReceivingOnceTheTokenExpires`、`StompSessionListenerTest.registeredSessionStopsDeliveringAtTheTokenExpiry` |
+| B：出站攔截器不使用注入的時鐘，改用 `Clock.systemUTC()` | `main-verif-stage26-B`（`21b7cc7`） | [41836505958](https://github.com/Leo0049/projectLab_2/actions/runs/41836505958) | 失敗 3 項：`CutSessionOutboundInterceptorTest.messagesStopOnceTheSessionTokenExpires`、`CutSessionOutboundInterceptorTest.expiryOnlyAffectsTheExpiredSession`、`CutSessionOutboundInterceptorTest.subscriberStopsReceivingOnceTheTokenExpires` |
+| C：`clientOutboundChannel` 未掛上 `CutSessionOutboundInterceptor` | `main-verif-stage26-C`（`1a0464f`） | [41836509485](https://github.com/Leo0049/projectLab_2/actions/runs/41836509485) | 失敗 1 項：`WebSocketWiringTest.outboundChannelCarriesTheCutSessionInterceptor` |
+
+三個破壞各自一條 scratch 分支、各一次 CI，沒有互相遮蔽。失敗清單取自 check-run annotation（「失敗清單（共 N 筆）」）。這些分支保留於遠端，不屬於 PR 分支。本機的 Maven 無法取得相依套件，因此所有測試數字都來自 CI。
 
 ### 拆出可測試的規則
 

@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-11-04，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：586 個 `@Test`，分布在 110 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，2026-11-03 的 run 41593374056 為 576，2026-11-03 的 run 41633935229（stage 24，程式碼頭 `9826267`）為 581，2026-11-03 的 run 41635593430（stage 24，程式碼頭 `2ff00b2`）為 581，2026-11-04 的 run 41786679322（stage 25，程式碼頭 `3bd214b`）為 586，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-11-04，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：595 個 `@Test`，分布在 110 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，2026-11-03 的 run 41593374056 為 576，2026-11-03 的 run 41633935229（stage 24，程式碼頭 `9826267`）為 581，2026-11-03 的 run 41635593430（stage 24，程式碼頭 `2ff00b2`）為 581，2026-11-04 的 run 41786679322（stage 25，程式碼頭 `3bd214b`）為 586，2026-11-04 的 run 41835020203（stage 26，程式碼頭 `73faf29`）為 595，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -187,7 +187,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `GroupOrderControllerViewerTest`（2） | 揪團查詢的 viewer 只取自 JWT 寫入的 request attribute，不取自參數；匿名請求以無 viewer 查詢 |
 | 授權與路由 | `StompSubscribeRulesTest`（11） | WebSocket 訂閱授權的純規則：顧客只能訂閱自己參與的訂單；揪團推播只開放成員（團長，或已在團內有品項的團員），持分享連結但未加入者不可訂閱（N12）；門市只能訂閱自己的頻道；角色必須相符（id 會撞號）；未知目的地與超大數字 id 一律拒絕 |
 | 授權與路由 | `StompAuthInterceptorTest`（27） | WebSocket 認證與訂閱授權，走真實的通道與真實的 JWT（只 mock 資料庫）：缺標頭、非 Bearer、偽造、過期、亂碼的 token 一律拒絕；發起人與參與者可訂閱訂單；非參與者與同 id 的門市不可訂閱；門市只能訂閱自己的頻道；揪團推播的發起人（即使沒有品項）與已在團內有品項的團員可訂閱，只持分享連結者不可訂閱（N12）；門市不可訂閱揪團推播；已刪除或不存在的帳號、連線後 token 過期者不可連線或訂閱（N7）；客戶端直接 SEND 一律拒絕（N5）；權杖版本與帳號目前版本不符（改過密碼前簽發）者不可連線，連線後改密碼，之後的 SUBSCRIBE 一律拒絕（N13）；管理員權杖不可連線（N-28） |
-| 授權與路由 | `WebSocketWiringTest`（1） | 攔截器確實掛在 `clientInboundChannel` 上（載入 Spring context） |
+| 授權與路由 | `WebSocketWiringTest`（2） | 攔截器確實掛在 `clientInboundChannel` 與 `clientOutboundChannel` 上（載入 Spring context）；出站未掛載時，停用、撤銷與權杖到期後既有訂閱仍會收到推播（stage 26） |
 | 授權與路由 | `AccountStatusTest`（17） | 帳號可用性規則（N7）：未刪除的顧客、存在的品牌與門市可用；已刪除、不存在、未知角色或缺少 id 一律不可用；HTTP 與 STOMP 共用此規則；權杖版本不符（改過密碼前簽發）或角色已改變者一律不可用（N13）；顧客 token 不比對門市資料列（id 會撞號）；品牌未核准不可使用（N-28）；管理員只在傳入管理員儲存庫時可用，WebSocket 一律不可用（N-28）；停用的品牌與分店不可用，分店所屬品牌停用時亦然（stage 6） |
 | 授權與路由 | `StoreVisibilityTest`（3） | 分店可見性的純規則（stage 6）：分店與品牌都未停用才可連到，任一停用即不可連到；實體版本讀取兩個旗標，沒有品牌時只看分店本身；列表條件要求營業中，且兩者都未停用 |
 | 授權與路由 | `StoreVisibilityGuardTest`（1） | 文字掃描（反射）（stage 6）：`StoreRepository` 每一條公開列出分店的 `@Query`（含計數查詢）都必須套用 `StoreVisibility.FILTER`，漏掉條件的查詢會紅 |
@@ -198,9 +198,9 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 授權與路由 | `BrandReferenceTest`（6） | 品牌參照（N-33，純函式）：同一品牌相符；不同品牌不符；被參照的品項或分店任一方沒有品牌時不符（fail-closed）；以值比較而非物件參照（超過 Long 快取範圍的 id 也相符） |
 | 授權與路由 | `AnalyticsServiceToggleDrinkSupplyTest`（5，Mockito） | 門市切換飲品供應（N-33）：本品牌的飲品寫入供應狀態；他品牌與不存在的飲品回同一個 404 且不寫入；分店沒有品牌時任何飲品都不能切換；isAvailable 缺少回 400，且在查詢任何資料前拒絕 |
 | 授權與路由 | `StoreControllerToggleToppingTest`（4，Mockito） | 門市切換配料供應（N-33）：本品牌的配料寫入缺貨狀態；他品牌與不存在的配料回同一個 404 且不寫入；isAvailable 缺少回 400，且在查詢任何資料前拒絕 |
-| 授權與路由 | `StompSessionRegistryTest`（5） | WebSocket 工作階段登錄表（stage 6，純邏輯）：切斷某帳號只影響該帳號；顧客與門市 id 相同時互不影響（N13）；角色比對不分大小寫；工作階段結束後移除切斷旗標；null 一律忽略 |
-| 授權與路由 | `CutSessionOutboundInterceptorTest`（2） | 切斷的工作階段的訊息一律丟棄，其他工作階段不受影響；沒有工作階段 id 的訊息（例如系統訊息）原樣放行（stage 6） |
-| 授權與路由 | `StompSessionListenerTest`（3） | CONNECT 後的工作階段登錄（stage 6）：可使用的帳號登錄且不被切斷；登錄時帳號已被停用（停用交易早於登錄）時立即切斷；未經認證的連線直接切斷 |
+| 授權與路由 | `StompSessionRegistryTest`（9） | WebSocket 工作階段登錄表（stage 6，純邏輯）：切斷某帳號只影響該帳號；顧客與門市 id 相同時互不影響（N13）；角色比對不分大小寫；工作階段結束後移除切斷旗標；null 一律忽略；權杖到期的那一刻起不可送達（與 SUBSCRIBE 同一條規則），到期前仍可送達；到期只影響該工作階段；登錄時沒有到期時間者保守切斷（fail-closed）；沒有工作階段 id 與尚未登錄的訊息維持原行為可送達（stage 26） |
+| 授權與路由 | `CutSessionOutboundInterceptorTest`（5） | 切斷的工作階段的訊息一律丟棄，其他工作階段不受影響；沒有工作階段 id 的訊息（例如系統訊息）原樣放行（stage 6）；權杖到期後既有訂閱的推播一律丟棄，到期前收到的不受影響；到期只影響到期的工作階段；經真實的 `ExecutorSubscribableChannel`，訂閱者到期後不再收到訊息（stage 26，時鐘可注入） |
+| 授權與路由 | `StompSessionListenerTest`（4） | CONNECT 後的工作階段登錄（stage 6）：可使用的帳號登錄且不被切斷；登錄時帳號已被停用（停用交易早於登錄）時立即切斷；未經認證的連線直接切斷；登錄時記下 token 的到期時間，到期當下起不再送達（stage 26） |
 | 授權與路由 | `AccountSuspensionCutListenerTest`（2） | 停用事件（`AccountsSuspendedEvent`）切斷列出的帳號所有工作階段，其他帳號不受影響（stage 6，`AFTER_COMMIT`）；切斷綁在 `AFTER_COMMIT`，以反射讀取註解固定（2026-10-21） |
 | 授權與路由 | `TokenRevocationCutListenerTest`（2） | 登出所有裝置的切斷（stage 8，純邏輯）：撤銷事件只切斷列出的顧客帳號，同 id 的門市與其他顧客不受影響；切斷綁在 `AFTER_COMMIT`，以反射讀取註解固定（2026-10-22） |
 | 授權與路由 | `CustomerRevocationCutGuardTest`（2，文字掃描與反射） | 客戶撤銷的切斷守衛（stage 21，不載入 Spring context）：掃描 `src/main/java`（排除 `entity/User.java`）中呼叫 `changePasswordHash` 或 `revokeIssuedTokens` 的每個成員，都必須發布 `AccountsRevokedEvent.forCustomer`；已知六處都要被掃到；六個方法都必須標註 `@Transactional`（2026-11-01） |
@@ -383,7 +383,7 @@ SUBMITTED 進入 PREPARING。
 - **截單（LOCKED）**：團員不可自行取消（團長 2026-10-14 確認）。團長仍可移除品項或整單取消，直到店家接單為止（見 `GroupRefundPolicy.wholeGroupCancellable`）。
 - **店家接單後（PREPARING 以後）**：不可整單取消或刪除（409），不可移除品項，也不產生退款；已送單的揪團不可改回 OPEN 或 LOCKED。
 - **團內資料僅供成員檢視**：成員 = 團長，或已在團內有品項的團員。非成員（含未登入）持分享連結只拿到店家、狀態、建立時間等基本欄位（`getGroupOrderDTOByToken` 的 `outsiderView`；不含品項、地址、備註、金額、團長與分享 token），須先加入揪團才能看到團內資料。
-- **已知缺口（已收斂）**：`/topic/group/{token}` 的 SUBSCRIBE 已限定為成員（團長，或已在團內有品項的團員；N12），持分享連結但未加入者無法訂閱，前端也改為確認成員身分後才訂閱。事件內容仍是品項 id、成員 userId 與狀態（不含姓名與金額）。尚未處理：已建立的訂閱不會因成員身分改變、帳號停用或 token 過期而即時中斷，直到連線結束。
+- **已知缺口（已收斂）**：`/topic/group/{token}` 的 SUBSCRIBE 已限定為成員（團長，或已在團內有品項的團員；N12），持分享連結但未加入者無法訂閱，前端也改為確認成員身分後才訂閱。事件內容仍是品項 id、成員 userId 與狀態（不含姓名與金額）。尚未處理：已建立的訂閱不會因成員身分改變而即時中斷，直到連線結束。token 到期後的推播已停止送達（stage 26，見 2026-11-04 節）；帳號停用與撤銷的切斷見 stage 6、stage 8 與 stage 21。
 
 ⚠️ **顧客只能走 `service/order/OrderStatusGuard` 允許的轉換**（`OPEN\|SUBMITTED → CANCELLED`、
 `SUBMITTED → PAID`，後者是舊前端「已付款」通知）。`OrderController` 的狀態端點原本只驗
@@ -696,7 +696,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **前端含 HTML 的模板字串中插入名稱類欄位，一律以頁面內的轉義函式包住**（自動規則注入的是 `escHtmlSafe`，既有頁面用 `esc`／`escapeHtml`）。**不要對已在來源處轉義的變數再轉義一次**，否則會顯示成 `&amp;`。
 - **`onclick="…${值}…"` 的 JS 字串內不得插入名稱類資料**：HTML 轉義不能防止字串跳脫。改用 `data-*` 屬性，由事件函式讀取 `dataset`（見 `profile.html` 的 `editExtraAddressFromEl`）。
 - **`permitAll` 一律指定 HTTP method**（`SecurityConfig`）。`/api/stores/auth/**` 只開放 POST，`/api/menu/**`、`/api/home/**`、`/api/location/**`、`/api/group-orders/join/**` 等只開放 GET；WebSocket 的 `/ws/**`、`/ws-cart/**` 例外，因為 SockJS 會用到多種方法。
-- **WebSocket 的 SUBSCRIBE 依角色授權**（`StompAuthInterceptor.authorizeSubscribe`，規則本體在 `StompSubscribeRules`）：`/topic/order/{id}` 限顧客且須為參與者；`/topic/group/{token}` 限該揪團的成員（N12）；`/topic/store/{id}` 只允許該門市本人（角色為 `STORE` 且 id 相符）；其餘目的地一律拒絕。principal 必須帶 `role`，因為門市與顧客的 id 會撞號。CONNECT 與每次 SUBSCRIBE 都重新檢查帳號、權杖版本（N13）與 token 期限（N7）；客戶端 SEND 一律拒絕（N5）。
+- **WebSocket 的 SUBSCRIBE 依角色授權**（`StompAuthInterceptor.authorizeSubscribe`，規則本體在 `StompSubscribeRules`）：`/topic/order/{id}` 限顧客且須為參與者；`/topic/group/{token}` 限該揪團的成員（N12）；`/topic/store/{id}` 只允許該門市本人（角色為 `STORE` 且 id 相符）；其餘目的地一律拒絕。principal 必須帶 `role`，因為門市與顧客的 id 會撞號。CONNECT 與每次 SUBSCRIBE 都重新檢查帳號、權杖版本（N13）與 token 期限（N7）；客戶端 SEND 一律拒絕（N5）。已登錄的工作階段在權杖到期後，出站端不再送達其訊息（stage 26）。
 - **`docker-compose.yml` 的 MySQL 與 Redis 埠口只綁 `127.0.0.1`**；正式環境範本關閉 springdoc（`application-prod.yml.example`）。
 - **分店回應不含店長手機（N6）**：`StoreService.toMap` 只回 `storePhone`；`phone` 鍵（店長手機）只由 `getProfile`（店家後台本人）加回。公開端點（`/api/stores/{id}/v2`、`/api/stores/brand/{id}`）共用 `toMap`，不得再放進去。
 - **記錄檔不寫原始手機號碼（N17）**：`AuthService` 的記錄改用 `common/PhoneMask.mask()`（只留末三碼），並附上 `userId` 以便對應。`LogPhoneGuardTest` 掃描 `src/main/java` 內所有 `log.*(` 呼叫，之後新增的記錄若提到手機卻未遮罩，測試會紅。
@@ -917,7 +917,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **失敗的路徑不發布**：舊密碼錯誤時不寫入、不發布（`UserServiceChangePasswordTest.aWrongOldPasswordChangesNothingAndPublishesNothing`）。事件在交易內發布，交易回滾就不切斷（與 stage 6、stage 8 相同）。
 - **測試用的 `User` 要先 `setId`**：撤銷事件的 `user.getId()` 會拆箱，`new User()` 沒有 id 時在 `publishEvent` 會 NPE。正式帳號一律有 id；`AuthServiceSecurityTest` 的兩個 fixture 已補上。
 - **切斷後的行為**：被切斷的工作階段不會被關閉，送往它的推播一律丟棄（`CutSessionOutboundInterceptor`），新的 SUBSCRIBE 會因權杖版本不符被拒絕。改密碼後前端會換上新權杖（`profile.html`），重新整理頁面即可以新權杖重新連線。
-- **已知缺口**：切斷只作用於處理請求的實例（ADR-0012）。N12 的殘餘（成員身分變動與 token 到期後，既有訂閱不會即時中斷）仍未處理，要先決定切斷粒度：整個工作階段，或逐一取消訂閱。
+- **已知缺口**：切斷只作用於處理請求的實例（ADR-0012）。N12 的殘餘仍未處理：成員身分變動後既有訂閱不會即時中斷（token 到期的部分已於 stage 26 處理，見 2026-11-04 節），要先決定切斷粒度：整個工作階段，或逐一取消訂閱。
 - **驗證**：程式碼頭 `16262c7` 的 CI run 41227065670 為 564 個測試、105 個類別，失敗 0、錯誤 0、略過 0。還原驗證 A–G 見 README「2026-11-01 客戶撤銷切斷還原驗證（CI）」。
 
 ## 2026-11-02（stage 22）新增的不變量與約定
@@ -958,3 +958,13 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **到期判斷以讀取端為準**：`CouponService.isValidForStore` 與 `getValidCouponsForUser` 都以 `expired_at` 判斷。排程只把 `status` 改為 `expired`；失敗時整批回滾，下次排程重新查到同一批券，最終結果相同。
 - **部署期間新舊實例可能並存**：舊實例上的 `coupon-expiry`（00:01）任務可能仍會執行一次。兩者都是冪等的，無害。
 - **還原驗證**：見 README「2026-11-04 到期券排程合併還原驗證（CI）」。
+
+## 2026-11-04（stage 26）新增的不變量與約定
+
+- **權杖到期後，已登錄的工作階段不再送達訊息**：`CutSessionOutboundInterceptor` 每則出站訊息都詢問 `StompSessionRegistry.mayDeliver(sessionId, now)`。到期判斷與 SUBSCRIBE 相同（`!now.isBefore(expiresAt)`，到期時間當下即視為到期）。時鐘可注入，測試以 `ManualClock` 跨過到期時間，不需 sleep。
+- **`register` 的第三個參數是權杖到期時間，缺值即切斷（fail-closed）**：`StompSessionListener` 登錄時連同 principal 的 `expiresAt` 一併記下。只關心切斷、不關心到期的測試（`AccountSuspensionCutListenerTest`、`TokenRevocationCutListenerTest`、`SessionCutAfterCommitIntegrationTest`）傳入 `Instant.MAX`。
+- **未登錄的工作階段與沒有工作階段 id 的訊息維持原行為**：CONNECTED 訊框可能早於登錄送出，因此「未登錄」不能當成拒絕。這是刻意的取捨。
+- **到期後的行為**：連線保持開啟，經出站通道送往該工作階段的訊息（推播）一律丟棄，使用者下一次 HTTP 請求即回 401 並回到登入頁。本階段不主動關閉連線，也不取消既有訂閱。SUBSCRIBE 被拒絕時回給客戶端的 ERROR 訊框是否經過出站通道沒有驗證，文件不做承諾。
+- **多實例**：到期判斷只依各實例自己登錄的到期時間，不需跨實例同步，因此不受 ADR-0012 的實例範圍限制。撤銷與停用的切斷仍只作用於處理請求的實例（見 stage 8）。
+- **已知限制**：只判斷權杖到期，不判斷成員身分。成員身分變動後，既有的 `/topic/group/{token}` 訂閱仍會收到推播（見 [REVIEW_2026-10-13](docs/REVIEW_2026-10-13.md) 第三節 N12 殘餘）。切斷粒度（整個工作階段，或逐一取消訂閱）待決定，本階段不處理。
+- **測試**：`StompSessionRegistryTest`（9）、`CutSessionOutboundInterceptorTest`（5，含一條走真實 `ExecutorSubscribableChannel` 的端到端案例）、`StompSessionListenerTest`（4）、`WebSocketWiringTest`（2，守住出站攔截器掛在 `clientOutboundChannel`）。還原驗證見 README「2026-11-04 推播權杖到期還原驗證（CI）」。

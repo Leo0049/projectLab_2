@@ -1,6 +1,6 @@
 # JoinDrink API 技術手冊 (v4.1)
 
-> **最後更新**：2026-11-01（補充：改密碼、重設密碼、帳號整合設定密碼與刪除帳號會切斷該顧客既有的 WebSocket 推播（stage 21）。前次 2026-10-25 補充：逐一對照 controller 路由，補上未記載的端點，修正 `merge/bind-social` 的認證與請求格式；`/topic/group/{token}` 推播改為僅限成員；揪團、訂單與收藏端點的 `userId`／`hostId` 查詢參數不採信（身分一律取自 token）；controller 清單補上 AdminController。前次 2026-10-18 補充：店家搜尋分頁；冪等結帳、轉盤狀態碼、附近店家分頁與座標檢查、健康檢查、`X-Request-Id`；移除不存在的 SSE 端點）
+> **最後更新**：2026-11-04（補充：權杖到期後，既有的 WebSocket 訂閱不再收到推播（stage 26）。前次 2026-11-01 補充：改密碼、重設密碼、帳號整合設定密碼與刪除帳號會切斷該顧客既有的 WebSocket 推播（stage 21）。前次 2026-10-25 補充：逐一對照 controller 路由，補上未記載的端點，修正 `merge/bind-social` 的認證與請求格式；`/topic/group/{token}` 推播改為僅限成員；揪團、訂單與收藏端點的 `userId`／`hostId` 查詢參數不採信（身分一律取自 token）；controller 清單補上 AdminController。前次 2026-10-18 補充：店家搜尋分頁；冪等結帳、轉盤狀態碼、附近店家分頁與座標檢查、健康檢查、`X-Request-Id`；移除不存在的 SSE 端點）
 > **Base URL**：`http://localhost:8082`
 > **認證方式**：`Authorization: Bearer <JWT>`
 > **統一回應格式**：`{ "code": "200", "msg": "請求成功", "data": { ... } }`
@@ -407,6 +407,7 @@
   - `/topic/group/{token}`：該揪團的成員（團長，或已在團內有品項的團員）。只持有分享連結、尚未加入的人不可訂閱（N12）。
   - `/topic/store/{storeId}`：該門市本人（角色 STORE 且 id 相符）。
   - 其他目的地一律拒絕。
+- **權杖到期後**（stage 26）：既有訂閱不再收到推播。連線保持開啟，但經出站通道送往該工作階段的訊息一律丟棄；使用者下一次 HTTP 請求即回 401。到期只在伺服器端依登錄時記下的到期時間判斷，不會主動關閉連線或取消訂閱。
 - 推播來源為 `messagingTemplate.convertAndSend`，涵蓋訂單狀態、揪團品項異動與門市的新訂單通知。
 - 本專案**沒有** SSE（Server-Sent Events）端點。
 
