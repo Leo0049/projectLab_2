@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
         @Index(name = "idx_user_coupons_user_status", columnList = "user_id, status"),
         // existsByUserIdAndObtainedDateAndCouponType：每日轉盤的「今天抽過沒」判斷
         @Index(name = "idx_user_coupons_user_type_date", columnList = "user_id, coupon_type, obtained_date"),
-        // findByStatusAndExpiredAtBefore：CouponExpiryScheduler 掃到期券
+        // findByStatusAndExpiredAtBefore：到期排程 ScheduledTasks.expireCouponsDaily 掃到期券
         @Index(name = "idx_user_coupons_status_expired", columnList = "status, expired_at")
 })
 @Data

@@ -15,9 +15,10 @@ public class ScheduledTasks {
     private final ExclusiveJobRunner exclusiveJobRunner;
     private final OrderAutoRejectJob orderAutoRejectJob;
 
-    // Cron expression for 00:00:00 every day
+    // 每天 00:01 執行，把過期的未使用券標記為 expired（時點與原本兩支排程的合集相同）。
+    // 到期券只由這一支排程處理；新增第二條路徑會被 SchedulingLocationGuardTest 擋下。
     // 多實例部署時只由取得鎖的實例執行（見 ExclusiveJobRunner）；任務本身是冪等的。
-    @Scheduled(cron = "0 0 0 * * *")
+    @Scheduled(cron = "0 1 0 * * *")
     public void expireCouponsDaily() {
         exclusiveJobRunner.runExclusively("coupon-expire-old", 600, couponService::expireOldCoupons);
     }
