@@ -68,6 +68,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      */
     @Override
     public void configureClientOutboundChannel(ChannelRegistration registration) {
-        registration.interceptors(new CutSessionOutboundInterceptor(sessionRegistry));
+        // scratch break C：出站攔截器未掛載
     }
 }
