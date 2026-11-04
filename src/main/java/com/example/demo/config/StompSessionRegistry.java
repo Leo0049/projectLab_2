@@ -89,7 +89,7 @@ public class StompSessionRegistry {
         if (cutSessions.contains(sessionId)) {
             return false;
         }
-        Instant expiresAt = expiresAtBySession.get(sessionId);
-        return expiresAt == null || now.isBefore(expiresAt);
+        // scratch break A：到期規則被拿掉
+        return true;
     }
 }
