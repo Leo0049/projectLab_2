@@ -13,7 +13,7 @@
 1. **Redis 是跨實例共享狀態的來源**。`docker-compose.yml` 提供 Redis 7.4；CI 以 service container 提供同一版本。
 2. **`RedisLockService`**：`acquireLock(key, timeoutSeconds)` 以 `setIfAbsent`（即 `SET ... NX`，帶逾時秒數）寫入隨機 token；`releaseLock` 以 Lua 腳本比對 token 後才刪除。這避免了「A 的鎖逾時、B 取得之後，A 的 finally 誤刪 B 的鎖」的問題（M-3 修補）。
 3. **本地退避**：Redis 不可用時，鎖與計數退回 JVM 內的 Map，並記錄 warn log。這讓本機開發不需要 Redis 也能啟動，**但只在單實例下正確**。
-4. **排程互斥**：`ExclusiveJobRunner.runExclusively(jobName, leaseSeconds, job)` 以 `lock:job:<name>` 取得鎖，取不到就略過。`leaseSeconds` 必須大於任務的最長執行時間。`ScheduledTasks` 與 `CouponExpiryScheduler` 都使用此機制。
+4. **排程互斥**：`ExclusiveJobRunner.runExclusively(jobName, leaseSeconds, job)` 以 `lock:job:<name>` 取得鎖，取不到就略過。`leaseSeconds` 必須大於任務的最長執行時間。`ScheduledTasks` 的兩支排程（到期券、待接單逾時）都使用此機制。
 5. **這是互斥，不是「每天只跑一次」**：任務很快結束時，另一個實例稍後才觸發，仍可能再跑一次。因此被包住的任務必須是冪等的。例如「把已過期的券標記為 expired」重跑沒有副作用。
 6. **每日轉盤**：`lock:spin:<userId>`（10 秒）防止同一使用者併發抽獎；`spin:done:<userId>:<yyyy-MM-dd>` 作為當日已抽的標記，TTL 到當天午夜。
 

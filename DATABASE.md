@@ -361,7 +361,7 @@
 > Entity 標記 `insertable=false, updatable=false`，程式端**完全不寫入**這兩欄
 > （`DailySpinService` 的註解也明講「由資料庫 Generated Column 自動生成」）。
 > 若資料表建成普通欄位，兩欄會永遠是 NULL，連帶造成：
-> - `CouponExpiryScheduler.findByStatusAndExpiredAtBefore(...)` 查不到任何券 → **優惠券永不過期**
+> - 到期排程（`ScheduledTasks.expireCouponsDaily` → `CouponService.expireOldCoupons`）的 `findByStatusAndExpiredAtBefore(...)` 查不到任何券 → **優惠券永不過期**
 > - `DailySpinService` 的 DB 層防重複（`existsByUserIdAndObtainedDateAndCouponType`）永遠回 false
 >   → Redis 故障時失去第二道防線
 >

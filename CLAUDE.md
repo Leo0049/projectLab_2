@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-11-03，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：581 個 `@Test`，分布在 108 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，2026-11-03 的 run 41593374056 為 576，2026-11-03 的 run 41633935229（stage 24，程式碼頭 `9826267`）為 581，2026-11-03 的 run 41635593430（stage 24，程式碼頭 `2ff00b2`）為 581，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-11-04，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：586 個 `@Test`，分布在 110 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，2026-11-03 的 run 41593374056 為 576，2026-11-03 的 run 41633935229（stage 24，程式碼頭 `9826267`）為 581，2026-11-03 的 run 41635593430（stage 24，程式碼頭 `2ff00b2`）為 581，2026-11-04 的 run 41786679322（stage 25，程式碼頭 `3bd214b`）為 586，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -237,6 +237,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 金流與併發 | `GroupOrderCheckoutIdempotencyTest`（8） | 團長結帳的冪等鍵（stage 9，不載入 Spring context）：同鍵重送回放第一次的成功結果；4xx 釋放佔位、可以重試；提交之後的讀取或推播失敗仍回成功；同鍵搭配不同內容回 422；同鍵用在另一團互不影響；未帶鍵維持舊行為；格式不合規的鍵在送單前拒絕 |
 | 金流與併發 | `GroupMemberCheckoutIdempotencyTest`（9） | 團員付款的冪等鍵（stage 15，不載入 Spring context）：同鍵重送回放第一次的成功結果；4xx 釋放佔位、可以重試；付款提交之後的購物車快照清除或推播失敗仍回成功；同鍵搭配不同付款方式回 422；同鍵用在另一團互不影響；未帶鍵維持舊行為；格式不合規的鍵與非白名單的付款方式在付款前拒絕 |
 | 金流與併發 | `UserCouponUseTest`（4） | 優惠券使用（N10）：消耗是條件式原子更新，同一張券第二次使用回 400（即使讀取時仍為 unused）；非擁有者與已過期的券不嘗試消耗 |
+| 金流與併發 | `CouponExpiryJobTest`（2，Mockito） | 到期券排程（stage 25）：排程經 `ExclusiveJobRunner`（`coupon-expire-old`，600 秒）、取得鎖之前不碰服務；到期處理只查 unused 的券，查到的每一張改為 expired 並逐張寫回（2026-11-04） |
 | 金流與併發 | `DailySpinMarkerRollbackTest`（5） | 轉盤今日標記的回收（stage 24，見 IMPROVEMENT_ASSESSMENT「仍未做」第 4 項；不載入 Spring context）：寫入失敗與提交失敗時回收本次取得的標記，且先於使用者鎖釋放；提交成功時保留標記；標記已被佔用時回 409 且不回收別人的標記；品牌沒有可抽獎的飲品（422）在取得標記之前拒絕（2026-11-03） |
 | 金流與併發 | `RatingConcurrencyTest`（2） | 併發評分不得死鎖、門市則數與平均分數要對得起來 |
 | 金流與併發 | `IdempotencyServiceTest`（14） | 結帳冪等（ADR-0005）：格式檢查、重送回放、進行中衝突、失敗與例外釋放、使用者之間互不影響；同一把鍵配不同內容回 422（請求指紋）；Redis 與本地兩條路徑；舊格式（無指紋）紀錄仍可重播 |
@@ -286,9 +287,10 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `RedisConfigWiringTest`（8，不連線） | 模板接線：主要字串模板與通用模板只包鍵，hash 欄位與 value 不加；`globalStringRedisTemplate` 不加前綴；prod 未設定或格式錯誤拒絕啟動；fbtoken 守衛以 `@Qualifier` 使用全域模板（ADR-0013） |
 | 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
 | 其他 | `QueryCountGuardTest`（2，載入 Spring context） | N+1 守衛（stage 23，Hibernate 統計）：同一端點在資料量少與多時，JDBC 陳述式數必須相等；涵蓋分店菜單（`MenuService.getStoreMenu`，逐商品各查一次的寫法會紅）與公開品牌列表（`PublicService.getBrands`）；售罄旗標與售罄列一致；測試結束時清除自己建立的列（2026-11-03） |
+| 其他 | `SchedulingLocationGuardTest`（3，文字掃描，不載入 Spring context） | 排程位置守衛（stage 25）：`@Scheduled` 清單固定且只在 `ScheduledTasks`，清單與原始文字的行數必須一致；每一支 `@Scheduled` 都經 `ExclusiveJobRunner`；到期券的查詢（`findByStatusAndExpiredAtBefore`）與轉換（`expireOldCoupons`）各只有一個呼叫端（2026-11-04） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
-除了上表中載入 Spring context 的 13 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`、`SessionCutAfterCommitIntegrationTest`、`QueryCountGuardTest`）之外，其餘 95 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
+除了上表中載入 Spring context 的 13 個類別（`DemoApplicationTests`、`AuthorizationTest`、`AuthorizationRouteInventoryTest`、`GroupOrderSecurityTest`、`GroupCheckoutConcurrencyTest`、`RatingConcurrencyTest`、`WalletConcurrencyTest`、`ImageStorageServiceTest`、`WebSocketWiringTest`、`GroupItemRulesTest`、`StoreSuspensionIntegrationTest`、`SessionCutAfterCommitIntegrationTest`、`QueryCountGuardTest`）之外，其餘 97 個類別不載入 Spring context，是純邏輯或 Mockito 測試。
 新增純規則時請放在 `service/order/`、`service/wallet/`、`common/` 這類目錄，不要為了測一條規則去啟整個 context。
 
 > 以上既有測試都已驗證「把修補改回舊寫法時會失敗」——`AuthorizationTest` 在還原 IDOR 時 3 個、還原 S-6 時 2 個轉紅，`WalletConcurrencyTest` 改回 `findById` 時 2 個轉紅，`ItemSpecResolverTest` 把防竄改改回「照單全收」時 4 個轉紅，`GroupCheckoutConcurrencyTest` 拿掉品項列鎖或結帳狀態守衛時各 1 個轉紅。
@@ -622,7 +624,7 @@ REPEATABLE READ 之下那個 COUNT 讀的是本交易快照，看不到別人剛
 - **區域定價**：同品牌不同地區可有不同分類加價（`brand_region_category_pricing`）
 - **商品快照**：訂單建立時儲存當下商品/價格快照，避免日後價格異動影響歷史訂單
 - **帳號合併**：社群登入與傳統帳號可合併（`/api/auth/merge/*`）
-- **優惠券到期排程**：`CouponExpiryScheduler` 自動處理到期
+- **優惠券到期排程**：`ScheduledTasks.expireCouponsDaily` 每日 00:01 經 `ExclusiveJobRunner`（`coupon-expire-old`）呼叫 `CouponService.expireOldCoupons` 自動處理到期（唯一的到期排程，stage 25 起）
 - **即時推播**：WebSocket/STOMP 推送訂單狀態與揪團品項異動（非 SSE，見上方說明）
 - **圖片儲存**：一律走 `ImageStorageService`，**不要直接呼叫 `cloudinary.uploader()`**。
   有憑證上傳 Cloudinary，沒有則存本機 `uploads/` 並以 `/uploads/**` 提供，
@@ -947,3 +949,12 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **建構子參數**：`DailySpinService` 多了 `TransactionTemplate`，`SuspensionPublicReadsTest` 的建構子呼叫已同步。
 - **殘留缺口**：程序在取得標記與提交之間崩潰（例如被強制終止），標記不會回收，當天的機會仍會遺失。要完全消除，需要以資料庫為最終防線（例如 WHEEL_GAME 的唯一索引），屬於 schema 變更，另案處理。
 - **還原驗證**：見 README「2026-11-03 轉盤標記回收還原驗證（CI）」。
+
+## 2026-11-04（stage 25）新增的不變量與約定
+
+- **到期券只有一支排程**：`ScheduledTasks.expireCouponsDaily`（每日 00:01），經 `ExclusiveJobRunner`（`coupon-expire-old`，600 秒）呼叫 `CouponService.expireOldCoupons`（`@Transactional`）。`CouponExpiryScheduler` 已刪除。第二條到期路徑會被 `SchedulingLocationGuardTest` 擋下；確實需要時，同一個 PR 更新守衛的清單並寫明理由。
+- **時點是 00:01，不是 00:00**：兩支原排程的合集效果等同於 00:01 之前到期的券當天都會被標記。改成 00:00 會讓 00:00–00:01 之間到期的券延後到次日才標記。
+- **`@Scheduled` 只放在 `ScheduledTasks`，且每支都要經 `ExclusiveJobRunner`**：`SchedulingLocationGuardTest` 以文字掃描守住。清單與原始文字中的 `@Scheduled` 行數必須一致，掃描才算有效；新增排程時，同一個 PR 更新 `EXPECTED_SCHEDULED`。
+- **到期判斷以讀取端為準**：`CouponService.isValidForStore` 與 `getValidCouponsForUser` 都以 `expired_at` 判斷。排程只把 `status` 改為 `expired`；失敗時整批回滾，下次排程重新查到同一批券，最終結果相同。
+- **部署期間新舊實例可能並存**：舊實例上的 `coupon-expiry`（00:01）任務可能仍會執行一次。兩者都是冪等的，無害。
+- **還原驗證**：見 README「2026-11-04 到期券排程合併還原驗證（CI）」。

@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：581 個 `@Test`，108 個測試類別（JUnit 5 + Mockito；13 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：586 個 `@Test`，110 個測試類別（JUnit 5 + Mockito；13 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：43 個 HTML 頁面全數普掃（共 55 次載入，顧客主頁有資料與空狀態各掃一次；管理員後台四頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -330,7 +330,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 581 個 `@Test`（108 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 586 個 `@Test`（110 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -358,7 +358,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（581 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（586 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 43 個頁面全頁面普掃（55 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -370,16 +370,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是階段 24（PR #32，程式碼頭 `2ff00b2`，轉盤今日標記的回收）。該程式碼頭上的完整 CI 執行是 [run 41635593430](https://github.com/Leo0049/projectLab_2/actions/runs/41635593430)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是階段 25（PR #33，程式碼頭 `3bd214b`，到期券排程合併為單一任務）。該程式碼頭上的完整 CI 執行是 [run 41786679322](https://github.com/Leo0049/projectLab_2/actions/runs/41786679322)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 41635593430（`pull_request`，commit `2ff00b2`）：「測試與端對端驗證」524 秒、「容器映像建置（僅建置）」75 秒，皆成功 |
+| 執行 | run 41786679322（`pull_request`，commit `3bd214b`）：「測試與端對端驗證」503 秒、「容器映像建置（僅建置）」79 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，82 秒。測試總計 **581 個測試、108 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
-| 打包與起服務 | 打包 8 秒；啟動後端 16 秒 |
+| `mvn test`（第 1 層） | 通過，70 秒。測試總計 **586 個測試、110 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 6 秒；啟動後端 14 秒 |
 | API 端對端（第 2 層） | 通過，6 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，337 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
+| UI 流程（第 3 層，斷網模式） | 通過，333 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -1078,6 +1078,18 @@ CI 結果：
 
 - 行程在取得標記之後、提交之前崩潰，標記不會回收，當天的機會仍會遺失。要完全消除，需要以資料庫為最終防線（例如 WHEEL_GAME 的唯一索引），屬於 schema 變更，另案處理。
 - Redis 故障時標記退回本地鎖。若回收時 Redis 已恢復，`RedisLockService.releaseLock` 只向 Redis 解鎖、不清除本地鎖，該筆本地標記要到午夜才過期；影響只限於同一個 JVM 之後再次遇到 Redis 故障的期間。
+
+### 2026-11-04 到期券排程合併還原驗證（CI）
+
+階段 25 實作於 `refactor/stage25-coupon-expiry-merge`（PR #33，程式碼頭 `3bd214b`）。到期券原本有兩支排程：`ScheduledTasks` 的 00:00 與 `CouponExpiryScheduler` 的 00:01，做同一件事，兩者之間沒有互斥（[IMPROVEMENT_ASSESSMENT](docs/IMPROVEMENT_ASSESSMENT.md) 第 58 行）。合併後只保留 `ScheduledTasks.expireCouponsDaily`，時點 00:01，經 `ExclusiveJobRunner` 互斥，交給交易內的 `CouponService.expireOldCoupons`。新增 `CouponExpiryJobTest`（2 個測試，Mockito）與 `SchedulingLocationGuardTest`（3 個測試，文字掃描），皆不載入 Spring context。未破壞的對照是同一個程式碼頭的 [run 41786679322](https://github.com/Leo0049/projectLab_2/actions/runs/41786679322)：`mvn test` 為 586 個測試、110 個類別，失敗 0、錯誤 0、略過 0。
+
+| 破壞 | scratch 分支（commit） | run | 結果 |
+|------|----------------------|-----|------|
+| A：還原重複的 `CouponExpiryScheduler`（修補前狀態） | `main-verif-stage25-A`（`c690635`） | [41786956154](https://github.com/Leo0049/projectLab_2/actions/runs/41786956154) | 失敗 2 項，皆為 `SchedulingLocationGuardTest`：`scheduledJobsAreTheKnownListAndLiveInScheduledTasks`（排程清單多出 `CouponExpiryScheduler#expireCoupons`）與 `couponExpiryIsReachedFromExactlyOneEntryPoint`（查詢多出 `CouponExpiryScheduler#markExpiredCoupons` 呼叫端）。`everyScheduledJobGoesThroughTheExclusiveRunner` 與 `CouponExpiryJobTest` 維持綠燈，重複的排程本身有經過 runner。 |
+| B：排程繞過 `ExclusiveJobRunner` | `main-verif-stage25-B`（`7987033`） | [41786959870](https://github.com/Leo0049/projectLab_2/actions/runs/41786959870) | 失敗 2 項：`CouponExpiryJobTest.expiryJobRunsThroughTheSharedRunnerUnderItsOwnLockName`（接線測試：未呼叫 `runExclusively`，服務被提前呼叫）與 `SchedulingLocationGuardTest.everyScheduledJobGoesThroughTheExclusiveRunner`（`ScheduledTasks#expireCouponsDaily` 未經 runner）。到期券呼叫端的守衛維持綠燈。 |
+| C：到期處理不改寫 `status` | `main-verif-stage25-C`（`3a47933`） | [41786963064](https://github.com/Leo0049/projectLab_2/actions/runs/41786963064) | 失敗 1 項：`CouponExpiryJobTest.expireOldCouponsMarksEveryDueUnusedCouponExpiredAndSavesIt`（`expected: <expired> but was: <unused>`）。守衛與接線測試維持綠燈。 |
+
+三個破壞各自一條 scratch 分支、各一次 CI，沒有互相遮蔽。這些分支保留於遠端，不屬於 PR 分支。本機的 Maven 無法取得相依套件（代理拒絕 Maven Central 的連線），因此所有測試數字都來自 CI。
 
 ### 拆出可測試的規則
 
