@@ -41,7 +41,11 @@ class StompSessionListenerTest {
     }
 
     private static StompUserPrincipal principal(Long id, String role) {
-        return new StompUserPrincipal(id, role, 0, Instant.now().plusSeconds(3600));
+        return principal(id, role, Instant.now().plusSeconds(3600));
+    }
+
+    private static StompUserPrincipal principal(Long id, String role, Instant expiresAt) {
+        return new StompUserPrincipal(id, role, 0, expiresAt);
     }
 
     @Test
@@ -78,5 +82,21 @@ class StompSessionListenerTest {
         listener.onConnected(new SessionConnectedEvent(this, connectMessage("s3"), anonymous));
 
         assertTrue(registry.isCut("s3"));
+    }
+
+    @Test
+    @DisplayName("登錄時記下 token 的到期時間：到期當下起，該工作階段不再送達（stage 26）")
+    void registeredSessionStopsDeliveringAtTheTokenExpiry() {
+        User customer = new User();
+        customer.setIsDeleted(false);
+        customer.setRole("CUSTOMER");
+        when(users.findById(1L)).thenReturn(Optional.of(customer));
+        Instant expiresAt = Instant.parse("2030-01-01T00:00:00Z");
+
+        listener.onConnected(new SessionConnectedEvent(this, connectMessage("s4"),
+                principal(1L, "CUSTOMER", expiresAt)));
+
+        assertTrue(registry.mayDeliver("s4", expiresAt.minusSeconds(1)));
+        assertFalse(registry.mayDeliver("s4", expiresAt));
     }
 }

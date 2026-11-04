@@ -8,6 +8,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,9 +23,9 @@ class AccountSuspensionCutListenerTest {
     @DisplayName("停用事件切斷列出的帳號所有工作階段，其他帳號不受影響")
     void cutsOnlyTheListedAccounts() {
         StompSessionRegistry registry = new StompSessionRegistry();
-        registry.register("brand-session", new AccountRef("BRAND", 5L));
-        registry.register("store-session", new AccountRef("STORE", 31L));
-        registry.register("other-store", new AccountRef("STORE", 32L));
+        registry.register("brand-session", new AccountRef("BRAND", 5L), Instant.MAX);
+        registry.register("store-session", new AccountRef("STORE", 31L), Instant.MAX);
+        registry.register("other-store", new AccountRef("STORE", 32L), Instant.MAX);
         AccountSuspensionCutListener listener = new AccountSuspensionCutListener(registry);
 
         listener.onAccountsSuspended(new AccountsSuspendedEvent(

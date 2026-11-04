@@ -8,6 +8,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,10 +23,10 @@ class TokenRevocationCutListenerTest {
     @DisplayName("撤銷事件只切斷列出的顧客帳號，同 id 的門市與其他顧客不受影響")
     void cutsOnlyTheListedCustomer() {
         StompSessionRegistry registry = new StompSessionRegistry();
-        registry.register("customer-7-phone", new AccountRef("CUSTOMER", 7L));
-        registry.register("customer-7-laptop", new AccountRef("CUSTOMER", 7L));
-        registry.register("store-7", new AccountRef("STORE", 7L));
-        registry.register("customer-8", new AccountRef("CUSTOMER", 8L));
+        registry.register("customer-7-phone", new AccountRef("CUSTOMER", 7L), Instant.MAX);
+        registry.register("customer-7-laptop", new AccountRef("CUSTOMER", 7L), Instant.MAX);
+        registry.register("store-7", new AccountRef("STORE", 7L), Instant.MAX);
+        registry.register("customer-8", new AccountRef("CUSTOMER", 8L), Instant.MAX);
         TokenRevocationCutListener listener = new TokenRevocationCutListener(registry);
 
         listener.onAccountsRevoked(new AccountsRevokedEvent(List.of(new AccountRef("CUSTOMER", 7L))));

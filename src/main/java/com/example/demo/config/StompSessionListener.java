@@ -39,7 +39,8 @@ public class StompSessionListener {
             sessions.cutSession(sessionId);
             return;
         }
-        sessions.register(sessionId, new AccountRef(principal.role(), principal.userId()));
+        // 連同權杖到期時間登錄；出站端據此在到期之後停止送達（stage 26）
+        sessions.register(sessionId, new AccountRef(principal.role(), principal.userId()), principal.expiresAt());
         if (!AccountStatus.isActive(principal.userId(), principal.role(), principal.tokenVersion(),
                 users, brands, stores)) {
             sessions.cutSession(sessionId);

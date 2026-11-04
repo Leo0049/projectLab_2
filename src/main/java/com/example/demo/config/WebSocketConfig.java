@@ -63,7 +63,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
 
     /**
-     * 出站通道：帳號停用後，既有的工作階段不再收到推播（stage 6）。
+     * 出站通道：帳號停用或撤銷後，既有的工作階段不再收到推播（stage 6）；權杖到期後亦然（stage 26）。
      * 見 {@link CutSessionOutboundInterceptor}。
      */
     @Override
