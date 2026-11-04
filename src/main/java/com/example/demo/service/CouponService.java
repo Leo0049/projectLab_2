@@ -126,7 +126,6 @@ public class CouponService {
     public void expireOldCoupons() {
         List<UserCoupon> activeCoupons = userCouponRepository.findByStatusAndExpiredAtBefore("unused", LocalDateTime.now());
         for (UserCoupon c : activeCoupons) {
-            c.setStatus("expired");
             userCouponRepository.save(c);
         }
     }
