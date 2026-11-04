@@ -22,6 +22,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -247,7 +248,7 @@ class SessionCutAfterCommitIntegrationTest {
 
     private String register(String role, long accountId) {
         String sessionId = "cut-it-" + UUID.randomUUID();
-        registry.register(sessionId, new AccountRef(role, accountId));
+        registry.register(sessionId, new AccountRef(role, accountId), Instant.MAX);
         registered.add(sessionId);
         return sessionId;
     }

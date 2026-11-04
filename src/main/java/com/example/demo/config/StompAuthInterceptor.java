@@ -198,7 +198,7 @@ public class StompAuthInterceptor implements ChannelInterceptor {
     /**
      * 綁在 STOMP 連線上的身分：userId、角色（門市與顧客的 id 會撞號，必須一併比對角色），
      * token 簽發時的帳號版本（改密碼後，舊連線的 SUBSCRIBE 會被拒絕，N13），
-     * 以及 token 的到期時間（SUBSCRIBE 時據此拒絕已過期的連線）。
+     * 以及 token 的到期時間（SUBSCRIBE 時據此拒絕已過期的連線；出站端到期後亦不再送達，見 {@link StompSessionRegistry#mayDeliver}）。
      */
     public record StompUserPrincipal(Long userId, String role, int tokenVersion, Instant expiresAt)
             implements Principal {
