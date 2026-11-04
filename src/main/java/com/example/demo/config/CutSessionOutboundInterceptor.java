@@ -32,6 +32,7 @@ public class CutSessionOutboundInterceptor implements ChannelInterceptor {
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         String sessionId = SimpMessageHeaderAccessor.getSessionId(message.getHeaders());
-        return sessions.mayDeliver(sessionId, clock.instant()) ? message : null;
+        // scratch break B：忽略注入的時鐘，改用系統時鐘
+        return sessions.mayDeliver(sessionId, Clock.systemUTC().instant()) ? message : null;
     }
 }
