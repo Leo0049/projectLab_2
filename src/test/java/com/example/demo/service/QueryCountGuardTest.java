@@ -1,18 +1,29 @@
 package com.example.demo.service;
 
 import com.example.demo.common.BrandApproval;
+import com.example.demo.controller.OrderController;
+import com.example.demo.controller.UserFavoriteController;
 import com.example.demo.dto.BrandSummary;
+import com.example.demo.dto.GroupOrderDTO;
 import com.example.demo.entity.Brand;
+import com.example.demo.entity.GroupOrder;
 import com.example.demo.entity.MenuCategory;
+import com.example.demo.entity.OrderItem;
 import com.example.demo.entity.ProductTemplate;
 import com.example.demo.entity.Store;
 import com.example.demo.entity.StoreProductStatus;
 import com.example.demo.entity.StoreProductStatusId;
+import com.example.demo.entity.User;
+import com.example.demo.entity.UserFavorite;
 import com.example.demo.repository.BrandRepository;
+import com.example.demo.repository.GroupOrderRepository;
 import com.example.demo.repository.MenuCategoryRepository;
+import com.example.demo.repository.OrderItemRepository;
 import com.example.demo.repository.ProductTemplateRepository;
 import com.example.demo.repository.StoreProductStatusRepository;
 import com.example.demo.repository.StoreRepository;
+import com.example.demo.repository.UserFavoriteRepository;
+import com.example.demo.repository.UserRepository;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
@@ -27,13 +38,17 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * N+1 守衛（stage 23，IMPROVEMENT_ASSESSMENT 第 8 項）。
+ * N+1 守衛（stage 23，IMPROVEMENT_ASSESSMENT 第 8 項；stage 27 擴充）。
  *
  * <p>以 Hibernate 統計量測 JDBC 陳述式數：同一個端點在資料量少與多時，陳述式數必須相等。
  * 守的是「查詢數不隨列數成長」，不是絕對次數，因此新增欄位或關聯時不需要改數字。
@@ -41,41 +56,68 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * <p>生產設定的 {@code default_batch_fetch_size: 50} 會把懶載入的關聯依 50 筆一批載入，
  * 所以守衛量的是生產實際的陳述式數：批次載入不會被誤判，逐列各查一次的寫法一定會被抓到。
  *
- * <p>只涵蓋已確認位於請求路徑上的讀取端點。新增讀取端點時，請在這裡加入對應案例。
+ * <p>目前涵蓋：分店菜單、公開品牌列表、附近店家（定位與未定位）、搜尋（距離與名稱）、
+ * 揪團詳情、訂單列表、收藏清單。新增讀取端點時，請在這裡加入對應案例。
  */
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class QueryCountGuardTest {
 
+    /** 台北 101 附近。所有守衛分店都建在這個座標上，距離為 0，排序與數量都可預期。 */
+    private static final double LAT = 25.0330;
+    private static final double LNG = 121.5654;
+
+    /** 搜尋關鍵字。只會命中本測試建立的分店，名稱都含這段字，結束後全部清除。 */
+    private static final String KEYWORD = "守衛測試分店";
+
     @Autowired private EntityManagerFactory entityManagerFactory;
     @Autowired private MenuService menuService;
     @Autowired private PublicService publicService;
+    @Autowired private GroupOrderService groupOrderService;
+    @Autowired private OrderController orderController;
+    @Autowired private UserFavoriteController userFavoriteController;
     @Autowired private BrandRepository brandRepository;
     @Autowired private StoreRepository storeRepository;
     @Autowired private MenuCategoryRepository menuCategoryRepository;
     @Autowired private ProductTemplateRepository productTemplateRepository;
     @Autowired private StoreProductStatusRepository storeProductStatusRepository;
+    @Autowired private UserRepository userRepository;
+    @Autowired private GroupOrderRepository groupOrderRepository;
+    @Autowired private OrderItemRepository orderItemRepository;
+    @Autowired private UserFavoriteRepository userFavoriteRepository;
     @Autowired private PasswordEncoder passwordEncoder;
 
-    /** 本測試建立的資料列，結束後依外鍵相反的順序清除（狀態列 → 商品 → 分類 → 分店 → 品牌）。 */
+    /** 本測試建立的資料列，結束後依外鍵相反的順序清除（收藏與品項 → 訂單 → 狀態列 → 商品 → 分類 → 分店 → 顧客 → 品牌）。 */
+    private final List<UserFavorite> favorites = new ArrayList<>();
+    private final List<OrderItem> orderItems = new ArrayList<>();
+    private final List<GroupOrder> groupOrders = new ArrayList<>();
     private final List<StoreProductStatus> statuses = new ArrayList<>();
     private final List<ProductTemplate> products = new ArrayList<>();
     private final List<MenuCategory> categories = new ArrayList<>();
     private final List<Store> stores = new ArrayList<>();
+    private final List<User> users = new ArrayList<>();
     private final List<Brand> brands = new ArrayList<>();
 
     private record Measured<T>(long statements, T result) {}
 
     @AfterEach
     void removeCreatedRows() {
+        userFavoriteRepository.deleteAll(favorites);
+        orderItemRepository.deleteAll(orderItems);
+        groupOrderRepository.deleteAll(groupOrders);
         storeProductStatusRepository.deleteAll(statuses);
         productTemplateRepository.deleteAll(products);
         menuCategoryRepository.deleteAll(categories);
         storeRepository.deleteAll(stores);
+        userRepository.deleteAll(users);
         brandRepository.deleteAll(brands);
+        favorites.clear();
+        orderItems.clear();
+        groupOrders.clear();
         statuses.clear();
         products.clear();
         categories.clear();
         stores.clear();
+        users.clear();
         brands.clear();
     }
 
@@ -115,6 +157,144 @@ class QueryCountGuardTest {
                 "新增的品牌必須出現在列表中（確認量到的是真實的查詢）");
     }
 
+    @Test
+    @DisplayName("附近店家（定位）：SQL 次數不隨分店數成長，回傳的分店包含剛建立的全部分店")
+    void nearbyWithLocationQueryCountDoesNotGrowWithStores() {
+        Brand brand = newBrand();
+        List<Store> created = newStoresAt(brand, 2);
+        Measured<Map<String, Object>> few =
+                measure(() -> publicService.getNearbyStoresPage(LAT, LNG, null, null, 1, 50, null));
+
+        created.addAll(newStoresAt(brand, 10));
+        Measured<Map<String, Object>> many =
+                measure(() -> publicService.getNearbyStoresPage(LAT, LNG, null, null, 1, 50, null));
+
+        assertEquals(few.statements(), many.statements(),
+                "分店從 2 間增加到 12 間，附近店家（定位）的 SQL 次數不應改變；逐店各查一次就是 N+1");
+        assertTrue(storeIdsIn(cards(many.result(), "stores")).containsAll(idsOf(created)),
+                "量到的必須包含剛建立的全部分店（確認量到的是真實的查詢）");
+    }
+
+    @Test
+    @DisplayName("附近店家（未定位，依品牌篩選）：SQL 次數不隨分店數成長，數量與建立的一致")
+    void nearbyWithoutLocationQueryCountDoesNotGrowWithStores() {
+        Brand brand = newBrand();
+        newStoresAt(brand, 2);
+        Measured<Map<String, Object>> few =
+                measure(() -> publicService.getNearbyStoresPage(null, null, brand.getId(), null, 1, 50, null));
+
+        newStoresAt(brand, 10);
+        Measured<Map<String, Object>> many =
+                measure(() -> publicService.getNearbyStoresPage(null, null, brand.getId(), null, 1, 50, null));
+
+        assertEquals(few.statements(), many.statements(),
+                "分店從 2 間增加到 12 間，附近店家（未定位）的 SQL 次數不應改變");
+        assertEquals(12, cards(many.result(), "stores").size(), "量到的必須是該品牌的全部分店");
+    }
+
+    @Test
+    @DisplayName("搜尋（定位，距離排序）：SQL 次數不隨分店數成長，結果就是剛建立的分店")
+    void searchWithLocationQueryCountDoesNotGrowWithStores() {
+        Brand brand = newBrand();
+        List<Store> created = newStoresAt(brand, 2);
+        Measured<Map<String, Object>> few =
+                measure(() -> publicService.searchStores(KEYWORD, LAT, LNG, 1, 50, null));
+
+        created.addAll(newStoresAt(brand, 10));
+        Measured<Map<String, Object>> many =
+                measure(() -> publicService.searchStores(KEYWORD, LAT, LNG, 1, 50, null));
+
+        assertEquals(few.statements(), many.statements(),
+                "分店從 2 間增加到 12 間，搜尋（距離）的 SQL 次數不應改變；逐店各查一次就是 N+1");
+        assertEquals(idsOf(created), storeIdsIn(cards(many.result(), "stores")),
+                "搜尋結果必須恰好是剛建立的分店（關鍵字只命中本測試的資料）");
+    }
+
+    @Test
+    @DisplayName("搜尋（未定位，名稱路徑）：SQL 次數不隨分店數成長，結果就是剛建立的分店")
+    void searchWithoutLocationQueryCountDoesNotGrowWithStores() {
+        Brand brand = newBrand();
+        List<Store> created = newStoresAt(brand, 2);
+        Measured<Map<String, Object>> few =
+                measure(() -> publicService.searchStores(KEYWORD, null, null, 1, 50, null));
+
+        created.addAll(newStoresAt(brand, 10));
+        Measured<Map<String, Object>> many =
+                measure(() -> publicService.searchStores(KEYWORD, null, null, 1, 50, null));
+
+        assertEquals(few.statements(), many.statements(),
+                "分店從 2 間增加到 12 間，搜尋（名稱）的 SQL 次數不應改變");
+        assertEquals(idsOf(created), storeIdsIn(cards(many.result(), "stores")),
+                "搜尋結果必須恰好是剛建立的分店（關鍵字只命中本測試的資料）");
+    }
+
+    @Test
+    @DisplayName("揪團詳情（團長視角）：SQL 次數不隨品項數成長，品項數與建立的一致")
+    void groupOrderDetailQueryCountDoesNotGrowWithItems() {
+        Brand brand = newBrand();
+        Store store = newStore(brand);
+        ProductTemplate product = newProducts(brand, newCategory(brand), 1).get(0);
+        User host = newUser();
+        GroupOrder order = newGroupOrder(store, host);
+        newMemberItems(order, product, 2);
+        Measured<GroupOrderDTO> few =
+                measure(() -> groupOrderService.getGroupOrderDTOByToken(order.getShareToken(), host.getId()));
+
+        newMemberItems(order, product, 10);
+        Measured<GroupOrderDTO> many =
+                measure(() -> groupOrderService.getGroupOrderDTOByToken(order.getShareToken(), host.getId()));
+
+        assertEquals(few.statements(), many.statements(),
+                "團員從 2 人增加到 12 人，揪團詳情的 SQL 次數不應改變；逐品項各查一次就是 N+1");
+        assertEquals(12, many.result().getItems().size(), "量到的必須是團內全部的品項");
+    }
+
+    @Test
+    @DisplayName("訂單列表（分頁卡片）：SQL 次數不隨訂單數成長，卡片數與建立的一致")
+    void orderCardsQueryCountDoesNotGrowWithOrders() {
+        Brand brand = newBrand();
+        Store store = newStore(brand);
+        ProductTemplate product = newProducts(brand, newCategory(brand), 1).get(0);
+        User host = newUser();
+        for (int i = 0; i < 2; i++) {
+            newHostedOrderWithItem(store, host, product);
+        }
+        Measured<Object> few =
+                measure(() -> orderController.getUserOrderCards(host.getId(), 0, 20, null, host.getId()).getBody());
+
+        for (int i = 0; i < 10; i++) {
+            newHostedOrderWithItem(store, host, product);
+        }
+        Measured<Object> many =
+                measure(() -> orderController.getUserOrderCards(host.getId(), 0, 20, null, host.getId()).getBody());
+
+        assertEquals(few.statements(), many.statements(),
+                "訂單從 2 張增加到 12 張，訂單列表的 SQL 次數不應改變；逐張訂單各查一次就是 N+1");
+        assertEquals(12, orderCardsOf(many.result()).size(), "量到的必須是全部的訂單");
+    }
+
+    @Test
+    @DisplayName("收藏清單：SQL 次數不隨收藏數成長，列出的收藏與建立的一致")
+    void favoritesQueryCountDoesNotGrowWithFavorites() {
+        Brand brand = newBrand();
+        User user = newUser();
+        for (int i = 0; i < 2; i++) {
+            newFavoriteStore(brand, user);
+        }
+        Measured<Object> few =
+                measure(() -> userFavoriteController.getUserFavorites(user.getId(), user.getId()).getBody());
+
+        for (int i = 0; i < 10; i++) {
+            newFavoriteStore(brand, user);
+        }
+        Measured<Object> many =
+                measure(() -> userFavoriteController.getUserFavorites(user.getId(), user.getId()).getBody());
+
+        assertEquals(few.statements(), many.statements(),
+                "收藏從 2 間增加到 12 間，收藏清單的 SQL 次數不應改變；逐店各查一次就是 N+1");
+        assertEquals(12, ((List<?>) many.result()).size(), "量到的必須是全部的收藏");
+    }
+
     /** 執行一次呼叫，回傳其間的 JDBC 陳述式數與結果。 */
     private <T> Measured<T> measure(Supplier<T> call) {
         Statistics stats = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
@@ -143,6 +323,26 @@ class QueryCountGuardTest {
         return total;
     }
 
+    /** 從分頁結果取出卡片清單（附近店家與搜尋的 "stores"）。 */
+    private static List<?> cards(Map<String, Object> page, String key) {
+        return (List<?>) page.get(key);
+    }
+
+    private static Set<Long> storeIdsIn(List<?> cards) {
+        return cards.stream()
+                .map(c -> ((Number) ((Map<?, ?>) c).get("storeId")).longValue())
+                .collect(Collectors.toSet());
+    }
+
+    private static Set<Long> idsOf(List<Store> list) {
+        return list.stream().map(Store::getId).collect(Collectors.toSet());
+    }
+
+    /** 訂單列表的回應是 {content: [...], ...}。 */
+    private static List<?> orderCardsOf(Object body) {
+        return (List<?>) ((Map<?, ?>) body).get("content");
+    }
+
     private Brand newBrand() {
         String tag = UUID.randomUUID().toString().substring(0, 8);
         Brand brand = new Brand();
@@ -157,17 +357,88 @@ class QueryCountGuardTest {
     }
 
     private Store newStore(Brand brand) {
+        return newStore(brand, null, null);
+    }
+
+    private Store newStore(Brand brand, BigDecimal latitude, BigDecimal longitude) {
         String tag = UUID.randomUUID().toString().substring(0, 8);
         Store store = new Store();
         store.setBrand(brand);
-        store.setStoreName("守衛測試分店-" + tag);
+        store.setStoreName(KEYWORD + "-" + tag);
         store.setAccount("guard-store-" + tag);
         store.setPasswordHash(passwordEncoder.encode("pw"));
         store.setRole("STORE");
         store.setStatus("active");
+        store.setLatitude(latitude);
+        store.setLongitude(longitude);
         Store saved = storeRepository.save(store);
         stores.add(saved);
         return saved;
+    }
+
+    /** 建在同一個座標上的分店（距離為 0），結果的數量與內容都可預期。 */
+    private List<Store> newStoresAt(Brand brand, int count) {
+        List<Store> created = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            created.add(newStore(brand, BigDecimal.valueOf(LAT), BigDecimal.valueOf(LNG)));
+        }
+        return created;
+    }
+
+    private Store newFavoriteStore(Brand brand, User user) {
+        Store store = newStore(brand);
+        UserFavorite favorite = new UserFavorite();
+        favorite.setUser(user);
+        favorite.setStore(store);
+        favorites.add(userFavoriteRepository.save(favorite));
+        return store;
+    }
+
+    private User newUser() {
+        String tag = UUID.randomUUID().toString().substring(0, 8);
+        User user = new User();
+        user.setPhone("09" + String.format("%08d", ThreadLocalRandom.current().nextInt(100_000_000)));
+        user.setName("守衛測試顧客-" + tag);
+        user.setRole("CUSTOMER");
+        User saved = userRepository.save(user);
+        users.add(saved);
+        return saved;
+    }
+
+    private GroupOrder newGroupOrder(Store store, User initiator) {
+        GroupOrder order = new GroupOrder();
+        order.setStore(store);
+        order.setInitiator(initiator);
+        order.setType("GROUP");
+        order.setStatus("OPEN");
+        order.setShareToken(UUID.randomUUID().toString().replace("-", "").substring(0, 16));
+        GroupOrder saved = groupOrderRepository.save(order);
+        groupOrders.add(saved);
+        return saved;
+    }
+
+    /** 團長發起的一張揪團，團長本人也點了一杯。 */
+    private void newHostedOrderWithItem(Store store, User host, ProductTemplate product) {
+        GroupOrder order = newGroupOrder(store, host);
+        newItem(order, host, product);
+    }
+
+    /** 每位團員各點一杯，且是不同的顧客（品項的顧客與商品會走批次載入）。 */
+    private void newMemberItems(GroupOrder order, ProductTemplate product, int count) {
+        for (int i = 0; i < count; i++) {
+            newItem(order, newUser(), product);
+        }
+    }
+
+    private void newItem(GroupOrder order, User user, ProductTemplate product) {
+        OrderItem item = new OrderItem();
+        item.setGroupOrder(order);
+        item.setUser(user);
+        item.setProduct(product);
+        item.setProductNameSnapshot(product.getName());
+        item.setUnitPriceSnapshot(BigDecimal.valueOf(30));
+        item.setFinalPrice(BigDecimal.valueOf(30));
+        orderItems.add(orderItemRepository.save(item));
     }
 
     private MenuCategory newCategory(Brand brand) {
