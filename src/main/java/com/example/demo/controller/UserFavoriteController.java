@@ -51,6 +51,7 @@ public class UserFavoriteController {
         List<UserFavoriteDTO> dtos = favorites.stream()
                 .map(f -> {
                     Store store = f.getStore();
+                    if (store != null) storeRepository.findById(store.getId()); // SCRATCH-BREAK: 逐收藏查詢
                     // stage 17：停用的分店或品牌不列出（與公開列表一致）。收藏仍在資料庫，分店恢復後會再出現
                     if (store == null || !StoreVisibility.isReachable(store))
                         return null;

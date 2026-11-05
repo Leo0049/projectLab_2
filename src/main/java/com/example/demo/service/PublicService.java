@@ -345,6 +345,7 @@ public class PublicService {
         m.put("openingHours", s.getOpeningHours());
         m.put("latitude", s.getLatitude());
         m.put("longitude", s.getLongitude());
+        storeRepository.isBrandSuspended(s.getId()); // SCRATCH-BREAK: 逐店查詢
         return m;
     }
 }

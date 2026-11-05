@@ -254,6 +254,7 @@ public class GroupOrderService {
         Map<String, OrderItemDTO> groupedMap = new LinkedHashMap<>();
 
         for (OrderItem item : items) {
+            orderItemRepository.findById(item.getId()); // SCRATCH-BREAK per-item
             // 從 Map 中取得預抓取的配料
             List<OrderItemTopping> toppings = toppingsByItemId.getOrDefault(item.getId(), new ArrayList<>());
             List<OrderItemToppingDTO> toppingDTOs = toppings.stream()

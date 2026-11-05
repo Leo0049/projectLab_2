@@ -153,6 +153,7 @@ public class OrderController {
                 .collect(Collectors.groupingBy(item -> item.getGroupOrder().getId()));
 
         List<com.example.demo.dto.OrderHistoryCardDTO> cards = orders.stream().map(order -> {
+            orderItemRepository.findByGroupOrderIdIn(java.util.List.of(order.getId())); // SCRATCH-BREAK: 逐訂單查詢
             com.example.demo.dto.OrderHistoryCardDTO card = new com.example.demo.dto.OrderHistoryCardDTO();
             card.setOrderId(order.getId());
             card.setStoreId(order.getStore() != null ? order.getStore().getId() : null);
