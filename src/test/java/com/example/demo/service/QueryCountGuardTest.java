@@ -9,6 +9,7 @@ import com.example.demo.entity.Brand;
 import com.example.demo.entity.GroupOrder;
 import com.example.demo.entity.MenuCategory;
 import com.example.demo.entity.OrderItem;
+import com.example.demo.entity.OrderRating;
 import com.example.demo.entity.ProductTemplate;
 import com.example.demo.entity.Store;
 import com.example.demo.entity.StoreProductStatus;
@@ -19,6 +20,7 @@ import com.example.demo.repository.BrandRepository;
 import com.example.demo.repository.GroupOrderRepository;
 import com.example.demo.repository.MenuCategoryRepository;
 import com.example.demo.repository.OrderItemRepository;
+import com.example.demo.repository.OrderRatingRepository;
 import com.example.demo.repository.ProductTemplateRepository;
 import com.example.demo.repository.StoreProductStatusRepository;
 import com.example.demo.repository.StoreRepository;
@@ -36,6 +38,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * N+1 守衛（stage 23，IMPROVEMENT_ASSESSMENT 第 8 項；stage 27 擴充）。
+ * N+1 守衛（stage 23，IMPROVEMENT_ASSESSMENT 第 8 項；stage 27、28 擴充）。
  *
  * <p>以 Hibernate 統計量測 JDBC 陳述式數：同一個端點在資料量少與多時，陳述式數必須相等。
  * 守的是「查詢數不隨列數成長」，不是絕對次數，因此新增欄位或關聯時不需要改數字。
@@ -57,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 所以守衛量的是生產實際的陳述式數：批次載入不會被誤判，逐列各查一次的寫法一定會被抓到。
  *
  * <p>目前涵蓋：分店菜單、公開品牌列表、附近店家（定位與未定位）、搜尋（距離與名稱）、
- * 揪團詳情、訂單列表、收藏清單。新增讀取端點時，請在這裡加入對應案例。
+ * 揪團詳情、訂單列表、收藏清單、品牌口碑（低分分店的評分分布）。新增讀取端點時，請在這裡加入對應案例。
  */
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class QueryCountGuardTest {
@@ -85,8 +88,10 @@ class QueryCountGuardTest {
     @Autowired private OrderItemRepository orderItemRepository;
     @Autowired private UserFavoriteRepository userFavoriteRepository;
     @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired private BrandService brandService;
+    @Autowired private OrderRatingRepository orderRatingRepository;
 
-    /** 本測試建立的資料列，結束後依外鍵相反的順序清除（收藏與品項 → 訂單 → 狀態列 → 商品 → 分類 → 分店 → 顧客 → 品牌）。 */
+    /** 本測試建立的資料列，結束後依外鍵相反的順序清除（評分 → 收藏與品項 → 訂單 → 狀態列 → 商品 → 分類 → 分店 → 顧客 → 品牌）。 */
     private final List<UserFavorite> favorites = new ArrayList<>();
     private final List<OrderItem> orderItems = new ArrayList<>();
     private final List<GroupOrder> groupOrders = new ArrayList<>();
@@ -96,11 +101,15 @@ class QueryCountGuardTest {
     private final List<Store> stores = new ArrayList<>();
     private final List<User> users = new ArrayList<>();
     private final List<Brand> brands = new ArrayList<>();
+    /** 品牌口碑案例建立的評分，以及每間評分分店實際的評分筆數（用來核對評分分布的加總）。 */
+    private final List<OrderRating> ratings = new ArrayList<>();
+    private final Map<Long, Integer> ratingCountByStore = new HashMap<>();
 
     private record Measured<T>(long statements, T result) {}
 
     @AfterEach
     void removeCreatedRows() {
+        orderRatingRepository.deleteAll(ratings);
         userFavoriteRepository.deleteAll(favorites);
         orderItemRepository.deleteAll(orderItems);
         groupOrderRepository.deleteAll(groupOrders);
@@ -119,6 +128,8 @@ class QueryCountGuardTest {
         stores.clear();
         users.clear();
         brands.clear();
+        ratings.clear();
+        ratingCountByStore.clear();
     }
 
     @Test
@@ -293,6 +304,33 @@ class QueryCountGuardTest {
         assertEquals(few.statements(), many.statements(),
                 "收藏從 2 間增加到 12 間，收藏清單的 SQL 次數不應改變；逐店各查一次就是 N+1");
         assertEquals(12, ((List<?>) many.result()).size(), "量到的必須是全部的收藏");
+    }
+
+    @Test
+    @DisplayName("品牌口碑（低分分店的評分分布）：SQL 次數不隨分店數成長，每間低分分店的分布與建立的評分一致")
+    void brandReputationQueryCountDoesNotGrowWithStores() {
+        Brand brand = newBrand();
+        newRatedStores(brand, 2);
+        Measured<Map<String, Object>> few = measure(() -> brandService.getBrandReputation(brand.getId()));
+
+        newRatedStores(brand, 10);
+        Measured<Map<String, Object>> many = measure(() -> brandService.getBrandReputation(brand.getId()));
+
+        assertEquals(few.statements(), many.statements(),
+                "分店從 2 間增加到 12 間，品牌口碑的 SQL 次數不應改變；逐間低分分店各查一次就是 N+1");
+
+        List<?> lowRated = (List<?>) many.result().get("lowRatedStores");
+        assertEquals(5, lowRated.size(), "低分分店清單上限為 5 間，量到的必須是排序後取前 5 間");
+        for (Object entry : lowRated) {
+            Map<?, ?> low = (Map<?, ?>) entry;
+            long storeId = ((Number) low.get("storeId")).longValue();
+            long expected = ratingCountByStore.get(storeId);
+            assertTrue(expected <= 5, "低分分店必須是平均分數最低的 5 間");
+            assertEquals(expected, sumOf(low.get("ratingDistribution")),
+                    "每間低分分店的評分分布加總，必須等於它實際的評分筆數（確認批次查詢依分店分組）");
+        }
+        assertEquals(totalRatings(), ((Number) many.result().get("totalReviewCount")).longValue(),
+                "全品牌的評分總數必須與建立的評分一致");
     }
 
     /** 執行一次呼叫，回傳其間的 JDBC 陳述式數與結果。 */
@@ -478,5 +516,40 @@ class QueryCountGuardTest {
         status.setProduct(product);
         status.setIsEnabled(enabled);
         statuses.add(storeProductStatusRepository.save(status));
+    }
+
+    /**
+     * 建立有評分的分店，平均分數與評分筆數都依建立順序遞增：第 k 間（從 0 起算）平均分數為 1.0 + 0.1 × k，
+     * 有 k+1 筆評分（星級 1 到 5 循環）。因此低分分店的 5 間就是最先建立的 5 間，且每間的分布都不同，
+     * 批次查詢若把評分分到別的分店，加總就會對不上。
+     */
+    private void newRatedStores(Brand brand, int count) {
+        User host = newUser();
+        for (int i = 0; i < count; i++) {
+            int index = ratingCountByStore.size();
+            int ratingCount = index + 1;
+            Store store = newStore(brand);
+            store.setAvgRating(BigDecimal.valueOf(10L + index, 1));
+            store.setReviewCount(ratingCount);
+            Store saved = storeRepository.save(store);
+            GroupOrder order = newGroupOrder(saved, host);
+            for (int j = 0; j < ratingCount; j++) {
+                OrderRating rating = new OrderRating();
+                rating.setOrder(order);
+                rating.setUser(newUser());
+                rating.setStore(saved);
+                rating.setRating((j % 5) + 1);
+                ratings.add(orderRatingRepository.save(rating));
+            }
+            ratingCountByStore.put(saved.getId(), ratingCount);
+        }
+    }
+
+    private static long sumOf(Object distribution) {
+        return ((Map<?, ?>) distribution).values().stream().mapToLong(v -> ((Number) v).longValue()).sum();
+    }
+
+    private long totalRatings() {
+        return ratingCountByStore.values().stream().mapToLong(Integer::longValue).sum();
     }
 }
