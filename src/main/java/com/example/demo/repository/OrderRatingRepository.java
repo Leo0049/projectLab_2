@@ -27,6 +27,7 @@ public interface OrderRatingRepository extends JpaRepository<OrderRating, Long> 
     @Query("SELECT r.rating, COUNT(r) FROM OrderRating r WHERE r.store.id IN :storeIds GROUP BY r.rating")
     List<Object[]> countByRatingInStores(@Param("storeIds") List<Long> storeIds);
 
-    @Query("SELECT r.rating, COUNT(r) FROM OrderRating r WHERE r.store.id = :storeId GROUP BY r.rating")
-    List<Object[]> countByRatingForStore(@Param("storeId") Long storeId);
+    /** 一次查出多間分店的評分分布，依分店分組：每列為 [storeId, rating, count]（stage 28，取代逐間查詢的 countByRatingForStore）。 */
+    @Query("SELECT r.store.id, r.rating, COUNT(r) FROM OrderRating r WHERE r.store.id IN :storeIds GROUP BY r.store.id, r.rating")
+    List<Object[]> countByRatingForStores(@Param("storeIds") List<Long> storeIds);
 }
