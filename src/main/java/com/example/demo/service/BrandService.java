@@ -701,15 +701,9 @@ public class BrandService {
         }
         long totalReviewCount = dist.values().stream().mapToLong(v -> ((Number) v).longValue()).sum();
 
-        // 低分分店最多 5 間；它們的評分分布一次批次查出（依分店分組），不逐間查詢（stage 28）
-        List<Store> lowRated = ratedStores.stream()
+        List<Map<String, Object>> lowRatedStores = ratedStores.stream()
                 .sorted(Comparator.comparing(s -> s.getAvgRating().doubleValue()))
                 .limit(5)
-                .collect(Collectors.toList());
-        Map<Long, Map<String, Long>> lowRatedDist = countRatingDistributionByStore(
-                lowRated.stream().map(Store::getId).collect(Collectors.toList()));
-
-        List<Map<String, Object>> lowRatedStores = lowRated.stream()
                 .map(s -> {
                     Map<String, Object> m = new HashMap<>();
                     m.put("storeId", s.getId());
@@ -717,7 +711,20 @@ public class BrandService {
                     m.put("avgRating", s.getAvgRating());
                     m.put("regionName", s.getRegion() != null ? s.getRegion().getName() : null);
                     m.put("reviewCount", s.getReviewCount() != null ? s.getReviewCount() : 0);
-                    m.put("ratingDistribution", lowRatedDist.get(s.getId()));
+                    // per-store rating distribution
+                    Map<String, Long> storeDist = new LinkedHashMap<>();
+                    for (int star = 5; star >= 1; star--) {
+                        storeDist.put(String.valueOf(star), 0L);
+                    }
+                    List<Object[]> storeDistRows = orderRatingRepository.countByRatingForStore(s.getId());
+                    for (Object[] row : storeDistRows) {
+                        int star = ((Number) row[0]).intValue();
+                        long count = ((Number) row[1]).longValue();
+                        if (star >= 1 && star <= 5) {
+                            storeDist.put(String.valueOf(star), count);
+                        }
+                    }
+                    m.put("ratingDistribution", storeDist);
                     return m;
                 }).collect(Collectors.toList());
 
@@ -747,34 +754,6 @@ public class BrandService {
         result.put("regionSatisfaction", regions);
         result.put("ratingDistribution", dist);
         return result;
-    }
-
-    /**
-     * 一次查出多間分店的評分分布（星級 5 到 1，沒有評分的星級補 0），依分店分組（stage 28）。
-     * 以單一查詢取代逐間查詢；沒有分店時不發出查詢。
-     */
-    private Map<Long, Map<String, Long>> countRatingDistributionByStore(List<Long> storeIds) {
-        Map<Long, Map<String, Long>> distByStore = new HashMap<>();
-        for (Long storeId : storeIds) {
-            Map<String, Long> dist = new LinkedHashMap<>();
-            for (int star = 5; star >= 1; star--) {
-                dist.put(String.valueOf(star), 0L);
-            }
-            distByStore.put(storeId, dist);
-        }
-        if (storeIds.isEmpty()) {
-            return distByStore;
-        }
-        for (Object[] row : orderRatingRepository.countByRatingForStores(storeIds)) {
-            long storeId = ((Number) row[0]).longValue();
-            int star = ((Number) row[1]).intValue();
-            long count = ((Number) row[2]).longValue();
-            Map<String, Long> dist = distByStore.get(storeId);
-            if (dist != null && star >= 1 && star <= 5) {
-                dist.put(String.valueOf(star), count);
-            }
-        }
-        return distByStore;
     }
 
     @Transactional(readOnly = true)
