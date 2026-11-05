@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-11-05，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：602 個 `@Test`，分布在 110 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，2026-11-03 的 run 41593374056 為 576，2026-11-03 的 run 41633935229（stage 24，程式碼頭 `9826267`）為 581，2026-11-03 的 run 41635593430（stage 24，程式碼頭 `2ff00b2`）為 581，2026-11-04 的 run 41786679322（stage 25，程式碼頭 `3bd214b`）為 586，2026-11-04 的 run 41835020203（stage 26，程式碼頭 `73faf29`）為 595，2026-11-05 的 run 41979210363（stage 27，程式碼頭 `28e2175`）為 602，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-11-06，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：603 個 `@Test`，分布在 110 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，2026-11-03 的 run 41593374056 為 576，2026-11-03 的 run 41633935229（stage 24，程式碼頭 `9826267`）為 581，2026-11-03 的 run 41635593430（stage 24，程式碼頭 `2ff00b2`）為 581，2026-11-04 的 run 41786679322（stage 25，程式碼頭 `3bd214b`）為 586，2026-11-04 的 run 41835020203（stage 26，程式碼頭 `73faf29`）為 595，2026-11-05 的 run 41979210363（stage 27，程式碼頭 `28e2175`）為 602，2026-11-06 的 run 42131828830（stage 28，程式碼頭 `bb9f80e`）為 603，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -286,7 +286,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 其他 | `NamespacedRedisKeySerializerTest`（7） | 鍵序列化器只加前綴，不改 hash 欄位與 value；還原的往返；另一命名空間的鍵原樣保留；null 直通；格式不合規拒絕建立（ADR-0013） |
 | 其他 | `RedisConfigWiringTest`（8，不連線） | 模板接線：主要字串模板與通用模板只包鍵，hash 欄位與 value 不加；`globalStringRedisTemplate` 不加前綴；prod 未設定或格式錯誤拒絕啟動；fbtoken 守衛以 `@Qualifier` 使用全域模板（ADR-0013） |
 | 其他 | `RedisKeyNamespaceIntegrationTest`（6，真實 Redis） | 伺服器上的實際鍵名：加鎖與 Lua 解鎖對同一把帶前綴的鍵生效；兩個命名空間的同名鍵互不干擾；fbtoken 不加前綴；使用隨機命名空間，不呼叫 FLUSH（ADR-0013） |
-| 其他 | `QueryCountGuardTest`（9，載入 Spring context） | N+1 守衛（stage 23，stage 27 擴充，Hibernate 統計）：同一端點在資料量少與多時，JDBC 陳述式數必須相等，且回傳內容與建立的資料一致；涵蓋分店菜單（`MenuService.getStoreMenu`，逐商品各查一次的寫法會紅）、公開品牌列表（`PublicService.getBrands`）、附近店家（定位與未定位）、搜尋（距離與名稱）、揪團詳情（`GroupOrderService.getGroupOrderDTOByToken`）、訂單列表（`OrderController.getUserOrderCards`）與收藏清單（`UserFavoriteController.getUserFavorites`）；售罄旗標與售罄列一致；測試結束時清除自己建立的列（2026-11-03；2026-11-05 擴充） |
+| 其他 | `QueryCountGuardTest`（10，載入 Spring context） | N+1 守衛（stage 23，stage 27、28 擴充，Hibernate 統計）：同一端點在資料量少與多時，JDBC 陳述式數必須相等，且回傳內容與建立的資料一致；涵蓋分店菜單（`MenuService.getStoreMenu`，逐商品各查一次的寫法會紅）、公開品牌列表（`PublicService.getBrands`）、附近店家（定位與未定位）、搜尋（距離與名稱）、揪團詳情（`GroupOrderService.getGroupOrderDTOByToken`）、訂單列表（`OrderController.getUserOrderCards`）與收藏清單（`UserFavoriteController.getUserFavorites`）、品牌口碑（`BrandService.getBrandReputation`，低分分店的評分分布）；售罄旗標與售罄列一致；測試結束時清除自己建立的列（2026-11-03；2026-11-05、2026-11-06 擴充） |
 | 其他 | `SchedulingLocationGuardTest`（3，文字掃描，不載入 Spring context） | 排程位置守衛（stage 25）：`@Scheduled` 清單固定且只在 `ScheduledTasks`，清單與原始文字的行數必須一致；每一支 `@Scheduled` 都經 `ExclusiveJobRunner`；到期券的查詢（`findByStatusAndExpiredAtBefore`）與轉換（`expireOldCoupons`）各只有一個呼叫端（2026-11-04） |
 | 應用程式 | `DemoApplicationTests`（1） | Spring context 能否載入 |
 
@@ -937,7 +937,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **目前只涵蓋兩個端點**：分店菜單（`MenuService.getStoreMenu`）與公開品牌列表（`PublicService.getBrands`，`GET /api/game-wheel/brands` 的來源）。搜尋與附近店家、揪團詳情、訂單列表、收藏當時尚未納入；納入前要先建立夾具並確認實際的陳述式數（stage 27 已納入，見 2026-11-05 節）。
 - **死碼已刪除**：`UserCouponService.getGameWheelBrands`（沒有呼叫者，且以 `findAll()` 讀入全部商品，再逐品牌 `findById`）與 `GroupOrderService.getItems`（沒有呼叫者）。轉盤的實際路徑是 `DailySpinController` 經 `DailySpinService`，品牌清單經 `PublicService.getBrands()`。
 - **仍是死碼，未處理**：`UserCouponService.getGameWheelMenu`、`UserCouponService.spin`、`UserCouponService.getSpinStatus`，都沒有呼叫者。刪除前請再確認沒有測試或反射使用。
-- **未納入守衛的逐列查詢**：（1）`BrandService` 的品牌評分分布，每個品牌最多 5 次（`limit(5)` 在查詢之前）；（2）`OrderService` 建單時的固定規格防竄改，`createOrder` 與 `placeOrder` 各有一處逐品項的 `findByIdProductId`，屬於寫入路徑，數量受訂單品項數限制。其他寫入路徑未逐一檢查。
+- **未納入守衛的逐列查詢**：（1）`BrandService` 的品牌評分分布已於 stage 28（2026-11-06）改為批次查詢並納入守衛，見 2026-11-06 節；（2）`OrderService` 建單時的固定規格防竄改，`createOrder` 與 `placeOrder` 各有一處逐品項的 `findByIdProductId`，屬於寫入路徑，數量受訂單品項數限制。其他寫入路徑未逐一檢查。
 - **驗證**：程式碼頭 `d4ce3dd` 的 CI run 41593374056 為 576 個測試、107 個類別，失敗 0、錯誤 0、略過 0。還原驗證 A（分店菜單改回逐商品查詢）見 README「2026-11-03 N+1 守衛還原驗證（CI）」，run 41594365570 紅燈 1 項。
 
 ## 2026-11-03（stage 24）新增的不變量與約定
@@ -979,3 +979,12 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **控制器直接呼叫**：訂單列表與收藏清單的案例直接呼叫控制器方法（不走 HTTP，身分以參數傳入），量到的是控制器內會經過的查詢；`requireSelf` 的身分檢查仍會執行。
 - **未處理**：寫入路徑的逐品項查詢（建單的固定規格防竄改）與品牌評分分布仍未納入守衛，見 `docs/IMPROVEMENT_ASSESSMENT.md` 第 8 項。
 - **還原驗證**：見 README「2026-11-05 N+1 守衛擴充還原驗證（CI）」。
+
+## 2026-11-06（stage 28）新增的不變量與約定
+
+- **品牌口碑的低分分店評分分布一次查出**：`BrandService.getBrandReputation` 的低分分店（排序後最多 5 間）以 `countRatingDistributionByStore` 讀取，底層是 `OrderRatingRepository.countByRatingForStores`（`GROUP BY` 分店與星級）。不要改回逐間呼叫的寫法；`countByRatingForStore` 已於本階段移除（唯一呼叫端）。
+- **查詢數與低分分店數無關**：分店清單 1 + 全品牌評分分布 1 + 低分分店評分分布 1 + 完成訂單數 1。`limit(5)` 限制了上限，但逐間查詢的寫法仍會隨低分分店數增加，守衛會抓到。
+- **守衛用 2 間與 12 間比較，不用 5 間與 12 間**：低分分店上限為 5，若拿 5 間與 12 間比，逐間查詢的次數也會相等，守衛會失去效力。2 間與 12 間時低分分店分別為 2 與 5 間，逐間寫法會失敗。
+- **內容也要斷言**：低分分店清單為 5 間、每間評分分布的加總等於它實際的評分筆數、`totalReviewCount` 等於全品牌的評分總數。夾具的平均分數與評分筆數依建立順序遞增（第 k 間平均分數 1.0 + 0.1 × k，有 k+1 筆評分），低分分店因此可預期，且每間的分布互不相同；批次查詢若分錯店，加總就會對不上。
+- **夾具約定**：`order_ratings` 的 `(order_id, user_id)` 唯一，因此每筆評分使用新的顧客，每間分店有自己的揪團訂單。`@AfterEach` 最先刪除評分列（它參照訂單、顧客與分店）。
+- **還原驗證**：見 README「2026-11-06 品牌口碑批次查詢還原驗證（CI）」。
