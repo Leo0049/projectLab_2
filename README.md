@@ -55,7 +55,7 @@ flowchart LR
 | 層 | 內容 | 守住的東西 |
 |----|------|-----------|
 | 0. 靜態檢查 | gitleaks secret 掃描；受版控 JS 的 `node --check`；HTML 內嵌 script 的語法檢查 | 金鑰外洩、前端語法錯誤 |
-| 1. 單元與整合測試 | `mvn test`：595 個 `@Test`，110 個測試類別（JUnit 5 + Mockito；13 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
+| 1. 單元與整合測試 | `mvn test`：602 個 `@Test`，110 個測試類別（JUnit 5 + Mockito；13 個類別載入 Spring context）；JaCoCo 報告（不設門檻） | 授權、金流併發、帳號驗證、規則的回歸 |
 | 2. API 端對端 | `scripts/e2e-verify.js` 直接打後端，含冪等結帳的重送與轉盤 409 | 端點契約、交易邊界、序列化 |
 | 3. UI 流程 | `scripts/ui/run-all.js`（Playwright，斷網模式）：43 個 HTML 頁面全數普掃（共 55 次載入，顧客主頁有資料與空狀態各掃一次；管理員後台四頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -330,7 +330,7 @@ docker compose up -d && mvn test
 | `PageSizeClampTest`（6） | 列表分頁夾制：門市訂單、附近店家、錢包帳本的 page／size 都有上下限；page 為 0 或負數時視為第一頁 |
 | `TimeZoneConfigTest`（1） | 啟動時的時區設定：先切到 UTC（免得主機本來就是 Asia/Taipei 而假性通過），再確認 JVM 預設時區被設為 Asia/Taipei，不經過 `main()` |
 
-目前共有 595 個 `@Test`（110 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
+目前共有 602 個 `@Test`（110 個測試類別）。完整的逐類說明維護在 [CLAUDE.md 的「測試」一節](CLAUDE.md)。`ItemSpecResolverTest` / `ItemHashTest` / `CouponEligibilityTest` / `TxDisplayTest` 是純邏輯測試，不載入 Spring context。
 2026-10-11 那一輪另新增 7 個純邏輯測試類別（`SafeText`、`SafeImageUrl`、`MemberCancelSettlement`、`OrderStatusGuard`、`CancellableStatus`、`StompSubscribeRules`、`SocialSignupRules`），已以 JUnit 替身實際執行並通過。
 能這樣測是因為先把規則從 `GroupOrderService` 抽了出來——見下方「拆出可測試的規則」。
 
@@ -358,7 +358,7 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 | 層 | 內容 | 抓得到什麼 |
 |----|------|-----------|
-| `mvn test`（595 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
+| `mvn test`（602 個 `@Test`） | 授權、金流、帳號驗證、租戶隔離、數量與品項規則的回歸防線 | 邏輯錯誤、併發重複扣款與遺失更新、規格與折扣算錯 |
 | `scripts/e2e-verify.js` | 12 個面向：三種角色認證、瀏覽、錢包帳本、購物車、訂單全生命週期、揪團、轉盤、收藏／地址、授權防護與 WebSocket | 交易邊界、序列化、擁有權檢查；實際通過數由腳本輸出，WebSocket 需安裝選用的 `ws` 套件 |
 | `scripts/ui/run-all.js` | 43 個頁面全頁面普掃（55 次載入）＋ 點餐／轉盤／揪團／搜尋分頁四條主線＋管理員審核（Playwright 實際點擊；揪團流程以兩個瀏覽器分飾團長與團員） | 只有真的載入畫面、真的按下去才會出現的問題 |
 
@@ -370,16 +370,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是階段 26（PR #34，程式碼頭 `73faf29`，推播權杖到期後不再送達）。該程式碼頭上的完整 CI 執行是 [run 41835020203](https://github.com/Leo0049/projectLab_2/actions/runs/41835020203)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是階段 27（PR #35，程式碼頭 `28e2175`，N+1 守衛擴充到附近店家、搜尋、揪團詳情、訂單列表與收藏）。該程式碼頭上的完整 CI 執行是 [run 41979210363](https://github.com/Leo0049/projectLab_2/actions/runs/41979210363)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 41835020203（`pull_request`，commit `73faf29`）：「測試與端對端驗證」511 秒、「容器映像建置（僅建置）」65 秒，皆成功 |
+| 執行 | run 41979210363（`pull_request`，commit `28e2175`）：「測試與端對端驗證」525 秒、「容器映像建置（僅建置）」81 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，60 秒。測試總計 **595 個測試、110 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| `mvn test`（第 1 層） | 通過，82 秒。測試總計 **602 個測試、110 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
 | 打包與起服務 | 打包 6 秒；啟動後端 12 秒 |
-| API 端對端（第 2 層） | 通過，5 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，331 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
+| API 端對端（第 2 層） | 通過，6 秒 |
+| UI 流程（第 3 層，斷網模式） | 通過，339 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -1103,6 +1103,16 @@ CI 結果：
 
 三個破壞各自一條 scratch 分支、各一次 CI，沒有互相遮蔽。失敗清單取自 check-run annotation（「失敗清單（共 N 筆）」）。這些分支保留於遠端，不屬於 PR 分支。本機的 Maven 無法取得相依套件，因此所有測試數字都來自 CI。
 
+### 2026-11-05 N+1 守衛擴充還原驗證（CI）
+
+階段 27 實作於 `test/stage27-n-plus-one-coverage`（PR #35，程式碼頭 `28e2175`）。`QueryCountGuardTest` 從 2 個案例擴充到 9 個，新增附近店家（定位與未定位）、搜尋（距離與名稱）、揪團詳情、訂單列表與收藏清單。檢查這四條路徑後沒有找到逐列查詢：關聯以 `EntityGraph` 或 `IN` 一次載入，生產的 `default_batch_fetch_size: 50` 涵蓋其餘懶載入，因此本階段沒有改動正式程式碼。未破壞的對照是同一個程式碼頭的 [run 41979210363](https://github.com/Leo0049/projectLab_2/actions/runs/41979210363)：`mvn test` 為 602 個測試、110 個類別，失敗 0、錯誤 0、略過 0。
+
+| 破壞 | scratch 分支（commit） | run | 結果 |
+|------|----------------------|-----|------|
+| 四條路徑各插入一次逐列查詢：`PublicService.buildStoreCard` 逐店呼叫 `storeRepository.isBrandSuspended`（附近店家與搜尋共用）；`GroupOrderService.getGroupedItems` 逐品項呼叫 `orderItemRepository.findById`；`OrderController.getUserOrderCards` 逐訂單呼叫 `orderItemRepository.findByGroupOrderIdIn`；`UserFavoriteController.getUserFavorites` 逐收藏呼叫 `storeRepository.findById` | `main-verif-stage27-A`（`edc10bc`） | [41980247741](https://github.com/Leo0049/projectLab_2/actions/runs/41980247741) | 失敗 7 項，恰為 7 個新案例。每項的 SQL 次數差都是 10（資料量 2 → 12 筆，即多出的 10 次逐列查詢）：`nearbyWithLocationQueryCountDoesNotGrowWithStores`（7 → 17）、`nearbyWithoutLocationQueryCountDoesNotGrowWithStores`（3 → 13）、`searchWithLocationQueryCountDoesNotGrowWithStores`（5 → 15）、`searchWithoutLocationQueryCountDoesNotGrowWithStores`（4 → 14）、`groupOrderDetailQueryCountDoesNotGrowWithItems`（5 → 15）、`orderCardsQueryCountDoesNotGrowWithOrders`（5 → 15）、`favoritesQueryCountDoesNotGrowWithFavorites`（3 → 13）。兩個既有案例（分店菜單、公開品牌列表）維持綠燈 |
+
+四處破壞在同一次 CI 中。各自只影響對應的案例；附近店家與搜尋共用 `buildStoreCard` 這一處，因此不互相遮蔽。失敗清單取自 check-run annotation（「失敗清單（共 7 筆）」），測試總計為 602 個測試、失敗 7。這個 scratch 分支保留於遠端，不屬於 PR 分支。
+
 ### 拆出可測試的規則
 
 抽出時 `GroupOrderService` 有 1,611 行、47 個方法，最長的單一方法 127 行。
@@ -1192,7 +1202,7 @@ CI 結果：
 - 品牌自助註冊已改為審核制（N-28，2026-10-18）：新品牌為 `PENDING`，未核准不能登入，也不出現在公開列表。管理員審核的後台頁面已加入（`frontend/Admin/`，路徑 `/Admin/login.html`），資料仍只經 `/api/admin/**`；是否另加邀請碼仍待業務決定。
 - 品牌與分店停用（stage 6，2026-10-20，ADR-0012）的已知缺口：（a）（b）已於 2026-10-26（stage 17）修正：收藏清單不列出停用的分店，新增收藏與加入購物車在停用時回 400；（c）停用前已建立的揪團仍可由成員檢視，商品驗證、團員付款與補款會擋；（d）即時切斷只作用於收到停用事件的那台實例，其他實例上既有的 WebSocket 訂閱要等連線結束（見 `docs/DEPLOYMENT.md` 第 30 項）。
 - 停用的付款守衛與切斷的 `AFTER_COMMIT` 階段已於 2026-10-21 補上測試（`StoreSuspensionPaymentGuardTest`、`AccountSuspensionCutListenerTest`），還原驗證見「2026-10-21 補測試後還原驗證（Java，CI）」。交易的四種結局（提交前、提交後、回滾、提交失敗）已於 2026-11-02（stage 22）以真實交易的整合測試守住（`SessionCutAfterCommitIntegrationTest`）。
-- N+1 查詢：分店菜單的逐商品售罄查詢已改為一次查詢（`MenuService.getStoreMenu`），並由 `QueryCountGuardTest` 守住（2026-11-03，stage 23）。尚未納入守衛的讀取路徑：搜尋與附近店家、揪團詳情、訂單列表、收藏。未處理的逐列查詢：建單時的固定規格防竄改（`OrderService` 的 `createOrder` 與 `placeOrder`，寫入路徑，數量受品項數限制）、品牌評分分布（每品牌最多 5 次）。死碼 `UserCouponService.getGameWheelMenu`、`spin`、`getSpinStatus` 仍在程式中。
+- N+1 查詢：分店菜單的逐商品售罄查詢已改為一次查詢（`MenuService.getStoreMenu`），並由 `QueryCountGuardTest` 守住（2026-11-03，stage 23）。附近店家、搜尋、揪團詳情、訂單列表與收藏已於 2026-11-05（stage 27）納入守衛。未處理的逐列查詢：建單時的固定規格防竄改（`OrderService` 的 `createOrder` 與 `placeOrder`，寫入路徑，數量受品項數限制）、品牌評分分布（每品牌最多 5 次）。死碼 `UserCouponService.getGameWheelMenu`、`spin`、`getSpinStatus` 仍在程式中。
 - 依賴漏洞稽核已於 stage 13 改為報告模式（npm 與 Maven，N-29）；是否設定 repo secret `NVD_API_KEY` 仍待決定（選用，見 `docs/REVIEW_2026-10-13.md` 第三節）。CI action 版本已由成功的 CI 執行驗證（N-20，2026-10-16 關閉）。
 
 ---
