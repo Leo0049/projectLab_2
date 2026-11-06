@@ -22,6 +22,7 @@ import com.example.demo.repository.StoreProductStatusRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.common.StoreVisibility;
 import com.example.demo.service.order.OrderStatusGuard;
+import com.example.demo.service.order.ItemSpecResolver;
 import com.example.demo.service.order.CheckoutFailure;
 import com.example.demo.service.wallet.LedgerDescriptions;
 import com.example.demo.service.wallet.TxType;
@@ -35,6 +36,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,6 +52,9 @@ import java.util.stream.Collectors;
 public class OrderService {
 
     private record PendingToppingSnapshots(OrderItem item, List<PricingService.ToppingPrice> toppings) { }
+
+    /** 沒有任何規格關聯的商品使用的空解析器：固定規格判斷一律不成立，沿用用戶端的值 */
+    private static final ItemSpecResolver NO_SPECS = ItemSpecResolver.of(List.of());
 
     private final GroupOrderRepository groupOrderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -297,25 +302,18 @@ public class OrderService {
             }
 
             // --- 固定規格防竄改 (Fixed Specification Anti-Tamper) ---
+            // 規則見 service/order/ItemSpecResolver。規格關聯在迴圈外一次撈回，不逐品項查詢（避免 N+1）。
+            Map<Long, ItemSpecResolver> specsByProduct = loadSpecsByProduct(items.stream()
+                    .filter(oi -> oi.getProduct() != null)
+                    .map(oi -> oi.getProduct().getId())
+                    .distinct()
+                    .toList());
             for (OrderItem item : items) {
                 if (item.getProduct() == null) continue;
-                List<com.example.demo.entity.ProductSpecRelation> relations = productSpecRelationRepository.findByIdProductId(item.getProduct().getId());
-                Map<String, List<com.example.demo.entity.ProductSpecRelation>> specsByType = relations.stream()
-                        .filter(r -> r.getBrandSpec() != null && r.getBrandSpec().getSpecType() != null)
-                        .collect(Collectors.groupingBy(r -> r.getBrandSpec().getSpecType().toUpperCase()));
-
-                List<com.example.demo.entity.ProductSpecRelation> sugarOpts = specsByType.get("SWEETNESS");
-                if (sugarOpts != null && sugarOpts.size() == 1) {
-                    item.setSugarSnapshot(sugarOpts.get(0).getBrandSpec().getCustomName());
-                }
-                List<com.example.demo.entity.ProductSpecRelation> iceOpts = specsByType.get("ICE");
-                if (iceOpts != null && iceOpts.size() == 1) {
-                    item.setIceSnapshot(iceOpts.get(0).getBrandSpec().getCustomName());
-                }
-                List<com.example.demo.entity.ProductSpecRelation> sizeOpts = specsByType.get("SIZE");
-                if (sizeOpts != null && sizeOpts.size() == 1) {
-                    item.setSizeSnapshot(sizeOpts.get(0).getBrandSpec().getCustomName());
-                }
+                ItemSpecResolver specs = specsByProduct.getOrDefault(item.getProduct().getId(), NO_SPECS);
+                item.setSugarSnapshot(specs.fixedOr(ItemSpecResolver.SWEETNESS, item.getSugarSnapshot()));
+                item.setIceSnapshot(specs.fixedOr(ItemSpecResolver.ICE, item.getIceSnapshot()));
+                item.setSizeSnapshot(specs.fixedOr(ItemSpecResolver.SIZE, item.getSizeSnapshot()));
                 item.setGroupOrder(order);
                 item.setPaymentType(paymentMethod);
                 if ("WALLET".equals(paymentMethod)) {
@@ -416,6 +414,18 @@ public class OrderService {
         return total;
     }
 
+    /**
+     * 固定規格用：一次撈回多個商品的規格關聯，依商品建成解析器（規則見 ItemSpecResolver）。
+     * 沒有商品時直接回空表，避免送出空的 IN 清單。
+     */
+    private Map<Long, ItemSpecResolver> loadSpecsByProduct(Collection<Long> productIds) {
+        if (productIds.isEmpty()) {
+            return Map.of();
+        }
+        return ItemSpecResolver.groupByProduct(
+                productSpecRelationRepository.findByIdProductIdIn(new ArrayList<>(productIds)));
+    }
+
     private Set<Long> getUnavailableProductIds(Long storeId) {
         return storeProductStatusRepository.findByStoreId(storeId).stream()
                 .filter(status -> Boolean.FALSE.equals(status.getIsEnabled()))
@@ -472,6 +482,8 @@ public class OrderService {
         Map<Long, ProductTemplate> productMap = productTemplateRepository.findAllById(productIds).stream()
                 .collect(Collectors.toMap(ProductTemplate::getId, p -> p));
         Set<Long> unavailableProductIds = getUnavailableProductIds(store.getId());
+        // 固定規格用的規格關聯一次撈回（不在下方逐品項查詢）
+        Map<Long, ItemSpecResolver> specsByProduct = loadSpecsByProduct(productMap.keySet());
 
         for (OrderItemRequest itemReq : req.getItems()) {
             ProductTemplate product = productMap.get(itemReq.getProductId());
@@ -497,24 +509,10 @@ public class OrderService {
             item.setSizeSnapshot(size);
             item.setUnitPriceSnapshot(finalPrice);
             // --- 固定規格防竄改 (Fixed Specification Anti-Tamper) ---
-            List<com.example.demo.entity.ProductSpecRelation> relations = productSpecRelationRepository.findByIdProductId(product.getId());
-            Map<String, List<com.example.demo.entity.ProductSpecRelation>> specsByType = relations.stream()
-                    .filter(r -> r.getBrandSpec() != null && r.getBrandSpec().getSpecType() != null)
-                    .collect(Collectors.groupingBy(r -> r.getBrandSpec().getSpecType().toUpperCase()));
-
-            String sugar = itemReq.getSugarSnapshot();
-            List<com.example.demo.entity.ProductSpecRelation> sugarOpts = specsByType.get("SWEETNESS");
-            if (sugarOpts != null && sugarOpts.size() == 1) {
-                sugar = sugarOpts.get(0).getBrandSpec().getCustomName();
-            }
-            item.setSugarSnapshot(sugar);
-
-            String ice = itemReq.getIceSnapshot();
-            List<com.example.demo.entity.ProductSpecRelation> iceOpts = specsByType.get("ICE");
-            if (iceOpts != null && iceOpts.size() == 1) {
-                ice = iceOpts.get(0).getBrandSpec().getCustomName();
-            }
-            item.setIceSnapshot(ice);
+            // 規格關聯已在迴圈外一次撈回（見 specsByProduct）。這裡刻意不處理 SIZE，與改寫前相同；杯型由 pricingService.resolveSizeName 決定。
+            ItemSpecResolver specs = specsByProduct.getOrDefault(product.getId(), NO_SPECS);
+            item.setSugarSnapshot(specs.fixedOr(ItemSpecResolver.SWEETNESS, itemReq.getSugarSnapshot()));
+            item.setIceSnapshot(specs.fixedOr(ItemSpecResolver.ICE, itemReq.getIceSnapshot()));
 
             item.setSizeSnapshot(size);
 

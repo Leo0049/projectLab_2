@@ -16,6 +16,16 @@ public interface ProductSpecRelationRepository extends JpaRepository<ProductSpec
     @Query("SELECT r FROM ProductSpecRelation r JOIN FETCH r.brandSpec bs LEFT JOIN FETCH bs.master WHERE r.id.productId = :productId")
     List<ProductSpecRelation> findByIdProductId(@Param("productId") Long productId);
 
+    /**
+     * 一次撈多個商品的規格關聯，供建單的固定規格判斷使用（逐品項查詢會是 N+1）。
+     *
+     * <p>⚠️ 必須與 findByIdProductId 一樣用 LEFT JOIN FETCH master：品牌自建規格的 master_id 可為 null，
+     * 改用 JOIN FETCH（內連線）會把這些選項丟掉，固定規格判斷就會漏看它。findByProductIds 用的是 JOIN FETCH，
+     * 不可拿來取代這個方法。
+     */
+    @Query("SELECT r FROM ProductSpecRelation r JOIN FETCH r.brandSpec bs LEFT JOIN FETCH bs.master WHERE r.id.productId IN :productIds")
+    List<ProductSpecRelation> findByIdProductIdIn(@Param("productIds") List<Long> productIds);
+
     void deleteByIdBrandSpecId(Long brandSpecId);
 
     @Modifying
