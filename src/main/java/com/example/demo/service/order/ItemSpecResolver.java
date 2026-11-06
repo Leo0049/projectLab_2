@@ -78,6 +78,26 @@ public final class ItemSpecResolver {
         return resolved == null ? "" : resolved;
     }
 
+    /**
+     * 依商品分組，每個商品建一個解析器。供批次查出規格關聯後使用
+     * （{@code ProductSpecRelationRepository.findByIdProductIdIn}），取代逐品項查詢。
+     */
+    public static Map<Long, ItemSpecResolver> groupByProduct(List<ProductSpecRelation> relations) {
+        return relations.stream().collect(Collectors.groupingBy(
+                r -> r.getId().getProductId(),
+                Collectors.collectingAndThen(Collectors.toList(), ItemSpecResolver::of)));
+    }
+
+    /**
+     * 寫入訂單快照用：固定規格回傳唯一選項的名稱（不採信 requested）；非固定規格原樣回傳 requested。
+     *
+     * <p>與 {@link #resolve} 的差別：這裡不做標籤字元檢查。建單路徑原本就沒有這道檢查，
+     * 本方法只換規格資料的來源（批次查詢），不改行為；加上檢查會讓既有的下單請求開始回 400，另案處理。
+     */
+    public String fixedOr(String specType, String requested) {
+        return isFixed(specType) ? resolve(specType, null) : requested;
+    }
+
     private static String normalize(String specType) {
         return specType == null ? "" : specType.toUpperCase();
     }

@@ -2,11 +2,13 @@ package com.example.demo.service.order;
 
 import com.example.demo.entity.BrandSpecSetting;
 import com.example.demo.entity.ProductSpecRelation;
+import com.example.demo.entity.ProductSpecRelationId;
 import com.example.demo.exception.CustomException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -115,5 +117,54 @@ class ItemSpecResolverTest {
     void fixedSpecIgnoresMarkupFromClient() {
         ItemSpecResolver resolver = ItemSpecResolver.of(List.of(spec("ICE", "熱飲")));
         assertEquals("熱飲", resolver.resolve(ItemSpecResolver.ICE, "<img src=x onerror=alert(1)>"));
+    }
+
+    @Test
+    @DisplayName("fixedOr：固定規格忽略用戶端送來的值，回傳品牌設定的唯一選項")
+    void fixedOrOverridesClientValue() {
+        ItemSpecResolver resolver = ItemSpecResolver.of(List.of(spec("SWEETNESS", "無糖")));
+
+        assertEquals("無糖", resolver.fixedOr(ItemSpecResolver.SWEETNESS, "全糖"));
+        assertEquals("無糖", resolver.fixedOr(ItemSpecResolver.SWEETNESS, null));
+    }
+
+    @Test
+    @DisplayName("fixedOr：多選項或無設定時原樣回傳用戶端的值（含 null）")
+    void fixedOrKeepsClientValueOtherwise() {
+        ItemSpecResolver multi = ItemSpecResolver.of(List.of(spec("ICE", "去冰"), spec("ICE", "少冰")));
+        assertEquals("少冰", multi.fixedOr(ItemSpecResolver.ICE, "少冰"));
+        assertNull(multi.fixedOr(ItemSpecResolver.ICE, null));
+
+        assertEquals("半糖", ItemSpecResolver.of(List.of()).fixedOr(ItemSpecResolver.SWEETNESS, "半糖"));
+    }
+
+    @Test
+    @DisplayName("固定規格的唯一選項沒有名稱時，快照為 null（與改寫前一致，不退回用戶端的值）")
+    void fixedOrWithoutCustomNameStoresNull() {
+        ItemSpecResolver resolver = ItemSpecResolver.of(List.of(spec("ICE", null)));
+        assertNull(resolver.fixedOr(ItemSpecResolver.ICE, "全冰"));
+    }
+
+    @Test
+    @DisplayName("groupByProduct：各商品獨立解析，唯一選項只在它所屬的商品內生效")
+    void groupByProductKeepsProductsApart() {
+        Map<Long, ItemSpecResolver> byProduct = ItemSpecResolver.groupByProduct(List.of(
+                specFor(1L, "ICE", "去冰"), specFor(1L, "ICE", "少冰"),
+                specFor(2L, "ICE", "熱飲")));
+
+        assertEquals(2, byProduct.size());
+        assertFalse(byProduct.get(1L).isFixed(ItemSpecResolver.ICE));
+        assertEquals("少冰", byProduct.get(1L).fixedOr(ItemSpecResolver.ICE, "少冰"));
+        assertTrue(byProduct.get(2L).isFixed(ItemSpecResolver.ICE));
+        assertEquals("熱飲", byProduct.get(2L).fixedOr(ItemSpecResolver.ICE, "全冰"));
+        assertNull(byProduct.get(3L), "沒有任何規格關聯的商品不在結果中");
+    }
+
+    private static ProductSpecRelation specFor(long productId, String type, String name) {
+        ProductSpecRelation relation = spec(type, name);
+        ProductSpecRelationId id = new ProductSpecRelationId();
+        id.setProductId(productId);
+        relation.setId(id);
+        return relation;
     }
 }
