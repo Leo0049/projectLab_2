@@ -838,7 +838,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **門市切換供應狀態只限本品牌（N-33）**：`StoreController.toggleStoreTopping`（配料）與 `AnalyticsService.toggleDrinkSupply`（飲品）以 `common/BrandReference.belongsToBrand` 檢查被切換的品項是否屬於門市所屬的品牌。分店沒有品牌、或品項沒有品牌時拒絕（fail-closed）。他品牌與不存在的 id 回同一個 404 訊息，不洩漏 id 是否存在。新增同類端點時照做，不要只查 id 存在。
 - **`isAvailable` 必填**：供應切換缺少此欄位回 400，且在查詢任何資料前拒絕。舊版兩條路徑的行為不同：配料在解包時拋出 NPE（500，未寫入）；飲品把 `NULL` 寫進 `store_product_settings.is_enabled`（欄位允許 NULL），之後公開菜單 `GET /api/menu/store/{storeId}`（`MenuService.getStoreMenu` 的 `!s.getIsEnabled()`）與門市飲品列表 `GET /api/stores/menu/drinks`（`Collectors.toMap` 不接受 null 值）都會拋出 NullPointerException，回 500。
 - **既有的 NULL 列不會被這次修改修正**：部署前後請執行 `SELECT store_id, product_id FROM store_product_settings WHERE is_enabled IS NULL;`。有結果時由維運決定處理方式；建議語意是「缺值視為供應中」，與分店沒有列時的預設一致（`getStoreMenuDrinks` 的 `getOrDefault(…, true)`）。`OrderService.getUnavailableProductIds` 與 `GroupOrderService.getUnavailableProductIds` 用 `Boolean.FALSE.equals`，對 NULL 安全，結帳不受影響。
-- **`toggleProductStock` 目前沒有呼叫者（死碼）**：`AnalyticsService.toggleProductStock` 沒有品牌檢查，也沒有路由。若要接上路由，必須先補 `BrandReference` 檢查，並處理 `!sps.getIsEnabled()` 對 NULL 列的 NPE。
+- **`toggleProductStock` 已於 stage 29 移除（原為沒有呼叫者的死碼）**：`AnalyticsService.toggleProductStock` 沒有品牌檢查，也沒有路由。日後若要恢復，必須先補 `BrandReference` 檢查，並處理 `!sps.getIsEnabled()` 對 NULL 列的 NPE。
 - **懶載入的品牌只在交易內讀取**：`AnalyticsService` 沒有類別層級的交易註解，`toggleDrinkSupply` 讀取 `product.getBrand()`，所以方法自己要標 `@Transactional`。
 - **授權審計的結論（2026-10-24）**：品牌端所有 path id 都在 service 以 `getBrand().getId().equals(brandId)` 檢查（分類、商品、規格、配料、分店更新）。顧客端的購物車品項（`CartService.updateItem`、`deleteItem`）、常用地址（`requireSelf` 加上 `addr.getUser()` 比對）、訂單明細、時間軸、評分與再訂購都檢查擁有者或參與者。`@RequestBody` 沒有直接綁定 JPA entity。結帳路徑（`CartService`、`OrderService`、`GroupOrderService`）檢查商品屬於門市品牌。新增 path id 端點時照同樣的寫法：先確認 path id 屬於 token 的主體，再進入方法。
 - **同型 XSS 清單已過期**：`docs/REVIEW_2026-10-11.md` 的「同型未修的位置」四處（`search_result.html`、`orders.html`、`order_confirm.html`、`profile.html`）已於 2026-10-24 核實皆已 `escapeHtml`。grep 找出的其餘 `${…}` 候選多數在變數層已轉義（例如 `const name = escapeHtml(brand.name)`）。判斷是否轉義要看變數的定義，不能只看 `${` 那一行。
@@ -936,7 +936,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **守衛量的是生產設定**：生產的 `default_batch_fetch_size: 50` 會把懶載入的關聯依 50 筆一批載入，所以 50 筆以內的批次載入不會被誤判；迴圈內逐列各查一次的寫法（例如 `findById`）一定會被抓到。
 - **目前只涵蓋兩個端點**：分店菜單（`MenuService.getStoreMenu`）與公開品牌列表（`PublicService.getBrands`，`GET /api/game-wheel/brands` 的來源）。搜尋與附近店家、揪團詳情、訂單列表、收藏當時尚未納入；納入前要先建立夾具並確認實際的陳述式數（stage 27 已納入，見 2026-11-05 節）。
 - **死碼已刪除**：`UserCouponService.getGameWheelBrands`（沒有呼叫者，且以 `findAll()` 讀入全部商品，再逐品牌 `findById`）與 `GroupOrderService.getItems`（沒有呼叫者）。轉盤的實際路徑是 `DailySpinController` 經 `DailySpinService`，品牌清單經 `PublicService.getBrands()`。
-- **仍是死碼，未處理**：`UserCouponService.getGameWheelMenu`、`UserCouponService.spin`、`UserCouponService.getSpinStatus`，都沒有呼叫者。刪除前請再確認沒有測試或反射使用。
+- **死碼已刪除（stage 29）**：`UserCouponService.getGameWheelMenu`、`spin`、`getSpinStatus` 都沒有呼叫者，已移除，連同只被它們使用的 `userRepository`、`brandRepository`、`menuCategoryRepository`、`productTemplateRepository` 欄位與 `MAX_SPIN_PER_DAY`。`UserCouponService` 現在只剩 `getMyCoupons` 與 `useCoupon`（N10 的原子消耗）。
 - **未納入守衛的逐列查詢**：（1）`BrandService` 的品牌評分分布已於 stage 28（2026-11-06）改為批次查詢並納入守衛，見 2026-11-06 節；（2）`OrderService` 建單時的固定規格防竄改，`createOrder` 與 `placeOrder` 各有一處逐品項的 `findByIdProductId`，屬於寫入路徑，數量受訂單品項數限制。其他寫入路徑未逐一檢查。
 - **驗證**：程式碼頭 `d4ce3dd` 的 CI run 41593374056 為 576 個測試、107 個類別，失敗 0、錯誤 0、略過 0。還原驗證 A（分店菜單改回逐商品查詢）見 README「2026-11-03 N+1 守衛還原驗證（CI）」，run 41594365570 紅燈 1 項。
 
@@ -988,3 +988,9 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **內容也要斷言**：低分分店清單為 5 間、每間評分分布的加總等於它實際的評分筆數、`totalReviewCount` 等於全品牌的評分總數。夾具的平均分數與評分筆數依建立順序遞增（第 k 間平均分數 1.0 + 0.1 × k，有 k+1 筆評分），低分分店因此可預期，且每間的分布互不相同；批次查詢若分錯店，加總就會對不上。
 - **夾具約定**：`order_ratings` 的 `(order_id, user_id)` 唯一，因此每筆評分使用新的顧客，每間分店有自己的揪團訂單。`@AfterEach` 最先刪除評分列（它參照訂單、顧客與分店）。
 - **還原驗證**：見 README「2026-11-06 品牌口碑批次查詢還原驗證（CI）」。
+
+## 2026-11-06（stage 29）新增的不變量與約定
+
+- **抽獎只走 `DailySpinController` → `DailySpinService`**：`UserCouponService` 不再提供抽獎、轉盤狀態或轉盤選單，之後不要把抽獎邏輯放回那裡。
+- **門市的飲品供應切換只走 `AnalyticsService.toggleDrinkSupply`**（`StoreController.toggleDrinkSupply` 呼叫，N-33 有品牌檢查）。逐商品售罄的 `toggleProductStock` 已移除；日後若要恢復，必須先補 `BrandReference` 檢查並處理 NULL 列的 NPE（見 stage 12 節）。
+- **本階段沒有行為變更，也沒有新測試**：移除的方法在 `src/`、測試與腳本中都沒有呼叫者（已用 grep 確認，含反射用法）。驗證靠 CI 的編譯、既有測試與 E2E；測試總數維持 603、110 個類別。
