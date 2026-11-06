@@ -175,7 +175,7 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 
 `mvn test`（需先 `docker compose up -d`，測試會連本機 MySQL 與 Redis）。
 
-**目前規模（2026-11-06，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：603 個 `@Test`，分布在 110 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，2026-11-03 的 run 41593374056 為 576，2026-11-03 的 run 41633935229（stage 24，程式碼頭 `9826267`）為 581，2026-11-03 的 run 41635593430（stage 24，程式碼頭 `2ff00b2`）為 581，2026-11-04 的 run 41786679322（stage 25，程式碼頭 `3bd214b`）為 586，2026-11-04 的 run 41835020203（stage 26，程式碼頭 `73faf29`）為 595，2026-11-05 的 run 41979210363（stage 27，程式碼頭 `28e2175`）為 602，2026-11-06 的 run 42131828830（stage 28，程式碼頭 `bb9f80e`）為 603，2026-11-06 的 run 42135823226（stage 29，程式碼頭 `3fd443a`）為 603，與這裡一致）；略過的測試會讓該步驟失敗。
+**目前規模（2026-11-06，以 `grep -rhE '^\s*@Test\b' src/test/java | wc -l` 計算）：609 個 `@Test`，分布在 111 個測試類別。** 指令一定要有 `\b`：不加的話，`ImageStorageServiceTest` 第 30 行的 `@TestPropertySource` 也會被算進來，變成 218。新增或刪除測試時，請同步更新此表與這段數字。CI 的「測試總計與略過檢查」步驟會把 Surefire 的測試數印成 annotation（2026-10-13 的 run 38352055664 為 217，2026-10-18 的 run 39066084888 為 359，2026-10-21 的 run 39581843911 為 467，2026-10-22 的 run 39712451888 為 470，2026-10-23 的 run 40077641128 為 515，2026-10-24 的 run 40098422977 為 530，2026-10-26 的 run 40212579054 為 539，2026-10-26 的 run 40215884263 為 541，2026-10-26 的 run 40218516253 為 548，2026-10-26 的 run 40282962565 為 552，2026-10-27 的 run 40350477035 為 555，2026-11-01 的 run 41227065670 為 564，2026-11-02 的 run 41428831550 為 574，2026-11-03 的 run 41593374056 為 576，2026-11-03 的 run 41633935229（stage 24，程式碼頭 `9826267`）為 581，2026-11-03 的 run 41635593430（stage 24，程式碼頭 `2ff00b2`）為 581，2026-11-04 的 run 41786679322（stage 25，程式碼頭 `3bd214b`）為 586，2026-11-04 的 run 41835020203（stage 26，程式碼頭 `73faf29`）為 595，2026-11-05 的 run 41979210363（stage 27，程式碼頭 `28e2175`）為 602，2026-11-06 的 run 42131828830（stage 28，程式碼頭 `bb9f80e`）為 603，2026-11-06 的 run 42135823226（stage 29，程式碼頭 `3fd443a`）為 603，2026-11-06 的 run 42194619966（stage 30，程式碼頭 `96de31a`）為 609，與這裡一致）；略過的測試會讓該步驟失敗。
 
 | 區域 | 測試（數量） | 守住的東西 |
 |------|-------------|-----------|
@@ -251,7 +251,8 @@ permitAll，導致 `PUT /api/stores/update` 對外開放且可竄改任意分店
 | 金流與併發 | `AnalyticsServiceAutoRejectTest`（12） | 店家接單與拒單、逾時自動拒單（N-32）：逾時且仍 SUBMITTED 以列鎖讀取、退款一次、改為 REJECTED；剛好 10 分鐘不拒單；鎖內發現已接單不拒單；接單後拒單回 409；他店 403；逾時一秒即不可接單（409，不寫入）、剛好 10 分鐘仍可接單、計時起點為送單時間、OPEN 不受時限（stage 18） |
 | 金流與併發 | `OrderAutoRejectJobTest`（3） | 逐筆自動拒單（N-32）：只推播真的被拒的訂單；單筆失敗不影響其他筆；沒有逾時訂單時不做事 |
 | 金流與併發 | `ScheduledTasksAutoRejectTest`（1） | 自動拒單排程經 `ExclusiveJobRunner`（`order-auto-reject`，120 秒租約）執行，取得鎖後才掃描 |
-| 訂單規則 | `ItemSpecResolverTest`（9） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）；非固定規格的自訂值拒絕標籤字元、控制字元與超過 50 字 |
+| 訂單規則 | `ItemSpecResolverTest`（13） | 固定規格防竄改（見下方「品項規則抽在 service/order/」）；非固定規格的自訂值拒絕標籤字元、控制字元與超過 50 字；`fixedOr`（寫入快照）只在固定規格時覆寫，唯一選項沒有名稱時為 null；`groupByProduct` 讓各商品互不影響（stage 30） |
+| 訂單規則 | `OrderSpecLookupGuardTest`（2，文字掃描） | 建單的固定規格查詢（stage 30，不載入 Spring context）：`OrderService` 不得呼叫 `findByIdProductId(`；createOrder 與 placeOrder 都經由 `loadSpecsByProduct(`（宣告 1 次加 2 次呼叫） |
 | 訂單規則 | `ItemHashTest`（6） | 品項識別碼：配料順序不影響合併、套券的那杯要拆開 |
 | 訂單規則 | `CouponEligibilityTest`（6） | 優惠券適用範圍、已付款不可套券 |
 | 訂單規則 | `CheckoutFailureTest`（2） | 結帳失敗分類（純函式）：只有明確標示 503 的 CustomException 是系統忙碌；業務拒絕與同訊息的一般例外都不是 |
@@ -937,7 +938,7 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **目前只涵蓋兩個端點**：分店菜單（`MenuService.getStoreMenu`）與公開品牌列表（`PublicService.getBrands`，`GET /api/game-wheel/brands` 的來源）。搜尋與附近店家、揪團詳情、訂單列表、收藏當時尚未納入；納入前要先建立夾具並確認實際的陳述式數（stage 27 已納入，見 2026-11-05 節）。
 - **死碼已刪除**：`UserCouponService.getGameWheelBrands`（沒有呼叫者，且以 `findAll()` 讀入全部商品，再逐品牌 `findById`）與 `GroupOrderService.getItems`（沒有呼叫者）。轉盤的實際路徑是 `DailySpinController` 經 `DailySpinService`，品牌清單經 `PublicService.getBrands()`。
 - **死碼已刪除（stage 29）**：`UserCouponService.getGameWheelMenu`、`spin`、`getSpinStatus` 都沒有呼叫者，已移除，連同只被它們使用的 `userRepository`、`brandRepository`、`menuCategoryRepository`、`productTemplateRepository` 欄位與 `MAX_SPIN_PER_DAY`。`UserCouponService` 現在只剩 `getMyCoupons` 與 `useCoupon`（N10 的原子消耗）。
-- **未納入守衛的逐列查詢**：（1）`BrandService` 的品牌評分分布已於 stage 28（2026-11-06）改為批次查詢並納入守衛，見 2026-11-06 節；（2）`OrderService` 建單時的固定規格防竄改，`createOrder` 與 `placeOrder` 各有一處逐品項的 `findByIdProductId`，屬於寫入路徑，數量受訂單品項數限制。其他寫入路徑未逐一檢查。
+- **未納入守衛的逐列查詢**：（1）`BrandService` 的品牌評分分布已於 stage 28（2026-11-06）改為批次查詢並納入守衛，見 2026-11-06 節；（2）`OrderService` 建單時的固定規格查詢已於 stage 30（2026-11-06）改為批次，見 2026-11-06（stage 30）節。建單的定價查詢（`PricingService` 的尺寸定價、配料規則與區域加價，`repriceItems` 與 `placeOrder` 的迴圈內）仍逐品項查詢，屬於金額路徑，尚未處理。其他寫入路徑未逐一檢查。
 - **驗證**：程式碼頭 `d4ce3dd` 的 CI run 41593374056 為 576 個測試、107 個類別，失敗 0、錯誤 0、略過 0。還原驗證 A（分店菜單改回逐商品查詢）見 README「2026-11-03 N+1 守衛還原驗證（CI）」，run 41594365570 紅燈 1 項。
 
 ## 2026-11-03（stage 24）新增的不變量與約定
@@ -994,3 +995,12 @@ Material Symbols 都已收進 `frontend/vendor/`（`scripts/vendor-assets.sh` �
 - **抽獎只走 `DailySpinController` → `DailySpinService`**：`UserCouponService` 不再提供抽獎、轉盤狀態或轉盤選單，之後不要把抽獎邏輯放回那裡。
 - **門市的飲品供應切換只走 `AnalyticsService.toggleDrinkSupply`**（`StoreController.toggleDrinkSupply` 呼叫，N-33 有品牌檢查）。逐商品售罄的 `toggleProductStock` 已移除；日後若要恢復，必須先補 `BrandReference` 檢查並處理 NULL 列的 NPE（見 stage 12 節）。
 - **本階段沒有行為變更，也沒有新測試**：移除的方法在 `src/`、測試與腳本中都沒有呼叫者（已用 grep 確認，含反射用法）。驗證靠 CI 的編譯、既有測試與 E2E；測試總數維持 603、110 個類別。
+
+## 2026-11-06（stage 30）新增的不變量與約定
+
+- **建單的固定規格查詢一次撈回**：`OrderService.createOrder` 與 `placeOrder` 經由 `loadSpecsByProduct`（一次 `ProductSpecRelationRepository.findByIdProductIdIn`，再以 `ItemSpecResolver.groupByProduct` 依商品分組）取得規格。不可逐品項呼叫 `findByIdProductId`，`OrderSpecLookupGuardTest` 以文字掃描守住。
+- **批次查詢必須 `LEFT JOIN FETCH master`**：`brand_spec_setting.master_id` 可為 null（品牌自建規格）。`findByProductIds` 用的是 `JOIN FETCH`（內連線），會把這些選項丟掉，固定規格判斷就會漏看它，不可拿來取代 `findByIdProductIdIn`。
+- **寫入快照用 `ItemSpecResolver.fixedOr`，不做標籤檢查**：固定規格回傳唯一選項的名稱，否則原樣回傳用戶端的值。建單路徑原本就沒有 `resolve` 的標籤字元檢查，本階段只換資料來源、不改行為；加上檢查會讓既有的下單請求開始回 400，需另案決定。
+- **`placeOrder` 不覆寫 SIZE，`createOrder` 會覆寫**：`placeOrder` 的杯型由 `pricingService.resolveSizeName` 決定。兩條路徑的差異是既有行為，本階段沒有改。
+- **定價仍逐品項（未處理，金額路徑）**：`repriceItems` 與 `placeOrder` 的迴圈內，`PricingService` 會逐品項查詢尺寸定價（`resolveSize` → `findSizePricingsByProductId`）、配料規則（`productToppings` → `productToppingRuleRepository.findByIdProductId`）與區域加價（`regionOffset`）。日後批次化時，`PricingService` 仍是唯一的公式來源，並需要與現行結果相同的對照測試。
+- **還原驗證**：見 README「2026-11-06 建單固定規格批次查詢還原驗證（CI）」。
