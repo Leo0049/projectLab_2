@@ -370,16 +370,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是階段 29（PR #37，程式碼頭 `3fd443a`，移除沒有呼叫者的死碼）。該程式碼頭上的完整 CI 執行是 [run 42135823226](https://github.com/Leo0049/projectLab_2/actions/runs/42135823226)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是階段 30（PR #38，程式碼頭 `96de31a`，建單的固定規格查詢改為批次）。該程式碼頭上的完整 CI 執行是 [run 42194619966](https://github.com/Leo0049/projectLab_2/actions/runs/42194619966)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 42135823226（`pull_request`，commit `3fd443a`）：「測試與端對端驗證」539 秒、「容器映像建置（僅建置）」66 秒，皆成功 |
+| 執行 | run 42194619966（`pull_request`，commit `96de31a`）：「測試與端對端驗證」525 秒、「容器映像建置（僅建置）」58 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，90 秒。測試總計 **603 個測試、110 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
-| 打包與起服務 | 打包 8 秒；啟動後端 17 秒 |
+| `mvn test`（第 1 層） | 通過，84 秒。測試總計 **609 個測試、111 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 8 秒；啟動後端 16 秒 |
 | API 端對端（第 2 層） | 通過，6 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，337 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
+| UI 流程（第 3 層，斷網模式） | 通過，339 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -1121,6 +1121,24 @@ CI 結果：
 
 破壞的方式：把修改前的 `BrandService` 與 `OrderRatingRepository` 放回，保留新的守衛案例（scratch 分支 `main-verif-stage28-A`，commit `cb80248`）。
 
+### 2026-11-06 建單固定規格批次查詢還原驗證（CI）
+
+階段 30 實作於 `fix/stage30-spec-batch-lookup`（PR #38，程式碼頭 `96de31a`）。`OrderService.createOrder` 與 `placeOrder` 的固定規格判斷原本逐品項呼叫 `findByIdProductId`，N 項的訂單查 N 次。本階段改為每張單一次 `findByIdProductIdIn`（與 `findByIdProductId` 相同使用 `LEFT JOIN FETCH master`），依商品分組後交給 `ItemSpecResolver`；寫入快照改用新增的 `ItemSpecResolver.fixedOr`。沒有行為變更：只換規格資料的來源，不動金額與付款狀態，`placeOrder` 仍不覆寫 SIZE。未改用既有的 `findByProductIds`，因為它是 `JOIN FETCH`，會丟掉品牌自建規格（`master_id` 為 null）。
+
+未破壞的對照是同一個程式碼頭的 [run 42194619966](https://github.com/Leo0049/projectLab_2/actions/runs/42194619966)：`mvn test` 為 609 個測試、111 個類別，失敗 0、錯誤 0、略過 0。
+
+破壞的方式：scratch 分支 `main-verif-stage30`（commit `6a6c977`）把 `OrderService` 放回逐品項查詢，並把 `ItemSpecResolver.fixedOr` 改為永遠回傳用戶端的值。[run 42195800249](https://github.com/Leo0049/projectLab_2/actions/runs/42195800249) 失敗 5 個測試（總計 609 個測試、失敗 5、錯誤 0、略過 0）：
+
+| # | 轉紅的測試 | 守的東西 |
+|---|-----------|---------|
+| 1 | `OrderSpecLookupGuardTest.orderServiceDoesNotLookUpSpecsPerItem` | 建單不得逐品項呼叫 `findByIdProductId` |
+| 2 | `OrderSpecLookupGuardTest.bothOrderPathsUseTheBatchHelper` | createOrder 與 placeOrder 都經由批次 helper |
+| 3 | `ItemSpecResolverTest.fixedOrOverridesClientValue` | 固定規格覆寫用戶端的值 |
+| 4 | `ItemSpecResolverTest.fixedOrWithoutCustomNameStoresNull` | 唯一選項沒有名稱時快照為 null |
+| 5 | `ItemSpecResolverTest.groupByProductKeepsProductsApart` | 各商品的固定規格互不影響 |
+
+這個 scratch 分支保留於遠端，不屬於 PR 分支。
+
 | 破壞 | scratch 分支（commit） | run | 結果 |
 |------|----------------------|-----|------|
 | 低分分店逐間查詢（修改前的寫法）：每間低分分店各呼叫一次 `countByRatingForStore` | `main-verif-stage28-A`（`cb80248`） | [42132877821](https://github.com/Leo0049/projectLab_2/actions/runs/42132877821) | 失敗 1 項，恰為 `brandReputationQueryCountDoesNotGrowWithStores`。SQL 次數 `expected: <5> but was: <8>`：2 間低分分店時為分店清單 1 + 全品牌評分分布 1 + 逐間 2 + 完成訂單 1 = 5；12 間分店（低分分店上限 5）時為 1 + 1 + 5 + 1 = 8。其餘 9 個案例維持綠燈 |
@@ -1216,7 +1234,7 @@ CI 結果：
 - 品牌自助註冊已改為審核制（N-28，2026-10-18）：新品牌為 `PENDING`，未核准不能登入，也不出現在公開列表。管理員審核的後台頁面已加入（`frontend/Admin/`，路徑 `/Admin/login.html`），資料仍只經 `/api/admin/**`；是否另加邀請碼仍待業務決定。
 - 品牌與分店停用（stage 6，2026-10-20，ADR-0012）的已知缺口：（a）（b）已於 2026-10-26（stage 17）修正：收藏清單不列出停用的分店，新增收藏與加入購物車在停用時回 400；（c）停用前已建立的揪團仍可由成員檢視，商品驗證、團員付款與補款會擋；（d）即時切斷只作用於收到停用事件的那台實例，其他實例上既有的 WebSocket 訂閱要等連線結束（見 `docs/DEPLOYMENT.md` 第 30 項）。
 - 停用的付款守衛與切斷的 `AFTER_COMMIT` 階段已於 2026-10-21 補上測試（`StoreSuspensionPaymentGuardTest`、`AccountSuspensionCutListenerTest`），還原驗證見「2026-10-21 補測試後還原驗證（Java，CI）」。交易的四種結局（提交前、提交後、回滾、提交失敗）已於 2026-11-02（stage 22）以真實交易的整合測試守住（`SessionCutAfterCommitIntegrationTest`）。
-- N+1 查詢：分店菜單的逐商品售罄查詢已改為一次查詢（`MenuService.getStoreMenu`），並由 `QueryCountGuardTest` 守住（2026-11-03，stage 23）。附近店家、搜尋、揪團詳情、訂單列表與收藏已於 2026-11-05（stage 27）納入守衛。未處理的逐列查詢：建單時的固定規格防竄改（`OrderService` 的 `createOrder` 與 `placeOrder`，寫入路徑，數量受品項數限制）。品牌口碑的低分分店評分分布已於 2026-11-06（stage 28）改為批次查詢並納入守衛。死碼 `UserCouponService.getGameWheelMenu`、`spin`、`getSpinStatus` 與 `AnalyticsService.toggleProductStock` 已於 2026-11-06（stage 29）移除。
+- N+1 查詢：分店菜單的逐商品售罄查詢已改為一次查詢（`MenuService.getStoreMenu`），並由 `QueryCountGuardTest` 守住（2026-11-03，stage 23）。附近店家、搜尋、揪團詳情、訂單列表與收藏已於 2026-11-05（stage 27）納入守衛。建單的固定規格查詢已於 2026-11-06（stage 30）改為批次（`findByIdProductIdIn`，由 `OrderSpecLookupGuardTest` 守住）。未處理的逐列查詢：建單的定價查詢（`PricingService` 的尺寸定價、配料規則與區域加價，`repriceItems` 與 `placeOrder` 的迴圈內）屬於金額路徑，仍逐品項查詢。品牌口碑的低分分店評分分布已於 2026-11-06（stage 28）改為批次查詢並納入守衛。死碼 `UserCouponService.getGameWheelMenu`、`spin`、`getSpinStatus` 與 `AnalyticsService.toggleProductStock` 已於 2026-11-06（stage 29）移除。
 - 依賴漏洞稽核已於 stage 13 改為報告模式（npm 與 Maven，N-29）；是否設定 repo secret `NVD_API_KEY` 仍待決定（選用，見 `docs/REVIEW_2026-10-13.md` 第三節）。CI action 版本已由成功的 CI 執行驗證（N-20，2026-10-16 關閉）。
 
 ---
