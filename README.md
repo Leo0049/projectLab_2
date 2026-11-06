@@ -370,16 +370,16 @@ node ui/run-all.js                 # 第三層：實際操作 UI 的流程驗證
 
 ### 程式與測試的最後一次 CI 驗證
 
-程式與測試最後一次變更是階段 28（PR #36，程式碼頭 `bb9f80e`，品牌口碑的低分分店評分分布改為單一批次查詢）。該程式碼頭上的完整 CI 執行是 [run 42131828830](https://github.com/Leo0049/projectLab_2/actions/runs/42131828830)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
+程式與測試最後一次變更是階段 29（PR #37，程式碼頭 `3fd443a`，移除沒有呼叫者的死碼）。該程式碼頭上的完整 CI 執行是 [run 42135823226](https://github.com/Leo0049/projectLab_2/actions/runs/42135823226)（`pull_request`），兩個 job 皆成功。之後只改文件的 commit，由 PR 頁面上的最新 run 驗證，該 run 的 ID 記在 PR 說明。
 
 | 項目 | 結果 |
 |------|------|
-| 執行 | run 42131828830（`pull_request`，commit `bb9f80e`）：「測試與端對端驗證」473 秒、「容器映像建置（僅建置）」80 秒，皆成功 |
+| 執行 | run 42135823226（`pull_request`，commit `3fd443a`）：「測試與端對端驗證」539 秒、「容器映像建置（僅建置）」66 秒，皆成功 |
 | 靜態檢查（第 0 層） | Secret 掃描（gitleaks）與 JS、HTML 內嵌 script 語法檢查：通過 |
-| `mvn test`（第 1 層） | 通過，61 秒。測試總計 **603 個測試、110 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
-| 打包與起服務 | 打包 6 秒；啟動後端 12 秒 |
-| API 端對端（第 2 層） | 通過，5 秒 |
-| UI 流程（第 3 層，斷網模式） | 通過，324 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
+| `mvn test`（第 1 層） | 通過，90 秒。測試總計 **603 個測試、110 個類別，失敗 0、錯誤 0、略過 0**（check-run annotation「測試總計」） |
+| 打包與起服務 | 打包 8 秒；啟動後端 17 秒 |
+| API 端對端（第 2 層） | 通過，6 秒 |
+| UI 流程（第 3 層，斷網模式） | 通過，337 秒：全頁面普掃（43 個 HTML 頁），加上點餐、轉盤、揪團、搜尋分頁四條主線與管理員審核 |
 | Docker 映像建置 | 通過（只建置，不推送） |
 
 讀這張表時注意兩點：
@@ -1116,6 +1116,8 @@ CI 結果：
 ### 2026-11-06 品牌口碑批次查詢還原驗證（CI）
 
 階段 28 實作於 `fix/stage28-brand-reputation-batch`（PR #36，程式碼頭 `bb9f80e`）。`BrandService.getBrandReputation` 的低分分店評分分布原本逐間呼叫 `countByRatingForStore`，查詢數為 1 + 低分分店數（上限 5）。本階段改由 `countRatingDistributionByStore` 一次查出（`OrderRatingRepository.countByRatingForStores`，依分店與星級分組），回傳的結構與順序不變。`QueryCountGuardTest` 新增 `brandReputationQueryCountDoesNotGrowWithStores`，共 10 個案例。未破壞的對照是同一個程式碼頭的 [run 42131828830](https://github.com/Leo0049/projectLab_2/actions/runs/42131828830)：`mvn test` 為 603 個測試、110 個類別，失敗 0、錯誤 0、略過 0。
+
+階段 29 實作於 `chore/stage29-remove-dead-code`（PR #37，程式碼頭 `3fd443a`）。移除沒有呼叫者的死碼：`UserCouponService` 的 `spin`、`getSpinStatus`、`getGameWheelMenu`，以及 `AnalyticsService.toggleProductStock`，連同只被它們使用的欄位與常數。沒有行為變更，也沒有新測試，因此不做還原驗證。CI 的 [run 42135823226](https://github.com/Leo0049/projectLab_2/actions/runs/42135823226)：`mvn test` 為 603 個測試、110 個類別，失敗 0、錯誤 0、略過 0。
 
 破壞的方式：把修改前的 `BrandService` 與 `OrderRatingRepository` 放回，保留新的守衛案例（scratch 分支 `main-verif-stage28-A`，commit `cb80248`）。
 
