@@ -521,23 +521,6 @@ public class AnalyticsService {
         groupOrderRepository.save(order);
     }
 
-    public Map<String, Object> toggleProductStock(Long storeId, Long productId) {
-        StoreProductStatusId id = new StoreProductStatusId();
-        id.setStoreId(storeId); id.setProductId(productId);
-        Optional<StoreProductStatus> opt = storeProductStatusRepository.findById(id);
-        StoreProductStatus sps;
-        if (opt.isPresent()) { sps = opt.get(); sps.setIsEnabled(!sps.getIsEnabled()); }
-        else {
-            sps = new StoreProductStatus(); sps.getId().setStoreId(storeId); sps.getId().setProductId(productId);
-            Store store = storeRepository.findById(storeId).orElseThrow(() -> new CustomException("404", "店家不存在"));
-            ProductTemplate pt = productTemplateRepository.findById(productId).orElseThrow(() -> new CustomException("404", "商品不存在"));
-            sps.setStore(store); sps.setProduct(pt); sps.setIsEnabled(false);
-        }
-        storeProductStatusRepository.save(sps);
-        Map<String, Object> m = new HashMap<>(); m.put("productId", productId); m.put("isEnabled", sps.getIsEnabled());
-        return m;
-    }
-
     @Transactional(readOnly = true)
     public Map<String, Object> getOrderDetail(Long orderId) {
         GroupOrder order = groupOrderRepository.findById(orderId).orElseThrow(() -> new CustomException("404", "訂單不存在"));

@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -18,74 +17,6 @@ public class UserCouponService {
 
     @Autowired
     private UserCouponRepository userCouponRepository;
-
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private BrandRepository brandRepository;
-
-    @Autowired
-    private MenuCategoryRepository menuCategoryRepository;
-
-    @Autowired
-    private ProductTemplateRepository productTemplateRepository;
-
-    private static final int MAX_SPIN_PER_DAY = 1;
-
-    @Transactional
-    public Map<String, Object> spin(Long userId, Long brandId) {
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = startOfDay.plusDays(1);
-        long todayCount = userCouponRepository.countByUserIdAndObtainedAtBetween(
-                userId, startOfDay, endOfDay);
-
-        if (todayCount >= MAX_SPIN_PER_DAY) {
-            throw new CustomException("429", "今日轉盤次數已用完（每天最多 " + MAX_SPIN_PER_DAY + " 次）");
-        }
-
-        // 根據品牌篩選飲品，若未指定則全平台隨機
-        List<ProductTemplate> products;
-        if (brandId != null) {
-            products = productTemplateRepository.findByBrandId(brandId).stream()
-                    .filter(p -> Boolean.TRUE.equals(p.getIsEnabled()))
-                    .toList();
-        } else {
-            products = productTemplateRepository.findAll().stream()
-                    .filter(p -> Boolean.TRUE.equals(p.getIsEnabled()) && p.getBrand() != null)
-                    .toList();
-        }
-
-        if (products.isEmpty()) {
-            throw new CustomException("404", "目前該品牌沒有可用的優惠券內容，請稍後再試");
-        }
-
-        ProductTemplate selected = products.get(new Random().nextInt(products.size()));
-        Brand brand = selected.getBrand();
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException("404", "找不到用戶"));
-
-        UserCoupon userCoupon = new UserCoupon();
-        userCoupon.setUser(user);
-        userCoupon.setBrand(brand);
-        userCoupon.setProduct(selected);
-        userCoupon.setCouponType("WHEEL_GAME");
-        userCoupon.setStatus("unused");
-        userCoupon.setObtainedAt(LocalDateTime.now());
-        userCouponRepository.save(userCoupon);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("userCouponId", userCoupon.getId());
-        result.put("brandName", brand.getName());
-        result.put("productName", selected.getName());
-        result.put("category", selected.getCategory() != null ? selected.getCategory().getName() : "指定飲品");
-        result.put("couponImageUrl", selected.getCouponImageUrl());
-        result.put("discountAmount", userCoupon.getDiscountAmount());
-        result.put("expiryDate", userCoupon.getExpiredAt());
-        result.put("remainSpins", MAX_SPIN_PER_DAY - todayCount - 1);
-        return result;
-    }
 
     @Transactional
     public List<Map<String, Object>> getMyCoupons(Long userId) {
@@ -137,42 +68,5 @@ public class UserCouponService {
         if (userCouponRepository.markUsedIfUnused(userCouponId, userId, LocalDateTime.now()) == 0) {
             throw new CustomException("400", "此優惠券已使用或已過期");
         }
-    }
-
-    public Map<String, Object> getSpinStatus(Long userId) {
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = startOfDay.plusDays(1);
-        long todayCount = userCouponRepository.countByUserIdAndObtainedAtBetween(
-                userId, startOfDay, endOfDay);
-        return Map.of(
-                "todayCount", todayCount,
-                "remainSpins", Math.max(0, MAX_SPIN_PER_DAY - todayCount),
-                "maxSpins", MAX_SPIN_PER_DAY
-        );
-    }
-
-    public Map<String, Object> getGameWheelMenu(Long brandId) {
-        Brand brand = brandRepository.findById(brandId)
-                .orElseThrow(() -> new CustomException("404", "找不到品牌"));
-        List<MenuCategory> categories = menuCategoryRepository.findByBrandId(brandId);
-        List<ProductTemplate> allProducts = productTemplateRepository.findByBrandId(brandId);
-
-        List<Map<String, Object>> wheelOptions = new ArrayList<>();
-        for (MenuCategory cat : categories) {
-            long count = allProducts.stream()
-                    .filter(p -> p.getCategory() != null && p.getCategory().getId().equals(cat.getId()))
-                    .count();
-            if (count == 0) continue;
-            Map<String, Object> opt = new HashMap<>();
-            opt.put("categoryId", cat.getId());
-            opt.put("categoryName", cat.getName());
-            opt.put("productCount", count);
-            wheelOptions.add(opt);
-        }
-        Map<String, Object> result = new HashMap<>();
-        result.put("brandId", brandId);
-        result.put("brandName", brand.getName());
-        result.put("wheelOptions", wheelOptions);
-        return result;
     }
 }

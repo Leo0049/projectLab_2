@@ -1214,7 +1214,7 @@ CI 結果：
 - 品牌自助註冊已改為審核制（N-28，2026-10-18）：新品牌為 `PENDING`，未核准不能登入，也不出現在公開列表。管理員審核的後台頁面已加入（`frontend/Admin/`，路徑 `/Admin/login.html`），資料仍只經 `/api/admin/**`；是否另加邀請碼仍待業務決定。
 - 品牌與分店停用（stage 6，2026-10-20，ADR-0012）的已知缺口：（a）（b）已於 2026-10-26（stage 17）修正：收藏清單不列出停用的分店，新增收藏與加入購物車在停用時回 400；（c）停用前已建立的揪團仍可由成員檢視，商品驗證、團員付款與補款會擋；（d）即時切斷只作用於收到停用事件的那台實例，其他實例上既有的 WebSocket 訂閱要等連線結束（見 `docs/DEPLOYMENT.md` 第 30 項）。
 - 停用的付款守衛與切斷的 `AFTER_COMMIT` 階段已於 2026-10-21 補上測試（`StoreSuspensionPaymentGuardTest`、`AccountSuspensionCutListenerTest`），還原驗證見「2026-10-21 補測試後還原驗證（Java，CI）」。交易的四種結局（提交前、提交後、回滾、提交失敗）已於 2026-11-02（stage 22）以真實交易的整合測試守住（`SessionCutAfterCommitIntegrationTest`）。
-- N+1 查詢：分店菜單的逐商品售罄查詢已改為一次查詢（`MenuService.getStoreMenu`），並由 `QueryCountGuardTest` 守住（2026-11-03，stage 23）。附近店家、搜尋、揪團詳情、訂單列表與收藏已於 2026-11-05（stage 27）納入守衛。未處理的逐列查詢：建單時的固定規格防竄改（`OrderService` 的 `createOrder` 與 `placeOrder`，寫入路徑，數量受品項數限制）。品牌口碑的低分分店評分分布已於 2026-11-06（stage 28）改為批次查詢並納入守衛。死碼 `UserCouponService.getGameWheelMenu`、`spin`、`getSpinStatus` 仍在程式中。
+- N+1 查詢：分店菜單的逐商品售罄查詢已改為一次查詢（`MenuService.getStoreMenu`），並由 `QueryCountGuardTest` 守住（2026-11-03，stage 23）。附近店家、搜尋、揪團詳情、訂單列表與收藏已於 2026-11-05（stage 27）納入守衛。未處理的逐列查詢：建單時的固定規格防竄改（`OrderService` 的 `createOrder` 與 `placeOrder`，寫入路徑，數量受品項數限制）。品牌口碑的低分分店評分分布已於 2026-11-06（stage 28）改為批次查詢並納入守衛。死碼 `UserCouponService.getGameWheelMenu`、`spin`、`getSpinStatus` 與 `AnalyticsService.toggleProductStock` 已於 2026-11-06（stage 29）移除。
 - 依賴漏洞稽核已於 stage 13 改為報告模式（npm 與 Maven，N-29）；是否設定 repo secret `NVD_API_KEY` 仍待決定（選用，見 `docs/REVIEW_2026-10-13.md` 第三節）。CI action 版本已由成功的 CI 執行驗證（N-20，2026-10-16 關閉）。
 
 ---
