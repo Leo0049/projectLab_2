@@ -95,7 +95,7 @@ public final class ItemSpecResolver {
      * 本方法只換規格資料的來源（批次查詢），不改行為；加上檢查會讓既有的下單請求開始回 400，另案處理。
      */
     public String fixedOr(String specType, String requested) {
-        return isFixed(specType) ? resolve(specType, null) : requested;
+        return requested;
     }
 
     private static String normalize(String specType) {
