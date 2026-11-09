@@ -2,20 +2,29 @@ package com.example.demo.service;
 
 import com.example.demo.entity.BrandRegionCategoryPricing;
 import com.example.demo.entity.BrandToppingSetting;
-import com.example.demo.entity.ProductTemplate;
 import com.example.demo.entity.ProductSpecRelation;
+import com.example.demo.entity.ProductTemplate;
 import com.example.demo.entity.ProductToppingRule;
 import com.example.demo.entity.Store;
+import com.example.demo.exception.CustomException;
 import com.example.demo.repository.BrandRegionCategoryPricingRepository;
 import com.example.demo.repository.BrandToppingSettingRepository;
 import com.example.demo.repository.ProductSpecRelationRepository;
 import com.example.demo.repository.ProductToppingRuleRepository;
-import com.example.demo.exception.CustomException;
+import com.example.demo.service.order.PricingRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 品項售價的唯一計算來源：{@code basePrice + 區域加價 + 配料加價}。
@@ -27,6 +36,13 @@ import java.util.List;
  *
  * <p>任何會產生金額的路徑都必須經過這裡。**不要在 Service 內再寫一份**：
  * 少算區域加價會讓同品牌不同地區的定價失效，少算配料加價則是直接漏收錢。
+ *
+ * <p>兩種用法（stage 31 起）：
+ * <ul>
+ *   <li>逐品項：購物車與揪團使用的方法，每次呼叫查詢該商品的規格與配料，查詢次數與品項數成正比。</li>
+ *   <li>整張訂單：建單使用 {@link #forOrder}，整張單的容量列、配料規則與區域加價各查一次，之後逐品項計算不再查資料庫。</li>
+ * </ul>
+ * 兩種用法的判斷都在 {@link PricingRules}，{@code OrderPricingTest} 比對兩者結果相同。
  */
 @Service
 @RequiredArgsConstructor
@@ -51,9 +67,7 @@ public class PricingService {
 
     /** 配料加價總和。名稱比對品牌的自訂名稱，價格優先取品牌價、沒有才用總表預設價 */
     public BigDecimal toppingExtra(Long brandId, List<String> names) {
-        return resolveToppings(brandId, names).stream()
-                .map(ToppingPrice::price)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return toppingSum(resolveToppings(brandId, names));
     }
 
     /** Resolve client-visible topping names to enabled brand settings and server prices. */
@@ -62,18 +76,14 @@ public class PricingService {
         if (brandId == null) throw new CustomException("400", "商品沒有有效的品牌配料設定");
 
         List<BrandToppingSetting> settings = brandToppingSettingRepository.findByBrandIdAndIsEnabledTrue(brandId);
-        List<ToppingPrice> resolved = new java.util.ArrayList<>();
+        List<ToppingPrice> resolved = new ArrayList<>();
         for (String requestedName : names) {
             String name = requestedName == null ? "" : requestedName.trim();
             BrandToppingSetting match = settings.stream()
-                    .filter(setting -> name.equals(toppingName(setting)))
+                    .filter(setting -> name.equals(PricingRules.toppingName(setting)))
                     .findFirst()
                     .orElseThrow(() -> new CustomException("400", "包含此品牌未供應的配料"));
-            BigDecimal price = match.getBrandPrice();
-            if (price == null && match.getMasterTopping() != null) {
-                price = match.getMasterTopping().getDefaultPrice();
-            }
-            resolved.add(new ToppingPrice(toppingName(match), price != null ? price : BigDecimal.ZERO));
+            resolved.add(toToppingPrice(match));
         }
         return List.copyOf(resolved);
     }
@@ -82,37 +92,19 @@ public class PricingService {
     public List<ToppingPrice> resolveToppings(ProductTemplate product, List<String> names) {
         if (names == null || names.isEmpty()) return List.of();
         List<BrandToppingSetting> allowed = productToppings(product);
-        validateToppingCount(product, names.size());
-
-        List<ToppingPrice> resolved = new java.util.ArrayList<>();
-        java.util.Set<Long> selectedIds = new java.util.HashSet<>();
-        java.util.Set<String> selectedNames = new java.util.HashSet<>();
-        for (String requestedName : names) {
-            String name = requestedName == null ? "" : requestedName.trim();
-            BrandToppingSetting match = allowed.stream()
-                    .filter(setting -> name.equals(toppingName(setting)))
-                    .findFirst()
-                    .orElseThrow(() -> new CustomException("400", "此商品未供應所選配料"));
-            if (match.getId() == null || !selectedIds.add(match.getId())) {
-                throw new CustomException("400", "配料不可重複選擇");
-            }
-            if (!selectedNames.add(toppingName(match))) {
-                throw new CustomException("400", "配料不可重複選擇");
-            }
-            resolved.add(toToppingPrice(match));
-        }
-        return List.copyOf(resolved);
+        PricingRules.checkToppingCount(product.getMaxToppings(), names.size());
+        return toToppingPrices(PricingRules.pickToppings(allowed, names));
     }
 
     /** Resolve numeric topping IDs against this product's rules; accepts setting or master IDs. */
     public List<ToppingPrice> resolveToppingsByIds(ProductTemplate product, List<? extends Number> toppingIds) {
         if (toppingIds == null || toppingIds.isEmpty()) return List.of();
         List<BrandToppingSetting> allowed = productToppings(product);
-        validateToppingCount(product, toppingIds.size());
+        PricingRules.checkToppingCount(product.getMaxToppings(), toppingIds.size());
 
-        List<ToppingPrice> resolved = new java.util.ArrayList<>();
-        java.util.Set<Long> selectedIds = new java.util.HashSet<>();
-        java.util.Set<String> selectedNames = new java.util.HashSet<>();
+        List<ToppingPrice> resolved = new ArrayList<>();
+        Set<Long> selectedIds = new HashSet<>();
+        Set<String> selectedNames = new HashSet<>();
         for (Number rawId : toppingIds) {
             long requestedId;
             try {
@@ -132,48 +124,12 @@ public class PricingService {
             if (!selectedIds.add(match.getId())) {
                 throw new CustomException("400", "配料不可重複選擇");
             }
-            if (!selectedNames.add(toppingName(match))) {
+            if (!selectedNames.add(PricingRules.toppingName(match))) {
                 throw new CustomException("400", "配料不可重複選擇");
             }
             resolved.add(toToppingPrice(match));
         }
         return List.copyOf(resolved);
-    }
-
-    private List<BrandToppingSetting> productToppings(ProductTemplate product) {
-        if (product == null || product.getId() == null || product.getBrand() == null
-                || product.getBrand().getId() == null) {
-            throw new CustomException("400", "商品沒有有效的品牌配料設定");
-        }
-        List<ProductToppingRule> rules = productToppingRuleRepository.findByIdProductId(product.getId());
-        if (rules == null) return List.of();
-        return rules.stream()
-                .map(ProductToppingRule::getBrandTopping)
-                .filter(setting -> setting != null && setting.getId() != null
-                        && Boolean.TRUE.equals(setting.getIsEnabled()))
-                .filter(setting -> setting.getBrand() != null
-                        && product.getBrand().getId().equals(setting.getBrand().getId()))
-                .toList();
-    }
-
-    private void validateToppingCount(ProductTemplate product, int count) {
-        int max = product.getMaxToppings() != null ? product.getMaxToppings() : 3;
-        if (max < 0 || count > max) {
-            throw new CustomException("400", "該商品最多只能選擇 " + Math.max(0, max) + " 種配料");
-        }
-    }
-
-    private String toppingName(BrandToppingSetting setting) {
-        if (setting.getCustomName() != null) return setting.getCustomName();
-        return setting.getMasterTopping() != null ? setting.getMasterTopping().getName() : null;
-    }
-
-    private ToppingPrice toToppingPrice(BrandToppingSetting setting) {
-        BigDecimal price = setting.getBrandPrice();
-        if (price == null && setting.getMasterTopping() != null) {
-            price = setting.getMasterTopping().getDefaultPrice();
-        }
-        return new ToppingPrice(toppingName(setting), price != null ? price : BigDecimal.ZERO);
     }
 
     /** 不含配料的單價：底價 + 區域加價 */
@@ -193,42 +149,6 @@ public class PricingService {
         return resolveSize(product, requestedSize).name();
     }
 
-    private SizePrice resolveSize(ProductTemplate product, String requestedSize) {
-        BigDecimal base = product != null && product.getBasePrice() != null ? product.getBasePrice() : BigDecimal.ZERO;
-        if (product == null || product.getId() == null) return new SizePrice(requestedSize, base);
-
-        List<ProductSpecRelation> sizePrices = productSpecRelationRepository
-                .findSizePricingsByProductId(product.getId()).stream()
-                .filter(relation -> "SIZE".equalsIgnoreCase(specType(relation)))
-                .toList();
-        if (sizePrices.isEmpty()) return new SizePrice(requestedSize, base);
-
-        ProductSpecRelation selected;
-        if (sizePrices.size() == 1 || requestedSize == null || requestedSize.isBlank()) {
-            selected = sizePrices.stream()
-                    .min(java.util.Comparator.comparing(relation ->
-                            relation.getPrice() != null ? relation.getPrice() : base))
-                    .orElseThrow();
-        } else {
-            selected = sizePrices.stream()
-                    .filter(relation -> sizeName(relation).equals(requestedSize.trim()))
-                    .findFirst()
-                    .orElseThrow(() -> new CustomException("400", "所選容量不適用於此商品"));
-        }
-        return new SizePrice(sizeName(selected), selected.getPrice() != null ? selected.getPrice() : base);
-    }
-
-    private String specType(ProductSpecRelation relation) {
-        if (relation.getBrandSpec().getSpecType() != null) return relation.getBrandSpec().getSpecType();
-        return relation.getBrandSpec().getMaster() != null ? relation.getBrandSpec().getMaster().getType() : "";
-    }
-
-    private String sizeName(ProductSpecRelation relation) {
-        if (relation.getBrandSpec().getCustomName() != null) return relation.getBrandSpec().getCustomName();
-        if (relation.getBrandSpec().getMaster() != null) return relation.getBrandSpec().getMaster().getName();
-        return "";
-    }
-
     /** 一杯的成交價：單價 + 配料加價 */
     public BigDecimal itemPrice(Store store, ProductTemplate product, List<String> toppingNames) {
         return unitPrice(store, product).add(toppingExtra(product, toppingNames));
@@ -240,12 +160,141 @@ public class PricingService {
     }
 
     public BigDecimal toppingExtra(ProductTemplate product, List<String> names) {
-        return resolveToppings(product, names).stream()
-                .map(ToppingPrice::price)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return toppingSum(resolveToppings(product, names));
+    }
+
+    /**
+     * 為一張訂單撈回定價資料（建單用）。
+     *
+     * <p>容量列與配料規則各以一次 IN 查詢撈回整張單的商品，區域加價以一次查詢撈回本店所在地區的全部分類。
+     * 查詢次數最多三次，與品項數無關；沒有商品或分店沒有地區時，不發出對應的查詢。
+     */
+    public OrderPricing forOrder(Store store, Collection<ProductTemplate> products) {
+        List<Long> productIds = products.stream()
+                .filter(Objects::nonNull)
+                .map(ProductTemplate::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<Long, List<ProductSpecRelation>> sizes = new HashMap<>();
+        Map<Long, List<ProductToppingRule>> rules = new HashMap<>();
+        if (!productIds.isEmpty()) {
+            sizes.putAll(productSpecRelationRepository.findSizePricingsByProductIdIn(productIds).stream()
+                    .collect(Collectors.groupingBy(relation -> relation.getId().getProductId())));
+            rules.putAll(productToppingRuleRepository.findByIdProductIdIn(productIds).stream()
+                    .collect(Collectors.groupingBy(rule -> rule.getId().getProductId())));
+        }
+
+        Map<Long, BigDecimal> offsets = new HashMap<>();
+        if (store != null && store.getBrand() != null && store.getRegion() != null) {
+            for (BrandRegionCategoryPricing row : brandRegionCategoryPricingRepository
+                    .findByBrandIdAndRegionId(store.getBrand().getId(), store.getRegion().getId())) {
+                if (row.getCategory() != null && row.getPriceOffset() != null) {
+                    offsets.put(row.getCategory().getId(), row.getPriceOffset());
+                }
+            }
+        }
+        return new OrderPricing(offsets, sizes, rules);
+    }
+
+    /**
+     * 配料加價的累加。逐品項與整張訂單共用這一個寫法，金額的小數位也由它決定。
+     */
+    static BigDecimal toppingSum(List<ToppingPrice> toppings) {
+        return toppings.stream().map(ToppingPrice::price).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /** 逐品項：查詢該商品的容量列後交給 {@link PricingRules} 選擇（整張訂單的版本見 {@link OrderPricing}） */
+    private PricingRules.SizeChoice resolveSize(ProductTemplate product, String requestedSize) {
+        BigDecimal base = product != null && product.getBasePrice() != null ? product.getBasePrice() : BigDecimal.ZERO;
+        if (product == null || product.getId() == null) return new PricingRules.SizeChoice(requestedSize, base);
+        return PricingRules.chooseSize(base,
+                productSpecRelationRepository.findSizePricingsByProductId(product.getId()), requestedSize);
+    }
+
+    /** 逐品項：查詢該商品允許的配料（守衛在查詢之前） */
+    private List<BrandToppingSetting> productToppings(ProductTemplate product) {
+        Long brandId = productBrandId(product);
+        List<ProductToppingRule> rules = productToppingRuleRepository.findByIdProductId(product.getId());
+        return PricingRules.allowedToppings(rules, brandId);
+    }
+
+    /** 商品所屬品牌的 id；商品或品牌資料不完整時拒絕 */
+    private static Long productBrandId(ProductTemplate product) {
+        if (product == null || product.getId() == null || product.getBrand() == null
+                || product.getBrand().getId() == null) {
+            throw new CustomException("400", "商品沒有有效的品牌配料設定");
+        }
+        return product.getBrand().getId();
+    }
+
+    private static List<ToppingPrice> toToppingPrices(List<BrandToppingSetting> settings) {
+        return settings.stream().map(PricingService::toToppingPrice).toList();
+    }
+
+    private static ToppingPrice toToppingPrice(BrandToppingSetting setting) {
+        return new ToppingPrice(PricingRules.toppingName(setting), PricingRules.toppingPrice(setting));
     }
 
     public record ToppingPrice(String name, BigDecimal price) { }
 
-    private record SizePrice(String name, BigDecimal price) { }
+    /**
+     * 一張訂單的定價資料（stage 31）。
+     *
+     * <p>由 {@link PricingService#forOrder} 一次撈回整張單的容量列、配料規則與本店地區加價，之後逐品項計算不再查資料庫。
+     * 計算判斷與逐品項的方法共用 {@link PricingRules}，組合與累加共用 {@link PricingService#toppingSum}，
+     * 兩條路徑對同一份資料必須得到相同結果（{@code OrderPricingTest} 逐項比對）。
+     */
+    public static final class OrderPricing {
+
+        private final Map<Long, BigDecimal> offsetByCategory;
+        private final Map<Long, List<ProductSpecRelation>> sizesByProduct;
+        private final Map<Long, List<ProductToppingRule>> rulesByProduct;
+
+        private OrderPricing(Map<Long, BigDecimal> offsetByCategory,
+                Map<Long, List<ProductSpecRelation>> sizesByProduct,
+                Map<Long, List<ProductToppingRule>> rulesByProduct) {
+            this.offsetByCategory = offsetByCategory;
+            this.sizesByProduct = sizesByProduct;
+            this.rulesByProduct = rulesByProduct;
+        }
+
+        /** 同 {@link PricingService#resolveSizeName} */
+        public String resolveSizeName(ProductTemplate product, String requestedSize) {
+            return chooseSize(product, requestedSize).name();
+        }
+
+        /** 同 {@link PricingService#unitPrice(Store, ProductTemplate, String)}：容量單價 + 區域加價 */
+        public BigDecimal unitPrice(ProductTemplate product, String size) {
+            return chooseSize(product, size).price().add(regionOffset(product));
+        }
+
+        /** 同 {@link PricingService#resolveToppings(ProductTemplate, List)} */
+        public List<ToppingPrice> resolveToppings(ProductTemplate product, List<String> names) {
+            if (names == null || names.isEmpty()) return List.of();
+            Long brandId = productBrandId(product);
+            List<BrandToppingSetting> allowed = PricingRules.allowedToppings(
+                    rulesByProduct.getOrDefault(product.getId(), List.of()), brandId);
+            PricingRules.checkToppingCount(product.getMaxToppings(), names.size());
+            return toToppingPrices(PricingRules.pickToppings(allowed, names));
+        }
+
+        /** 同 {@link PricingService#itemPrice(Store, ProductTemplate, String, List)} */
+        public BigDecimal itemPrice(ProductTemplate product, String size, List<String> toppingNames) {
+            return unitPrice(product, size).add(toppingSum(resolveToppings(product, toppingNames)));
+        }
+
+        private PricingRules.SizeChoice chooseSize(ProductTemplate product, String requestedSize) {
+            if (product == null) return new PricingRules.SizeChoice(requestedSize, BigDecimal.ZERO);
+            BigDecimal base = product.getBasePrice() != null ? product.getBasePrice() : BigDecimal.ZERO;
+            return PricingRules.chooseSize(base,
+                    sizesByProduct.getOrDefault(product.getId(), List.of()), requestedSize);
+        }
+
+        private BigDecimal regionOffset(ProductTemplate product) {
+            if (product == null || product.getCategory() == null) return BigDecimal.ZERO;
+            return offsetByCategory.getOrDefault(product.getCategory().getId(), BigDecimal.ZERO);
+        }
+    }
 }

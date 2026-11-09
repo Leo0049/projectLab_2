@@ -384,6 +384,9 @@ public class OrderService {
         Map<Long, ProductTemplate> productMap = productTemplateRepository.findAllById(productIds).stream()
                 .collect(Collectors.toMap(ProductTemplate::getId, p -> p));
 
+        // 定價資料一次撈回（容量列、配料規則、本店地區加價）；下方逐品項計算不再查資料庫
+        PricingService.OrderPricing pricing = pricingService.forOrder(store, productMap.values());
+
         BigDecimal total = BigDecimal.ZERO;
         for (OrderItem item : items) {
             Long productId = item.getProduct() != null ? item.getProduct().getId() : null;
@@ -399,8 +402,8 @@ public class OrderService {
                             .toList();
 
             int qty = QuantityLimits.validate(item.getQty());
-            String size = pricingService.resolveSizeName(product, item.getSizeSnapshot());
-            BigDecimal unitPrice = pricingService.itemPrice(store, product, size, toppingNames);
+            String size = pricing.resolveSizeName(product, item.getSizeSnapshot());
+            BigDecimal unitPrice = pricing.itemPrice(product, size, toppingNames);
 
             item.setProduct(product);
             item.setProductNameSnapshot(product.getName());
@@ -484,6 +487,8 @@ public class OrderService {
         Set<Long> unavailableProductIds = getUnavailableProductIds(store.getId());
         // 固定規格用的規格關聯一次撈回（不在下方逐品項查詢）
         Map<Long, ItemSpecResolver> specsByProduct = loadSpecsByProduct(productMap.keySet());
+        // 定價資料同樣一次撈回，迴圈內不再逐品項查詢
+        PricingService.OrderPricing pricing = pricingService.forOrder(store, productMap.values());
 
         for (OrderItemRequest itemReq : req.getItems()) {
             ProductTemplate product = productMap.get(itemReq.getProductId());
@@ -492,13 +497,12 @@ public class OrderService {
             }
             validateProductForStore(store, product, unavailableProductIds);
 
-            String size = pricingService.resolveSizeName(product, itemReq.getSizeSnapshot());
+            String size = pricing.resolveSizeName(product, itemReq.getSizeSnapshot());
             List<String> toppingNames = itemReq.getToppingNames() != null ? itemReq.getToppingNames() : List.of();
-            List<PricingService.ToppingPrice> resolvedToppings = pricingService.resolveToppings(product,
+            List<PricingService.ToppingPrice> resolvedToppings = pricing.resolveToppings(product,
                     toppingNames);
-            BigDecimal unitPrice = pricingService.unitPrice(store, product, size);
-            BigDecimal toppingExtra = resolvedToppings.stream().map(PricingService.ToppingPrice::price)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal unitPrice = pricing.unitPrice(product, size);
+            BigDecimal toppingExtra = PricingService.toppingSum(resolvedToppings);
             BigDecimal finalPrice = unitPrice.add(toppingExtra);
 
             OrderItem item = new OrderItem();
@@ -509,7 +513,7 @@ public class OrderService {
             item.setSizeSnapshot(size);
             item.setUnitPriceSnapshot(finalPrice);
             // --- 固定規格防竄改 (Fixed Specification Anti-Tamper) ---
-            // 規格關聯已在迴圈外一次撈回（見 specsByProduct）。這裡刻意不處理 SIZE，與改寫前相同；杯型由 pricingService.resolveSizeName 決定。
+            // 規格關聯已在迴圈外一次撈回（見 specsByProduct）。這裡刻意不處理 SIZE，與改寫前相同；杯型由 pricing.resolveSizeName 決定。
             ItemSpecResolver specs = specsByProduct.getOrDefault(product.getId(), NO_SPECS);
             item.setSugarSnapshot(specs.fixedOr(ItemSpecResolver.SWEETNESS, itemReq.getSugarSnapshot()));
             item.setIceSnapshot(specs.fixedOr(ItemSpecResolver.ICE, itemReq.getIceSnapshot()));

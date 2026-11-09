@@ -13,6 +13,13 @@ import java.util.List;
 public interface ProductToppingRuleRepository extends JpaRepository<ProductToppingRule, ProductToppingRuleId> {
     @Query("SELECT r FROM ProductToppingRule r JOIN FETCH r.brandTopping bt LEFT JOIN FETCH bt.masterTopping WHERE r.id.productId = :productId")
     List<ProductToppingRule> findByIdProductId(@Param("productId") Long productId);
+
+    /**
+     * 同 {@link #findByIdProductId}，一次撈整張訂單的商品（建單定價用）。
+     * 品牌自訂配料的 master 為 null，必須 LEFT JOIN FETCH，改用 JOIN FETCH 會把這些配料丟掉。
+     */
+    @Query("SELECT r FROM ProductToppingRule r JOIN FETCH r.brandTopping bt LEFT JOIN FETCH bt.masterTopping WHERE r.id.productId IN :productIds")
+    List<ProductToppingRule> findByIdProductIdIn(@Param("productIds") List<Long> productIds);
     void deleteByIdBrandToppingId(Long brandToppingId);
 
     @Modifying

@@ -48,6 +48,13 @@ public interface ProductSpecRelationRepository extends JpaRepository<ProductSpec
     @Query("SELECT r FROM ProductSpecRelation r JOIN FETCH r.brandSpec bs LEFT JOIN FETCH bs.master WHERE r.id.productId = :productId AND r.price IS NOT NULL")
     List<ProductSpecRelation> findSizePricingsByProductId(@Param("productId") Long productId);
 
+    /**
+     * 同 {@link #findSizePricingsByProductId}，一次撈整張訂單的商品（建單定價用，見 PricingService.forOrder）。
+     * fetch 與價格條件必須與單一商品的版本相同，兩者才會得到相同的容量。
+     */
+    @Query("SELECT r FROM ProductSpecRelation r JOIN FETCH r.brandSpec bs LEFT JOIN FETCH bs.master WHERE r.id.productId IN :productIds AND r.price IS NOT NULL")
+    List<ProductSpecRelation> findSizePricingsByProductIdIn(@Param("productIds") List<Long> productIds);
+
     /** 撈某品牌所有飲品的 SIZE 規格定價，避免 N+1 */
     @Query("SELECT r FROM ProductSpecRelation r JOIN FETCH r.brandSpec bs LEFT JOIN FETCH bs.master WHERE r.product.brand.id = :brandId AND r.price IS NOT NULL")
     List<ProductSpecRelation> findSizePricingsByBrandId(@Param("brandId") Long brandId);
