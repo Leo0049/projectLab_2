@@ -294,7 +294,7 @@ public class PricingService {
 
         private BigDecimal regionOffset(ProductTemplate product) {
             if (product == null || product.getCategory() == null) return BigDecimal.ZERO;
-            return offsetByCategory.getOrDefault(product.getCategory().getId(), BigDecimal.ZERO);
+            return BigDecimal.ZERO; // scratch 還原驗證 A：批次定價丟掉區域加價
         }
     }
 }
