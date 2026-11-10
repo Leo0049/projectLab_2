@@ -402,8 +402,8 @@ public class OrderService {
                             .toList();
 
             int qty = QuantityLimits.validate(item.getQty());
-            String size = pricing.resolveSizeName(product, item.getSizeSnapshot());
-            BigDecimal unitPrice = pricing.itemPrice(product, size, toppingNames);
+            String size = pricingService.resolveSizeName(product, item.getSizeSnapshot());
+            BigDecimal unitPrice = pricingService.itemPrice(store, product, size, toppingNames);
 
             item.setProduct(product);
             item.setProductNameSnapshot(product.getName());
@@ -497,11 +497,11 @@ public class OrderService {
             }
             validateProductForStore(store, product, unavailableProductIds);
 
-            String size = pricing.resolveSizeName(product, itemReq.getSizeSnapshot());
+            String size = pricingService.resolveSizeName(product, itemReq.getSizeSnapshot());
             List<String> toppingNames = itemReq.getToppingNames() != null ? itemReq.getToppingNames() : List.of();
-            List<PricingService.ToppingPrice> resolvedToppings = pricing.resolveToppings(product,
+            List<PricingService.ToppingPrice> resolvedToppings = pricingService.resolveToppings(product,
                     toppingNames);
-            BigDecimal unitPrice = pricing.unitPrice(product, size);
+            BigDecimal unitPrice = pricingService.unitPrice(store, product, size);
             BigDecimal toppingExtra = PricingService.toppingSum(resolvedToppings);
             BigDecimal finalPrice = unitPrice.add(toppingExtra);
 
